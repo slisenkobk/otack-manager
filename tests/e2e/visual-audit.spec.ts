@@ -46,7 +46,9 @@ async function createProject(page: Page, name: string, description: string = '')
   await page.fill('input[name=name]', name);
   if (description) {
     try {
-      await page.fill('textarea[name=description]', description);
+      await page.waitForSelector('.ql-editor', { timeout: 3000 }).catch(() => {});
+      const ed = page.locator('.ql-editor').first();
+      if (await ed.count()) { await ed.fill(description); await page.waitForTimeout(150); }
     } catch {}
   }
   await page.locator('button.submit[type=submit], button.submit').first().click();

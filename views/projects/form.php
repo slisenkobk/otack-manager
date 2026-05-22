@@ -13,13 +13,19 @@
   </div>
   <div class="field" style="margin-top:14px;">
     <label>Description (optional)</label>
-    <?php if ($isEdit): ?>
-      <textarea class="textarea" name="description" rows="5"><?= e($project['description'] ?? '') ?></textarea>
-    <?php else: ?>
-      <textarea class="textarea" name="description" rows="5" placeholder="What is this project about?"></textarea>
-    <?php endif; ?>
+    <div class="wysiwyg-host">
+      <div class="wysiwyg-editor"
+           data-quill
+           data-quill-target="#project-description-hidden"
+           data-placeholder="What is this project about?"><?= $isEdit ? ($project['description'] ?? '') : '' ?></div>
+    </div>
+    <input type="hidden" name="description" id="project-description-hidden"
+           value="<?= $isEdit ? e($project['description'] ?? '') : '' ?>">
+    <textarea class="textarea wysiwyg-fallback" name="description_fallback" hidden rows="5"
+              aria-hidden="true" tabindex="-1"></textarea>
   </div>
   <button class="submit" type="submit" style="margin-top:18px;">
     <?= $isEdit ? 'Save changes &#8594;' : 'Create project &#8594;' ?>
   </button>
 </form>
+<script type="module" src="/assets/js/wysiwyg.js"></script>

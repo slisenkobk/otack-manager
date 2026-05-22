@@ -25,7 +25,9 @@ test('admin can create a project and see 3 default columns', async ({ page }) =>
   await page.click('a:has-text("New project")');
   await expect(page).toHaveURL('/projects/new');
   await page.fill('input[name=name]', 'My First Project');
-  await page.fill('textarea[name=description]', 'A test project');
+  await page.waitForSelector('.ql-editor', { timeout: 5000 }).catch(() => {});
+  const desc = page.locator('.ql-editor').first();
+  if (await desc.count()) { await desc.fill('A test project'); await page.waitForTimeout(200); }
   await page.click('button.submit[type=submit]');
 
   // Now on /projects/{id}

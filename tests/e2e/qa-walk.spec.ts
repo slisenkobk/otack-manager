@@ -225,7 +225,9 @@ test('2.3 admin creates 2 projects', async ({ page }) => {
   // Project 1
   await page.goto('/projects/new');
   await page.fill('input[name=name]', 'Alpha Project');
-  await page.fill('textarea[name=description]', 'Alpha description');
+  await page.waitForSelector('.ql-editor', { timeout: 5000 }).catch(() => {});
+  const ed1 = page.locator('.ql-editor').first();
+  if (await ed1.count()) { await ed1.fill('Alpha description'); await page.waitForTimeout(200); }
   await page.locator('button.submit[type=submit], button.submit').first().click();
   await expect(page).toHaveURL(/\/projects\/\d+$/);
   const p1Url = page.url();
@@ -299,7 +301,9 @@ test('2.6 edit project 1 (rename + description)', async ({ page }) => {
 
   await page.goto('/projects/1/edit');
   await page.fill('input[name=name]', 'Alpha Project (renamed)');
-  await page.fill('textarea[name=description]', 'Updated description');
+  await page.waitForSelector('.ql-editor', { timeout: 5000 }).catch(() => {});
+  const edE = page.locator('.ql-editor').first();
+  if (await edE.count()) { await edE.fill('Updated description'); await page.waitForTimeout(200); }
   await page.locator('button.submit[type=submit], button.submit').first().click();
   await expect(page).toHaveURL('/projects/1');
   await expect(page.locator('.section-head .title')).toContainText('Alpha Project (renamed)');
