@@ -113,6 +113,7 @@ App::singleton('session', function () use (&$store) {
 
 $router = new Router();
 $router->get('/', 'Dashboard@index');
+$router->get('/api/activity', 'Dashboard@moreActivity');
 
 if (App::env('APP_DEBUG') === 'true') {
     $router->get('/ui-sandbox', 'Smoke@uiSandbox');
@@ -163,6 +164,10 @@ $router->post('/api/projects/{id}/tags', 'Tag@attachToProject');
 $router->post('/api/projects/{id}/tags/{tagId}/delete', 'Tag@detachFromProject');
 $router->post('/api/tasks/{id}/tags', 'Tag@attachToTask');
 $router->post('/api/tasks/{id}/tags/{tagId}/delete', 'Tag@detachFromTask');
+
+$router->get('/admin/tags', 'TagAdmin@index');
+$router->post('/api/admin/tags/{id}', 'TagAdmin@update');
+$router->post('/api/admin/tags/{id}/delete', 'TagAdmin@delete');
 
 $router->post('/api/columns', 'Column@create');
 $router->post('/api/columns/{id}', 'Column@update');

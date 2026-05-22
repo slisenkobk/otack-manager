@@ -7,6 +7,33 @@ use App\Http\Request;
 use App\Http\Response;
 
 final class DashboardController extends BaseController {
+    public function moreActivity(Request $req, array $params = []): void {
+        $isAdmin = $this->user['role'] === 'admin';
+        $userId  = (int)$this->user['id'];
+        $offset  = max(0, (int)($req->query['offset'] ?? 0));
+        $limit   = 10;
+        $comments = App::make('comments');
+        $batch = $comments->recentForUser($userId, $isAdmin, $limit + 1, $offset);
+        $hasMore = count($batch) > $limit;
+        if ($hasMore) array_pop($batch);
+
+        $items = [];
+        foreach ($batch as $c) {
+            $entityUrl = $c['entity_type'] === 'project'
+                ? '/projects/' . (int)$c['entity_id']
+                : '/tasks/' . (int)$c['entity_id'];
+            $items[] = [
+                'created_at'   => $c['created_at'],
+                'author_name'  => $c['author_name'],
+                'entity_type'  => $c['entity_type'],
+                'entity_id'    => (int)$c['entity_id'],
+                'entity_url'   => $entityUrl,
+                'body_snippet' => mb_strimwidth(strip_tags((string)$c['body']), 0, 80, '…'),
+            ];
+        }
+        Response::json(['items' => $items, 'has_more' => $hasMore]);
+    }
+
     public function index(Request $req, array $params = []): void {
         $isAdmin = $this->user['role'] === 'admin';
         $userId  = (int)$this->user['id'];

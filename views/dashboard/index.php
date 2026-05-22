@@ -81,7 +81,7 @@
   <?php if (!$recentComments): ?>
     <p class="muted" style="color:var(--ink-3);font-size:14px;">No activity yet.</p>
   <?php else: ?>
-    <div style="display:flex;flex-direction:column;gap:8px;">
+    <div id="activity-list" style="display:flex;flex-direction:column;gap:8px;">
       <?php foreach ($recentComments as $c):
         $entityUrl = $c['entity_type'] === 'project'
           ? '/projects/' . (int)$c['entity_id']
@@ -98,5 +98,12 @@
         </a>
       <?php endforeach; ?>
     </div>
+    <?php if (count($recentComments) >= 10): ?>
+      <div style="margin-top:12px;text-align:center;">
+        <button class="btn-secondary load-more-activity" type="button" data-offset="10">Load more</button>
+      </div>
+    <?php endif; ?>
   <?php endif; ?>
 </section>
+
+<script type="module" src="/assets/js/dashboard.js"></script>

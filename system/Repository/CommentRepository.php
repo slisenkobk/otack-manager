@@ -46,15 +46,15 @@ final class CommentRepository
         $this->pdo->prepare('DELETE FROM comments WHERE id = ?')->execute([$id]);
     }
 
-    public function recentForUser(int $userId, bool $isAdmin, int $limit = 10): array
+    public function recentForUser(int $userId, bool $isAdmin, int $limit = 10, int $offset = 0): array
     {
         if ($isAdmin) {
             $stmt = $this->pdo->prepare(
                 'SELECT c.*, u.name AS author_name FROM comments c
                  INNER JOIN users u ON u.id = c.user_id
-                 ORDER BY c.created_at DESC LIMIT ?'
+                 ORDER BY c.created_at DESC LIMIT ? OFFSET ?'
             );
-            $stmt->execute([$limit]);
+            $stmt->execute([$limit, $offset]);
         } else {
             $stmt = $this->pdo->prepare(
                 "SELECT c.*, u.name AS author_name FROM comments c
@@ -69,9 +69,9 @@ final class CommentRepository
                       INNER JOIN project_members pm ON pm.project_id = t.project_id
                       WHERE pm.user_id = ?
                    ))
-                 ORDER BY c.created_at DESC LIMIT ?"
+                 ORDER BY c.created_at DESC LIMIT ? OFFSET ?"
             );
-            $stmt->execute([$userId, $userId, $limit]);
+            $stmt->execute([$userId, $userId, $limit, $offset]);
         }
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
