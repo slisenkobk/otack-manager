@@ -11,7 +11,7 @@ require dirname(__DIR__) . '/system/bootstrap.php';
 use App\App;
 use App\Http\{Request, Response, Csrf};
 use App\Routing\Router;
-use App\Database\{Connection, SchemaBootstrap};
+use App\Database\{Connection, SchemaBootstrap, Migrations};
 use App\Auth\SessionManager;
 use App\View\Renderer;
 
@@ -22,6 +22,7 @@ $store = &$session->storage();
 App::singleton('db', fn() => Connection::open(APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite')));
 App::singleton('schema', fn() => new SchemaBootstrap(App::make('db'), APP_ROOT . '/data/.schema'));
 App::singleton('view', fn() => new Renderer(APP_ROOT . '/views'));
+Migrations::run(App::make('schema'));
 $csrf = new Csrf($store);
 
 $router = new Router();
