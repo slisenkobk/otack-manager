@@ -1,0 +1,10 @@
+/data/app.sqlite
+/data/sessions/
+/data/.schema/
+/data/errors.log
+/public/uploads/
+/.env
+/node_modules/
+/.playwright/
+/test-results/
+.DS_Store

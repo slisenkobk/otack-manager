@@ -1,0 +1,5 @@
+RewriteEngine On
+RewriteRule ^(system|data|docs|tests)/ - [F,L]
+RewriteRule ^\.env - [F,L]
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteRule ^(.*)$ public/$1 [L]
