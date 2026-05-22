@@ -27,29 +27,30 @@ if (!sidebar) {
     if (e.key === 'Escape') { titleEl.textContent = lastTitle; titleEl.blur(); }
   });
 
-  // Description edit/save/cancel
+  // Description edit/save/cancel (Quill WYSIWYG)
   const descSection = document.querySelector('.task-description-section');
   const rendered = descSection.querySelector('.task-description-rendered');
   const editor = descSection.querySelector('.task-description-editor');
-  const textarea = editor.querySelector('textarea');
   descSection.querySelector('[data-action=edit-description]').addEventListener('click', () => {
     rendered.style.display = 'none';
     editor.style.display = 'block';
-    textarea.focus();
+    // Focus Quill editor if available
+    const quillEditor = editor.querySelector('.ql-editor');
+    if (quillEditor) quillEditor.focus();
   });
   descSection.querySelector('[data-action=cancel-description]').addEventListener('click', () => {
     editor.style.display = 'none';
     rendered.style.display = 'block';
   });
   descSection.querySelector('[data-action=save-description]').addEventListener('click', async () => {
-    const description = textarea.value;
+    const hidden = document.querySelector('#task-description-hidden');
+    const description = hidden ? hidden.value : '';
     try {
       const res = await api('/tasks/' + taskId, { method: 'POST', body: JSON.stringify({ description }) });
-      // description_html is server-rendered via Markdown::render() which escapes user input
-      // before applying markdown transforms — safe to set as innerHTML
+      // description_html is server-sanitized HTML — safe to set as innerHTML
       const safeHtml = res.task.description_html
         || '<span class="muted" style="color:var(--ink-3);">No description. Click Edit to add one.</span>';
-      rendered.innerHTML = safeHtml; // nosec: server-sanitized markdown HTML
+      rendered.innerHTML = safeHtml; // nosec: server-sanitized HTML
       editor.style.display = 'none';
       rendered.style.display = 'block';
       UI.toast('Description saved', 'success');

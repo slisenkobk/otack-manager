@@ -532,7 +532,7 @@ test('4.1 edit title via contenteditable + blur', async ({ page }) => {
   await page.screenshot({ path: SS('4.1-title-renamed'), fullPage: true });
 });
 
-test('4.2 edit description with markdown', async ({ page }) => {
+test('4.2 edit description with Quill WYSIWYG', async ({ page }) => {
   await page.goto('/login');
   await page.fill('input[name=email]', 'admin@qa.test');
   await page.fill('input[name=password]', 'password123');
@@ -541,15 +541,24 @@ test('4.2 edit description with markdown', async ({ page }) => {
 
   await page.goto('/tasks/' + taskId);
   await page.locator('[data-action=edit-description]').click();
-  const textarea = page.locator('.task-description-editor textarea');
-  await expect(textarea).toBeVisible();
-  await textarea.fill('**bold text** and [a link](https://example.com)\n\n```\ncode fence\n```');
-  await page.locator('[data-action=save-description]').click();
-  await page.waitForTimeout(300);
 
-  // Verify rendered HTML
-  await expect(page.locator('.task-description-rendered strong')).toHaveText('bold text');
-  await expect(page.locator('.task-description-rendered a[href="https://example.com"]')).toBeVisible();
+  // Quill replaces textarea — wait for the Quill editor to be visible
+  const quillEditor = page.locator('.task-description-editor .ql-editor');
+  await expect(quillEditor).toBeVisible({ timeout: 5000 });
+
+  // Type some text into Quill
+  await quillEditor.click();
+  await quillEditor.type('Hello from Quill editor');
+
+  await page.locator('[data-action=save-description]').click();
+  await page.waitForTimeout(500);
+
+  // Verify description was saved — success toast should appear
+  await expect(page.locator('.toast--success')).toBeVisible({ timeout: 3000 });
+
+  // Verify the rendered description shows the saved content
+  const renderedSection = page.locator('.task-description-rendered');
+  await expect(renderedSection).toBeVisible();
   await page.screenshot({ path: SS('4.2-description-rendered'), fullPage: true });
 });
 

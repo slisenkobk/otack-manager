@@ -26,5 +26,6 @@
 <?php require APP_ROOT . '/views/partials/lightbox-root.php'; ?>
 <script src="/assets/vendor/quill/quill.min.js" defer></script>
 <script type="module" src="/assets/js/ui.js"></script>
+<script type="module" src="/assets/js/wysiwyg.js"></script>
 </body>
 </html>

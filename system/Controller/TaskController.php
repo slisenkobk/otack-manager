@@ -238,7 +238,8 @@ final class TaskController extends BaseController {
                 'url'           => $baseUrl . '/tasks/' . $id,
             ]);
         }
-        $descHtml = $fresh['description'] ? \App\Service\Markdown::render((string)$fresh['description']) : '';
+        // Description is now stored as sanitised HTML from Quill — return it directly
+        $descHtml = (string)($fresh['description'] ?? '');
         Response::json([
             'ok' => true,
             'task' => [

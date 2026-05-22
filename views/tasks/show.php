@@ -1,4 +1,3 @@
-<?php use App\Service\Markdown; ?>
 <div style="display:grid;grid-template-columns:1fr 280px;gap:40px;align-items:start;">
   <main>
     <p class="mono muted" style="font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3);margin:0 0 8px;">
@@ -16,13 +15,19 @@
         <button class="btn-ghost" type="button" data-action="edit-description" style="font-size:12px;">Edit</button>
       </div>
       <div class="task-description-rendered" style="font-size:15px;line-height:1.6;color:var(--ink-2);">
-        <?= $task['description'] ? Markdown::render((string)$task['description']) : '<span class="muted" style="color:var(--ink-3);">No description. Click Edit to add one.</span>' ?>
+        <?= $task['description'] ? $task['description'] : '<span class="muted" style="color:var(--ink-3);">No description. Click Edit to add one.</span>' ?>
       </div>
       <div class="task-description-editor" style="display:none;">
-        <textarea class="textarea" rows="6" placeholder="Markdown: **bold**, `code`, [link](https://…)"><?= e($task['description'] ?? '') ?></textarea>
+        <div class="wysiwyg-host">
+          <div class="wysiwyg-editor"
+               data-quill
+               data-quill-target="#task-description-hidden"
+               data-placeholder="Description…"><?= $task['description'] ?? '' ?></div>
+        </div>
+        <input type="hidden" id="task-description-hidden" value="<?= e($task['description'] ?? '') ?>">
         <div style="display:flex;gap:8px;margin-top:8px;">
-          <button class="submit" type="button" data-action="save-description">Save</button>
-          <button class="btn-ghost" type="button" data-action="cancel-description">Cancel</button>
+          <button class="btn btn--primary submit" type="button" data-action="save-description">Save</button>
+          <button class="btn btn--ghost" type="button" data-action="cancel-description">Cancel</button>
         </div>
       </div>
     </section>
