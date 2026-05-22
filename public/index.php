@@ -34,6 +34,9 @@ Migrations::run(App::make('schema'));
 $csrf = new Csrf($store);
 
 App::singleton('users',   fn() => new \App\Repository\UserRepository(App::make('db')));
+App::singleton('projects', fn() => new \App\Repository\ProjectRepository(App::make('db')));
+App::singleton('members',  fn() => new \App\Repository\ProjectMemberRepository(App::make('db')));
+App::singleton('columns',  fn() => new \App\Repository\TaskColumnRepository(App::make('db')));
 App::singleton('hasher',  fn() => new \App\Auth\PasswordHasher());
 App::singleton('auth',    function () use (&$store) {
     return new \App\Auth\AuthManager(App::make('users'), App::make('hasher'), $store);
@@ -69,6 +72,14 @@ $router->post('/users/{id}/delete', 'User@delete');
 $router->get('/profile', 'Profile@show');
 $router->post('/profile', 'Profile@update');
 $router->post('/profile/password', 'Profile@updatePassword');
+
+$router->get('/projects', 'Project@index');
+$router->get('/projects/new', 'Project@createForm');
+$router->post('/projects', 'Project@create');
+$router->get('/projects/{id}', 'Project@show');
+$router->get('/projects/{id}/edit', 'Project@editForm');
+$router->post('/projects/{id}', 'Project@update');
+$router->post('/projects/{id}/delete', 'Project@delete');
 
 $req   = Request::fromGlobals();
 $match = $router->match($req->method, $req->path);

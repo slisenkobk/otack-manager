@@ -1,0 +1,50 @@
+<?php $currentTab = $tab ?? 'board'; ?>
+<div class="section-head">
+  <div class="num"><?= str_pad((string)$project['id'], 2, '0', STR_PAD_LEFT) ?></div>
+  <div class="title"><?= e($project['name']) ?></div>
+  <div class="rule"></div>
+  <span class="status<?= $project['status'] === 'active' ? ' is-ready' : '' ?>"><?= e($project['status']) ?></span>
+</div>
+
+<div style="display:flex;gap:24px;border-bottom:1px solid var(--rule);margin-bottom:28px;">
+  <a href="/projects/<?= (int)$project['id'] ?>?tab=board"
+     class="<?= $currentTab === 'board' ? 'active' : '' ?>"
+     style="padding:10px 0;border-bottom:2px solid <?= $currentTab === 'board' ? 'var(--brand)' : 'transparent' ?>;text-decoration:none;color:<?= $currentTab === 'board' ? 'var(--brand)' : 'var(--ink-2)' ?>;font-weight:<?= $currentTab === 'board' ? '600' : '400' ?>;">Board</a>
+  <a href="/projects/<?= (int)$project['id'] ?>?tab=overview"
+     style="padding:10px 0;border-bottom:2px solid <?= $currentTab === 'overview' ? 'var(--brand)' : 'transparent' ?>;text-decoration:none;color:<?= $currentTab === 'overview' ? 'var(--brand)' : 'var(--ink-2)' ?>;font-weight:<?= $currentTab === 'overview' ? '600' : '400' ?>;">Overview</a>
+</div>
+
+<?php if ($currentTab === 'board'): ?>
+  <div class="kanban" data-project-id="<?= (int)$project['id'] ?>">
+    <?php foreach ($columns as $col): ?>
+      <div class="kanban-col" data-column-id="<?= (int)$col['id'] ?>">
+        <div class="kanban-col-head">
+          <span class="dot" style="background:<?= e($col['color']) ?>"></span>
+          <span class="name"><?= e($col['name']) ?></span>
+          <span class="kanban-col-count">0</span>
+        </div>
+        <div class="kanban-list" data-column-id="<?= (int)$col['id'] ?>"></div>
+        <div class="kanban-quickadd"><span class="muted" style="font-size:13px;">+ add task (Task 17)</span></div>
+      </div>
+    <?php endforeach; ?>
+  </div>
+<?php else: ?>
+  <div style="display:grid;grid-template-columns:1fr 280px;gap:32px;">
+    <div>
+      <h2 style="font-weight:600;font-size:18px;">Description</h2>
+      <p style="color:var(--ink-2);"><?= $project['description'] ? e($project['description']) : '<em style="color:var(--ink-3);">No description</em>' ?></p>
+      <p class="muted" style="margin-top:24px;font-size:13px;">Comments, attachments, tags — added in Tasks 20-23.</p>
+    </div>
+    <aside>
+      <h3 style="font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);">Members</h3>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
+        <?php foreach ($members as $m): ?>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="ini" style="width:28px;height:28px;font-size:11px;"><?= e(mb_substr($m['name'], 0, 2)) ?></div>
+            <div style="font-size:13px;"><?= e($m['name']) ?> <span class="muted" style="font-size:11px;color:var(--ink-3);"><?= e($m['role']) ?></span></div>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </aside>
+  </div>
+<?php endif; ?>
