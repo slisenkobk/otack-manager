@@ -13,7 +13,11 @@
   </div>
   <div class="field" style="margin-top:14px;">
     <label>Description (optional)</label>
-    <textarea class="textarea" name="description" rows="5"><?= $isEdit ? e($project['description'] ?? '') : '' ?></textarea>
+    <?php if ($isEdit): ?>
+      <textarea class="textarea" name="description" rows="5"><?= e($project['description'] ?? '') ?></textarea>
+    <?php else: ?>
+      <textarea class="textarea" name="description" rows="5" placeholder="What is this project about?"></textarea>
+    <?php endif; ?>
   </div>
   <button class="submit" type="submit" style="margin-top:18px;">
     <?= $isEdit ? 'Save changes &#8594;' : 'Create project &#8594;' ?>

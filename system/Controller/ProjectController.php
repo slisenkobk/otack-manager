@@ -51,7 +51,7 @@ final class ProjectController extends BaseController {
 
     public function create(Request $req, array $params = []): void {
         $name        = trim($req->post['name'] ?? '');
-        $description = trim($req->post['description'] ?? '');
+        $description = \App\Service\HtmlSanitizer::clean(trim($req->post['description'] ?? ''));
         if ($name === '') { Response::redirect('/projects/new'); return; }
         // ProjectRepository::create already wraps its INSERT in a transaction.
         // We run member add and column seed after, each atomic on its own.
@@ -146,7 +146,7 @@ final class ProjectController extends BaseController {
         $isOwnerOrAdmin = $this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']);
         if (!$isOwnerOrAdmin) { Response::forbidden(); return; }
         $name        = trim($req->post['name'] ?? '');
-        $description = trim($req->post['description'] ?? '');
+        $description = \App\Service\HtmlSanitizer::clean(trim($req->post['description'] ?? ''));
         if ($name !== '') {
             $this->projects->update($id, ['name' => $name, 'description' => $description ?: null]);
         }

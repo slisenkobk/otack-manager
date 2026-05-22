@@ -160,7 +160,8 @@ final class TaskController extends BaseController {
             $fields['title'] = $title;
         }
         if (array_key_exists('description', $data)) {
-            $fields['description'] = $data['description'] === '' ? null : (string)$data['description'];
+            $rawDesc = $data['description'] === '' ? '' : (string)$data['description'];
+            $fields['description'] = $rawDesc === '' ? null : \App\Service\HtmlSanitizer::clean($rawDesc);
         }
         if (isset($data['column_id'])) {
             $fields['column_id'] = (int)$data['column_id'];
