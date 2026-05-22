@@ -1,4 +1,4 @@
-# QA Checklist — Otack Tasks
+# QA Checklist — Otack Manager
 
 Manual smoke test before each release. Tick each item.
 

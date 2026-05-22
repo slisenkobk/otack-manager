@@ -18,7 +18,7 @@ final class SmokeController extends BaseController {
             'crumb' => 'Dashboard',
         ]);
         Response::html($this->view->render('layouts/main', [
-            'title'     => 'Otack Tasks',
+            'title'     => 'Otack Manager',
             'csrfToken' => $csrfToken,
             'sidebar'   => $sidebar,
             'topbar'    => $topbar,

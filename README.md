@@ -1,6 +1,10 @@
-# Otack Tasks
+# Otack Manager
 
 Minimal multi-user PHP project & task manager with kanban, comments, attachments and Telegram notifications.
+
+## Documentation
+
+See [DESIGN.md](docs/DESIGN.md) for the full design system specification: token graph, component specs, kanban patterns, and UX rules. The design spec is the source of truth — if code conflicts with it, fix the code.
 
 Server-rendered, no SPA, no composer dependencies.
 
@@ -68,15 +72,16 @@ npx playwright test --config tests/e2e/playwright.config.ts
 ## File structure
 
 ```
-otack-tasks/
+otack-manager/
 ├── public/                  Web root
 │   ├── index.php            Front controller (~150 LOC)
 │   ├── .htaccess            Rewrite + static-file pass-through
 │   ├── assets/
-│   │   ├── css/app.css      Full design system (~1300 LOC)
-│   │   ├── js/              ES modules: ui.js, kanban.js, comments.js, …
+│   │   ├── css/app.css      Full design system (~1600 LOC)
+│   │   ├── js/              ES modules: ui.js, kanban.js, comments.js, wysiwyg.js …
 │   │   ├── fonts/           Manrope + JetBrains Mono woff2
-│   │   └── vendor/          FontAwesome 6 Free, SortableJS
+│   │   ├── img/             logo.svg (kanban+check icon)
+│   │   └── vendor/          FontAwesome 6 Free, SortableJS, Quill WYSIWYG
 │   └── uploads/             User uploads (YYYY/MM/{uuid}.{ext})
 ├── system/
 │   ├── bootstrap.php        Autoloader + .env loader

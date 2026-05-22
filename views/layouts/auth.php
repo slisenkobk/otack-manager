@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= e($title ?? 'Otack Tasks') ?></title>
+<title><?= e($title ?? 'Otack Manager') ?></title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="alternate icon" type="image/png" href="/favicon.png">
 <link rel="stylesheet" href="/assets/css/app.css">
 <link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
 <meta name="csrf-token" content="<?= e($csrfToken ?? '') ?>">
