@@ -140,5 +140,123 @@ function initColumnSettings(root) {
 }
 
 async function openColumnSettings(columnId) {
-  // Implemented in Task 24
+  const colEl = root.querySelector('.kanban-col[data-column-id="' + columnId + '"]');
+  if (!colEl) return;
+  const name = colEl.querySelector('.kanban-col-head .name').textContent;
+  const colorMatch = (colEl.querySelector('.kanban-col-head .dot').getAttribute('style') || '').match(/#[0-9a-f]{6}/i);
+  const color = colorMatch ? colorMatch[0] : '#8B7C68';
+
+  const body = document.createElement('div');
+  const nameField = document.createElement('div');
+  nameField.className = 'field';
+  const nameLabel = document.createElement('label');
+  nameLabel.textContent = 'Name';
+  nameLabel.style.fontSize = '11px';
+  const nameInput = document.createElement('input');
+  nameInput.className = 'input';
+  nameInput.value = name;
+  nameField.appendChild(nameLabel);
+  nameField.appendChild(nameInput);
+  body.appendChild(nameField);
+
+  const colorField = document.createElement('div');
+  colorField.className = 'field';
+  colorField.style.marginTop = '14px';
+  const colorLabel = document.createElement('label');
+  colorLabel.textContent = 'Color';
+  colorLabel.style.fontSize = '11px';
+  const colorInput = document.createElement('input');
+  colorInput.type = 'color';
+  colorInput.className = 'input';
+  colorInput.value = color;
+  colorInput.style.height = '40px';
+  colorField.appendChild(colorLabel);
+  colorField.appendChild(colorInput);
+  body.appendChild(colorField);
+
+  let modalRef;
+  modalRef = UI.modal({
+    title: 'Column settings',
+    body,
+    actions: [
+      { label: 'Delete', variant: 'btn-danger', onClick: async (close) => {
+          close();
+          await tryDelete(columnId);
+        }
+      },
+      { label: 'Cancel', variant: 'btn-ghost', onClick: (close) => close() },
+      { label: 'Save', variant: 'submit', onClick: async (close) => {
+          try {
+            await api('/api/columns/' + columnId, {
+              method: 'POST',
+              body: JSON.stringify({ name: nameInput.value.trim(), color: colorInput.value }),
+            });
+            close();
+            UI.toast('Column updated', 'success');
+            setTimeout(() => location.reload(), 400);
+          } catch {}
+        }
+      },
+    ],
+  });
+
+  async function tryDelete(columnId) {
+    if (!await UI.confirm('Delete this column?', { danger: true, confirmLabel: 'Delete' })) return;
+    try {
+      await api('/api/columns/' + columnId + '/delete', { method: 'POST' });
+      UI.toast('Column deleted', 'success');
+      setTimeout(() => location.reload(), 400);
+    } catch (err) {
+      // If 422 with has_tasks, prompt for move_to
+      // The api() helper toasts the message; re-do the request manually to inspect the body.
+      const res = await fetch('/api/columns/' + columnId + '/delete', {
+        method: 'POST',
+        headers: {
+          'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.has_tasks) {
+        const otherCols = [...root.querySelectorAll('.kanban-col')].filter(c => +c.dataset.columnId !== columnId);
+        if (!otherCols.length) {
+          UI.toast('No other column to move tasks into', 'error');
+          return;
+        }
+        const select = document.createElement('select');
+        select.className = 'select';
+        otherCols.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.dataset.columnId;
+          opt.textContent = c.querySelector('.kanban-col-head .name').textContent;
+          select.appendChild(opt);
+        });
+        const body2 = document.createElement('div');
+        const p = document.createElement('p');
+        p.textContent = 'Move tasks to:';
+        body2.appendChild(p);
+        body2.appendChild(select);
+        UI.modal({
+          title: 'Move tasks first',
+          body: body2,
+          actions: [
+            { label: 'Cancel', variant: 'btn-ghost', onClick: c => c() },
+            { label: 'Move and delete', variant: 'btn-danger', onClick: async (close) => {
+                try {
+                  await api('/api/columns/' + columnId + '/delete', {
+                    method: 'POST',
+                    body: JSON.stringify({ move_to: +select.value }),
+                  });
+                  close();
+                  UI.toast('Column deleted', 'success');
+                  setTimeout(() => location.reload(), 400);
+                } catch {}
+              }
+            },
+          ],
+        });
+      }
+    }
+  }
 }

@@ -112,6 +112,10 @@ $router->post('/api/projects/{id}/tags/{tagId}/delete', 'Tag@detachFromProject')
 $router->post('/api/tasks/{id}/tags', 'Tag@attachToTask');
 $router->post('/api/tasks/{id}/tags/{tagId}/delete', 'Tag@detachFromTask');
 
+$router->post('/api/columns', 'Column@create');
+$router->post('/api/columns/{id}', 'Column@update');
+$router->post('/api/columns/{id}/delete', 'Column@delete');
+
 $req   = Request::fromGlobals();
 $match = $router->match($req->method, $req->path);
 if (!$match) { Response::notFound(); exit; }
