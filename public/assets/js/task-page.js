@@ -1,0 +1,83 @@
+import { api, UI } from './ui.js';
+
+const titleEl = document.querySelector('.task-title');
+const sidebar = document.querySelector('.task-sidebar');
+if (!sidebar) {
+  // not on a task page
+} else {
+  const taskId = sidebar.dataset.taskId;
+  const projectId = sidebar.dataset.projectId;
+
+  // Title blur
+  let lastTitle = titleEl.textContent;
+  titleEl.addEventListener('blur', async () => {
+    const title = titleEl.textContent.trim();
+    if (!title || title === lastTitle) { titleEl.textContent = lastTitle; return; }
+    try {
+      const res = await api('/tasks/' + taskId, { method: 'POST', body: JSON.stringify({ title }) });
+      lastTitle = res.task.title;
+      titleEl.textContent = res.task.title;
+      UI.toast('Title saved', 'success');
+    } catch {
+      titleEl.textContent = lastTitle;
+    }
+  });
+  titleEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
+    if (e.key === 'Escape') { titleEl.textContent = lastTitle; titleEl.blur(); }
+  });
+
+  // Description edit/save/cancel
+  const descSection = document.querySelector('.task-description-section');
+  const rendered = descSection.querySelector('.task-description-rendered');
+  const editor = descSection.querySelector('.task-description-editor');
+  const textarea = editor.querySelector('textarea');
+  descSection.querySelector('[data-action=edit-description]').addEventListener('click', () => {
+    rendered.style.display = 'none';
+    editor.style.display = 'block';
+    textarea.focus();
+  });
+  descSection.querySelector('[data-action=cancel-description]').addEventListener('click', () => {
+    editor.style.display = 'none';
+    rendered.style.display = 'block';
+  });
+  descSection.querySelector('[data-action=save-description]').addEventListener('click', async () => {
+    const description = textarea.value;
+    try {
+      const res = await api('/tasks/' + taskId, { method: 'POST', body: JSON.stringify({ description }) });
+      // description_html is server-rendered via Markdown::render() which escapes user input
+      // before applying markdown transforms — safe to set as innerHTML
+      const safeHtml = res.task.description_html
+        || '<span class="muted" style="color:var(--ink-3);">No description. Click Edit to add one.</span>';
+      rendered.innerHTML = safeHtml; // nosec: server-sanitized markdown HTML
+      editor.style.display = 'none';
+      rendered.style.display = 'block';
+      UI.toast('Description saved', 'success');
+    } catch {}
+  });
+
+  // Sidebar selectors
+  sidebar.querySelectorAll('[data-field]').forEach(field => {
+    field.addEventListener('change', async () => {
+      const key = field.dataset.field;
+      const val = field.value;
+      const body = {};
+      if (key === 'column_id') body.column_id = +val;
+      else if (key === 'assignee_id') body.assignee_id = val ? +val : null;
+      else if (key === 'due_date') body.due_date = val || null;
+      try {
+        await api('/tasks/' + taskId, { method: 'POST', body: JSON.stringify(body) });
+        UI.toast(key.replace('_', ' ') + ' updated', 'success');
+      } catch {}
+    });
+  });
+
+  // Delete
+  sidebar.querySelector('[data-action=delete-task]').addEventListener('click', async () => {
+    if (!await UI.confirm('Delete this task permanently?', {danger: true, confirmLabel: 'Delete'})) return;
+    try {
+      await api('/tasks/' + taskId + '/delete', { method: 'POST' });
+      location.href = '/projects/' + projectId;
+    } catch {}
+  });
+}

@@ -71,4 +71,85 @@ final class TaskController extends BaseController {
         $this->tasks->move($taskId, $columnId, $position);
         Response::json(['ok' => true]);
     }
+
+    public function show(Request $req, array $params): void {
+        $id = (int)$params['id'];
+        $task = $this->tasks->findById($id);
+        if (!$task) { Response::notFound(); return; }
+        $projectId = (int)$task['project_id'];
+        $project = $this->projects->findById($projectId);
+        $isAdmin = $this->user['role'] === 'admin';
+        if (!$isAdmin && !$this->members->isMember($projectId, (int)$this->user['id'])) {
+            http_response_code(403); echo '<h1>403</h1>'; return;
+        }
+        $columns = App::make('columns')->listForProject($projectId);
+        $members = $this->members->list($projectId);
+        $comments = App::make('comments')->listFor('task', $id);
+        $attachments = App::make('attachments')->listFor('task', $id);
+        $createdBy = App::make('users')->findById((int)$task['created_by']);
+        $csrfToken = App::make('csrf')->token();
+        $sidebar = $this->view->render('partials/sidebar', [
+            'user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrfToken,
+        ]);
+        $topbar = $this->view->render('partials/topbar', [
+            'user' => $this->user, 'crumb' => $project['name'] . ' / Task #' . $id,
+        ]);
+        Response::html($this->view->render('layouts/main', [
+            'title' => $task['title'] . ' — ' . $project['name'],
+            'csrfToken' => $csrfToken,
+            'sidebar' => $sidebar,
+            'topbar' => $topbar,
+            'content' => $this->view->render('tasks/show', [
+                'task' => $task, 'project' => $project, 'columns' => $columns,
+                'members' => $members, 'comments' => $comments, 'attachments' => $attachments,
+                'createdBy' => $createdBy, 'csrfToken' => $csrfToken,
+                'currentUserId' => (int)$this->user['id'], 'isAdmin' => $isAdmin,
+                'canEdit' => true,
+            ]),
+        ]));
+    }
+
+    public function update(Request $req, array $params): void {
+        $id = (int)$params['id'];
+        $task = $this->tasks->findById($id);
+        if (!$task) { Response::json(['error' => 'Not found'], 404); return; }
+        $this->assertMember((int)$task['project_id']);
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $fields = [];
+        if (isset($data['title'])) {
+            $title = trim((string)$data['title']);
+            if ($title === '') { Response::json(['error' => 'Title cannot be empty'], 422); return; }
+            $fields['title'] = $title;
+        }
+        if (array_key_exists('description', $data)) {
+            $fields['description'] = $data['description'] === '' ? null : (string)$data['description'];
+        }
+        if (isset($data['column_id'])) {
+            $fields['column_id'] = (int)$data['column_id'];
+        }
+        if (array_key_exists('assignee_id', $data)) {
+            $aid = $data['assignee_id'];
+            $fields['assignee_id'] = $aid === null || $aid === '' ? null : (int)$aid;
+        }
+        if (array_key_exists('due_date', $data)) {
+            $fields['due_date'] = $data['due_date'] === '' ? null : $data['due_date'];
+        }
+
+        $this->tasks->update($id, $fields);
+        $fresh = $this->tasks->findById($id);
+        $descHtml = $fresh['description'] ? \App\Service\Markdown::render((string)$fresh['description']) : '';
+        Response::json([
+            'ok' => true,
+            'task' => [
+                'id' => (int)$fresh['id'],
+                'title' => $fresh['title'],
+                'description' => $fresh['description'],
+                'description_html' => $descHtml,
+                'column_id' => (int)$fresh['column_id'],
+                'assignee_id' => $fresh['assignee_id'] ? (int)$fresh['assignee_id'] : null,
+                'due_date' => $fresh['due_date'],
+            ],
+        ]);
+    }
 }

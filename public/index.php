@@ -90,6 +90,8 @@ $router->get('/projects/{id}/edit', 'Project@editForm');
 $router->post('/projects/{id}', 'Project@update');
 $router->post('/projects/{id}/delete', 'Project@delete');
 
+$router->get('/tasks/{id}', 'Task@show');
+$router->post('/tasks/{id}', 'Task@update');
 $router->post('/projects/{id}/tasks', 'Task@create');
 $router->post('/tasks/{id}/delete', 'Task@delete');
 $router->post('/api/tasks/{id}/move', 'Task@move');
