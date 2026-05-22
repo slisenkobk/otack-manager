@@ -1,5 +1,11 @@
 <?php
 declare(strict_types=1);
+
+// When used as PHP built-in server router script, serve static files directly.
+if (PHP_SAPI === 'cli-server' && is_file(__DIR__ . parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH))) {
+    return false;
+}
+
 require dirname(__DIR__) . '/system/bootstrap.php';
 
 use App\App;
@@ -20,6 +26,10 @@ $csrf = new Csrf($store);
 
 $router = new Router();
 $router->get('/', 'Smoke@hello');
+
+if (App::env('APP_DEBUG') === 'true') {
+    $router->get('/ui-sandbox', 'Smoke@uiSandbox');
+}
 
 $req = Request::fromGlobals();
 $match = $router->match($req->method, $req->path);
