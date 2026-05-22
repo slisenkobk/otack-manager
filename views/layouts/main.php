@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="/assets/css/app.css">
 <link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
 <meta name="csrf-token" content="<?= e($csrfToken ?? '') ?>">
+<meta name="upload-max-image" content="<?= e(\App\App::env('UPLOAD_MAX_IMAGE', '5242880')) ?>">
+<meta name="upload-max-file"  content="<?= e(\App\App::env('UPLOAD_MAX_FILE',  '52428800')) ?>">
 </head>
 <body>
 <div class="shell">

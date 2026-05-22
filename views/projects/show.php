@@ -47,6 +47,15 @@
       <h2 style="font-weight:600;font-size:18px;">Description</h2>
       <p style="color:var(--ink-2);"><?= $project['description'] ? e($project['description']) : '<em style="color:var(--ink-3);">No description</em>' ?></p>
       <div style="margin-top:32px;">
+        <h3 style="font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);margin:0 0 12px;">Attachments</h3>
+        <?php
+          $entityType  = 'project';
+          $entityId    = (int)$project['id'];
+          $attachments = $projectAttachments ?? [];
+          require APP_ROOT . '/views/partials/attachment-list.php';
+        ?>
+      </div>
+      <div style="margin-top:32px;">
         <?php
           $entityType = 'project';
           $entityId   = (int)$project['id'];

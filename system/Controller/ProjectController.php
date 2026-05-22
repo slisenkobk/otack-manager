@@ -76,7 +76,8 @@ final class ProjectController extends BaseController {
         $canEdit        = ($this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']));
         $isAdmin        = $this->user['role'] === 'admin';
         $currentUserId  = (int)$this->user['id'];
-        $projectComments = App::make('comments')->listFor('project', $id);
+        $projectComments     = App::make('comments')->listFor('project', $id);
+        $projectAttachments  = App::make('attachments')->listFor('project', $id);
         $csrf    = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
         $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => $project['name']]);
@@ -93,7 +94,8 @@ final class ProjectController extends BaseController {
                 'canEdit'        => $canEdit,
                 'isAdmin'        => $isAdmin,
                 'currentUserId'  => $currentUserId,
-                'projectComments' => $projectComments,
+                'projectComments'     => $projectComments,
+                'projectAttachments' => $projectAttachments,
             ]),
         ]));
     }

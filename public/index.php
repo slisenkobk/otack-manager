@@ -41,6 +41,12 @@ App::singleton('tasks',    fn() => new \App\Repository\TaskRepository(App::make(
 App::singleton('hasher',  fn() => new \App\Auth\PasswordHasher());
 App::singleton('events',   fn() => new \App\Service\EventBus());
 App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));
+App::singleton('attachments', fn() => new \App\Repository\AttachmentRepository(App::make('db')));
+App::singleton('uploader', fn() => new \App\Service\FileUploader(
+    (int)App::env('UPLOAD_MAX_IMAGE', '5242880'),
+    (int)App::env('UPLOAD_MAX_FILE', '52428800'),
+    APP_ROOT . '/public/uploads'
+));
 App::singleton('auth',    function () use (&$store) {
     return new \App\Auth\AuthManager(App::make('users'), App::make('hasher'), $store);
 });
@@ -93,6 +99,9 @@ $router->post('/api/projects/{id}/members/{userId}/delete', 'Project@removeMembe
 
 $router->post('/api/comments', 'Comment@create');
 $router->post('/api/comments/{id}/delete', 'Comment@delete');
+
+$router->post('/api/attachments', 'Attachment@upload');
+$router->post('/api/attachments/{id}/delete', 'Attachment@delete');
 
 $req   = Request::fromGlobals();
 $match = $router->match($req->method, $req->path);
