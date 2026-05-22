@@ -66,4 +66,15 @@ final class UserRepository {
     public function delete(int $id): void {
         $this->pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
     }
+
+    public function hasRelatedData(int $id): bool {
+        $stmt = $this->pdo->prepare(
+            'SELECT 1 FROM projects WHERE created_by = ? '
+           .'UNION ALL SELECT 1 FROM comments WHERE user_id = ? '
+           .'UNION ALL SELECT 1 FROM attachments WHERE uploaded_by = ? '
+           .'LIMIT 1'
+        );
+        $stmt->execute([$id, $id, $id]);
+        return (bool)$stmt->fetch();
+    }
 }

@@ -60,6 +60,12 @@ $router->post('/register','Auth@register');
 $router->get('/pending',  'Auth@pending');
 $router->post('/logout',  'Auth@logout');
 
+$router->get('/users', 'User@index');
+$router->post('/users/{id}/approve', 'User@approve');
+$router->post('/users/{id}/block', 'User@block');
+$router->post('/users/{id}/role', 'User@setRole');
+$router->post('/users/{id}/delete', 'User@delete');
+
 $req   = Request::fromGlobals();
 $match = $router->match($req->method, $req->path);
 if (!$match) { Response::notFound(); exit; }
