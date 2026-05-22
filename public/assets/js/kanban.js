@@ -9,7 +9,11 @@ function initKanban(root) {
   initQuickAdd(root);
   initAddColumn(root);
   initColumnSettings(root);
+  initToolbar(root);
+  initHighlight();
 }
+
+// ─── Position helpers ────────────────────────────────────────────────────────
 
 function midpoint(prev, next) {
   if (prev == null && next == null) return 1024;
@@ -18,12 +22,28 @@ function midpoint(prev, next) {
   return (prev + next) / 2;
 }
 
+// ─── Count badge ─────────────────────────────────────────────────────────────
+
 function recount(root) {
   root.querySelectorAll('.kanban-col').forEach(col => {
-    col.querySelector('.kanban-col-count').textContent =
-      col.querySelector('.kanban-list').children.length;
+    const countEl = col.querySelector('.kanban-col__count, .kanban-col-count');
+    if (countEl) {
+      countEl.textContent = col.querySelector('.kanban-list').children.length;
+    }
   });
 }
+
+function recountVisible(root) {
+  root.querySelectorAll('.kanban-col').forEach(col => {
+    const countEl = col.querySelector('.kanban-col__count, .kanban-col-count');
+    if (!countEl) return;
+    const visible = [...col.querySelectorAll('.kanban-list .kanban-card')]
+      .filter(c => c.style.display !== 'none').length;
+    countEl.textContent = visible;
+  });
+}
+
+// ─── Build card (for AJAX quick-add) ─────────────────────────────────────────
 
 function buildCard(task) {
   const card = document.createElement('div');
@@ -31,12 +51,17 @@ function buildCard(task) {
   card.dataset.taskId = task.id;
   card.dataset.taskUrl = '/tasks/' + task.id;
   card.dataset.position = task.position;
-  const title = document.createElement('div');
-  title.className = 'title';
-  title.textContent = task.title;
-  card.appendChild(title);
+  card.dataset.tags = '';
+  card.dataset.title = (task.title || '').toLowerCase();
+
+  const titleEl = document.createElement('div');
+  titleEl.className = 'kanban-card__title';
+  titleEl.textContent = task.title;
+  card.appendChild(titleEl);
   return card;
 }
+
+// ─── Sortable drag/drop ───────────────────────────────────────────────────────
 
 function initSortable(list) {
   window.Sortable.create(list, {
@@ -75,6 +100,8 @@ function initSortable(list) {
   });
 }
 
+// ─── Card click (click vs drag threshold 5px) ────────────────────────────────
+
 function initCardClick(root) {
   let downAt = null;
   root.addEventListener('pointerdown', e => {
@@ -99,11 +126,31 @@ function initCardClick(root) {
   });
 }
 
+// ─── Quick-add fold (button → form → Esc closes) ─────────────────────────────
+
 function initQuickAdd(root) {
-  root.querySelectorAll('.kanban-quickadd').forEach(form => {
+  root.querySelectorAll('.kanban-col__footer').forEach(footer => {
+    const btn = footer.querySelector('[data-quickadd-trigger]');
+    const form = footer.querySelector('form');
+    if (!btn || !form) return;
+    const input = form.querySelector('input[name=title]');
+
+    btn.addEventListener('click', () => {
+      btn.hidden = true;
+      form.hidden = false;
+      input.focus();
+    });
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        form.hidden = true;
+        btn.hidden = false;
+        input.value = '';
+      }
+    });
+
     form.addEventListener('submit', async e => {
       e.preventDefault();
-      const input = form.querySelector('input[name=title]');
       const title = input.value.trim();
       if (!title) return;
       const projectId = root.dataset.projectId;
@@ -113,13 +160,18 @@ function initQuickAdd(root) {
           method: 'POST',
           body: JSON.stringify({ column_id: +columnId, title }),
         });
-        form.closest('.kanban-col').querySelector('.kanban-list').appendChild(buildCard(res.task));
+        const list = footer.closest('.kanban-col').querySelector('.kanban-list');
+        list.appendChild(buildCard(res.task));
         input.value = '';
+        // Keep form open + refocus for fast batch entry
+        input.focus();
         recount(root);
       } catch {}
     });
   });
 }
+
+// ─── Add column ───────────────────────────────────────────────────────────────
 
 function initAddColumn(root) {
   root.querySelector('.add-column')?.addEventListener('click', async () => {
@@ -133,6 +185,8 @@ function initAddColumn(root) {
   });
 }
 
+// ─── Column settings ──────────────────────────────────────────────────────────
+
 function initColumnSettings(root) {
   root.querySelectorAll('.col-settings').forEach(btn => {
     btn.addEventListener('click', () => openColumnSettings(+btn.dataset.columnId));
@@ -142,8 +196,10 @@ function initColumnSettings(root) {
 async function openColumnSettings(columnId) {
   const colEl = root.querySelector('.kanban-col[data-column-id="' + columnId + '"]');
   if (!colEl) return;
-  const name = colEl.querySelector('.kanban-col-head .name').textContent;
-  const colorMatch = (colEl.querySelector('.kanban-col-head .dot').getAttribute('style') || '').match(/#[0-9a-f]{6}/i);
+  const nameEl = colEl.querySelector('.kanban-col__name, .kanban-col-head .name');
+  const name = nameEl ? nameEl.textContent : '';
+  const dotEl = colEl.querySelector('.kanban-col__dot, .kanban-col-head .dot');
+  const colorMatch = (dotEl?.getAttribute('style') || '').match(/#[0-9a-f]{6}/i);
   const color = colorMatch ? colorMatch[0] : '#8B7C68';
 
   const body = document.createElement('div');
@@ -174,8 +230,7 @@ async function openColumnSettings(columnId) {
   colorField.appendChild(colorInput);
   body.appendChild(colorField);
 
-  let modalRef;
-  modalRef = UI.modal({
+  UI.modal({
     title: 'Column settings',
     body,
     actions: [
@@ -206,9 +261,7 @@ async function openColumnSettings(columnId) {
       await api('/api/columns/' + columnId + '/delete', { method: 'POST' });
       UI.toast('Column deleted', 'success');
       setTimeout(() => location.reload(), 400);
-    } catch (err) {
-      // If 422 with has_tasks, prompt for move_to
-      // The api() helper toasts the message; re-do the request manually to inspect the body.
+    } catch {
       const res = await fetch('/api/columns/' + columnId + '/delete', {
         method: 'POST',
         headers: {
@@ -229,7 +282,8 @@ async function openColumnSettings(columnId) {
         otherCols.forEach(c => {
           const opt = document.createElement('option');
           opt.value = c.dataset.columnId;
-          opt.textContent = c.querySelector('.kanban-col-head .name').textContent;
+          const nameEl2 = c.querySelector('.kanban-col__name, .kanban-col-head .name');
+          opt.textContent = nameEl2 ? nameEl2.textContent : c.dataset.columnId;
           select.appendChild(opt);
         });
         const body2 = document.createElement('div');
@@ -259,4 +313,64 @@ async function openColumnSettings(columnId) {
       }
     }
   }
+}
+
+// ─── Filter toolbar (tag chips + search) ─────────────────────────────────────
+
+function applyFilter(root, q, tag) {
+  const cards = root.querySelectorAll('.kanban-card');
+  const lowerQ = q.toLowerCase();
+  cards.forEach(card => {
+    const title = card.dataset.title || '';
+    const tags = card.dataset.tags || '';
+    const matchesQ = !lowerQ || title.includes(lowerQ);
+    const matchesTag = !tag || tags.split(',').includes(tag);
+    card.style.display = matchesQ && matchesTag ? '' : 'none';
+  });
+  recountVisible(root);
+}
+
+let searchDebounce;
+
+function initToolbar(root) {
+  const toolbar = document.querySelector('.kanban-toolbar');
+  if (!toolbar) return;
+  const search = toolbar.querySelector('[data-task-search]');
+  const chips = toolbar.querySelectorAll('.kanban-tagbar .chip');
+  let currentTag = '';
+  let currentQ = '';
+
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      chips.forEach(c => c.classList.remove('chip--active'));
+      chip.classList.add('chip--active');
+      currentTag = chip.dataset.tag || '';
+      applyFilter(root, currentQ, currentTag);
+    });
+  });
+
+  if (search) {
+    search.addEventListener('input', () => {
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => {
+        currentQ = search.value.trim();
+        applyFilter(root, currentQ, currentTag);
+      }, 250);
+    });
+  }
+}
+
+// ─── Highlight pulse on ?highlight=N ─────────────────────────────────────────
+
+function initHighlight() {
+  const url = new URL(location.href);
+  const id = url.searchParams.get('highlight');
+  if (!id) return;
+  url.searchParams.delete('highlight');
+  history.replaceState({}, '', url.toString());
+  const card = document.querySelector('.kanban-card[data-task-id="' + id + '"]');
+  if (!card) return;
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card.classList.add('is-highlight');
+  setTimeout(() => card.classList.remove('is-highlight'), 2000);
 }
