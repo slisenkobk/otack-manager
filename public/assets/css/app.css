@@ -1314,6 +1314,9 @@ h1.display em {
 }
 
 /* Quick-add */
+/* Ensure [hidden] on quick-add button/form is respected even with display override */
+.kanban-col__add[hidden],
+.kanban-col__form[hidden] { display: none !important; }
 .kanban-quickadd,
 .kanban-col__footer { padding: var(--space-4); border-top: 1px solid var(--rule); }
 .kanban-quickadd button,
@@ -1377,6 +1380,15 @@ h1.display em {
   transition: all var(--duration) var(--ease);
 }
 .add-column:hover { border-color: var(--accent); color: var(--accent); background: var(--brand-3); }
+
+/* Kanban additions: tagbar scrollbar, search focus, card__due */
+.kanban-tagbar::-webkit-scrollbar { height: 4px; }
+.kanban-tagbar::-webkit-scrollbar-thumb { background: var(--rule-2); border-radius: 2px; }
+.kanban-search:focus-within {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px var(--focus-ring-alpha);
+}
+.kanban-card__due { display: inline-flex; align-items: center; gap: 4px; }
 
 /* ─── §16 Comments ───────────────────────────────────────────── */
 .comment-thread {

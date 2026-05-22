@@ -15,26 +15,90 @@
 </div>
 
 <?php if ($currentTab === 'board'): ?>
+  <div class="kanban-toolbar">
+    <div class="kanban-tagbar">
+      <button type="button" class="chip chip--active" data-tag="">All</button>
+      <?php foreach ($allTaskTagsInProject ?? [] as $t): ?>
+        <button type="button" class="chip" data-tag="<?= e($t['name']) ?>"><?= e($t['name']) ?></button>
+      <?php endforeach; ?>
+    </div>
+    <div class="kanban-search">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input class="input input--inline" placeholder="Search tasks…" data-task-search>
+    </div>
+  </div>
   <div class="kanban" data-project-id="<?= (int)$project['id'] ?>">
     <?php foreach ($columns as $col): ?>
       <?php $colTasks = $tasksByCol[$col['id']] ?? []; ?>
       <div class="kanban-col" data-column-id="<?= (int)$col['id'] ?>">
-        <div class="kanban-col-head">
-          <span class="dot" style="background: <?= e($col['color']) ?>"></span>
-          <span class="name"><?= e($col['name']) ?></span>
-          <span class="kanban-col-count"><?= count($colTasks) ?></span>
-          <button type="button" class="btn-icon col-settings" data-column-id="<?= (int)$col['id'] ?>" aria-label="Column settings"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+        <div class="kanban-col__head kanban-col-head">
+          <span class="kanban-col__dot dot" style="background: <?= e($col['color']) ?>"></span>
+          <span class="kanban-col__name name"><?= e($col['name']) ?></span>
+          <span class="kanban-col__count kanban-col-count"><?= count($colTasks) ?></span>
+          <button type="button" class="btn-icon col-settings kanban-col__settings" data-column-id="<?= (int)$col['id'] ?>" aria-label="Column settings"><i class="fa-solid fa-ellipsis"></i></button>
         </div>
-        <div class="kanban-list" data-column-id="<?= (int)$col['id'] ?>">
-          <?php foreach ($colTasks as $t): ?>
-            <div class="kanban-card" data-task-id="<?= (int)$t['id'] ?>" data-task-url="/tasks/<?= (int)$t['id'] ?>" data-position="<?= (float)$t['position'] ?>">
-              <div class="title"><?= e($t['title']) ?></div>
+        <div class="kanban-list kanban-col__list" data-column-id="<?= (int)$col['id'] ?>">
+          <?php foreach ($colTasks as $t):
+            $tags = ($taskTags ?? [])[(int)$t['id']] ?? [];
+            $meta = ($taskMeta ?? [])[(int)$t['id']] ?? ['comments' => 0, 'attachments' => 0];
+          ?>
+            <div class="kanban-card"
+                 data-task-id="<?= (int)$t['id'] ?>"
+                 data-task-url="/tasks/<?= (int)$t['id'] ?>"
+                 data-position="<?= (float)$t['position'] ?>"
+                 data-tags="<?= e(implode(',', array_column($tags, 'name'))) ?>"
+                 data-title="<?= e(strtolower($t['title'])) ?>">
+              <?php if ($tags): ?>
+                <div class="kanban-card__row">
+                  <?php foreach (array_slice($tags, 0, 2) as $tag): ?>
+                    <span class="kanban-card__tag tag"
+                          style="--tag: <?= e($tag['color']) ?>; --tag-bg: <?= e($tag['color']) ?>22;">
+                      <?= e($tag['name']) ?>
+                    </span>
+                  <?php endforeach; ?>
+                </div>
+              <?php endif; ?>
+              <div class="kanban-card__title"><?= e($t['title']) ?></div>
+              <?php if (!empty($t['assignee_id'])): ?>
+                <div class="kanban-card__assignee">
+                  <span class="avatar avatar--xs"><?= e(mb_substr($t['assignee_name'] ?? '?', 0, 2)) ?></span>
+                  <span><?= e($t['assignee_name'] ?? '?') ?></span>
+                </div>
+              <?php endif; ?>
+              <?php if (!empty($t['due_date']) || $meta['comments'] || $meta['attachments']): ?>
+                <div class="kanban-card__meta">
+                  <?php if (!empty($t['due_date'])): ?>
+                    <span class="kanban-card__due">
+                      <i class="fa-regular fa-calendar"></i>
+                      <?= e(fmt_date($t['due_date'])) ?>
+                    </span>
+                  <?php else: ?>
+                    <span></span>
+                  <?php endif; ?>
+                  <?php if ($meta['comments'] || $meta['attachments']): ?>
+                    <span class="kanban-card__counts">
+                      <?php if ($meta['comments']): ?>
+                        <span><i class="fa-regular fa-comment"></i> <?= (int)$meta['comments'] ?></span>
+                      <?php endif; ?>
+                      <?php if ($meta['attachments']): ?>
+                        <span><i class="fa-solid fa-paperclip"></i> <?= (int)$meta['attachments'] ?></span>
+                      <?php endif; ?>
+                    </span>
+                  <?php endif; ?>
+                </div>
+              <?php endif; ?>
             </div>
           <?php endforeach; ?>
         </div>
-        <form class="kanban-quickadd" data-column-id="<?= (int)$col['id'] ?>">
-          <input type="text" name="title" placeholder="+ Add task" maxlength="200">
-        </form>
+        <div class="kanban-col__footer kanban-quickadd" data-column-id="<?= (int)$col['id'] ?>">
+          <button type="button" class="kanban-col__add" data-quickadd-trigger data-column-id="<?= (int)$col['id'] ?>">
+            <i class="fa-solid fa-plus"></i> Add task
+          </button>
+          <form class="kanban-col__form" data-column-id="<?= (int)$col['id'] ?>" hidden>
+            <input class="input input--sm" type="text" name="title" placeholder="Task title" maxlength="200">
+            <span class="kanban-col__hint">Enter to save, Esc to cancel</span>
+          </form>
+        </div>
       </div>
     <?php endforeach; ?>
     <button type="button" class="btn-secondary add-column"><i class="fa-solid fa-plus"></i> Column</button>
@@ -61,6 +125,7 @@
           $entityId   = (int)$project['id'];
           $comments   = $projectComments ?? [];
           // $canPost is pre-computed in ProjectController::show() and passed as a view variable
+          // $commentAttachments passed from controller
           require APP_ROOT . '/views/partials/comment-thread.php';
         ?>
       </div>
