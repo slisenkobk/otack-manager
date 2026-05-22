@@ -76,6 +76,15 @@ final class ProjectController extends BaseController {
         $columns    = $this->columns->listForProject($id);
         $members    = $this->members->list($id);
         $tasksByCol = App::make('tasks')->listForProject($id);
+        $taskTags   = App::make('tags')->listForProjectTasks($id);
+        $taskMeta   = App::make('tasks')->countMetaForProject($id);
+        $allTaskTagsInProject = [];
+        foreach ($taskTags as $tags) {
+            foreach ($tags as $t) {
+                $allTaskTagsInProject[$t['name']] = $t;
+            }
+        }
+        $allTaskTagsInProject = array_values($allTaskTagsInProject);
         $allUsersRaw = App::make('users')->listAll();
         $allUsers = array_values(array_filter($allUsersRaw, fn($u) => $u['status'] === 'approved'));
         $canEdit        = ($this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']));
@@ -110,6 +119,9 @@ final class ProjectController extends BaseController {
                 'csrfToken'      => $csrf,
                 'tab'            => $req->query['tab'] ?? 'board',
                 'tasksByCol'     => $tasksByCol,
+                'taskTags'       => $taskTags,
+                'taskMeta'       => $taskMeta,
+                'allTaskTagsInProject' => $allTaskTagsInProject,
                 'allUsers'       => $allUsers,
                 'canEdit'        => $canEdit,
                 'isAdmin'        => $isAdmin,

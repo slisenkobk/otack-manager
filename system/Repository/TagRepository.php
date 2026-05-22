@@ -55,6 +55,25 @@ final class TagRepository {
         return $stmt->fetchAll();
     }
 
+    /**
+     * @return array<int, array<array{id:int, name:string, color:string}>>
+     *   Map of task_id => [tag rows]
+     */
+    public function listForProjectTasks(int $projectId): array {
+        $stmt = $this->pdo->prepare(
+            'SELECT m.task_id, t.id AS tag_id, t.name, t.color
+             FROM task_tag_map m
+             INNER JOIN tags t ON t.id = m.tag_id
+             WHERE m.task_id IN (SELECT id FROM tasks WHERE project_id = ?)'
+        );
+        $stmt->execute([$projectId]);
+        $out = [];
+        foreach ($stmt->fetchAll() as $r) {
+            $out[(int)$r['task_id']][] = ['id' => (int)$r['tag_id'], 'name' => $r['name'], 'color' => $r['color']];
+        }
+        return $out;
+    }
+
     public function listForTask(int $taskId): array {
         $stmt = $this->pdo->prepare(
             'SELECT t.* FROM tags t INNER JOIN task_tag_map m ON m.tag_id = t.id WHERE m.task_id = ? ORDER BY t.name ASC'

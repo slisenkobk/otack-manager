@@ -36,7 +36,13 @@ final class TaskRepository {
     }
 
     public function listForProject(int $projectId): array {
-        $stmt = $this->pdo->prepare('SELECT * FROM tasks WHERE project_id = ? ORDER BY column_id ASC, position ASC');
+        $stmt = $this->pdo->prepare(
+            'SELECT t.*, u.name AS assignee_name
+             FROM tasks t
+             LEFT JOIN users u ON u.id = t.assignee_id
+             WHERE t.project_id = ?
+             ORDER BY t.column_id ASC, t.position ASC'
+        );
         $stmt->execute([$projectId]);
         $rows = $stmt->fetchAll();
         $byCol = [];
@@ -44,6 +50,25 @@ final class TaskRepository {
             $byCol[(int)$r['column_id']][] = $r;
         }
         return $byCol;
+    }
+
+    /**
+     * Counts of comments + attachments per task in a project.
+     * @return array<int, array{comments: int, attachments: int}>
+     */
+    public function countMetaForProject(int $projectId): array {
+        $stmt = $this->pdo->prepare(
+            "SELECT t.id,
+                    (SELECT COUNT(*) FROM comments WHERE entity_type='task' AND entity_id = t.id) AS comments,
+                    (SELECT COUNT(*) FROM attachments WHERE entity_type='task' AND entity_id = t.id) AS attachments
+             FROM tasks t WHERE t.project_id = ?"
+        );
+        $stmt->execute([$projectId]);
+        $out = [];
+        foreach ($stmt->fetchAll() as $r) {
+            $out[(int)$r['id']] = ['comments' => (int)$r['comments'], 'attachments' => (int)$r['attachments']];
+        }
+        return $out;
     }
 
     public function update(int $id, array $fields): void {

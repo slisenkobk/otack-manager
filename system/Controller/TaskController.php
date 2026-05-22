@@ -146,6 +146,41 @@ final class TaskController extends BaseController {
         ]));
     }
 
+    public function search(Request $req, array $params): void {
+        $projectId = (int)$params['id'];
+        if (!$this->projects->findById($projectId)) {
+            Response::json(['error' => 'Not found'], 404); return;
+        }
+        $this->assertMember($projectId);
+        $q   = trim($req->query['q'] ?? '');
+        $tag = trim($req->query['tag'] ?? '');
+        $db  = App::make('db');
+
+        if ($q !== '' || $tag !== '') {
+            if ($tag !== '') {
+                $sql = "SELECT DISTINCT t.id FROM tasks t
+                        INNER JOIN task_tag_map m ON m.task_id = t.id
+                        INNER JOIN tags g ON g.id = m.tag_id
+                        WHERE t.project_id = ? AND g.name = ?"
+                      . ($q !== '' ? " AND t.title LIKE ?" : "")
+                      . " LIMIT 200";
+                $p = [$projectId, $tag];
+                if ($q !== '') $p[] = '%' . $q . '%';
+                $stmt = $db->prepare($sql);
+                $stmt->execute($p);
+            } else {
+                $stmt = $db->prepare(
+                    "SELECT id FROM tasks WHERE project_id = ? AND title LIKE ? LIMIT 200"
+                );
+                $stmt->execute([$projectId, '%' . $q . '%']);
+            }
+            $ids = array_map('intval', array_column($stmt->fetchAll(), 'id'));
+        } else {
+            $ids = null; // null = no filter
+        }
+        Response::json(['ok' => true, 'ids' => $ids]);
+    }
+
     public function update(Request $req, array $params): void {
         $id = (int)$params['id'];
         $task = $this->tasks->findById($id);

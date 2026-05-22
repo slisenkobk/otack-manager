@@ -149,6 +149,7 @@ $router->post('/tasks/{id}', 'Task@update');
 $router->post('/projects/{id}/tasks', 'Task@create');
 $router->post('/tasks/{id}/delete', 'Task@delete');
 $router->post('/api/tasks/{id}/move', 'Task@move');
+$router->get('/api/projects/{id}/tasks/search', 'Task@search');
 
 $router->post('/api/projects/{id}/members', 'Project@addMember');
 $router->post('/api/projects/{id}/members/{userId}/delete', 'Project@removeMember');
