@@ -45,7 +45,17 @@ document.querySelectorAll('.comment-thread').forEach(thread => {
     const a = document.createElement('article');
     a.className = 'comment';
     a.dataset.commentId = c.id;
-    a.style.cssText = 'background:var(--paper);border:1px solid var(--rule);padding:12px;border-radius:4px;';
+
+    // Avatar initial — fills the 32px first grid column
+    const ini = document.createElement('div');
+    ini.className = 'ini';
+    ini.style.cssText = 'width:32px;height:32px;font-size:11px;background:var(--ink);flex-shrink:0;margin-top:2px;';
+    ini.textContent = c.author_name ? c.author_name.substring(0, 2) : '??';
+    a.appendChild(ini);
+
+    // Content wrapper — second grid column
+    const content = document.createElement('div');
+    content.style.cssText = 'min-width:0;';
 
     // Meta row
     const meta = document.createElement('div');
@@ -73,7 +83,7 @@ document.querySelectorAll('.comment-thread').forEach(thread => {
       meta.appendChild(btn);
     }
 
-    a.appendChild(meta);
+    content.appendChild(meta);
 
     // Body: body_html is produced by App\Service\Markdown which
     // escapes all input via htmlspecialchars before generating any HTML tags,
@@ -84,7 +94,9 @@ document.querySelectorAll('.comment-thread').forEach(thread => {
     bodyEl.style.cssText = 'font-size:14px;line-height:1.55;';
     // nosec: safe — server-rendered markdown output, all user text is htmlspecialchars-escaped
     bodyEl.innerHTML = c.body_html; // safe: Markdown::render() pre-escapes all input
-    a.appendChild(bodyEl);
+    content.appendChild(bodyEl);
+
+    a.appendChild(content);
 
     return a;
   }

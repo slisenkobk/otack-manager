@@ -911,6 +911,10 @@ h1.display em {
   display: grid;
   grid-template-columns: 32px 1fr;
   gap: 12px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  padding: 12px;
+  border-radius: 4px;
 }
 .comment-author {
   font-family: var(--font-mono);
