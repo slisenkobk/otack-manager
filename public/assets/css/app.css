@@ -12,3 +12,18 @@ html, body { margin: 0; padding: 0; }
 body { background: var(--paper); color: var(--ink); font-family: var(--font-sans); }
 .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
 .body-wrap { max-width: 1180px; margin: 0 auto; padding: 56px; }
+
+@font-face { font-family: 'Manrope'; font-weight: 400; font-display: swap;
+  src: url('/assets/fonts/manrope-400.woff2') format('woff2'); }
+@font-face { font-family: 'Manrope'; font-weight: 500; font-display: swap;
+  src: url('/assets/fonts/manrope-500.woff2') format('woff2'); }
+@font-face { font-family: 'Manrope'; font-weight: 600; font-display: swap;
+  src: url('/assets/fonts/manrope-600.woff2') format('woff2'); }
+@font-face { font-family: 'Manrope'; font-weight: 700; font-display: swap;
+  src: url('/assets/fonts/manrope-700.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 400; font-display: swap;
+  src: url('/assets/fonts/jetbrainsmono-400.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 500; font-display: swap;
+  src: url('/assets/fonts/jetbrainsmono-500.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 700; font-display: swap;
+  src: url('/assets/fonts/jetbrainsmono-700.woff2') format('woff2'); }
