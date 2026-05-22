@@ -73,18 +73,27 @@ final class ProjectController extends BaseController {
         $tasksByCol = App::make('tasks')->listForProject($id);
         $allUsersRaw = App::make('users')->listAll();
         $allUsers = array_values(array_filter($allUsersRaw, fn($u) => $u['status'] === 'approved'));
-        $canEdit = ($this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']));
+        $canEdit        = ($this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']));
+        $isAdmin        = $this->user['role'] === 'admin';
+        $currentUserId  = (int)$this->user['id'];
+        $projectComments = App::make('comments')->listFor('project', $id);
         $csrf    = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
         $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => $project['name']]);
         Response::html($this->view->render('layouts/main', [
             'title' => $project['name'], 'csrfToken' => $csrf, 'sidebar' => $sidebar, 'topbar' => $topbar,
             'content' => $this->view->render('projects/show', [
-                'project' => $project, 'columns' => $columns, 'members' => $members, 'csrfToken' => $csrf,
-                'tab' => $req->query['tab'] ?? 'board',
-                'tasksByCol' => $tasksByCol,
-                'allUsers' => $allUsers,
-                'canEdit'  => $canEdit,
+                'project'        => $project,
+                'columns'        => $columns,
+                'members'        => $members,
+                'csrfToken'      => $csrf,
+                'tab'            => $req->query['tab'] ?? 'board',
+                'tasksByCol'     => $tasksByCol,
+                'allUsers'       => $allUsers,
+                'canEdit'        => $canEdit,
+                'isAdmin'        => $isAdmin,
+                'currentUserId'  => $currentUserId,
+                'projectComments' => $projectComments,
             ]),
         ]));
     }

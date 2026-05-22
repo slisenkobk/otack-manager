@@ -46,7 +46,15 @@
     <div>
       <h2 style="font-weight:600;font-size:18px;">Description</h2>
       <p style="color:var(--ink-2);"><?= $project['description'] ? e($project['description']) : '<em style="color:var(--ink-3);">No description</em>' ?></p>
-      <p class="muted" style="margin-top:24px;font-size:13px;">Comments, attachments, tags — added in Tasks 20-23.</p>
+      <div style="margin-top:32px;">
+        <?php
+          $entityType = 'project';
+          $entityId   = (int)$project['id'];
+          $comments   = $projectComments ?? [];
+          $canPost    = $isAdmin || App::make('members')->isMember($entityId, (int)$currentUserId);
+          require APP_ROOT . '/views/partials/comment-thread.php';
+        ?>
+      </div>
     </div>
     <aside>
       <h3 style="font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);">Members</h3>
