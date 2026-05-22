@@ -318,18 +318,20 @@ test('3.1 quick-add 3 tasks in To Do', async ({ page }) => {
   await expect(page).toHaveURL('/');
 
   await page.goto('/projects/1');
-  const todoInput = page.locator('.kanban-col').first().locator('.kanban-quickadd input');
+  const firstCol = page.locator('.kanban-col').first();
+  await firstCol.locator('[data-quickadd-trigger]').click();
+  const todoInput = firstCol.locator('input[name=title]');
   await todoInput.fill('QA Task One');
   await todoInput.press('Enter');
-  await expect(page.locator('.kanban-col').first().locator('.kanban-card')).toHaveCount(1);
+  await expect(firstCol.locator('.kanban-card')).toHaveCount(1);
 
   await todoInput.fill('QA Task Two');
   await todoInput.press('Enter');
-  await expect(page.locator('.kanban-col').first().locator('.kanban-card')).toHaveCount(2);
+  await expect(firstCol.locator('.kanban-card')).toHaveCount(2);
 
   await todoInput.fill('QA Task Three');
   await todoInput.press('Enter');
-  await expect(page.locator('.kanban-col').first().locator('.kanban-card')).toHaveCount(3);
+  await expect(firstCol.locator('.kanban-card')).toHaveCount(3);
 
   await page.screenshot({ path: SS('3.1-tasks-added'), fullPage: true });
 });
@@ -636,7 +638,8 @@ test('4.7 delete task → redirected to project board', async ({ page }) => {
 
   // Create a temporary task to delete
   await page.goto('/projects/1');
-  const todoInput = page.locator('.kanban-quickadd input').first();
+  await page.locator('.kanban-col').first().locator('[data-quickadd-trigger]').click();
+  const todoInput = page.locator('.kanban-col').first().locator('input[name=title]');
   await todoInput.fill('Temp task to delete');
   await todoInput.press('Enter');
   await page.waitForTimeout(300);

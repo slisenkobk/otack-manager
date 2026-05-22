@@ -22,15 +22,17 @@ test('quick-add then drag from To Do to Done', async ({ page }) => {
   await page.click('button.submit[type=submit]');
   await expect(page).toHaveURL(/\/projects\/\d+$/);
 
-  // Quick-add two tasks into "To Do" (first column)
-  const todoForm = page.locator('.kanban-col').first().locator('.kanban-quickadd input');
-  await todoForm.fill('First task');
-  await todoForm.press('Enter');
-  await expect(page.locator('.kanban-col').first().locator('.kanban-card')).toHaveCount(1);
+  // Quick-add two tasks into "To Do" (first column) via fold pattern
+  const firstCol = page.locator('.kanban-col').first();
+  await firstCol.locator('[data-quickadd-trigger]').click();
+  const todoInput = firstCol.locator('input[name=title]');
+  await todoInput.fill('First task');
+  await todoInput.press('Enter');
+  await expect(firstCol.locator('.kanban-card')).toHaveCount(1);
 
-  await todoForm.fill('Second task');
-  await todoForm.press('Enter');
-  await expect(page.locator('.kanban-col').first().locator('.kanban-card')).toHaveCount(2);
+  await todoInput.fill('Second task');
+  await todoInput.press('Enter');
+  await expect(firstCol.locator('.kanban-card')).toHaveCount(2);
 
   // Drag "First task" from To Do to Done (third column)
   const card = page.locator('.kanban-card', { hasText: 'First task' });

@@ -23,8 +23,10 @@ test('open task page, change column, reload board', async ({ page }) => {
   const projectUrl = page.url();
   const projectId = projectUrl.match(/\/projects\/(\d+)/)[1];
 
-  // Add a task
-  const todoInput = page.locator('.kanban-col').first().locator('.kanban-quickadd input');
+  // Add a task via fold pattern
+  const firstCol = page.locator('.kanban-col').first();
+  await firstCol.locator('[data-quickadd-trigger]').click();
+  const todoInput = firstCol.locator('input[name=title]');
   await todoInput.fill('Task one');
   await todoInput.press('Enter');
   await expect(page.locator('.kanban-card')).toHaveCount(1);
