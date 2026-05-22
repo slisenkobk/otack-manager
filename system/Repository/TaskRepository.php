@@ -69,4 +69,27 @@ final class TaskRepository {
     public function delete(int $id): void {
         $this->pdo->prepare('DELETE FROM tasks WHERE id = ?')->execute([$id]);
     }
+
+    public function countOpenForAssignee(int $userId): int {
+        $stmt = $this->pdo->prepare(
+            'SELECT COUNT(*) AS c FROM tasks t
+             INNER JOIN task_columns c ON c.id = t.column_id
+             WHERE t.assignee_id = ? AND c.is_done = 0'
+        );
+        $stmt->execute([$userId]);
+        return (int)$stmt->fetch()['c'];
+    }
+
+    public function listForAssignee(int $userId, int $limit = 6): array {
+        $stmt = $this->pdo->prepare(
+            'SELECT t.*, p.name AS project_name, c.name AS column_name
+             FROM tasks t
+             INNER JOIN projects p ON p.id = t.project_id
+             INNER JOIN task_columns c ON c.id = t.column_id
+             WHERE t.assignee_id = ? AND c.is_done = 0
+             ORDER BY t.updated_at DESC LIMIT ?'
+        );
+        $stmt->execute([$userId, $limit]);
+        return $stmt->fetchAll();
+    }
 }

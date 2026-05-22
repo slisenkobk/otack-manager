@@ -66,6 +66,37 @@ final class ProjectRepository {
         $this->pdo->prepare('DELETE FROM projects WHERE id = ?')->execute([$id]);
     }
 
+    public function countOpenForUser(int $userId, bool $isAdmin): int {
+        if ($isAdmin) {
+            $row = $this->pdo->query("SELECT COUNT(*) AS c FROM projects WHERE status = 'active'")->fetch();
+        } else {
+            $stmt = $this->pdo->prepare(
+                "SELECT COUNT(*) AS c FROM projects p
+                 INNER JOIN project_members pm ON pm.project_id = p.id
+                 WHERE pm.user_id = ? AND p.status = 'active'"
+            );
+            $stmt->execute([$userId]);
+            $row = $stmt->fetch();
+        }
+        return (int)$row['c'];
+    }
+
+    public function recentForUser(int $userId, bool $isAdmin, int $limit = 3): array {
+        if ($isAdmin) {
+            $stmt = $this->pdo->prepare('SELECT * FROM projects ORDER BY updated_at DESC LIMIT ?');
+            $stmt->execute([$limit]);
+        } else {
+            $stmt = $this->pdo->prepare(
+                'SELECT p.* FROM projects p
+                 INNER JOIN project_members pm ON pm.project_id = p.id
+                 WHERE pm.user_id = ?
+                 ORDER BY p.updated_at DESC LIMIT ?'
+            );
+            $stmt->execute([$userId, $limit]);
+        }
+        return $stmt->fetchAll();
+    }
+
     public function slugify(string $name): string {
         // Cyrillic -> latin (basic Ukrainian + Russian)
         $tr = [

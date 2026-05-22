@@ -92,7 +92,7 @@ App::singleton('session', function () use (&$store) {
 });
 
 $router = new Router();
-$router->get('/', 'Smoke@hello');
+$router->get('/', 'Dashboard@index');
 
 if (App::env('APP_DEBUG') === 'true') {
     $router->get('/ui-sandbox', 'Smoke@uiSandbox');
