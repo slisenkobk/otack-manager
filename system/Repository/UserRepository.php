@@ -77,4 +77,12 @@ final class UserRepository {
         $stmt->execute([$id, $id, $id]);
         return (bool)$stmt->fetch();
     }
+
+    public function updatePassword(int $id, string $hash): void {
+        $this->pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([$hash, $id]);
+    }
+
+    public function updateName(int $id, string $name): void {
+        $this->pdo->prepare('UPDATE users SET name = ? WHERE id = ?')->execute([$name, $id]);
+    }
 }

@@ -66,6 +66,10 @@ $router->post('/users/{id}/block', 'User@block');
 $router->post('/users/{id}/role', 'User@setRole');
 $router->post('/users/{id}/delete', 'User@delete');
 
+$router->get('/profile', 'Profile@show');
+$router->post('/profile', 'Profile@update');
+$router->post('/profile/password', 'Profile@updatePassword');
+
 $req   = Request::fromGlobals();
 $match = $router->match($req->method, $req->path);
 if (!$match) { Response::notFound(); exit; }
