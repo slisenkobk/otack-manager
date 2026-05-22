@@ -38,6 +38,9 @@
           <button type="button" class="btn-icon col-settings kanban-col__settings" data-column-id="<?= (int)$col['id'] ?>" aria-label="Column settings"><i class="fa-solid fa-ellipsis"></i></button>
         </div>
         <div class="kanban-list kanban-col__list" data-column-id="<?= (int)$col['id'] ?>">
+          <?php if (empty($colTasks)): ?>
+            <div class="kanban-empty">No tasks yet</div>
+          <?php endif; ?>
           <?php foreach ($colTasks as $t):
             $tags = ($taskTags ?? [])[(int)$t['id']] ?? [];
             $meta = ($taskMeta ?? [])[(int)$t['id']] ?? ['comments' => 0, 'attachments' => 0];

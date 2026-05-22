@@ -1121,16 +1121,24 @@ h1.display em {
 .toggle input:focus-visible + .toggle__track { box-shadow: 0 0 0 3px var(--focus-ring-alpha); }
 
 /* ─── §10 Kanban ─────────────────────────────────────────────── */
+
+/* Full-viewport kanban board: uses calc() to fill below topbar + section-head + tabs */
 .kanban {
   display: flex;
   gap: var(--space-6);
   overflow-x: auto;
-  padding-bottom: var(--space-8);
-  align-items: flex-start;
+  overflow-y: hidden;
+  align-items: stretch;
+  /* viewport minus: topbar(~45px) + body-wrap padding-top(24px) + section-head(~80px)
+     + tab-bar(~50px) + toolbar(~56px) + bottom-padding(24px) = ~279px */
+  height: calc(100vh - 280px);
+  min-height: 400px;
+  padding-bottom: var(--space-4);
 }
 .kanban::-webkit-scrollbar { height: 6px; }
 .kanban::-webkit-scrollbar-track { background: var(--paper-2); }
 .kanban::-webkit-scrollbar-thumb { background: var(--rule-2); border-radius: 3px; }
+.kanban::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
 
 /* Toolbar (sticky filter bar) */
 .kanban-toolbar {
@@ -1164,23 +1172,29 @@ h1.display em {
 }
 .kanban-search input { border: 0; padding: var(--space-3) 0; min-width: 200px; background: transparent; }
 
+/* Column — full height of kanban row, internal scroll */
 .kanban-col {
   flex: 0 0 300px;
-  background: var(--bg-elevated);
+  background: var(--paper-2);
   border: 1px solid var(--rule);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Column head — new BEM + legacy selectors */
 .kanban-col__head,
 .kanban-col-head {
-  padding: var(--space-5) var(--space-6) var(--space-4);
+  padding: var(--space-5) var(--space-6);
   border-bottom: 1px solid var(--rule);
+  background: var(--paper);
   display: flex;
   align-items: center;
   gap: var(--space-4);
+  flex-shrink: 0;
 }
 .kanban-col__head .title,
 .kanban-col-head .title,
@@ -1214,14 +1228,34 @@ h1.display em {
   letter-spacing: var(--ls-mono);
 }
 
+/* Card list — scrolls internally */
 .kanban-list,
 .kanban-col__list {
+  flex: 1;
   padding: var(--space-4);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  min-height: 60px;
-  flex: 1;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+/* Pretty scrollbar for column lists */
+.kanban-col__list::-webkit-scrollbar,
+.kanban-list::-webkit-scrollbar { width: 6px; }
+.kanban-col__list::-webkit-scrollbar-track,
+.kanban-list::-webkit-scrollbar-track { background: transparent; }
+.kanban-col__list::-webkit-scrollbar-thumb,
+.kanban-list::-webkit-scrollbar-thumb { background: var(--rule-2); border-radius: 3px; }
+.kanban-col__list::-webkit-scrollbar-thumb:hover,
+.kanban-list::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+
+/* Empty column state */
+.kanban-empty {
+  font-size: var(--fz-xs);
+  color: var(--text-muted);
+  text-align: center;
+  padding: var(--space-8) 0;
 }
 
 /* Card */
@@ -1229,20 +1263,24 @@ h1.display em {
   background: var(--paper);
   border: 1px solid var(--rule);
   padding: var(--space-5) var(--space-6);
-  border-radius: var(--radius);
-  cursor: grab;
+  border-radius: var(--radius-md);
+  cursor: pointer;
   transition: border-color var(--duration) var(--ease),
               box-shadow var(--duration) var(--ease),
               transform var(--duration-fast) var(--ease);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+  user-select: none;
 }
 .kanban-card:hover {
   border-color: var(--ink-3);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
   transform: translateY(-1px);
 }
+.kanban-card:active { cursor: grabbing; }
 
 /* Card content — legacy selectors (.k-title, .k-meta) */
 .kanban-card .k-title {
@@ -1305,20 +1343,24 @@ h1.display em {
   box-shadow: var(--shadow-pop) !important;
 }
 
-/* Highlight pulse */
-.kanban-card.is-highlight { animation: card-pulse 1.6s ease-out; }
-@keyframes card-pulse {
+/* Highlight pulse — matches assystant ticket-pulse */
+.kanban-card.is-highlight { animation: ticket-pulse 1.6s ease-out; border-color: var(--accent) !important; }
+@keyframes ticket-pulse {
   0%   { box-shadow: 0 0 0 0 var(--brand-3); }
-  50%  { box-shadow: 0 0 0 8px var(--brand-3); }
+  50%  { box-shadow: 0 0 0 6px var(--brand-3); }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
 
-/* Quick-add */
+/* Quick-add footer */
 /* Ensure [hidden] on quick-add button/form is respected even with display override */
 .kanban-col__add[hidden],
 .kanban-col__form[hidden] { display: none !important; }
 .kanban-quickadd,
-.kanban-col__footer { padding: var(--space-4); border-top: 1px solid var(--rule); }
+.kanban-col__footer {
+  padding: var(--space-4);
+  border-top: 1px solid var(--rule);
+  flex-shrink: 0;
+}
 .kanban-quickadd button,
 .kanban-col__add {
   width: 100%;
@@ -1337,6 +1379,7 @@ h1.display em {
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
+  text-align: left;
 }
 .kanban-quickadd button:hover,
 .kanban-col__add:hover { border-color: var(--accent); color: var(--accent); background: var(--brand-3); }
@@ -1360,26 +1403,28 @@ h1.display em {
 }
 .col-settings:hover { color: var(--text); background: var(--paper); }
 
-/* Add column button */
+/* Add column button — self-stretches to full kanban height */
 .add-column {
   flex: 0 0 200px;
-  min-height: 80px;
   background: transparent;
-  border: 1px dashed var(--rule-2);
-  border-radius: var(--radius);
+  border: 2px dashed var(--rule-2);
+  border-radius: var(--radius-md);
   color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: var(--fz-xs);
-  letter-spacing: var(--ls-mono-strong);
-  text-transform: uppercase;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-4);
-  transition: all var(--duration) var(--ease);
+  gap: var(--space-3);
+  font-size: var(--fz-small);
+  font-family: var(--font-mono);
+  letter-spacing: var(--ls-mono-strong);
+  text-transform: uppercase;
+  transition: border-color var(--duration) var(--ease), color var(--duration) var(--ease);
+  align-self: stretch;
+  min-height: 60px;
+  max-height: 200px;
 }
-.add-column:hover { border-color: var(--accent); color: var(--accent); background: var(--brand-3); }
+.add-column:hover { border-color: var(--ink-3); color: var(--text); }
 
 /* Kanban additions: tagbar scrollbar, search focus, card__due */
 .kanban-tagbar::-webkit-scrollbar { height: 4px; }
@@ -1853,6 +1898,6 @@ h1.display em {
   .attach-grid { grid-template-columns: repeat(2, 1fr); }
   .attach-img { width: 100%; }
 
-  .kanban { overflow-x: auto; }
+  .kanban { overflow-x: auto; height: calc(100vh - 240px); }
   .kanban-col { flex: 0 0 280px; }
 }
