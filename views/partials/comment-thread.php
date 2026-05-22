@@ -1,7 +1,8 @@
 <?php
 use App\Service\Markdown;
-$currentUserId = $currentUserId ?? null;
-$isAdmin       = $isAdmin ?? false;
+$currentUserId      = $currentUserId ?? null;
+$isAdmin            = $isAdmin ?? false;
+$commentAttachments = $commentAttachments ?? [];
 ?>
 <div class="comment-thread" data-entity-type="<?= e($entityType) ?>" data-entity-id="<?= (int)$entityId ?>">
   <h3 style="font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);margin:0 0 16px;">Comments</h3>
@@ -20,6 +21,19 @@ $isAdmin       = $isAdmin ?? false;
             <?php endif; ?>
           </div>
           <div class="comment-body" style="font-size:14px;line-height:1.55;"><?= Markdown::render($c['body']) ?></div>
+          <?php $atts = $commentAttachments[(int)$c['id']] ?? []; ?>
+          <?php if ($atts): ?>
+            <div class="comment-attachments" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+              <?php foreach ($atts as $a): ?>
+                <a href="/<?= e($a['filename']) ?>" target="_blank"
+                   style="display:inline-flex;align-items:center;gap:6px;padding:3px 8px;background:var(--paper-2);border:1px solid var(--rule);border-radius:3px;font-size:11px;color:var(--ink-2);text-decoration:none;font-family:var(--font-mono);">
+                  <i class="fa-solid fa-<?= $a['is_image'] ? 'image' : 'paperclip' ?>"></i>
+                  <?= e(mb_strimwidth($a['original_name'], 0, 30, '…')) ?>
+                  <span style="color:var(--ink-3);"><?= fmt_size((int)$a['size']) ?></span>
+                </a>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
         </div>
       </article>
     <?php endforeach; ?>
@@ -27,9 +41,14 @@ $isAdmin       = $isAdmin ?? false;
   <?php if ($canPost): ?>
     <form class="comment-composer" style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
       <textarea class="textarea" name="body" placeholder="Write a comment… **bold** `code` [link](https://…)" rows="3"></textarea>
-      <div style="display:flex;justify-content:flex-end;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <label class="btn-ghost" style="cursor:pointer;font-size:12px;">
+          <i class="fa-solid fa-paperclip"></i> Attach files
+          <input type="file" multiple style="display:none;" data-comment-attach>
+        </label>
         <button class="submit" type="submit">Post comment →</button>
       </div>
+      <div class="comment-pending-attachments" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;"></div>
     </form>
   <?php endif; ?>
 </div>

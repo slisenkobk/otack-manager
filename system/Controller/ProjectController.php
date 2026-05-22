@@ -84,6 +84,18 @@ final class ProjectController extends BaseController {
         $canPost        = $isAdmin || $this->members->isMember($id, $currentUserId);
         $projectComments     = App::make('comments')->listFor('project', $id);
         $projectAttachments  = App::make('attachments')->listFor('project', $id);
+        $commentIds = array_column($projectComments, 'id');
+        $commentAttachments = [];
+        if ($commentIds) {
+            $placeholders = implode(',', array_fill(0, count($commentIds), '?'));
+            $stmt = App::make('db')->prepare(
+                "SELECT * FROM attachments WHERE entity_type = 'comment' AND entity_id IN ($placeholders) ORDER BY created_at ASC"
+            );
+            $stmt->execute($commentIds);
+            foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $a) {
+                $commentAttachments[(int)$a['entity_id']][] = $a;
+            }
+        }
         $projectTags         = App::make('tags')->listForProject($id);
         $allProjectTags      = App::make('tags')->listForScope('project');
         $csrf    = $this->csrfToken();
@@ -105,6 +117,7 @@ final class ProjectController extends BaseController {
                 'canPost'        => $canPost,
                 'projectComments'     => $projectComments,
                 'projectAttachments' => $projectAttachments,
+                'commentAttachments' => $commentAttachments,
                 'projectTags'        => $projectTags,
                 'allProjectTags'     => $allProjectTags,
             ]),

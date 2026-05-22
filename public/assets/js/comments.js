@@ -6,22 +6,100 @@ document.querySelectorAll('.comment-thread').forEach(thread => {
   const list       = thread.querySelector('.comment-list');
   const form       = thread.querySelector('.comment-composer');
 
+  // Pending files state per-form
+  let pendingFiles = [];
+
+  // File attachment input handler
+  const fileInput = form?.querySelector('[data-comment-attach]');
+  const pendingContainer = form?.querySelector('.comment-pending-attachments');
+
+  if (fileInput) {
+    fileInput.addEventListener('change', () => {
+      for (const file of fileInput.files) {
+        pendingFiles.push(file);
+        if (pendingContainer) {
+          const chip = buildPendingChip(file, pendingFiles.length - 1);
+          pendingContainer.appendChild(chip);
+        }
+      }
+      fileInput.value = '';
+    });
+  }
+
+  function buildPendingChip(file, index) {
+    const chip = document.createElement('span');
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:var(--paper-2);border:1px solid var(--rule);border-radius:3px;font-size:11px;color:var(--ink-2);font-family:var(--font-mono);';
+    chip.dataset.pendingIndex = String(index);
+
+    const icon = document.createElement('i');
+    icon.className = 'fa-solid fa-paperclip';
+    chip.appendChild(icon);
+
+    chip.appendChild(document.createTextNode(' ' + file.name.substring(0, 25)));
+
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--ink-3);padding:0;margin-left:4px;font-size:11px;';
+    rm.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+    rm.addEventListener('click', () => {
+      const idx = parseInt(chip.dataset.pendingIndex, 10);
+      pendingFiles.splice(idx, 1);
+      // Rebuild chips
+      renderPendingChips();
+    });
+    chip.appendChild(rm);
+    return chip;
+  }
+
+  function renderPendingChips() {
+    if (!pendingContainer) return;
+    pendingContainer.innerHTML = '';
+    pendingFiles.forEach((file, i) => {
+      const chip = buildPendingChip(file, i);
+      pendingContainer.appendChild(chip);
+    });
+  }
+
   // Submit new comment
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const textarea = form.querySelector('textarea[name=body]');
     const body = textarea.value.trim();
     if (!body) return;
+
+    let commentRes;
     try {
-      const res = await api('/api/comments', {
+      commentRes = await api('/api/comments', {
         method: 'POST',
         body: JSON.stringify({ entity_type: entityType, entity_id: +entityId, body }),
       });
-      list.appendChild(buildComment(res.comment));
-      textarea.value = '';
     } catch {
       // error already shown by api() via UI.toast
+      return;
     }
+
+    // Upload any pending files
+    const uploadedAttachments = [];
+    const filesToUpload = pendingFiles.slice();
+    pendingFiles = [];
+    if (pendingContainer) pendingContainer.innerHTML = '';
+
+    for (const file of filesToUpload) {
+      try {
+        const fd = new FormData();
+        fd.append('entity_type', 'comment');
+        fd.append('entity_id', String(commentRes.comment.id));
+        fd.append('file', file);
+        const attRes = await api('/api/attachments', { method: 'POST', body: fd });
+        if (attRes.attachment) uploadedAttachments.push(attRes.attachment);
+      } catch {
+        // non-fatal — comment already posted
+      }
+    }
+
+    commentRes.comment.attachments = uploadedAttachments;
+    list.appendChild(buildComment(commentRes.comment));
+    textarea.value = '';
   });
 
   // Attach delete to existing comments on page load
@@ -96,8 +174,36 @@ document.querySelectorAll('.comment-thread').forEach(thread => {
     bodyEl.innerHTML = c.body_html; // safe: Markdown::render() pre-escapes all input
     content.appendChild(bodyEl);
 
+    // Attachment chips for newly uploaded files
+    if (c.attachments && c.attachments.length > 0) {
+      const attRow = document.createElement('div');
+      attRow.className = 'comment-attachments';
+      attRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;';
+      for (const att of c.attachments) {
+        const chip = buildAttachmentChip(att);
+        attRow.appendChild(chip);
+      }
+      content.appendChild(attRow);
+    }
+
     a.appendChild(content);
 
     return a;
+  }
+
+  function buildAttachmentChip(att) {
+    const link = document.createElement('a');
+    link.href = att.url || ('/' + att.filename);
+    link.target = '_blank';
+    link.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:3px 8px;background:var(--paper-2);border:1px solid var(--rule);border-radius:3px;font-size:11px;color:var(--ink-2);text-decoration:none;font-family:var(--font-mono);';
+
+    const icon = document.createElement('i');
+    icon.className = 'fa-solid fa-' + (att.is_image ? 'image' : 'paperclip');
+    link.appendChild(icon);
+
+    const fname = att.original_name || att.filename || '';
+    link.appendChild(document.createTextNode(' ' + (fname.length > 30 ? fname.substring(0, 30) + '…' : fname)));
+
+    return link;
   }
 });

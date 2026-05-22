@@ -54,6 +54,27 @@ final class AttachmentController extends BaseController
             return;
         }
 
+        if ($entityType === 'comment') {
+            $stmt = App::make('db')->prepare('SELECT * FROM comments WHERE id = ?');
+            $stmt->execute([$entityId]);
+            $c = $stmt->fetch();
+            if (!$c) {
+                Response::json(['error' => 'Comment not found'], 404); exit;
+            }
+            if ($c['entity_type'] === 'project') {
+                $projectId = (int)$c['entity_id'];
+            } elseif ($c['entity_type'] === 'task') {
+                $task = $this->tasks->findById((int)$c['entity_id']);
+                $projectId = $task ? (int)$task['project_id'] : 0;
+            } else {
+                Response::json(['error' => 'Invalid parent entity'], 422); exit;
+            }
+            if (!$projectId || !$this->members->isMember($projectId, (int)$this->user['id'])) {
+                Response::json(['error' => 'Forbidden'], 403); exit;
+            }
+            return;
+        }
+
         Response::json(['error' => 'Invalid entity_type'], 422); exit;
     }
 
@@ -62,7 +83,7 @@ final class AttachmentController extends BaseController
         $entityType = $req->post['entity_type'] ?? '';
         $entityId   = (int)($req->post['entity_id'] ?? 0);
 
-        if (!in_array($entityType, ['project', 'task'], true) || !$entityId) {
+        if (!in_array($entityType, ['project', 'task', 'comment'], true) || !$entityId) {
             Response::json(['error' => 'Invalid input'], 422); return;
         }
 

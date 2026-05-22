@@ -106,6 +106,18 @@ final class TaskController extends BaseController {
         $members = $this->members->list($projectId);
         $comments = App::make('comments')->listFor('task', $id);
         $attachments = App::make('attachments')->listFor('task', $id);
+        $commentIds = array_column($comments, 'id');
+        $commentAttachments = [];
+        if ($commentIds) {
+            $placeholders = implode(',', array_fill(0, count($commentIds), '?'));
+            $stmt = App::make('db')->prepare(
+                "SELECT * FROM attachments WHERE entity_type = 'comment' AND entity_id IN ($placeholders) ORDER BY created_at ASC"
+            );
+            $stmt->execute($commentIds);
+            foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $a) {
+                $commentAttachments[(int)$a['entity_id']][] = $a;
+            }
+        }
         $taskTags    = App::make('tags')->listForTask($id);
         $allTaskTags = App::make('tags')->listForScope('task');
         $createdBy = App::make('users')->findById((int)$task['created_by']);
@@ -129,6 +141,7 @@ final class TaskController extends BaseController {
                 'canEdit' => true,
                 'taskTags'    => $taskTags,
                 'allTaskTags' => $allTaskTags,
+                'commentAttachments' => $commentAttachments,
             ]),
         ]));
     }
