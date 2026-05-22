@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?= e($title ?? 'Otack Tasks') ?></title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="/assets/css/app.css">
+<link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
+<meta name="csrf-token" content="<?= e($csrfToken ?? '') ?>">
+</head>
+<body>
+<div class="shell">
+  <?php require APP_ROOT . '/views/partials/sidebar.php'; ?>
+  <main class="main">
+    <?php require APP_ROOT . '/views/partials/topbar.php'; ?>
+    <div class="body-wrap"><?= $content ?></div>
+  </main>
+</div>
+<?php require APP_ROOT . '/views/partials/modal-root.php'; ?>
+<?php require APP_ROOT . '/views/partials/toast-root.php'; ?>
+<?php require APP_ROOT . '/views/partials/lightbox-root.php'; ?>
+<script type="module" src="/assets/js/ui.js"></script>
+</body>
+</html>
