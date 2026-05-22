@@ -96,7 +96,7 @@ test('1.2 logout', async ({ page }) => {
   await expect(page).toHaveURL('/');
 
   // Logout via sidebar form
-  await page.locator('button[type=submit]:has-text("Logout")').click();
+  await page.locator('aside.sidebar form[action="/logout"] button[type=submit]').click();
   await expect(page).toHaveURL('/login');
 });
 

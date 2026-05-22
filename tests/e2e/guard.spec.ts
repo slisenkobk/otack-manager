@@ -19,7 +19,7 @@ test('after logging in, / shows the dashboard placeholder', async ({ page }) => 
   await page.fill('input[name=name]', 'Admin');
   await page.fill('input[name=email]', 'admin@test.com');
   await page.fill('input[name=password]', 'password123');
-  await page.click('button[type=submit]');
+  await page.click('button.submit[type=submit]');
   await expect(page).toHaveURL('/');
   await expect(page.locator('aside.sidebar')).toBeVisible();
   await expect(page.locator('aside.sidebar')).toContainText('Users'); // admin only

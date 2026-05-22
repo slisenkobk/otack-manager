@@ -16,7 +16,7 @@ test('first user becomes admin and logs in', async ({ page }) => {
   await page.fill('input[name=name]', 'Admin');
   await page.fill('input[name=email]', 'admin@example.com');
   await page.fill('input[name=password]', 'password123');
-  await page.click('button[type=submit]');
+  await page.click('button.submit[type=submit]');
   await expect(page).toHaveURL('/');
 });
 
@@ -25,6 +25,6 @@ test('second user goes pending', async ({ page }) => {
   await page.fill('input[name=name]', 'User');
   await page.fill('input[name=email]', 'u@example.com');
   await page.fill('input[name=password]', 'password123');
-  await page.click('button[type=submit]');
+  await page.click('button.submit[type=submit]');
   await expect(page).toHaveURL('/pending');
 });

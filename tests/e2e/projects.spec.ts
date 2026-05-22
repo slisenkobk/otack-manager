@@ -14,7 +14,7 @@ test('admin can create a project and see 3 default columns', async ({ page }) =>
   await page.fill('input[name=name]', 'Admin');
   await page.fill('input[name=email]', 'admin@p.com');
   await page.fill('input[name=password]', 'password123');
-  await page.click('button[type=submit]');
+  await page.click('button.submit[type=submit]');
   await expect(page).toHaveURL('/');
 
   // Navigate to /projects

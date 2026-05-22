@@ -16,7 +16,7 @@ test('admin can approve a pending user', async ({ browser }) => {
   await admin.fill('input[name=name]', 'Admin');
   await admin.fill('input[name=email]', 'admin@u.com');
   await admin.fill('input[name=password]', 'password123');
-  await admin.click('button[type=submit]');
+  await admin.click('button.submit[type=submit]');
   await expect(admin).toHaveURL('/');
 
   // Second user registers (pending)
@@ -26,7 +26,7 @@ test('admin can approve a pending user', async ({ browser }) => {
   await user.fill('input[name=name]', 'Bob');
   await user.fill('input[name=email]', 'bob@u.com');
   await user.fill('input[name=password]', 'password123');
-  await user.click('button[type=submit]');
+  await user.click('button.submit[type=submit]');
   await expect(user).toHaveURL('/pending');
 
   // Admin visits /users, approves Bob
@@ -40,7 +40,7 @@ test('admin can approve a pending user', async ({ browser }) => {
   await user.goto('/login');
   await user.fill('input[name=email]', 'bob@u.com');
   await user.fill('input[name=password]', 'password123');
-  await user.click('button[type=submit]');
+  await user.click('button.submit[type=submit]');
   await expect(user).toHaveURL('/');
 
   await adminCtx.close();
