@@ -44,6 +44,16 @@ Manual smoke test before each release. Tick each item.
 - [ ] Admin can delete any comment
 - [ ] `<script>` in comment body → escaped, never executed
 
+## Comment attachments
+
+- [ ] "Attach files" label in comment composer opens file picker
+- [ ] Selecting files shows pending chip(s) with × remove button
+- [ ] Clicking × on a pending chip removes it from the list
+- [ ] Submitting comment with attachment(s) uploads files and shows chip(s) in the new comment
+- [ ] Reloading the page preserves attachment chips on existing comments
+- [ ] Clicking an attachment chip opens the file in a new tab
+- [ ] Attachment chip shows file icon (paperclip for files, image for images) + name + size
+
 ## Attachments
 
 - [ ] Upload a 4 MB JPEG → thumbnail in `.attach-grid`
@@ -59,6 +69,15 @@ Manual smoke test before each release. Tick each item.
 - [ ] Add an existing project tag via the picker → chip appears
 - [ ] Create a new tag inline ("+ Create '{input}'") → chip appears
 - [ ] Remove a tag chip → tag detaches
+
+## Admin tag management (/admin/tags)
+
+- [ ] Sidebar shows "Tags" nav item (admin only)
+- [ ] `/admin/tags` lists all tags grouped by scope (Project / Task)
+- [ ] Inline rename (contenteditable + blur) persists after reload
+- [ ] Color picker change persists after reload
+- [ ] Delete with confirm modal removes tag from list and from any project/task it was attached to
+- [ ] Usage counts (P:N T:N) shown per tag row
 
 ## Users admin (admin only)
 
@@ -79,7 +98,10 @@ Manual smoke test before each release. Tick each item.
 - [ ] `/` shows stats (open projects · my tasks · activity)
 - [ ] "My tasks" grid shows up to 6 cards linking to task pages
 - [ ] "Recent projects" grid shows up to 3 projects
-- [ ] "Recent activity" shows recent comments
+- [ ] "Recent activity" shows recent comments (up to 10)
+- [ ] "Load more" button appears when there are more than 10 activity items
+- [ ] Clicking "Load more" appends next 10 items without full reload
+- [ ] "Load more" button disappears when no further items remain
 
 ## Telegram (only if `.env` configured)
 

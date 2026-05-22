@@ -99,6 +99,7 @@ otack-tasks/
 │   ├── errors/              403.php, 404.php, 500.php
 │   ├── projects/            index.php, form.php, show.php
 │   ├── tasks/show.php
+│   ├── tags/index.php       Admin tag management
 │   ├── users/index.php
 │   └── profile/show.php
 ├── data/                    SQLite + sessions + schema markers + error log
