@@ -11,6 +11,11 @@ if (PHP_SAPI === 'cli-server') {
 require dirname(__DIR__) . '/system/bootstrap.php';
 
 use App\App;
+
+// Reset singleton instances on every request so that CLI-server test runs
+// that delete and recreate the database file between suites get a fresh
+// connection rather than a stale cached one.
+App::reset();
 use App\Http\{Request, Response, Csrf};
 use App\Routing\Router;
 use App\Database\{Connection, SchemaBootstrap, Migrations};
@@ -64,7 +69,21 @@ if ($req->method === 'POST') {
     if (!$csrf->verify($token)) { Response::json(['error' => 'CSRF mismatch'], 419); exit; }
 }
 
+// Public routes — never require auth
+$publicGets = ['/login', '/register', '/pending'];
+if (App::env('APP_DEBUG') === 'true') {
+    $publicGets[] = '/ui-sandbox';
+}
+$publicPosts = ['/login', '/register'];
+$isPublic = ($req->method === 'GET'  && in_array($req->path, $publicGets, true))
+         || ($req->method === 'POST' && in_array($req->path, $publicPosts, true));
+
+$currentUser = null;
+if (!$isPublic) {
+    $currentUser = \App\Http\AuthGuard::require($req);
+}
+
 $class = 'App\\Controller\\' . $match['controller'] . 'Controller';
 if (!class_exists($class)) { Response::notFound("Controller missing"); exit; }
-$ctrl = new $class(App::make('view'), null);
+$ctrl = new $class(App::make('view'), $currentUser);
 $ctrl->{$match['action']}($req, $match['params']);

@@ -11,9 +11,9 @@
 </head>
 <body>
 <div class="shell">
-  <?php require APP_ROOT . '/views/partials/sidebar.php'; ?>
+  <?= $sidebar ?? '' ?>
   <main class="main">
-    <?php require APP_ROOT . '/views/partials/topbar.php'; ?>
+    <?= $topbar ?? '' ?>
     <div class="body-wrap"><?= $content ?></div>
   </main>
 </div>

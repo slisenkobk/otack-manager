@@ -13,6 +13,12 @@ final class App
         self::$factories[$id] = $factory;
     }
 
+    /** Reset all instances (for CLI-server test isolation). */
+    public static function reset(): void
+    {
+        self::$instances = [];
+    }
+
     public static function make(string $id): object
     {
         if (isset(self::$instances[$id])) return self::$instances[$id];
