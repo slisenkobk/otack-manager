@@ -60,7 +60,7 @@
           $entityType = 'project';
           $entityId   = (int)$project['id'];
           $comments   = $projectComments ?? [];
-          $canPost    = $isAdmin || App::make('members')->isMember($entityId, (int)$currentUserId);
+          // $canPost is pre-computed in ProjectController::show() and passed as a view variable
           require APP_ROOT . '/views/partials/comment-thread.php';
         ?>
       </div>
