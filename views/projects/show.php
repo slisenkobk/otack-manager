@@ -70,6 +70,15 @@
       <div style="margin-top:12px;">
         <?php $projectId = (int)$project['id']; require APP_ROOT . '/views/partials/members.php'; ?>
       </div>
+      <h3 style="font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);margin:24px 0 12px;">Tags</h3>
+      <?php
+        $scope      = 'project';
+        $entityType = 'project';
+        $entityId   = (int)$project['id'];
+        $current    = $projectTags ?? [];
+        $all        = $allProjectTags ?? [];
+        require APP_ROOT . '/views/partials/tag-picker.php';
+      ?>
     </aside>
   </div>
 <?php endif; ?>

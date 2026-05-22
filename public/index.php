@@ -42,6 +42,7 @@ App::singleton('hasher',  fn() => new \App\Auth\PasswordHasher());
 App::singleton('events',   fn() => new \App\Service\EventBus());
 App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));
 App::singleton('attachments', fn() => new \App\Repository\AttachmentRepository(App::make('db')));
+App::singleton('tags',     fn() => new \App\Repository\TagRepository(App::make('db')));
 App::singleton('uploader', fn() => new \App\Service\FileUploader(
     (int)App::env('UPLOAD_MAX_IMAGE', '5242880'),
     (int)App::env('UPLOAD_MAX_FILE', '52428800'),
@@ -104,6 +105,12 @@ $router->post('/api/comments/{id}/delete', 'Comment@delete');
 
 $router->post('/api/attachments', 'Attachment@upload');
 $router->post('/api/attachments/{id}/delete', 'Attachment@delete');
+
+$router->post('/api/tags', 'Tag@create');
+$router->post('/api/projects/{id}/tags', 'Tag@attachToProject');
+$router->post('/api/projects/{id}/tags/{tagId}/delete', 'Tag@detachFromProject');
+$router->post('/api/tasks/{id}/tags', 'Tag@attachToTask');
+$router->post('/api/tasks/{id}/tags/{tagId}/delete', 'Tag@detachFromTask');
 
 $req   = Request::fromGlobals();
 $match = $router->match($req->method, $req->path);

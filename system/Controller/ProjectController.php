@@ -78,6 +78,8 @@ final class ProjectController extends BaseController {
         $currentUserId  = (int)$this->user['id'];
         $projectComments     = App::make('comments')->listFor('project', $id);
         $projectAttachments  = App::make('attachments')->listFor('project', $id);
+        $projectTags         = App::make('tags')->listForProject($id);
+        $allProjectTags      = App::make('tags')->listForScope('project');
         $csrf    = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
         $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => $project['name']]);
@@ -96,6 +98,8 @@ final class ProjectController extends BaseController {
                 'currentUserId'  => $currentUserId,
                 'projectComments'     => $projectComments,
                 'projectAttachments' => $projectAttachments,
+                'projectTags'        => $projectTags,
+                'allProjectTags'     => $allProjectTags,
             ]),
         ]));
     }

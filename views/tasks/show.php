@@ -74,6 +74,18 @@
       <input class="input" type="date" data-field="due_date" value="<?= e($task['due_date'] ?? '') ?>">
     </div>
 
+    <div class="field" style="margin-bottom:14px;">
+      <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;">Tags</label>
+      <?php
+        $scope      = 'task';
+        $entityType = 'task';
+        $entityId   = (int)$task['id'];
+        $current    = $taskTags ?? [];
+        $all        = $allTaskTags ?? [];
+        require APP_ROOT . '/views/partials/tag-picker.php';
+      ?>
+    </div>
+
     <div style="border-top:1px solid var(--rule);padding-top:12px;margin-top:18px;font-size:11px;color:var(--ink-3);">
       <div>Created by <strong style="color:var(--ink-2);"><?= e($createdBy['name'] ?? 'unknown') ?></strong></div>
       <div style="margin-top:4px;font-family:var(--font-mono);"><?= fmt_datetime($task['created_at']) ?></div>

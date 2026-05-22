@@ -86,6 +86,8 @@ final class TaskController extends BaseController {
         $members = $this->members->list($projectId);
         $comments = App::make('comments')->listFor('task', $id);
         $attachments = App::make('attachments')->listFor('task', $id);
+        $taskTags    = App::make('tags')->listForTask($id);
+        $allTaskTags = App::make('tags')->listForScope('task');
         $createdBy = App::make('users')->findById((int)$task['created_by']);
         $csrfToken = App::make('csrf')->token();
         $sidebar = $this->view->render('partials/sidebar', [
@@ -105,6 +107,8 @@ final class TaskController extends BaseController {
                 'createdBy' => $createdBy, 'csrfToken' => $csrfToken,
                 'currentUserId' => (int)$this->user['id'], 'isAdmin' => $isAdmin,
                 'canEdit' => true,
+                'taskTags'    => $taskTags,
+                'allTaskTags' => $allTaskTags,
             ]),
         ]));
     }
