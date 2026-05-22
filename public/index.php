@@ -84,6 +84,7 @@ $router->post('/projects/{id}/delete', 'Project@delete');
 
 $router->post('/projects/{id}/tasks', 'Task@create');
 $router->post('/tasks/{id}/delete', 'Task@delete');
+$router->post('/api/tasks/{id}/move', 'Task@move');
 
 $req   = Request::fromGlobals();
 $match = $router->match($req->method, $req->path);

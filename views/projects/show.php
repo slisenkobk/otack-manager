@@ -17,17 +17,30 @@
 <?php if ($currentTab === 'board'): ?>
   <div class="kanban" data-project-id="<?= (int)$project['id'] ?>">
     <?php foreach ($columns as $col): ?>
+      <?php $colTasks = $tasksByCol[$col['id']] ?? []; ?>
       <div class="kanban-col" data-column-id="<?= (int)$col['id'] ?>">
         <div class="kanban-col-head">
-          <span class="dot" style="background:<?= e($col['color']) ?>"></span>
+          <span class="dot" style="background: <?= e($col['color']) ?>"></span>
           <span class="name"><?= e($col['name']) ?></span>
-          <span class="kanban-col-count">0</span>
+          <span class="kanban-col-count"><?= count($colTasks) ?></span>
+          <button type="button" class="btn-icon col-settings" data-column-id="<?= (int)$col['id'] ?>" aria-label="Column settings"><i class="fa-solid fa-ellipsis-vertical"></i></button>
         </div>
-        <div class="kanban-list" data-column-id="<?= (int)$col['id'] ?>"></div>
-        <div class="kanban-quickadd"><span class="muted" style="font-size:13px;">+ add task (Task 17)</span></div>
+        <div class="kanban-list" data-column-id="<?= (int)$col['id'] ?>">
+          <?php foreach ($colTasks as $t): ?>
+            <div class="kanban-card" data-task-id="<?= (int)$t['id'] ?>" data-task-url="/tasks/<?= (int)$t['id'] ?>" data-position="<?= (float)$t['position'] ?>">
+              <div class="title"><?= e($t['title']) ?></div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+        <form class="kanban-quickadd" data-column-id="<?= (int)$col['id'] ?>">
+          <input type="text" name="title" placeholder="+ Add task" maxlength="200">
+        </form>
       </div>
     <?php endforeach; ?>
+    <button type="button" class="btn-secondary add-column"><i class="fa-solid fa-plus"></i> Column</button>
   </div>
+  <script src="/assets/vendor/sortable.min.js"></script>
+  <script type="module" src="/assets/js/kanban.js"></script>
 <?php else: ?>
   <div style="display:grid;grid-template-columns:1fr 280px;gap:32px;">
     <div>

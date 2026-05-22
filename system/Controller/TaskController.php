@@ -58,4 +58,17 @@ final class TaskController extends BaseController {
         $this->tasks->delete($id);
         Response::json(['ok' => true]);
     }
+
+    public function move(Request $req, array $params): void {
+        $taskId = (int)$params['id'];
+        $task = $this->tasks->findById($taskId);
+        if (!$task) { Response::json(['error' => 'Not found'], 404); return; }
+        $this->assertMember((int)$task['project_id']);
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $columnId = (int)($data['column_id'] ?? 0);
+        $position = (float)($data['position'] ?? 0);
+        if (!$columnId) { Response::json(['error' => 'column_id required'], 422); return; }
+        $this->tasks->move($taskId, $columnId, $position);
+        Response::json(['ok' => true]);
+    }
 }

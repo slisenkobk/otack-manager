@@ -68,8 +68,9 @@ final class ProjectController extends BaseController {
         $project = $this->projects->findById($id);
         if (!$project) { Response::notFound(); return; }
         $this->assertAccess($project);
-        $columns = $this->columns->listForProject($id);
-        $members = $this->members->list($id);
+        $columns    = $this->columns->listForProject($id);
+        $members    = $this->members->list($id);
+        $tasksByCol = App::make('tasks')->listForProject($id);
         $csrf    = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
         $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => $project['name']]);
@@ -78,6 +79,7 @@ final class ProjectController extends BaseController {
             'content' => $this->view->render('projects/show', [
                 'project' => $project, 'columns' => $columns, 'members' => $members, 'csrfToken' => $csrf,
                 'tab' => $req->query['tab'] ?? 'board',
+                'tasksByCol' => $tasksByCol,
             ]),
         ]));
     }
