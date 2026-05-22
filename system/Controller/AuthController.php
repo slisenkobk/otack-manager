@@ -1,0 +1,126 @@
+<?php
+declare(strict_types=1);
+namespace App\Controller;
+
+use App\App;
+use App\Http\Request;
+use App\Http\Response;
+use App\Http\Csrf;
+use App\Auth\AuthManager;
+use App\Repository\UserRepository;
+use App\View\Renderer;
+
+final class AuthController extends BaseController {
+    private AuthManager $auth;
+    private UserRepository $users;
+    private Csrf $csrf;
+
+    public function __construct(Renderer $view, ?array $user = null) {
+        parent::__construct($view, $user);
+        $this->auth  = App::make('auth');
+        $this->users = App::make('users');
+        $this->csrf  = App::make('csrf');
+    }
+
+    private function &session(): array {
+        $obj = App::make('session');
+        return $obj->store;
+    }
+
+    private function flash(string $key, string $value): void {
+        $s = &$this->session();
+        $s[$key] = $value;
+    }
+
+    private function consumeFlash(string $key): ?string {
+        $s = &$this->session();
+        $v = $s[$key] ?? null;
+        unset($s[$key]);
+        return $v;
+    }
+
+    public function loginForm(Request $req, array $params = []): void {
+        if ($this->user) { Response::redirect('/'); return; }
+        Response::html($this->view->render('auth/login', [
+            'title'     => 'Login',
+            'csrfToken' => $this->csrf->token(),
+            'error'     => $this->consumeFlash('flash_error'),
+        ], 'layouts/auth'));
+    }
+
+    public function login(Request $req, array $params = []): void {
+        $email    = trim($req->post['email'] ?? '');
+        $password = $req->post['password'] ?? '';
+        $result   = $this->auth->login($email, $password);
+
+        if ($result === null) {
+            $this->flash('flash_error', 'Невірний email або пароль');
+            Response::redirect('/login'); return;
+        }
+        if ($result === 'throttled') {
+            $this->flash('flash_error', 'Забагато спроб. Спробуйте за 15 хв');
+            Response::redirect('/login'); return;
+        }
+        if ($result === 'pending') {
+            Response::redirect('/pending'); return;
+        }
+        if ($result === 'blocked') {
+            $this->flash('flash_error', 'Обліковий запис заблоковано');
+            Response::redirect('/login'); return;
+        }
+        // success
+        $this->csrf->regenerate();
+        Response::redirect('/');
+    }
+
+    public function registerForm(Request $req, array $params = []): void {
+        Response::html($this->view->render('auth/register', [
+            'title'     => 'Register',
+            'csrfToken' => $this->csrf->token(),
+            'error'     => $this->consumeFlash('flash_error'),
+        ], 'layouts/auth'));
+    }
+
+    public function register(Request $req, array $params = []): void {
+        $name     = trim($req->post['name'] ?? '');
+        $email    = trim($req->post['email'] ?? '');
+        $password = $req->post['password'] ?? '';
+
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 8) {
+            $this->flash('flash_error', 'Перевірте поля: ім\'я, валідна пошта, пароль від 8 символів');
+            Response::redirect('/register'); return;
+        }
+        if ($this->users->findByEmail($email)) {
+            $this->flash('flash_error', 'Користувач з цією поштою вже існує');
+            Response::redirect('/register'); return;
+        }
+
+        $hasher = App::make('hasher');
+        $hash   = $hasher->hash($password);
+        $id     = $this->users->create($email, $hash, $name);
+        $user   = $this->users->findById($id);
+
+        // First-ever user is auto-approved + auto-logged-in
+        if (($user['status'] ?? '') === 'approved') {
+            $s = &$this->session();
+            $s['user_id'] = (int)$id;
+            $this->csrf->regenerate();
+            Response::redirect('/'); return;
+        }
+
+        Response::redirect('/pending');
+    }
+
+    public function pending(Request $req, array $params = []): void {
+        Response::html($this->view->render('auth/pending', [
+            'title'     => 'Awaiting approval',
+            'csrfToken' => $this->csrf->token(),
+        ], 'layouts/auth'));
+    }
+
+    public function logout(Request $req, array $params = []): void {
+        $this->auth->logout();
+        $this->csrf->regenerate();
+        Response::redirect('/login');
+    }
+}

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?= e($title ?? 'Otack Tasks') ?></title>
+<link rel="stylesheet" href="/assets/css/app.css">
+<link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
+<meta name="csrf-token" content="<?= e($csrfToken ?? '') ?>">
+</head>
+<body>
+<main style="min-height:100vh;display:grid;place-items:center;padding:40px;">
+  <div style="width:100%;max-width:440px;">
+    <?= $content ?>
+  </div>
+</main>
+<?php require APP_ROOT . '/views/partials/modal-root.php'; ?>
+<?php require APP_ROOT . '/views/partials/toast-root.php'; ?>
+<?php require APP_ROOT . '/views/partials/lightbox-root.php'; ?>
+<script type="module" src="/assets/js/ui.js"></script>
+</body>
+</html>
