@@ -12,6 +12,26 @@ require dirname(__DIR__) . '/system/bootstrap.php';
 
 use App\App;
 
+// Security headers
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'");
+header("X-Content-Type-Options: nosniff");
+header("Referrer-Policy: strict-origin-when-cross-origin");
+
+// Global exception handler
+ini_set('error_log', APP_ROOT . '/data/errors.log');
+set_exception_handler(function (\Throwable $e) {
+    error_log((string)$e);
+    if (\App\App::env('APP_DEBUG') === 'true') {
+        \App\Http\Response::html('<pre>' . htmlspecialchars((string)$e) . '</pre>', 500);
+    } else {
+        try {
+            \App\Http\Response::html(\App\App::make('view')->render('errors/500', [], 'layouts/auth'), 500);
+        } catch (\Throwable $_) {
+            \App\Http\Response::html('<h1>500</h1><p>Server error</p>', 500);
+        }
+    }
+});
+
 // Reset singleton instances on every request so that CLI-server test runs
 // that delete and recreate the database file between suites get a fresh
 // connection rather than a stale cached one.
@@ -150,7 +170,11 @@ $router->post('/api/columns/{id}/delete', 'Column@delete');
 
 $req   = Request::fromGlobals();
 $match = $router->match($req->method, $req->path);
-if (!$match) { Response::notFound(); exit; }
+if (!$match) {
+    http_response_code(404);
+    echo App::make('view')->render('errors/404', [], 'layouts/auth');
+    exit;
+}
 
 if ($req->method === 'POST') {
     $token = $req->post['_csrf'] ?? $req->header('x-csrf-token');
@@ -172,6 +196,10 @@ if (!$isPublic) {
 }
 
 $class = 'App\\Controller\\' . $match['controller'] . 'Controller';
-if (!class_exists($class)) { Response::notFound("Controller missing"); exit; }
+if (!class_exists($class)) {
+    http_response_code(404);
+    echo App::make('view')->render('errors/404', [], 'layouts/auth');
+    exit;
+}
 $ctrl = new $class(App::make('view'), $currentUser);
 $ctrl->{$match['action']}($req, $match['params']);
