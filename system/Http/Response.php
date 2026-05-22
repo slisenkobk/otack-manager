@@ -21,6 +21,26 @@ final class Response {
     }
 
     public static function notFound(string $msg = 'Not found'): void {
-        self::html('<h1>404</h1><p>' . htmlspecialchars($msg) . '</p>', 404);
+        http_response_code(404);
+        header('Content-Type: text/html; charset=utf-8');
+        try {
+            $view = \App\App::make('view');
+            echo $view->render('errors/404', ['title' => '404 — ' . $msg], 'layouts/auth');
+        } catch (\Throwable $_) {
+            echo '<!doctype html><html><head><title>404</title></head><body>'
+                . '<h1>404</h1><p>' . htmlspecialchars($msg) . '</p></body></html>';
+        }
+    }
+
+    public static function forbidden(string $msg = 'Forbidden'): void {
+        http_response_code(403);
+        header('Content-Type: text/html; charset=utf-8');
+        try {
+            $view = \App\App::make('view');
+            echo $view->render('errors/403', ['title' => '403 — ' . $msg], 'layouts/auth');
+        } catch (\Throwable $_) {
+            echo '<!doctype html><html><head><title>403</title></head><body>'
+                . '<h1>403</h1><p>' . htmlspecialchars($msg) . '</p></body></html>';
+        }
     }
 }

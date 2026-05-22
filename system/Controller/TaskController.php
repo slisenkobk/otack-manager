@@ -100,7 +100,7 @@ final class TaskController extends BaseController {
         $project = $this->projects->findById($projectId);
         $isAdmin = $this->user['role'] === 'admin';
         if (!$isAdmin && !$this->members->isMember($projectId, (int)$this->user['id'])) {
-            http_response_code(403); echo '<h1>403</h1>'; return;
+            Response::forbidden(); return;
         }
         $columns = App::make('columns')->listForProject($projectId);
         $members = $this->members->list($projectId);

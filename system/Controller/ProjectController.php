@@ -23,9 +23,7 @@ final class ProjectController extends BaseController {
     private function assertAccess(array $project): void {
         $isAdmin = $this->user['role'] === 'admin';
         if (!$isAdmin && !$this->members->isMember((int)$project['id'], (int)$this->user['id'])) {
-            http_response_code(403);
-            echo '<h1>403</h1><p>Not a project member</p>';
-            exit;
+            Response::forbidden('Not a project member'); exit;
         }
     }
 
@@ -118,7 +116,7 @@ final class ProjectController extends BaseController {
         $project = $this->projects->findById($id);
         if (!$project) { Response::notFound(); return; }
         $isOwnerOrAdmin = $this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']);
-        if (!$isOwnerOrAdmin) { http_response_code(403); echo '<h1>403</h1>'; return; }
+        if (!$isOwnerOrAdmin) { Response::forbidden(); return; }
         $csrf    = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
         $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => 'Edit ' . $project['name']]);
@@ -133,7 +131,7 @@ final class ProjectController extends BaseController {
         $project = $this->projects->findById($id);
         if (!$project) { Response::notFound(); return; }
         $isOwnerOrAdmin = $this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']);
-        if (!$isOwnerOrAdmin) { http_response_code(403); echo '<h1>403</h1>'; return; }
+        if (!$isOwnerOrAdmin) { Response::forbidden(); return; }
         $name        = trim($req->post['name'] ?? '');
         $description = trim($req->post['description'] ?? '');
         if ($name !== '') {
