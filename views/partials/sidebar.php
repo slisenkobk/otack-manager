@@ -29,6 +29,11 @@
         <span>Users</span>
         <span></span>
       </a>
+      <a class="nav-item<?= ($activeNav ?? '') === 'tags' ? ' active' : '' ?>" href="/admin/tags">
+        <span class="marker">04</span>
+        <span>Tags</span>
+        <span></span>
+      </a>
     <?php endif; ?>
   </div>
 

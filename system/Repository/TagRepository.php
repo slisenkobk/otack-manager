@@ -62,4 +62,44 @@ final class TagRepository {
         $stmt->execute([$taskId]);
         return $stmt->fetchAll();
     }
+
+    public function listAll(): array {
+        $stmt = $this->pdo->query('SELECT * FROM tags ORDER BY scope ASC, name ASC');
+        return $stmt->fetchAll();
+    }
+
+    public function countUsage(int $tagId): array {
+        $proj = $this->pdo->prepare('SELECT COUNT(*) FROM project_tag_map WHERE tag_id = ?');
+        $proj->execute([$tagId]);
+        $task = $this->pdo->prepare('SELECT COUNT(*) FROM task_tag_map WHERE tag_id = ?');
+        $task->execute([$tagId]);
+        return [
+            'project_count' => (int)$proj->fetchColumn(),
+            'task_count'    => (int)$task->fetchColumn(),
+        ];
+    }
+
+    public function update(int $id, array $fields): void {
+        $allowed = ['name', 'color'];
+        $sets = [];
+        $vals = [];
+        foreach ($allowed as $key) {
+            if (array_key_exists($key, $fields)) {
+                $sets[] = "$key = ?";
+                $vals[] = $fields[$key];
+            }
+        }
+        if (!$sets) return;
+        $vals[] = $id;
+        $this->pdo->prepare('UPDATE tags SET ' . implode(', ', $sets) . ' WHERE id = ?')
+            ->execute($vals);
+    }
+
+    public function delete(int $id): void {
+        // Map tables use ON DELETE CASCADE via FK; SQLite requires foreign_keys=ON
+        // We delete from map tables explicitly for safety.
+        $this->pdo->prepare('DELETE FROM project_tag_map WHERE tag_id = ?')->execute([$id]);
+        $this->pdo->prepare('DELETE FROM task_tag_map WHERE tag_id = ?')->execute([$id]);
+        $this->pdo->prepare('DELETE FROM tags WHERE id = ?')->execute([$id]);
+    }
 }
