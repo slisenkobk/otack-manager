@@ -98,6 +98,11 @@ final class AuthController extends BaseController {
         $hasher = App::make('hasher');
         $hash   = $hasher->hash($password);
         $id     = $this->users->create($email, $hash, $name);
+        App::make('events')->fire('user.registered', [
+            'user_id' => $id,
+            'name'    => $name,
+            'email'   => $email,
+        ]);
         $user   = $this->users->findById($id);
 
         // First-ever user is auto-approved + auto-logged-in

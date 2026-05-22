@@ -71,6 +71,9 @@ final class ProjectController extends BaseController {
         $columns    = $this->columns->listForProject($id);
         $members    = $this->members->list($id);
         $tasksByCol = App::make('tasks')->listForProject($id);
+        $allUsersRaw = App::make('users')->listAll();
+        $allUsers = array_values(array_filter($allUsersRaw, fn($u) => $u['status'] === 'approved'));
+        $canEdit = ($this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']));
         $csrf    = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
         $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => $project['name']]);
@@ -80,6 +83,8 @@ final class ProjectController extends BaseController {
                 'project' => $project, 'columns' => $columns, 'members' => $members, 'csrfToken' => $csrf,
                 'tab' => $req->query['tab'] ?? 'board',
                 'tasksByCol' => $tasksByCol,
+                'allUsers' => $allUsers,
+                'canEdit'  => $canEdit,
             ]),
         ]));
     }
@@ -120,6 +125,46 @@ final class ProjectController extends BaseController {
         $isOwnerOrAdmin = $this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']);
         if (!$isOwnerOrAdmin) { Response::json(['error' => 'Forbidden'], 403); return; }
         $this->projects->delete($id);
+        Response::json(['ok' => true]);
+    }
+
+    public function addMember(Request $req, array $params): void {
+        $projectId = (int)$params['id'];
+        $project = $this->projects->findById($projectId);
+        if (!$project) { Response::json(['error' => 'Not found'], 404); return; }
+        $isOwnerOrAdmin = $this->user['role'] === 'admin' || $this->members->isOwner($projectId, (int)$this->user['id']);
+        if (!$isOwnerOrAdmin) { Response::json(['error' => 'Forbidden'], 403); return; }
+
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $userId = (int)($data['user_id'] ?? 0);
+        if (!$userId) { Response::json(['error' => 'user_id required'], 422); return; }
+        $u = App::make('users')->findById($userId);
+        if (!$u || $u['status'] !== 'approved') {
+            Response::json(['error' => 'User must be approved'], 422); return;
+        }
+        $this->members->add($projectId, $userId);
+        Response::json(['ok' => true]);
+    }
+
+    public function removeMember(Request $req, array $params): void {
+        $projectId = (int)$params['id'];
+        $userId = (int)$params['userId'];
+        $project = $this->projects->findById($projectId);
+        if (!$project) { Response::json(['error' => 'Not found'], 404); return; }
+        $isOwnerOrAdmin = $this->user['role'] === 'admin' || $this->members->isOwner($projectId, (int)$this->user['id']);
+        if (!$isOwnerOrAdmin) { Response::json(['error' => 'Forbidden'], 403); return; }
+
+        // Refuse if removing the last owner
+        if ($this->members->isOwner($projectId, $userId)) {
+            $ownerCount = 0;
+            foreach ($this->members->list($projectId) as $m) {
+                if ($m['role'] === 'owner') $ownerCount++;
+            }
+            if ($ownerCount <= 1) {
+                Response::json(['error' => 'Cannot remove the last owner'], 422); return;
+            }
+        }
+        $this->members->remove($projectId, $userId);
         Response::json(['ok' => true]);
     }
 }

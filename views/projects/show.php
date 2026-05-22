@@ -50,13 +50,8 @@
     </div>
     <aside>
       <h3 style="font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);">Members</h3>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
-        <?php foreach ($members as $m): ?>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div class="ini" style="width:28px;height:28px;font-size:11px;"><?= e(mb_substr($m['name'], 0, 2)) ?></div>
-            <div style="font-size:13px;"><?= e($m['name']) ?> <span class="muted" style="font-size:11px;color:var(--ink-3);"><?= e($m['role']) ?></span></div>
-          </div>
-        <?php endforeach; ?>
+      <div style="margin-top:12px;">
+        <?php $projectId = (int)$project['id']; require APP_ROOT . '/views/partials/members.php'; ?>
       </div>
     </aside>
   </div>

@@ -39,6 +39,7 @@ App::singleton('members',  fn() => new \App\Repository\ProjectMemberRepository(A
 App::singleton('columns',  fn() => new \App\Repository\TaskColumnRepository(App::make('db')));
 App::singleton('tasks',    fn() => new \App\Repository\TaskRepository(App::make('db')));
 App::singleton('hasher',  fn() => new \App\Auth\PasswordHasher());
+App::singleton('events',  fn() => new \App\Service\EventBus());
 App::singleton('auth',    function () use (&$store) {
     return new \App\Auth\AuthManager(App::make('users'), App::make('hasher'), $store);
 });
@@ -85,6 +86,9 @@ $router->post('/projects/{id}/delete', 'Project@delete');
 $router->post('/projects/{id}/tasks', 'Task@create');
 $router->post('/tasks/{id}/delete', 'Task@delete');
 $router->post('/api/tasks/{id}/move', 'Task@move');
+
+$router->post('/api/projects/{id}/members', 'Project@addMember');
+$router->post('/api/projects/{id}/members/{userId}/delete', 'Project@removeMember');
 
 $req   = Request::fromGlobals();
 $match = $router->match($req->method, $req->path);
