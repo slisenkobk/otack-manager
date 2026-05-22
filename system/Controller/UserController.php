@@ -38,7 +38,16 @@ final class UserController extends BaseController {
     }
 
     public function approve(Request $req, array $params): void {
-        $this->users->approve((int)$params['id']);
+        $id = (int)$params['id'];
+        $this->users->approve($id);
+        $approved = $this->users->findById($id);
+        if ($approved) {
+            App::make('events')->fire('user.approved', [
+                'user_id'    => (int)$approved['id'],
+                'name'       => $approved['name'],
+                'actor_name' => $this->user['name'],
+            ]);
+        }
         Response::json(['ok' => true]);
     }
 

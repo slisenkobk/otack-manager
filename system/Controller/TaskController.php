@@ -42,6 +42,15 @@ final class TaskController extends BaseController {
         }
         $id = $this->tasks->create($projectId, $columnId, $title, (int)$this->user['id']);
         $task = $this->tasks->findById($id);
+        $baseUrl = rtrim(App::env('APP_URL', ''), '/');
+        $project = $this->projects->findById($projectId);
+        App::make('events')->fire('task.created', [
+            'task_id'      => $id,
+            'title'        => $task['title'],
+            'project_name' => $project['name'],
+            'actor_name'   => $this->user['name'],
+            'url'          => $baseUrl . '/tasks/' . $id,
+        ]);
         Response::json(['ok' => true, 'task' => [
             'id' => (int)$task['id'],
             'title' => $task['title'],
@@ -69,6 +78,17 @@ final class TaskController extends BaseController {
         $position = (float)($data['position'] ?? 0);
         if (!$columnId) { Response::json(['error' => 'column_id required'], 422); return; }
         $this->tasks->move($taskId, $columnId, $position);
+        $baseUrl = rtrim(App::env('APP_URL', ''), '/');
+        $cols = App::make('columns')->listForProject((int)$task['project_id']);
+        $newColName = '';
+        foreach ($cols as $c) if ((int)$c['id'] === $columnId) { $newColName = $c['name']; break; }
+        App::make('events')->fire('task.status_changed', [
+            'task_id'    => $taskId,
+            'title'      => $task['title'],
+            'new_column' => $newColName,
+            'actor_name' => $this->user['name'],
+            'url'        => $baseUrl . '/tasks/' . $taskId,
+        ]);
         Response::json(['ok' => true]);
     }
 
@@ -142,6 +162,33 @@ final class TaskController extends BaseController {
 
         $this->tasks->update($id, $fields);
         $fresh = $this->tasks->findById($id);
+        $baseUrl = rtrim(App::env('APP_URL', ''), '/');
+        if (isset($fields['column_id']) && (int)$fields['column_id'] !== (int)$task['column_id']) {
+            $cols = App::make('columns')->listForProject((int)$task['project_id']);
+            $newColName = '';
+            foreach ($cols as $c) if ((int)$c['id'] === (int)$fields['column_id']) { $newColName = $c['name']; break; }
+            App::make('events')->fire('task.status_changed', [
+                'task_id'    => $id,
+                'title'      => $fresh['title'],
+                'new_column' => $newColName,
+                'actor_name' => $this->user['name'],
+                'url'        => $baseUrl . '/tasks/' . $id,
+            ]);
+        }
+        if (array_key_exists('assignee_id', $fields) && (int)($fields['assignee_id'] ?? 0) !== (int)($task['assignee_id'] ?? 0)) {
+            $assigneeName = 'Unassigned';
+            if ($fields['assignee_id']) {
+                $assignee = App::make('users')->findById((int)$fields['assignee_id']);
+                if ($assignee) $assigneeName = $assignee['name'];
+            }
+            App::make('events')->fire('task.assignee_changed', [
+                'task_id'       => $id,
+                'title'         => $fresh['title'],
+                'assignee_name' => $assigneeName,
+                'actor_name'    => $this->user['name'],
+                'url'           => $baseUrl . '/tasks/' . $id,
+            ]);
+        }
         $descHtml = $fresh['description'] ? \App\Service\Markdown::render((string)$fresh['description']) : '';
         Response::json([
             'ok' => true,

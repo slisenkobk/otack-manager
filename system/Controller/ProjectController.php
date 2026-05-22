@@ -60,6 +60,13 @@ final class ProjectController extends BaseController {
         $id = $this->projects->create($name, $description ?: null, (int)$this->user['id']);
         $this->members->add($id, (int)$this->user['id'], 'owner');
         $this->columns->seedDefaults($id);
+        $baseUrl = rtrim(App::env('APP_URL', ''), '/');
+        App::make('events')->fire('project.created', [
+            'project_id' => $id,
+            'name'       => $name,
+            'actor_name' => $this->user['name'],
+            'url'        => $baseUrl . '/projects/' . $id,
+        ]);
         Response::redirect('/projects/' . $id);
     }
 
@@ -130,6 +137,13 @@ final class ProjectController extends BaseController {
         if ($name !== '') {
             $this->projects->update($id, ['name' => $name, 'description' => $description ?: null]);
         }
+        $baseUrl = rtrim(App::env('APP_URL', ''), '/');
+        App::make('events')->fire('project.updated', [
+            'project_id' => $id,
+            'name'       => $name !== '' ? $name : $project['name'],
+            'actor_name' => $this->user['name'],
+            'url'        => $baseUrl . '/projects/' . $id,
+        ]);
         Response::redirect('/projects/' . $id);
     }
 

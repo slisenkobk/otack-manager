@@ -41,6 +41,38 @@ App::singleton('tasks',    fn() => new \App\Repository\TaskRepository(App::make(
 App::singleton('hasher',  fn() => new \App\Auth\PasswordHasher());
 App::singleton('events',   fn() => new \App\Service\EventBus());
 App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));
+App::singleton('notif_log', fn() => new \App\Repository\NotificationLogRepository(App::make('db')));
+
+// Wire Telegram listeners after all singletons are registered
+$events = App::make('events');
+$tg = new \App\Service\NotificationLogger(
+    new \App\Service\TelegramNotifier(App::env('TG_BOT_TOKEN'), App::env('TG_CHAT_ID')),
+    App::make('notif_log')
+);
+$events->on('user.registered', function ($p) use ($tg) {
+    $tg->notify('user.registered', "[NEW] Registration request: {$p['name']} <{$p['email']}>", null, $p);
+});
+$events->on('user.approved', function ($p) use ($tg) {
+    $tg->notify('user.approved', "[USER] {$p['name']} approved by {$p['actor_name']}", null, $p);
+});
+$events->on('project.created', function ($p) use ($tg) {
+    $tg->notify('project.created', "[PROJECT] {$p['actor_name']} created '{$p['name']}'", $p['url'] ?? null, $p);
+});
+$events->on('project.updated', function ($p) use ($tg) {
+    $tg->notify('project.updated', "[PROJECT] {$p['actor_name']} updated '{$p['name']}'", $p['url'] ?? null, $p);
+});
+$events->on('task.created', function ($p) use ($tg) {
+    $tg->notify('task.created', "[TASK] {$p['actor_name']} added '{$p['title']}' to {$p['project_name']}", $p['url'] ?? null, $p);
+});
+$events->on('task.status_changed', function ($p) use ($tg) {
+    $tg->notify('task.status_changed', "[TASK] {$p['actor_name']} moved '{$p['title']}' → {$p['new_column']}", $p['url'] ?? null, $p);
+});
+$events->on('task.assignee_changed', function ($p) use ($tg) {
+    $tg->notify('task.assignee_changed', "[TASK] {$p['actor_name']} assigned '{$p['title']}' to {$p['assignee_name']}", $p['url'] ?? null, $p);
+});
+$events->on('comment.created', function ($p) use ($tg) {
+    $tg->notify('comment.created', "[COMMENT] {$p['author']} on {$p['entity_label']} '{$p['target_name']}': " . mb_substr($p['body_text'] ?? '', 0, 200), $p['url'] ?? null, $p);
+});
 App::singleton('attachments', fn() => new \App\Repository\AttachmentRepository(App::make('db')));
 App::singleton('tags',     fn() => new \App\Repository\TagRepository(App::make('db')));
 App::singleton('uploader', fn() => new \App\Service\FileUploader(

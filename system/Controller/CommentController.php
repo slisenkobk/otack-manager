@@ -76,17 +76,28 @@ final class CommentController extends BaseController
             return;
         }
 
-        $this->assertMembership($entityType, $entityId);
-
+        $entity = $this->assertMembership($entityType, $entityId);
         $id = $this->comments->create($entityType, $entityId, (int)$this->user['id'], $body);
 
+        $baseUrl = rtrim(App::env('APP_URL', ''), '/');
+        $targetName = '';
+        $entityUrl  = '';
+        if ($entityType === 'project') {
+            $targetName = $entity['name'];
+            $entityUrl  = $baseUrl . '/projects/' . $entityId;
+        } elseif ($entityType === 'task') {
+            $targetName = $entity['title'];
+            $entityUrl  = $baseUrl . '/tasks/' . $entityId;
+        }
         App::make('events')->fire('comment.created', [
-            'comment_id'  => $id,
-            'entity_type' => $entityType,
-            'entity_id'   => $entityId,
-            'author_id'   => (int)$this->user['id'],
-            'author'      => $this->user['name'],
-            'body'        => $body,
+            'comment_id'   => $id,
+            'entity_type'  => $entityType,
+            'entity_id'    => $entityId,
+            'entity_label' => $entityType,
+            'target_name'  => $targetName,
+            'author'       => $this->user['name'],
+            'body_text'    => $body,
+            'url'          => $entityUrl,
         ]);
 
         Response::json([
