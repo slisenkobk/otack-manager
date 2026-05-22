@@ -1,5 +1,18 @@
 import { api, UI } from './ui.js';
 
+// Search / filter
+const userSearch = document.querySelector('[data-user-search]');
+if (userSearch) {
+  const cards = document.querySelectorAll('article[data-user-id]');
+  userSearch.addEventListener('input', () => {
+    const q = userSearch.value.trim().toLowerCase();
+    cards.forEach(c => {
+      const txt = c.textContent.toLowerCase();
+      c.style.display = !q || txt.includes(q) ? '' : 'none';
+    });
+  });
+}
+
 document.querySelectorAll('article[data-user-id]').forEach(card => {
   card.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', async () => {

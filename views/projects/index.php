@@ -2,7 +2,15 @@
   <div class="num">01</div>
   <div class="title">Your <span style="color:var(--brand);font-weight:600;">projects</span></div>
   <div class="rule"></div>
-  <a href="/projects/new" class="btn-secondary" style="text-decoration:none;">+ New project</a>
+  <div style="display:flex;gap:var(--space-6);align-items:center;">
+    <?php if ($projects): ?>
+      <div class="kanban-search" style="margin:0;">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input class="input input--inline" placeholder="Search projects…" data-project-search>
+      </div>
+    <?php endif; ?>
+    <a href="/projects/new" class="btn btn--secondary" style="text-decoration:none;">+ New project</a>
+  </div>
 </div>
 
 <?php if (!$projects): ?>
@@ -29,3 +37,5 @@
     <?php endforeach; ?>
   </div>
 <?php endif; ?>
+
+<script type="module" src="/assets/js/projects.js"></script>

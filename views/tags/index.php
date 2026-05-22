@@ -5,6 +5,11 @@
   <div class="meta"><?= count($tags) ?> total</div>
 </div>
 
+<div class="kanban-search" style="max-width:360px;margin-bottom:var(--space-8);">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input class="input input--inline" placeholder="Search tags…" data-tag-search>
+</div>
+
 <?php
 $byScope = [];
 foreach ($tags as $t) {
@@ -24,10 +29,11 @@ foreach ($scopeLabels as $scope => $label):
       <?php foreach ($byScope[$scope] as $tag):
         $usage = $usages[(int)$tag['id']] ?? ['project_count' => 0, 'task_count' => 0];
       ?>
-        <article class="card" data-tag-id="<?= (int)$tag['id'] ?>" style="flex-direction:row;align-items:center;gap:16px;min-height:auto;padding:12px 16px;">
+        <article class="card" data-tag-id="<?= (int)$tag['id'] ?>" data-tag-row style="flex-direction:row;align-items:center;gap:16px;min-height:auto;padding:12px 16px;">
           <span class="tag-swatch" style="width:18px;height:18px;border-radius:3px;background:<?= e($tag['color']) ?>;flex-shrink:0;border:1px solid var(--rule);"></span>
           <span class="tag-name" contenteditable="true" spellcheck="false"
                 data-original="<?= e($tag['name']) ?>"
+                data-tag-name
                 style="font-weight:600;font-size:14px;flex:1;outline:none;border-bottom:1px dashed transparent;cursor:text;padding-bottom:2px;">
             <?= e($tag['name']) ?>
           </span>

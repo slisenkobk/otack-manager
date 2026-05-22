@@ -5,6 +5,11 @@
   <div class="meta"><?= count($users) ?> total</div>
 </div>
 
+<div class="kanban-search" style="max-width:360px;margin-bottom:var(--space-8);">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input class="input input--inline" placeholder="Search users by name or email…" data-user-search>
+</div>
+
 <div style="display:flex;flex-direction:column;gap:12px;">
   <?php foreach ($users as $u): ?>
     <article class="card" data-user-id="<?= (int)$u['id'] ?>" style="flex-direction:row;align-items:center;gap:18px;min-height:auto;">
