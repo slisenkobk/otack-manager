@@ -1,3 +1,5 @@
+**Default admin:** `admin@task.otack.eu` / `30926565` — http://localhost:8000/login
+
 # Otack Manager
 
 Minimal multi-user PHP project & task manager with kanban, comments, attachments and Telegram notifications.
@@ -31,8 +33,9 @@ cp .env.example .env
 php -S localhost:8000 -t public public/index.php
 
 # Open http://localhost:8000
-# Register the first user — they become admin/approved automatically.
-# Subsequent users land in /pending until admin approves them at /users.
+# Sign in as the default admin (see top of this README) or register additional users.
+# Default admin is seeded from SEED_DEFAULT_ADMIN_* env vars on first DB bootstrap.
+# Subsequent self-registrations land in /pending until admin approves them at /users.
 ```
 
 ## Telegram notifications

@@ -1,10 +1,3 @@
-<div class="section-head">
-  <div class="num">01</div>
-  <div class="title">All <span style="color:var(--brand);font-weight:600;">tags</span></div>
-  <div class="rule"></div>
-  <div class="meta"><?= count($tags) ?> total</div>
-</div>
-
 <div class="kanban-search" style="max-width:360px;margin-bottom:var(--space-8);">
   <i class="fa-solid fa-magnifying-glass"></i>
   <input class="input input--inline" placeholder="Search tags…" data-tag-search>

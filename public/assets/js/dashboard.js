@@ -1,5 +1,57 @@
 import { api } from './ui.js';
 
+const ICONS = {
+  'comment.created':     'fa-regular fa-comment',
+  'attachment.uploaded': 'fa-solid fa-paperclip',
+  'task.status_changed': 'fa-solid fa-arrow-right-arrow-left',
+  'task.created':        'fa-solid fa-plus',
+};
+const VERBS = {
+  'comment.created':     'commented',
+  'attachment.uploaded': 'attached file',
+  'task.status_changed': 'changed status',
+  'task.created':        'created task',
+};
+
+function tag(name, className, text) {
+  const el = document.createElement(name);
+  if (className) el.className = className;
+  if (text != null) el.textContent = text;
+  return el;
+}
+
+function link(href, text, className) {
+  const a = tag('a', className, text);
+  a.href = href;
+  return a;
+}
+
+function renderActivityRow(a) {
+  const row = tag('div', 'activity-row');
+  const iconClass = ICONS[a.event] || 'fa-regular fa-circle-dot';
+  const verb = VERBS[a.event] || 'updated';
+
+  row.appendChild(tag('i', 'activity-row__icon ' + iconClass));
+  row.appendChild(tag('span', 'activity-row__time mono', a.created_at));
+  row.appendChild(tag('span', 'activity-row__actor', a.actor_name));
+  row.appendChild(tag('span', 'activity-row__verb', verb));
+
+  const target = tag('span', 'activity-row__target');
+  if (a.task_id && a.task_url) {
+    target.appendChild(link(a.task_url, a.task_title || ('Task #' + a.task_id), 'activity-row__link'));
+    if (a.project_name && a.project_url) {
+      target.appendChild(tag('span', 'activity-row__in', 'in'));
+      target.appendChild(link(a.project_url, a.project_name, 'activity-row__link activity-row__link--muted'));
+    }
+  } else if (a.project_id && a.project_url) {
+    target.appendChild(link(a.project_url, a.project_name || ('Project #' + a.project_id), 'activity-row__link'));
+  }
+  row.appendChild(target);
+
+  if (a.summary) row.appendChild(tag('span', 'activity-row__summary', '— ' + a.summary));
+  return row;
+}
+
 const btn = document.querySelector('.load-more-activity');
 if (btn) {
   btn.addEventListener('click', async () => {
@@ -9,38 +61,7 @@ if (btn) {
       const res = await api('/api/activity?offset=' + offset);
       const list = document.getElementById('activity-list');
       if (list && res.items) {
-        for (const item of res.items) {
-          const a = document.createElement('a');
-          a.href = item.entity_url;
-          a.style.cssText = 'display:flex;gap:16px;align-items:baseline;padding:10px 14px;border:1px solid var(--rule);text-decoration:none;color:var(--ink);background:var(--paper);';
-
-          const ts = document.createElement('span');
-          ts.className = 'mono';
-          ts.style.cssText = 'font-size:10px;color:var(--ink-3);min-width:110px;letter-spacing:.08em;';
-          ts.textContent = item.created_at;
-          a.appendChild(ts);
-
-          const author = document.createElement('span');
-          author.style.cssText = 'font-weight:600;color:var(--ink-2);font-size:13px;min-width:120px;';
-          author.textContent = item.author_name;
-          a.appendChild(author);
-
-          const body = document.createElement('span');
-          body.style.cssText = 'font-size:13px;flex:1;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-
-          const onText = document.createTextNode('on ');
-          body.appendChild(onText);
-
-          const em = document.createElement('em');
-          em.style.cssText = 'font-style:normal;color:var(--brand);font-weight:600;';
-          em.textContent = item.entity_type;
-          body.appendChild(em);
-
-          body.appendChild(document.createTextNode(': ' + item.body_snippet));
-          a.appendChild(body);
-
-          list.appendChild(a);
-        }
+        for (const item of res.items) list.appendChild(renderActivityRow(item));
       }
       btn.dataset.offset = String(offset + 10);
       if (!res.has_more) {

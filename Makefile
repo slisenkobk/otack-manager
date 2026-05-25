@@ -1,4 +1,4 @@
-.PHONY: help setup serve dev test unit e2e e2e-ui reset reset-uploads logs status install vendor stop clean fresh
+.PHONY: help setup serve dev test unit e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh
 
 PORT ?= 8000
 SERVER_PID := /tmp/otack-server.pid
@@ -18,9 +18,10 @@ help:
 	@echo "  make e2e          — run Playwright E2E only"
 	@echo "  make e2e-ui       — run Playwright in UI mode"
 	@echo ""
-	@echo "  make reset        — wipe SQLite + schema markers (fresh DB on next request)"
-	@echo "  make reset-uploads — wipe all uploaded files"
-	@echo "  make fresh        — reset DB + uploads + sessions"
+	@echo "  make reset        — wipe DEV SQLite + schema markers (fresh dev DB)"
+	@echo "  make reset-test   — wipe TEST SQLite + schema + uploads (E2E sandbox)"
+	@echo "  make reset-uploads — wipe all DEV uploaded files"
+	@echo "  make fresh        — reset DEV DB + uploads + sessions"
 	@echo "  make clean        — fresh + remove node_modules + vendor cache"
 
 setup:
@@ -76,11 +77,17 @@ e2e-ui:
 reset:
 	rm -f data/app.sqlite
 	rm -rf data/.schema
-	@echo "DB wiped — next request creates fresh schema"
+	@echo "Dev DB wiped — next request creates fresh schema"
+
+reset-test:
+	rm -f data/app.test.sqlite
+	rm -rf data/.schema.test
+	rm -rf public/uploads-test
+	@echo "Test DB + uploads wiped"
 
 reset-uploads:
 	rm -rf public/uploads/*
-	@echo "Uploads wiped"
+	@echo "Dev uploads wiped"
 
 fresh: reset reset-uploads
 	rm -rf data/sessions/*

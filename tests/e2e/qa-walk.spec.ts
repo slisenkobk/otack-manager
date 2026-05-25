@@ -56,10 +56,10 @@ function tinyPng(): Buffer {
 // ──────────────────────────────────────────────────────────────────
 
 test.beforeAll(() => {
-  fs.rmSync(path.join(ROOT, 'data/app.sqlite'), { force: true });
-  fs.rmSync(path.join(ROOT, 'data/.schema'), { recursive: true, force: true });
+  fs.rmSync(path.join(ROOT, 'data/app.test.sqlite'), { force: true });
+  fs.rmSync(path.join(ROOT, 'data/.schema.test'), { recursive: true, force: true });
   // wipe uploads
-  const uploadDir = path.join(ROOT, 'public/uploads');
+  const uploadDir = path.join(ROOT, 'public/uploads-test');
   if (fs.existsSync(uploadDir)) {
     fs.readdirSync(uploadDir).forEach((f) => {
       const fp = path.join(uploadDir, f);
@@ -95,8 +95,9 @@ test('1.2 logout', async ({ page }) => {
   await page.locator('button.submit[type=submit], button.submit').first().click();
   await expect(page).toHaveURL('/');
 
-  // Logout via sidebar form
-  await page.locator('aside.sidebar form[action="/logout"] button[type=submit]').click();
+  // Logout via avatar dropdown
+  await page.locator('[data-user-menu-toggle]').click();
+  await page.locator('.user-menu__item--form button[type=submit]').click();
   await expect(page).toHaveURL('/login');
 });
 
@@ -306,7 +307,7 @@ test('2.6 edit project 1 (rename + description)', async ({ page }) => {
   if (await edE.count()) { await edE.fill('Updated description'); await page.waitForTimeout(200); }
   await page.locator('button.submit[type=submit], button.submit').first().click();
   await expect(page).toHaveURL('/projects/1');
-  await expect(page.locator('.section-head .title')).toContainText('Alpha Project (renamed)');
+  await expect(page.locator('.topbar__title')).toContainText('Alpha Project (renamed)');
   await page.screenshot({ path: SS('2.6-renamed'), fullPage: true });
 });
 
@@ -589,9 +590,10 @@ test('4.4 change assignee via select', async ({ page }) => {
   await expect(page).toHaveURL('/');
 
   await page.goto('/tasks/' + taskId);
-  const assigneeSelect = page.locator('[data-field=assignee_id]');
-  // Select the admin user (first non-empty option)
-  await assigneeSelect.selectOption({ index: 1 });
+  // Open the custom assignee picker and pick the first available user.
+  await page.locator('[data-assignee-picker] [data-toggle]').click();
+  const firstUser = page.locator('[data-assignee-picker] .assignee-dropdown__row[data-assignee-id]:not([data-assignee-id=""])').first();
+  await firstUser.click();
   await page.waitForTimeout(400);
   await expect(page.locator('.toast--success')).toBeVisible({ timeout: 3000 });
   await page.screenshot({ path: SS('4.4-assignee-changed'), fullPage: true });
@@ -806,7 +808,7 @@ test('6.2 click thumbnail → lightbox opens; Esc closes it', async ({ page }) =
   await expect(page).toHaveURL('/');
 
   await page.goto('/projects/1?tab=overview');
-  const thumb = page.locator('.attach-item .attach-img').first();
+  const thumb = page.locator('.attach-item--image .attach-item__media').first();
   await expect(thumb).toBeVisible();
   await thumb.click();
   await expect(page.locator('.lightbox-backdrop')).toBeVisible({ timeout: 3000 });
@@ -830,8 +832,8 @@ test('6.3 upload a text file → file row appears', async ({ page }) => {
   const countBefore = await page.locator('.attach-item').count();
   await page.locator('input[type=file][data-attach-input]').setInputFiles(tmpPath);
   await expect(page.locator('.attach-item')).toHaveCount(countBefore + 1, { timeout: 8000 });
-  // Should show file icon, not img
-  await expect(page.locator('.attach-item .fa-file').first()).toBeVisible();
+  // Should show file icon, not img (text file → text-lines variant)
+  await expect(page.locator('.attach-item .fa-file-lines').first()).toBeVisible();
   await page.screenshot({ path: SS('6.3-file-row'), fullPage: true });
   fs.unlinkSync(tmpPath);
 });
@@ -1269,7 +1271,7 @@ test('12.5 lightbox keyboard navigation (arrow keys)', async ({ page }) => {
   fs.unlinkSync(tmpPath);
 
   if (countAfter >= 2) {
-    await page.locator('.attach-item .attach-img').first().click();
+    await page.locator('.attach-item--image .attach-item__media').first().click();
     await expect(page.locator('.lightbox-backdrop')).toBeVisible();
     const firstSrc = await page.locator('.lightbox-img').getAttribute('src');
     await page.keyboard.press('ArrowRight');

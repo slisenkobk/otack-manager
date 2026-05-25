@@ -89,6 +89,14 @@ final class TaskController extends BaseController {
             'actor_name' => $this->user['name'],
             'url'        => $baseUrl . '/tasks/' . $taskId,
         ]);
+        App::make('activity')->log(
+            'task.status_changed',
+            (int)$this->user['id'],
+            (int)$task['project_id'],
+            $taskId,
+            'moved to ' . ($newColName !== '' ? $newColName : 'another column'),
+            ['column_id' => $columnId, 'new_column' => $newColName]
+        );
         Response::json(['ok' => true]);
     }
 
@@ -119,7 +127,7 @@ final class TaskController extends BaseController {
             }
         }
         $taskTags    = App::make('tags')->listForTask($id);
-        $allTaskTags = App::make('tags')->listForScope('task');
+        $allTaskTags = App::make('tags')->listAll();
         $createdBy = App::make('users')->findById((int)$task['created_by']);
         $csrfToken = App::make('csrf')->token();
         $sidebar = $this->view->render('partials/sidebar', [
@@ -223,6 +231,14 @@ final class TaskController extends BaseController {
                 'actor_name' => $this->user['name'],
                 'url'        => $baseUrl . '/tasks/' . $id,
             ]);
+            App::make('activity')->log(
+                'task.status_changed',
+                (int)$this->user['id'],
+                (int)$task['project_id'],
+                $id,
+                'moved to ' . ($newColName !== '' ? $newColName : 'another column'),
+                ['column_id' => (int)$fields['column_id'], 'new_column' => $newColName]
+            );
         }
         if (array_key_exists('assignee_id', $fields) && (int)($fields['assignee_id'] ?? 0) !== (int)($task['assignee_id'] ?? 0)) {
             $assigneeName = 'Unassigned';

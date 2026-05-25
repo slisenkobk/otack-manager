@@ -57,6 +57,44 @@ if (!sidebar) {
     } catch {}
   });
 
+  // Assignee picker (custom dropdown with avatars)
+  sidebar.querySelectorAll('[data-assignee-picker]').forEach(picker => {
+    const hidden = picker.querySelector('input[data-field=assignee_id]');
+    const btn    = picker.querySelector('[data-toggle]');
+    const pop    = picker.querySelector('.assignee-picker__pop');
+    const nameEl = picker.querySelector('.assignee-picker__name');
+    const avatarEl = picker.querySelector('.assignee-picker__btn > .user-avatar');
+
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      pop.hidden = !pop.hidden;
+    });
+    document.addEventListener('click', e => {
+      if (!picker.contains(e.target)) pop.hidden = true;
+    });
+
+    pop.querySelectorAll('.assignee-dropdown__row').forEach(row => {
+      row.addEventListener('click', () => {
+        const newId = row.dataset.assigneeId || '';
+        if ((hidden.value || '') === newId) { pop.hidden = true; return; }
+        hidden.value = newId;
+        // Mirror visual state from the chosen row to the button.
+        const src = row.querySelector('.user-avatar');
+        if (src && avatarEl) {
+          avatarEl.className = src.className;
+          avatarEl.style.cssText = src.style.cssText;
+          avatarEl.innerHTML = src.innerHTML;
+        }
+        if (nameEl) {
+          nameEl.textContent = row.textContent.trim() || 'Unassigned';
+          nameEl.classList.toggle('assignee-picker__name--muted', !newId);
+        }
+        hidden.dispatchEvent(new Event('change', { bubbles: true }));
+        pop.hidden = true;
+      });
+    });
+  });
+
   // Sidebar selectors
   sidebar.querySelectorAll('[data-field]').forEach(field => {
     field.addEventListener('change', async () => {

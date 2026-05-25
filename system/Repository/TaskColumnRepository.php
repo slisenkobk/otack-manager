@@ -6,17 +6,26 @@ final class TaskColumnRepository {
     public function __construct(private \PDO $pdo) {}
 
     public function seedDefaults(int $projectId): void {
+        // [name, color, position, is_done, is_backlog]
         $defaults = [
-            ['To Do',        '#5A4E3F', 0, 0],
-            ['In Progress',  '#C2410C', 1, 0],
-            ['Done',         '#4D6840', 2, 1],
+            ['Backlog',      '#8B7C68', 0, 0, 1],
+            ['To Do',        '#5A4E3F', 1, 0, 0],
+            ['In Progress',  '#C2410C', 2, 0, 0],
+            ['Done',         '#4D6840', 3, 1, 0],
         ];
         $stmt = $this->pdo->prepare(
-            'INSERT INTO task_columns (project_id, name, color, position, is_done) VALUES (?, ?, ?, ?, ?)'
+            'INSERT INTO task_columns (project_id, name, color, position, is_done, is_backlog) VALUES (?, ?, ?, ?, ?, ?)'
         );
         foreach ($defaults as $d) {
-            $stmt->execute([$projectId, $d[0], $d[1], $d[2], $d[3]]);
+            $stmt->execute([$projectId, $d[0], $d[1], $d[2], $d[3], $d[4]]);
         }
+    }
+
+    public function findBacklog(int $projectId): ?array {
+        $stmt = $this->pdo->prepare('SELECT * FROM task_columns WHERE project_id = ? AND is_backlog = 1 LIMIT 1');
+        $stmt->execute([$projectId]);
+        $row = $stmt->fetch();
+        return $row ?: null;
     }
 
     public function listForProject(int $projectId): array {

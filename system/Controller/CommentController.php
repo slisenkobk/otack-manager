@@ -100,6 +100,17 @@ final class CommentController extends BaseController
             'url'          => $entityUrl,
         ]);
 
+        $activityProjectId = $entityType === 'project' ? $entityId : (int)($entity['project_id'] ?? 0);
+        $activityTaskId    = $entityType === 'task' ? $entityId : null;
+        App::make('activity')->log(
+            'comment.created',
+            (int)$this->user['id'],
+            $activityProjectId ?: null,
+            $activityTaskId,
+            mb_substr(strip_tags($body), 0, 200),
+            ['comment_id' => $id]
+        );
+
         Response::json([
             'ok'      => true,
             'comment' => [

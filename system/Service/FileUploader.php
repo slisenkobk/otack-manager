@@ -78,7 +78,7 @@ final class FileUploader
         $ext    = $this->extensionFor($realMime, $file['name'] ?? '');
         $uuid   = bin2hex(random_bytes(16));
         $sub    = date('Y/m');
-        $relDir = 'uploads/' . $sub;
+        $relDir = basename($this->uploadDir) . '/' . $sub;
         $absDir = $this->uploadDir . '/' . $sub;
 
         if (!is_dir($absDir)) {

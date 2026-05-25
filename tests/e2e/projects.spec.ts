@@ -4,8 +4,8 @@ import path from 'path';
 const ROOT = path.resolve(__dirname, '../..');
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(() => {
-  fs.rmSync(path.join(ROOT, 'data/app.sqlite'), { force: true });
-  fs.rmSync(path.join(ROOT, 'data/.schema'), { recursive: true, force: true });
+  fs.rmSync(path.join(ROOT, 'data/app.test.sqlite'), { force: true });
+  fs.rmSync(path.join(ROOT, 'data/.schema.test'), { recursive: true, force: true });
 });
 
 test('admin can create a project and see 3 default columns', async ({ page }) => {
@@ -19,7 +19,7 @@ test('admin can create a project and see 3 default columns', async ({ page }) =>
 
   // Navigate to /projects
   await page.goto('/projects');
-  await expect(page.locator('.section-head')).toBeVisible();
+  await expect(page.locator('.topbar__title')).toContainText('Projects');
 
   // Create
   await page.click('a:has-text("New project")');

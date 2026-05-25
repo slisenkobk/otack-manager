@@ -34,32 +34,40 @@ document.querySelectorAll('.tag-picker').forEach(picker => {
 
   function render(q) {
     dropdown.textContent = '';
-    if (!q) { dropdown.style.display = 'none'; return; }
     const lower   = q.toLowerCase();
-    const matches = allTags
-      .filter(t => !attachedIds.has(+t.id) && t.name.toLowerCase().includes(lower))
-      .slice(0, 8);
-    const exact = allTags.find(t => t.name.toLowerCase() === lower);
+    const available = allTags.filter(t => !attachedIds.has(+t.id));
+    const matches = (q
+      ? available.filter(t => t.name.toLowerCase().includes(lower))
+      : available).slice(0, 12);
+    const exact = q ? allTags.find(t => t.name.toLowerCase() === lower) : true;
 
-    matches.forEach(t => {
-      const row = mkRow(t.name + ' (existing)', () => attachExisting(t));
-      dropdown.appendChild(row);
-    });
-    if (!exact) {
+    if (!matches.length && !q) {
+      dropdown.appendChild(mkRow('No tags yet — start typing to create one.', null, true));
+    }
+    matches.forEach(t => dropdown.appendChild(mkRow(t, () => attachExisting(t))));
+    if (q && !exact) {
       const row = mkRow('+ Create "' + q + '"', () => createAndAttach(q));
-      row.style.borderTop = matches.length ? '1px solid var(--rule)' : '';
+      if (matches.length) row.style.borderTop = '1px solid var(--rule)';
       dropdown.appendChild(row);
     }
-    dropdown.style.display = (matches.length || !exact) ? 'block' : 'none';
+    dropdown.style.display = 'block';
   }
 
-  function mkRow(text, onClick) {
+  function mkRow(payload, onClick, isHint = false) {
     const row = document.createElement('div');
-    row.style.cssText = 'padding:8px 12px;cursor:pointer;font-size:13px;';
-    row.textContent   = text;
-    row.addEventListener('mouseenter', () => row.style.background = 'var(--paper-2)');
-    row.addEventListener('mouseleave', () => row.style.background = '');
-    row.addEventListener('click', onClick);
+    row.className = 'tag-dropdown__row' + (isHint ? ' tag-dropdown__row--hint' : '');
+    if (typeof payload === 'string') {
+      row.textContent = payload;
+    } else {
+      const dot = document.createElement('span');
+      dot.className = 'tag-dropdown__dot';
+      dot.style.background = payload.color || '#8B7C68';
+      row.appendChild(dot);
+      const name = document.createElement('span');
+      name.textContent = payload.name;
+      row.appendChild(name);
+    }
+    if (onClick) row.addEventListener('click', onClick);
     return row;
   }
 
@@ -105,6 +113,7 @@ document.querySelectorAll('.tag-picker').forEach(picker => {
   }
 
   search.addEventListener('input', () => render(search.value.trim()));
+  search.addEventListener('focus', () => render(search.value.trim()));
   document.addEventListener('click', e => {
     if (!picker.contains(e.target)) dropdown.style.display = 'none';
   });

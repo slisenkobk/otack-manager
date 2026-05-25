@@ -30,6 +30,8 @@ final class App
 
     public static function env(string $key, string $default = ''): string
     {
-        return (string)($_ENV[$key] ?? $default);
+        if (isset($_ENV[$key])) return (string)$_ENV[$key];
+        $v = getenv($key);
+        return $v === false ? $default : (string)$v;
     }
 }

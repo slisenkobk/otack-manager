@@ -47,7 +47,7 @@ $session->start((int)App::env('SESSION_LIFETIME', '43200'));
 $store = &$session->storage();
 
 App::singleton('db',     fn() => Connection::open(APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite')));
-App::singleton('schema', fn() => new SchemaBootstrap(App::make('db'), APP_ROOT . '/data/.schema'));
+App::singleton('schema', fn() => new SchemaBootstrap(App::make('db'), APP_ROOT . '/' . App::env('SCHEMA_PATH', 'data/.schema')));
 App::singleton('view',   fn() => new Renderer(APP_ROOT . '/views'));
 Migrations::run(App::make('schema'));
 
@@ -62,6 +62,7 @@ App::singleton('hasher',  fn() => new \App\Auth\PasswordHasher());
 App::singleton('events',   fn() => new \App\Service\EventBus());
 App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));
 App::singleton('notif_log', fn() => new \App\Repository\NotificationLogRepository(App::make('db')));
+App::singleton('activity', fn() => new \App\Repository\ActivityLogRepository(App::make('db')));
 
 // Wire Telegram listeners after all singletons are registered
 $events = App::make('events');
@@ -98,7 +99,7 @@ App::singleton('tags',     fn() => new \App\Repository\TagRepository(App::make('
 App::singleton('uploader', fn() => new \App\Service\FileUploader(
     (int)App::env('UPLOAD_MAX_IMAGE', '5242880'),
     (int)App::env('UPLOAD_MAX_FILE', '52428800'),
-    APP_ROOT . '/public/uploads'
+    APP_ROOT . '/' . App::env('UPLOAD_DIR', 'public/uploads')
 ));
 App::singleton('auth',    function () use (&$store) {
     return new \App\Auth\AuthManager(App::make('users'), App::make('hasher'), $store);
@@ -173,6 +174,7 @@ $router->post('/api/admin/tags/{id}/delete', 'TagAdmin@delete');
 $router->post('/api/columns', 'Column@create');
 $router->post('/api/columns/{id}', 'Column@update');
 $router->post('/api/columns/{id}/delete', 'Column@delete');
+$router->post('/api/projects/{id}/columns/reorder', 'Column@reorder');
 
 $req   = Request::fromGlobals();
 $match = $router->match($req->method, $req->path);

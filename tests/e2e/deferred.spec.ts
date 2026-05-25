@@ -19,10 +19,10 @@ const ROOT = path.resolve(__dirname, '../..');
 test.describe.configure({ mode: 'serial' });
 
 test.beforeAll(() => {
-  fs.rmSync(path.join(ROOT, 'data/app.sqlite'), { force: true });
-  fs.rmSync(path.join(ROOT, 'data/.schema'), { recursive: true, force: true });
+  fs.rmSync(path.join(ROOT, 'data/app.test.sqlite'), { force: true });
+  fs.rmSync(path.join(ROOT, 'data/.schema.test'), { recursive: true, force: true });
   // wipe uploads
-  const uploadDir = path.join(ROOT, 'public/uploads');
+  const uploadDir = path.join(ROOT, 'public/uploads-test');
   if (fs.existsSync(uploadDir)) {
     fs.readdirSync(uploadDir).forEach((f) => {
       const fp = path.join(uploadDir, f);
@@ -80,7 +80,7 @@ test('D.1 pagination: post 11 comments, reload dashboard, click Load more, see e
   await page.goto('/');
 
   // Activity list should have 10 items initially
-  const activityList = page.locator('#activity-list a');
+  const activityList = page.locator('#activity-list .activity-row');
   await expect(activityList).toHaveCount(10);
 
   // Load more button should be visible
@@ -92,7 +92,7 @@ test('D.1 pagination: post 11 comments, reload dashboard, click Load more, see e
   await page.waitForTimeout(600);
 
   // Should now have 11 items (the extra one loaded)
-  const activityListAfter = page.locator('#activity-list a');
+  const activityListAfter = page.locator('#activity-list .activity-row');
   const countAfter = await activityListAfter.count();
   expect(countAfter).toBeGreaterThanOrEqual(11);
 
@@ -132,7 +132,7 @@ test('D.2.1 admin tags page: create tags and visit /admin/tags', async ({ page }
 
   // Visit /admin/tags
   await page.goto('/admin/tags');
-  await expect(page.locator('.section-head .title:has-text("tags")')).toBeVisible();
+  await expect(page.locator('.topbar__title')).toContainText('Tags');
 
   // Both tags should be listed
   await expect(page.locator('[data-tag-id]')).toHaveCount(2);
@@ -276,7 +276,7 @@ test('D.3.2 comment attachment chip is clickable (valid URL)', async ({ page }) 
   // Verify it has a valid href
   const href = await chip.getAttribute('href');
   expect(href).toBeTruthy();
-  expect(href).toMatch(/^\/uploads\//);
+  expect(href).toMatch(/^\/uploads-test\//);
 
   // Verify the file is accessible
   const res = await page.request.get(href!);

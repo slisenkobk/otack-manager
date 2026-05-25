@@ -1,8 +1,11 @@
 /data/app.sqlite
+/data/app.test.sqlite
 /data/sessions/
 /data/.schema/
+/data/.schema.test/
 /data/errors.log
 /public/uploads/
+/public/uploads-test/
 /.env
 /node_modules/
 /.playwright/

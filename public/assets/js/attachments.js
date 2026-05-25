@@ -58,55 +58,74 @@ document.querySelectorAll('.attachments-section').forEach(section => {
     e.target.value = '';
   });
 
+  function kindOf(a) {
+    if (a.is_image) return 'image';
+    const mime = (a.mime || '').toLowerCase();
+    const name = (a.original_name || '').toLowerCase();
+    if (/(zip|rar|7z|tar|gz|bz2)$/.test(name)) return 'archive';
+    if (['application/zip','application/x-7z-compressed','application/x-rar-compressed','application/x-tar','application/gzip'].includes(mime)) return 'archive';
+    if (mime === 'application/pdf' || mime.startsWith('text/') || mime === 'application/json' || mime === 'application/xml') return 'viewable';
+    return 'download';
+  }
+
   function buildAttachmentNode(a) {
+    const kind = kindOf(a);
     const art = document.createElement('article');
-    art.className = 'attach-item';
+    art.className = 'attach-item attach-item--' + kind;
     art.dataset.attachmentId = a.id;
     art.dataset.isImage      = a.is_image ? '1' : '0';
     art.dataset.url          = a.url;
     art.dataset.name         = a.original_name;
-    art.style.cssText = 'position:relative;border:1px solid var(--rule);border-radius:4px;overflow:hidden;background:var(--paper);';
 
-    if (a.is_image) {
+    if (kind === 'image') {
       const link = document.createElement('a');
-      link.href        = '#';
-      link.className   = 'attach-img';
+      link.href = '#';
+      link.className = 'attach-item__media';
       link.dataset.action = 'lightbox';
-      link.style.cssText  = 'display:block;height:120px;';
       const img = document.createElement('img');
-      img.src       = a.url;
-      img.alt       = a.original_name;
-      img.loading   = 'lazy';
-      img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+      img.src = a.url;
+      img.alt = a.original_name;
+      img.loading = 'lazy';
       link.appendChild(img);
       art.appendChild(link);
     } else {
       const link = document.createElement('a');
-      link.href      = a.url;
-      link.download  = '';
-      link.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;height:120px;text-decoration:none;color:var(--ink-2);';
+      link.className = 'attach-item__media attach-item__media--icon';
+      link.href = a.url;
+      if (kind === 'viewable') { link.target = '_blank'; link.rel = 'noopener'; }
+      else link.download = '';
       const icon = document.createElement('i');
-      icon.className    = 'fa-solid fa-file';
-      icon.style.cssText = 'font-size:32px;color:var(--ink-3);';
+      icon.className = kind === 'archive' ? 'fa-solid fa-file-zipper'
+                    : a.mime === 'application/pdf' ? 'fa-solid fa-file-pdf'
+                    : (a.mime || '').startsWith('text/') ? 'fa-solid fa-file-lines'
+                    : 'fa-solid fa-file';
       const nm = document.createElement('div');
-      nm.style.cssText = 'font-size:11px;margin-top:8px;font-family:var(--font-mono);text-align:center;padding:0 6px;word-break:break-all;line-height:1.3;';
-      nm.textContent   = (a.original_name.length > 24 ? a.original_name.slice(0, 23) + '…' : a.original_name);
+      nm.className = 'attach-item__name';
+      nm.textContent = a.original_name.length > 24 ? a.original_name.slice(0, 23) + '…' : a.original_name;
+      const cta = document.createElement('span');
+      cta.className = 'attach-item__cta';
+      const ctaIcon = document.createElement('i');
+      ctaIcon.className = kind === 'viewable' ? 'fa-solid fa-arrow-up-right-from-square' : 'fa-solid fa-download';
+      cta.appendChild(ctaIcon);
+      cta.appendChild(document.createTextNode(' ' + (kind === 'viewable' ? 'open' : 'download')));
       link.appendChild(icon);
       link.appendChild(nm);
+      link.appendChild(cta);
       art.appendChild(link);
     }
 
     const meta = document.createElement('div');
-    meta.style.cssText = 'position:absolute;bottom:0;left:0;right:0;background:rgba(26,22,18,0.85);color:var(--paper);padding:3px 6px;font-size:10px;font-family:var(--font-mono);display:flex;justify-content:space-between;align-items:center;';
+    meta.className = 'attach-item__foot';
     const sz = document.createElement('span');
     sz.textContent = formatSize(a.size);
     meta.appendChild(sz);
 
     if (a.can_delete) {
       const btn = document.createElement('button');
-      btn.type              = 'button';
-      btn.dataset.action    = 'delete-attachment';
-      btn.style.cssText     = 'background:none;border:none;color:var(--paper);cursor:pointer;padding:0;';
+      btn.type = 'button';
+      btn.className = 'attach-item__del';
+      btn.dataset.action = 'delete-attachment';
+      btn.setAttribute('aria-label', 'Delete');
       const i = document.createElement('i');
       i.className = 'fa-solid fa-xmark';
       btn.appendChild(i);

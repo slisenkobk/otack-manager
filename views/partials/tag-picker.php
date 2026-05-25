@@ -15,10 +15,10 @@
     <?php endforeach; ?>
   </div>
   <?php if ($canEdit): ?>
-    <div class="tag-input-wrap" style="margin-top:8px;position:relative;">
-      <input class="input" type="text" placeholder="+ Add tag&hellip;" data-tag-search style="font-size:13px;">
+    <div class="tag-input-wrap" style="margin-top:8px;position:relative;width:100%;">
+      <input class="input" type="text" placeholder="+ Add tag&hellip;" data-tag-search style="font-size:13px;width:100%;display:block;">
       <div class="dropdown" data-tag-dropdown
-           style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--paper);border:1px solid var(--rule);max-height:200px;overflow-y:auto;z-index:10;margin-top:4px;border-radius:4px;"></div>
+           style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--paper);border:1px solid var(--rule);max-height:240px;overflow-y:auto;z-index:var(--z-dropdown);margin-top:4px;border-radius:var(--radius-sm);box-shadow:var(--shadow-pop);"></div>
       <input type="hidden" data-all-tags value="<?= e(json_encode(array_values($all))) ?>">
     </div>
   <?php endif; ?>

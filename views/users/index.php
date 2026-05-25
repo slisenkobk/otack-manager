@@ -1,10 +1,3 @@
-<div class="section-head">
-  <div class="num">01</div>
-  <div class="title">All <span style="color:var(--brand);font-weight:600;">users</span></div>
-  <div class="rule"></div>
-  <div class="meta"><?= count($users) ?> total</div>
-</div>
-
 <div class="kanban-search" style="max-width:360px;margin-bottom:var(--space-8);">
   <i class="fa-solid fa-magnifying-glass"></i>
   <input class="input input--inline" placeholder="Search users by name or email…" data-user-search>

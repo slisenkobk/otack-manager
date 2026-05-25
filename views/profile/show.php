@@ -1,9 +1,3 @@
-<div class="section-head">
-  <div class="num">01</div>
-  <div class="title">Your <span style="color:var(--brand);font-weight:600;">profile</span></div>
-  <div class="rule"></div>
-</div>
-
 <?php if (!empty($success)): ?>
   <div class="toast toast--success" style="position:static;margin-bottom:16px;"><?= e($success) ?></div>
 <?php endif; ?>

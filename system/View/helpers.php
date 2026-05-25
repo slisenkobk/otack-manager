@@ -33,6 +33,14 @@ function fmt_datetime(?string $iso): string
     return date('d.m.Y H:i', strtotime($iso));
 }
 
+/** Deterministic OKLCH-ish hue per user id → stable colored avatar background. */
+function user_color(int $id): string
+{
+    if ($id <= 0) return '#9a9a9a';
+    $hue = ($id * 47) % 360;
+    return 'hsl(' . $hue . ', 55%, 48%)';
+}
+
 function fmt_size(int $bytes): string
 {
     if ($bytes < 1024) return $bytes . ' B';

@@ -106,10 +106,21 @@ final class ProjectController extends BaseController {
             }
         }
         $projectTags         = App::make('tags')->listForProject($id);
-        $allProjectTags      = App::make('tags')->listForScope('project');
+        $allProjectTags      = App::make('tags')->listAll();
         $csrf    = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
-        $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => $project['name']]);
+        $statusPill = sprintf(
+            '<span class="status%s">%s</span>',
+            $project['status'] === 'active' ? ' is-ready' : '',
+            htmlspecialchars($project['status'], ENT_QUOTES, 'UTF-8')
+        );
+        $topbar  = $this->view->render('partials/topbar', [
+            'user'        => $this->user,
+            'crumb'       => $project['name'],
+            'crumbNum'    => str_pad((string)$project['id'], 2, '0', STR_PAD_LEFT),
+            'crumbExtra'  => $statusPill,
+            'csrfToken'   => $csrf,
+        ]);
         Response::html($this->view->render('layouts/main', [
             'title' => $project['name'], 'csrfToken' => $csrf, 'sidebar' => $sidebar, 'topbar' => $topbar,
             'content' => $this->view->render('projects/show', [
@@ -157,11 +168,24 @@ final class ProjectController extends BaseController {
         if (!$project) { Response::notFound(); return; }
         $isOwnerOrAdmin = $this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']);
         if (!$isOwnerOrAdmin) { Response::forbidden(); return; }
-        $name        = trim($req->post['name'] ?? '');
-        $description = \App\Service\HtmlSanitizer::clean(trim($req->post['description'] ?? ''));
-        if ($name !== '') {
-            $this->projects->update($id, ['name' => $name, 'description' => $description ?: null]);
+        $fields = [];
+        if (isset($req->post['name'])) {
+            $name = trim($req->post['name']);
+            if ($name !== '') { $fields['name'] = $name; }
         }
+        if (isset($req->post['description'])) {
+            $fields['description'] = \App\Service\HtmlSanitizer::clean(trim($req->post['description'])) ?: null;
+        }
+        if (isset($req->post['status'])) {
+            $status = trim($req->post['status']);
+            if (in_array($status, ['active', 'archived'], true)) {
+                $fields['status'] = $status;
+            }
+        }
+        if ($fields) {
+            $this->projects->update($id, $fields);
+        }
+        $name = $fields['name'] ?? $project['name'];
         $baseUrl = rtrim(App::env('APP_URL', ''), '/');
         App::make('events')->fire('project.updated', [
             'project_id' => $id,

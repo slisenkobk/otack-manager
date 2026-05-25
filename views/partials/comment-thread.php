@@ -23,13 +23,11 @@ $commentAttachments = $commentAttachments ?? [];
           <div class="comment-body" style="font-size:14px;line-height:1.55;"><?= Markdown::render($c['body']) ?></div>
           <?php $atts = $commentAttachments[(int)$c['id']] ?? []; ?>
           <?php if ($atts): ?>
-            <div class="comment-attachments" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+            <div class="comment-attachments">
               <?php foreach ($atts as $a): ?>
-                <a href="/<?= e($a['filename']) ?>" target="_blank"
-                   style="display:inline-flex;align-items:center;gap:6px;padding:3px 8px;background:var(--paper-2);border:1px solid var(--rule);border-radius:3px;font-size:11px;color:var(--ink-2);text-decoration:none;font-family:var(--font-mono);">
+                <a class="comment-attachment" href="/<?= e($a['filename']) ?>" target="_blank" rel="noopener" title="<?= e($a['original_name']) ?>">
                   <i class="fa-solid fa-<?= $a['is_image'] ? 'image' : 'paperclip' ?>"></i>
-                  <?= e(mb_strimwidth($a['original_name'], 0, 30, '…')) ?>
-                  <span style="color:var(--ink-3);"><?= fmt_size((int)$a['size']) ?></span>
+                  <span><?= e($a['original_name']) ?></span>
                 </a>
               <?php endforeach; ?>
             </div>

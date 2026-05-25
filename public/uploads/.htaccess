@@ -1,9 +1,0 @@
-<FilesMatch "\.(php|phtml|phar|pl|py|cgi|sh)$">
-  Require all denied
-</FilesMatch>
-<FilesMatch "\.(jpg|jpeg|png|gif|webp)$">
-  Header set Content-Disposition "inline"
-</FilesMatch>
-<FilesMatch "\.(pdf|doc|docx|xls|xlsx|zip|rar|7z|txt|csv|json|xml|mp4|mp3)$">
-  Header set Content-Disposition "attachment"
-</FilesMatch>

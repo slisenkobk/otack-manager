@@ -153,3 +153,55 @@ export async function api(url, opts = {}) {
 
 window.UI = UI;
 window.api = api;
+
+function initUserMenu() {
+  const root = document.querySelector('[data-user-menu]');
+  if (!root) return;
+  const toggle = root.querySelector('[data-user-menu-toggle]');
+  const pop = root.querySelector('.user-menu__pop');
+  if (!toggle || !pop) return;
+
+  function open() {
+    pop.hidden = false;
+    toggle.setAttribute('aria-expanded', 'true');
+    document.addEventListener('click', onDocClick, true);
+    document.addEventListener('keydown', onKey);
+  }
+  function close() {
+    pop.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('click', onDocClick, true);
+    document.removeEventListener('keydown', onKey);
+  }
+  function onDocClick(e) { if (!root.contains(e.target)) close(); }
+  function onKey(e) { if (e.key === 'Escape') { close(); toggle.focus(); } }
+
+  toggle.addEventListener('click', e => {
+    e.stopPropagation();
+    pop.hidden ? open() : close();
+  });
+
+  const logoutForm = root.querySelector('.user-menu__item--form');
+  if (logoutForm) {
+    logoutForm.addEventListener('submit', () => {
+      const csrfInput = logoutForm.querySelector('input[name=_csrf]');
+      if (csrfInput && !csrfInput.value) {
+        csrfInput.value = document.querySelector('meta[name=csrf-token]')?.content || '';
+      }
+    });
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initUserMenu);
+} else {
+  initUserMenu();
+}
+
+// Auto-submit any form-control marked [data-auto-submit] on change.
+document.addEventListener('change', (e) => {
+  const el = e.target.closest('[data-auto-submit]');
+  if (!el) return;
+  const form = el.closest('form');
+  if (form) form.submit();
+});

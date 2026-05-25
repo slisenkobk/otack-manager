@@ -6,8 +6,8 @@ const ROOT = path.resolve(__dirname, '../..');
 
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(() => {
-  fs.rmSync(path.join(ROOT, 'data/app.sqlite'), { force: true });
-  fs.rmSync(path.join(ROOT, 'data/.schema'), { recursive: true, force: true });
+  fs.rmSync(path.join(ROOT, 'data/app.test.sqlite'), { force: true });
+  fs.rmSync(path.join(ROOT, 'data/.schema.test'), { recursive: true, force: true });
 });
 test('unauthenticated visit to / redirects to /login', async ({ page }) => {
   await page.goto('/');

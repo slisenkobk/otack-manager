@@ -5,12 +5,37 @@ if (root) initKanban(root);
 
 function initKanban(root) {
   root.querySelectorAll('.kanban-list').forEach(initSortable);
+  initColumnSortable(root);
   initCardClick(root);
   initQuickAdd(root);
   initAddColumn(root);
   initColumnSettings(root);
   initToolbar(root);
   initHighlight();
+}
+
+function initColumnSortable(root) {
+  const projectId = +root.dataset.projectId;
+  if (!projectId) return;
+  window.Sortable.create(root, {
+    animation: 150,
+    handle: '.kanban-col__drag',
+    draggable: '.kanban-col',
+    ghostClass: 'kanban-col-ghost',
+    dragClass: 'kanban-col-dragging',
+    filter: '.add-column',
+    onEnd: async () => {
+      const ids = [...root.querySelectorAll('.kanban-col')].map(c => +c.dataset.columnId);
+      try {
+        await api('/api/projects/' + projectId + '/columns/reorder', {
+          method: 'POST',
+          body: JSON.stringify({ ids }),
+        });
+      } catch {
+        UI.toast('Failed to save column order', 'error');
+      }
+    },
+  });
 }
 
 // ─── Position helpers ────────────────────────────────────────────────────────

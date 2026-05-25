@@ -112,6 +112,36 @@ final class AttachmentController extends BaseController
         ]);
         $row = $this->repo->findById($id);
 
+        $activityProjectId = null; $activityTaskId = null;
+        if ($entityType === 'project') {
+            $activityProjectId = $entityId;
+        } elseif ($entityType === 'task') {
+            $activityTaskId = $entityId;
+            $task = $this->tasks->findById($entityId);
+            if ($task) $activityProjectId = (int)$task['project_id'];
+        } elseif ($entityType === 'comment') {
+            $stmt = App::make('db')->prepare('SELECT * FROM comments WHERE id = ?');
+            $stmt->execute([$entityId]);
+            $c = $stmt->fetch();
+            if ($c) {
+                if ($c['entity_type'] === 'project') {
+                    $activityProjectId = (int)$c['entity_id'];
+                } elseif ($c['entity_type'] === 'task') {
+                    $activityTaskId = (int)$c['entity_id'];
+                    $task = $this->tasks->findById($activityTaskId);
+                    if ($task) $activityProjectId = (int)$task['project_id'];
+                }
+            }
+        }
+        App::make('activity')->log(
+            'attachment.uploaded',
+            (int)$this->user['id'],
+            $activityProjectId,
+            $activityTaskId,
+            'uploaded ' . $row['original_name'],
+            ['attachment_id' => $id, 'filename' => $row['original_name'], 'entity_type' => $entityType]
+        );
+
         Response::json(['ok' => true, 'attachment' => [
             'id'            => (int)$row['id'],
             'filename'      => $row['filename'],

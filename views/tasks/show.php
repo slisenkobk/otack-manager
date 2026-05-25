@@ -1,3 +1,9 @@
+<div class="project-tabs">
+  <a class="project-tab" href="/projects/<?= (int)$project['id'] ?>?tab=board">Board</a>
+  <a class="project-tab" href="/projects/<?= (int)$project['id'] ?>?tab=backlog">Backlog</a>
+  <a class="project-tab" href="/projects/<?= (int)$project['id'] ?>?tab=overview">Project</a>
+</div>
+
 <div style="display:grid;grid-template-columns:1fr 280px;gap:40px;align-items:start;">
   <main>
     <p class="mono muted" style="font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3);margin:0 0 8px;">
@@ -5,9 +11,12 @@
       / Task #<?= (int)$task['id'] ?>
     </p>
 
-    <h1 class="task-title" contenteditable="true" spellcheck="false"
-        style="font-size:32px;font-weight:700;letter-spacing:-0.02em;margin:0 0 24px;outline:none;border-bottom:1px dashed transparent;padding-bottom:4px;cursor:text;"
-        data-task-id="<?= (int)$task['id'] ?>"><?= e($task['title']) ?></h1>
+    <div class="task-header" style="display:flex;align-items:center;gap:12px;margin:0 0 24px;">
+      <span class="task-header__id">TASK-<?= (int)$task['id'] ?></span>
+      <h1 class="task-title" contenteditable="true" spellcheck="false"
+          style="font-size:32px;font-weight:700;letter-spacing:-0.02em;margin:0;outline:none;border-bottom:1px dashed transparent;padding-bottom:4px;cursor:text;flex:1;min-width:0;"
+          data-task-id="<?= (int)$task['id'] ?>"><?= e($task['title']) ?></h1>
+    </div>
 
     <section class="task-description-section" style="margin-bottom:32px;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
@@ -66,12 +75,37 @@
 
     <div class="field" style="margin-bottom:14px;">
       <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;">Assignee</label>
-      <select class="select" data-field="assignee_id">
-        <option value="">— Unassigned —</option>
-        <?php foreach ($members as $m): ?>
-          <option value="<?= (int)$m['id'] ?>" <?= (int)$m['id'] === (int)($task['assignee_id'] ?? 0) ? 'selected' : '' ?>><?= e($m['name']) ?></option>
-        <?php endforeach; ?>
-      </select>
+      <?php
+        $currentAssignee = null;
+        foreach ($members as $m) {
+          if ((int)$m['id'] === (int)($task['assignee_id'] ?? 0)) { $currentAssignee = $m; break; }
+        }
+      ?>
+      <div class="assignee-picker" data-assignee-picker>
+        <input type="hidden" data-field="assignee_id" value="<?= (int)($task['assignee_id'] ?? 0) ?: '' ?>">
+        <button type="button" class="assignee-picker__btn" data-toggle>
+          <?php if ($currentAssignee): ?>
+            <span class="user-avatar user-avatar--sm" style="background: <?= user_color((int)$currentAssignee['id']) ?>"><?= e(mb_substr($currentAssignee['name'], 0, 1)) ?></span>
+            <span class="assignee-picker__name"><?= e($currentAssignee['name']) ?></span>
+          <?php else: ?>
+            <span class="user-avatar user-avatar--sm user-avatar--empty"><i class="fa-regular fa-circle"></i></span>
+            <span class="assignee-picker__name assignee-picker__name--muted">Unassigned</span>
+          <?php endif; ?>
+          <i class="fa-solid fa-chevron-down assignee-picker__chevron"></i>
+        </button>
+        <div class="assignee-picker__pop" hidden>
+          <div class="assignee-dropdown__row" data-assignee-id="">
+            <span class="user-avatar user-avatar--sm user-avatar--empty"><i class="fa-regular fa-circle"></i></span>
+            <span>Unassigned</span>
+          </div>
+          <?php foreach ($members as $m): ?>
+            <div class="assignee-dropdown__row" data-assignee-id="<?= (int)$m['id'] ?>">
+              <span class="user-avatar user-avatar--sm" style="background: <?= user_color((int)$m['id']) ?>"><?= e(mb_substr($m['name'], 0, 1)) ?></span>
+              <span><?= e($m['name']) ?></span>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
     </div>
 
     <div class="field" style="margin-bottom:14px;">

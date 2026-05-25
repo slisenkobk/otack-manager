@@ -26,6 +26,32 @@ document.querySelectorAll('.comment-thread').forEach(thread => {
     });
   }
 
+  // Paste-to-attach: capture clipboard images (Ctrl/Cmd+V) in the textarea.
+  const textareaForPaste = form?.querySelector('textarea[name=body]');
+  if (textareaForPaste) {
+    textareaForPaste.addEventListener('paste', (e) => {
+      const items = e.clipboardData?.items || [];
+      let added = 0;
+      for (const it of items) {
+        if (it.kind !== 'file') continue;
+        const file = it.getAsFile();
+        if (!file || !file.type.startsWith('image/')) continue;
+        const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+        const ts = new Date().toISOString().replace(/[:.]/g, '-');
+        const named = new File([file], `pasted-${ts}.${ext}`, { type: file.type });
+        pendingFiles.push(named);
+        if (pendingContainer) {
+          pendingContainer.appendChild(buildPendingChip(named, pendingFiles.length - 1));
+        }
+        added++;
+      }
+      if (added > 0) {
+        e.preventDefault(); // we handled it
+        UI.toast(added === 1 ? 'Image attached from clipboard' : added + ' images attached');
+      }
+    });
+  }
+
   function buildPendingChip(file, index) {
     const chip = document.createElement('span');
     chip.style.cssText = 'display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:var(--paper-2);border:1px solid var(--rule);border-radius:3px;font-size:11px;color:var(--ink-2);font-family:var(--font-mono);';

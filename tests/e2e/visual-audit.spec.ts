@@ -76,9 +76,9 @@ async function quickAddTaskInCol(col: ReturnType<Page['locator']>, title: string
 // ── Setup: wipe DB ────────────────────────────────────────────────
 
 test.beforeAll(() => {
-  fs.rmSync(path.join(ROOT, 'data/app.sqlite'), { force: true });
-  fs.rmSync(path.join(ROOT, 'data/.schema'), { recursive: true, force: true });
-  const uploadDir = path.join(ROOT, 'public/uploads');
+  fs.rmSync(path.join(ROOT, 'data/app.test.sqlite'), { force: true });
+  fs.rmSync(path.join(ROOT, 'data/.schema.test'), { recursive: true, force: true });
+  const uploadDir = path.join(ROOT, 'public/uploads-test');
   if (fs.existsSync(uploadDir)) {
     fs.readdirSync(uploadDir).forEach((f) => {
       const fp = path.join(uploadDir, f);
@@ -155,11 +155,11 @@ test('04-dashboard-empty.png', async ({ page }) => {
   console.log('Avatar text:', avatarText?.trim());
   expect(avatarText?.trim()).not.toContain('PRO');
 
-  // Brand text "Otack Manager" in topbar seal
-  const seal = page.locator('.topbar__seal, .topbar .seal').first();
-  const sealText = await seal.textContent();
-  console.log('Topbar seal text:', sealText?.trim());
-  expect(sealText?.trim()).toContain('Otack Manager');
+  // Page title in topbar
+  const title = page.locator('.topbar__title').first();
+  const titleText = await title.textContent();
+  console.log('Topbar title text:', titleText?.trim());
+  expect(titleText?.trim()).toBeTruthy();
 
   // Sidebar brand "Otack Manager"
   const brandWord = page.locator('.brand__word, .brand .word').first();
@@ -465,13 +465,15 @@ test('17-profile.png', async ({ page }) => {
   await page.waitForLoadState('networkidle');
   await ss(page, '17-profile.png');
 
-  // Bucket 1: avatar click → /profile
+  // Bucket 1: avatar opens dropdown with /profile link
   await page.goto('/');
   await page.waitForLoadState('networkidle');
-  const avatarLink = page.locator('.topbar__avatar, .topbar .avatar').first();
-  const avatarHref = await avatarLink.getAttribute('href');
-  console.log('Avatar href:', avatarHref);
-  expect(avatarHref).toBe('/profile');
+  await page.locator('[data-user-menu-toggle]').click();
+  const profileLink = page.locator('.user-menu__item[href="/profile"]');
+  await expect(profileLink).toBeVisible();
+  const href = await profileLink.getAttribute('href');
+  console.log('Profile link href:', href);
+  expect(href).toBe('/profile');
 });
 
 // ── 404 ────────────────────────────────────────────────────────

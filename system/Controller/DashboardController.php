@@ -12,26 +12,31 @@ final class DashboardController extends BaseController {
         $userId  = (int)$this->user['id'];
         $offset  = max(0, (int)($req->query['offset'] ?? 0));
         $limit   = 10;
-        $comments = App::make('comments');
-        $batch = $comments->recentForUser($userId, $isAdmin, $limit + 1, $offset);
+        $activity = App::make('activity');
+        $batch = $activity->recentForUser($userId, $isAdmin, $limit + 1, $offset);
         $hasMore = count($batch) > $limit;
         if ($hasMore) array_pop($batch);
 
-        $items = [];
-        foreach ($batch as $c) {
-            $entityUrl = $c['entity_type'] === 'project'
-                ? '/projects/' . (int)$c['entity_id']
-                : '/tasks/' . (int)$c['entity_id'];
-            $items[] = [
-                'created_at'   => $c['created_at'],
-                'author_name'  => $c['author_name'],
-                'entity_type'  => $c['entity_type'],
-                'entity_id'    => (int)$c['entity_id'],
-                'entity_url'   => $entityUrl,
-                'body_snippet' => mb_strimwidth(strip_tags((string)$c['body']), 0, 80, '…'),
-            ];
-        }
+        $items = array_map([$this, 'formatActivity'], $batch);
         Response::json(['items' => $items, 'has_more' => $hasMore]);
+    }
+
+    private function formatActivity(array $row): array {
+        $taskUrl    = $row['task_id'] ? '/tasks/' . (int)$row['task_id'] : null;
+        $projectUrl = $row['project_id'] ? '/projects/' . (int)$row['project_id'] . '?tab=overview' : null;
+        return [
+            'created_at'   => $row['created_at'],
+            'event'        => $row['event'],
+            'actor_name'   => $row['actor_name'] ?? 'Someone',
+            'project_id'   => $row['project_id'] !== null ? (int)$row['project_id'] : null,
+            'project_name' => $row['project_name'] ?? null,
+            'project_url'  => $projectUrl,
+            'task_id'      => $row['task_id'] !== null ? (int)$row['task_id'] : null,
+            'task_title'   => $row['task_title'] ?? null,
+            'task_url'     => $taskUrl,
+            'entity_url'   => $taskUrl ?? $projectUrl,
+            'summary'      => mb_strimwidth((string)$row['summary'], 0, 120, '…'),
+        ];
     }
 
     public function index(Request $req, array $params = []): void {
@@ -39,17 +44,20 @@ final class DashboardController extends BaseController {
         $userId  = (int)$this->user['id'];
         $projects = App::make('projects');
         $tasks    = App::make('tasks');
-        $comments = App::make('comments');
+        $activity = App::make('activity');
 
         $stats = [
             'open_projects' => $projects->countOpenForUser($userId, $isAdmin),
             'my_tasks'      => $tasks->countOpenForAssignee($userId),
-            'activity'      => count($comments->recentForUser($userId, $isAdmin, 50)),
+            'activity'      => $activity->countForUser($userId, $isAdmin),
         ];
 
         $myTasks        = $tasks->listForAssignee($userId, 6);
         $recentProjects = $projects->recentForUser($userId, $isAdmin, 3);
-        $recentComments = $comments->recentForUser($userId, $isAdmin, 10);
+        $recentActivity = array_map(
+            [$this, 'formatActivity'],
+            $activity->recentForUser($userId, $isAdmin, 10)
+        );
 
         $csrfToken = App::make('csrf')->token();
         $sidebar = $this->view->render('partials/sidebar', [
@@ -71,7 +79,7 @@ final class DashboardController extends BaseController {
                 'stats'          => $stats,
                 'myTasks'        => $myTasks,
                 'recentProjects' => $recentProjects,
-                'recentComments' => $recentComments,
+                'recentActivity' => $recentActivity,
             ]),
         ]));
     }

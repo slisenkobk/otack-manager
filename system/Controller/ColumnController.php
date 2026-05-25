@@ -83,4 +83,19 @@ final class ColumnController extends BaseController {
         }
         Response::json(['ok' => true]);
     }
+
+    public function reorder(Request $req, array $params): void {
+        $projectId = (int)$params['id'];
+        if (!$this->projects->findById($projectId)) {
+            Response::json(['error' => 'Not found'], 404); return;
+        }
+        $this->assertMember($projectId);
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $orderedIds = array_values(array_map('intval', $data['ids'] ?? []));
+        if (!$orderedIds) {
+            Response::json(['error' => 'ids[] required'], 422); return;
+        }
+        $this->cols->reorder($projectId, $orderedIds);
+        Response::json(['ok' => true]);
+    }
 }
