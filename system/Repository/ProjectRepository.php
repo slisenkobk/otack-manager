@@ -5,16 +5,24 @@ namespace App\Repository;
 final class ProjectRepository {
     public function __construct(private \PDO $pdo) {}
 
-    public function create(string $name, ?string $description, int $createdBy): int {
+    public const PALETTE = [
+        '#EA580C', '#5A4E3F', '#2563EB', '#CA8A04', '#4D6840',
+        '#6D28D9', '#DC2626', '#0891B2', '#9333EA', '#0F766E',
+    ];
+
+    public function create(string $name, ?string $description, int $createdBy, ?string $color = null): int {
         $this->pdo->beginTransaction();
         try {
             $slug = $this->slugify($name);
             $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+            if (!$color || !preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
+                $color = self::PALETTE[array_rand(self::PALETTE)];
+            }
             $stmt = $this->pdo->prepare(
-                'INSERT INTO projects (name, slug, description, status, created_by, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)'
+                'INSERT INTO projects (name, slug, description, color, status, created_by, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
             );
-            $stmt->execute([$name, $slug, $description, 'active', $createdBy, $now, $now]);
+            $stmt->execute([$name, $slug, $description, $color, 'active', $createdBy, $now, $now]);
             $id = (int)$this->pdo->lastInsertId();
             $this->pdo->commit();
             return $id;
@@ -34,7 +42,7 @@ final class ProjectRepository {
     }
 
     public function update(int $id, array $fields): void {
-        $allowed = ['name', 'description', 'status'];
+        $allowed = ['name', 'description', 'status', 'color'];
         $set = [];
         $vals = [];
         foreach ($fields as $k => $v) {
@@ -64,6 +72,45 @@ final class ProjectRepository {
 
     public function delete(int $id): void {
         $this->pdo->prepare('DELETE FROM projects WHERE id = ?')->execute([$id]);
+    }
+
+    public function countAllForUser(int $userId, bool $isAdmin, ?string $status = null, string $query = ''): int {
+        $where = '';
+        $args  = [];
+        if ($status !== null) { $where .= ' AND p.status = ?'; $args[] = $status; }
+        if ($query !== '')    { $where .= ' AND LOWER(p.name) LIKE ?'; $args[] = '%' . mb_strtolower($query) . '%'; }
+        if ($isAdmin) {
+            $sql = 'SELECT COUNT(*) AS c FROM projects p WHERE 1=1' . $where;
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($args);
+        } else {
+            $sql = 'SELECT COUNT(*) AS c FROM projects p
+                    INNER JOIN project_members pm ON pm.project_id = p.id
+                    WHERE pm.user_id = ?' . $where;
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute(array_merge([$userId], $args));
+        }
+        return (int)$stmt->fetch()['c'];
+    }
+
+    public function listForUserPaged(int $userId, bool $isAdmin, ?string $status, int $limit, int $offset, string $query = ''): array {
+        $where = '';
+        $args  = [];
+        if ($status !== null) { $where .= ' AND p.status = ?'; $args[] = $status; }
+        if ($query !== '')    { $where .= ' AND LOWER(p.name) LIKE ?'; $args[] = '%' . mb_strtolower($query) . '%'; }
+        if ($isAdmin) {
+            $sql = 'SELECT * FROM projects p WHERE 1=1' . $where . ' ORDER BY p.updated_at DESC LIMIT ? OFFSET ?';
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute(array_merge($args, [$limit, $offset]));
+        } else {
+            $sql = 'SELECT p.* FROM projects p
+                    INNER JOIN project_members pm ON pm.project_id = p.id
+                    WHERE pm.user_id = ?' . $where . '
+                    ORDER BY p.updated_at DESC LIMIT ? OFFSET ?';
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute(array_merge([$userId], $args, [$limit, $offset]));
+        }
+        return $stmt->fetchAll();
     }
 
     public function countOpenForUser(int $userId, bool $isAdmin): int {

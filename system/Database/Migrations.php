@@ -176,6 +176,44 @@ final class Migrations
             }
         });
 
+        $boot->ensure('projects_color', 1, function (\PDO $pdo) {
+            $cols = $pdo->query('PRAGMA table_info(projects)')->fetchAll(\PDO::FETCH_ASSOC);
+            $has = false;
+            foreach ($cols as $c) { if ($c['name'] === 'color') { $has = true; break; } }
+            if (!$has) {
+                $pdo->query("ALTER TABLE projects ADD COLUMN color TEXT NOT NULL DEFAULT '#1A1612'");
+            }
+        });
+
+        $boot->ensure('projects_color_reseed', 1, function (\PDO $pdo) {
+            // Reseed any project still on the dark default to a random palette colour
+            $palette = \App\Repository\ProjectRepository::PALETTE;
+            $stmt = $pdo->query("SELECT id FROM projects WHERE color = '#1A1612' OR color IS NULL");
+            $ids = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+            $upd = $pdo->prepare('UPDATE projects SET color = ? WHERE id = ?');
+            foreach ($ids as $id) {
+                $upd->execute([$palette[array_rand($palette)], (int)$id]);
+            }
+        });
+
+        $boot->ensure('tasks_sub_status', 1, function (\PDO $pdo) {
+            $cols = $pdo->query('PRAGMA table_info(tasks)')->fetchAll(\PDO::FETCH_ASSOC);
+            $has = false;
+            foreach ($cols as $c) { if ($c['name'] === 'sub_status') { $has = true; break; } }
+            if (!$has) {
+                $pdo->query("ALTER TABLE tasks ADD COLUMN sub_status TEXT");
+            }
+        });
+
+        $boot->ensure('tasks_priority', 1, function (\PDO $pdo) {
+            $cols = $pdo->query('PRAGMA table_info(tasks)')->fetchAll(\PDO::FETCH_ASSOC);
+            $has = false;
+            foreach ($cols as $c) { if ($c['name'] === 'priority') { $has = true; break; } }
+            if (!$has) {
+                $pdo->query("ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'none'");
+            }
+        });
+
         $boot->ensure('task_columns_backlog', 1, function (\PDO $pdo) {
             $cols = $pdo->query('PRAGMA table_info(task_columns)')->fetchAll(\PDO::FETCH_ASSOC);
             $has = false;
@@ -196,6 +234,40 @@ final class Migrations
                 $shift->execute([(int)$pid]);
                 $insert->execute([(int)$pid]);
             }
+        });
+
+        $boot->ensure('users_avatar', 1, function (\PDO $pdo) {
+            $cols = $pdo->query('PRAGMA table_info(users)')->fetchAll(\PDO::FETCH_ASSOC);
+            $has = false;
+            foreach ($cols as $c) { if ($c['name'] === 'avatar') { $has = true; break; } }
+            if (!$has) {
+                $pdo->exec('ALTER TABLE users ADD COLUMN avatar TEXT');
+            }
+        });
+
+        $boot->ensure('comments_parent_id', 1, function (\PDO $pdo) {
+            $cols = $pdo->query('PRAGMA table_info(comments)')->fetchAll(\PDO::FETCH_ASSOC);
+            $has = false;
+            foreach ($cols as $c) { if ($c['name'] === 'parent_id') { $has = true; break; } }
+            if (!$has) {
+                $pdo->exec('ALTER TABLE comments ADD COLUMN parent_id INTEGER NULL');
+                $pdo->exec('CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id)');
+            }
+        });
+
+        $boot->ensure('task_links', 1, function (\PDO $pdo) {
+            $pdo->exec(
+                "CREATE TABLE IF NOT EXISTS task_links (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_id INTEGER NOT NULL,
+                    linked_task_id INTEGER NOT NULL,
+                    created_by INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(task_id, linked_task_id)
+                )"
+            );
+            $pdo->exec('CREATE INDEX IF NOT EXISTS idx_task_links_task ON task_links(task_id)');
+            $pdo->exec('CREATE INDEX IF NOT EXISTS idx_task_links_linked ON task_links(linked_task_id)');
         });
 
         if (\App\App::env('SEED_DEFAULT_ADMIN_EMAIL') !== '') {

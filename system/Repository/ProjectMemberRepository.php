@@ -19,7 +19,7 @@ final class ProjectMemberRepository {
 
     public function list(int $projectId): array {
         $stmt = $this->pdo->prepare(
-            'SELECT u.id, u.name, u.email, pm.role
+            'SELECT u.id, u.name, u.email, u.avatar, pm.role
              FROM project_members pm
              INNER JOIN users u ON u.id = pm.user_id
              WHERE pm.project_id = ?

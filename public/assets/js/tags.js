@@ -23,6 +23,7 @@ document.querySelectorAll('.tag-picker').forEach(picker => {
         await api(url, { method: 'POST' });
         attachedIds.delete(+tagId);
         chip.remove();
+        UI.toast('Tag removed', 'success');
       } catch {}
     });
   }
@@ -81,6 +82,7 @@ document.querySelectorAll('.tag-picker').forEach(picker => {
       attachedIds.add(+tag.id);
       search.value = '';
       dropdown.style.display = 'none';
+      UI.toast('Tag added', 'success');
     } catch {}
   }
 

@@ -11,9 +11,9 @@
   <div class="topbar__rhs">
     <?php if (!empty($user['name'])): ?>
       <div class="user-menu" data-user-menu>
-        <button type="button" class="topbar__avatar avatar" data-user-menu-toggle
+        <button type="button" class="topbar__avatar" data-user-menu-toggle
                 aria-haspopup="menu" aria-expanded="false" aria-label="Open account menu">
-          <?= e(mb_substr($user['name'], 0, 1)) ?>
+          <?= user_avatar_html((int)($user['id'] ?? 0), $user['name'] ?? '', $user['avatar'] ?? null, 'md') ?>
         </button>
         <div class="user-menu__pop" role="menu" hidden>
           <div class="user-menu__head">

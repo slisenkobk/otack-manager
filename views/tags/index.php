@@ -1,7 +1,8 @@
-<div class="kanban-search" style="max-width:360px;margin-bottom:var(--space-8);">
+<form method="get" action="/admin/tags" class="kanban-search kanban-search--with-submit" style="max-width:360px;margin-bottom:var(--space-8);">
   <i class="fa-solid fa-magnifying-glass"></i>
-  <input class="input input--inline" placeholder="Search tags…" data-tag-search>
-</div>
+  <input class="input input--inline" name="q" placeholder="Search tags…" value="<?= e($query ?? '') ?>" data-tag-search>
+  <button type="submit" class="kanban-search__submit" aria-label="Search"><i class="fa-solid fa-arrow-right"></i></button>
+</form>
 
 <?php
 $byScope = [];
@@ -23,16 +24,15 @@ foreach ($scopeLabels as $scope => $label):
         $usage = $usages[(int)$tag['id']] ?? ['project_count' => 0, 'task_count' => 0];
       ?>
         <article class="card" data-tag-id="<?= (int)$tag['id'] ?>" data-tag-row style="flex-direction:row;align-items:center;gap:16px;min-height:auto;padding:12px 16px;">
-          <span class="tag-swatch" style="width:18px;height:18px;border-radius:3px;background:<?= e($tag['color']) ?>;flex-shrink:0;border:1px solid var(--rule);"></span>
           <span class="tag-name" contenteditable="true" spellcheck="false"
                 data-original="<?= e($tag['name']) ?>"
                 data-tag-name
                 style="font-weight:600;font-size:14px;flex:1;outline:none;border-bottom:1px dashed transparent;cursor:text;padding-bottom:2px;">
             <?= e($tag['name']) ?>
           </span>
-          <input type="color" class="tag-color-input" value="<?= e($tag['color']) ?>"
-                 title="Change color"
-                 style="width:32px;height:28px;border:none;background:none;cursor:pointer;padding:0;flex-shrink:0;">
+          <label class="color-swatch tag-swatch" title="Change color" style="background: <?= e($tag['color']) ?>; width:32px;">
+            <input type="color" class="tag-color-input" value="<?= e($tag['color']) ?>">
+          </label>
           <span class="mono" style="font-size:11px;color:var(--ink-3);min-width:90px;text-align:right;">
             P:<?= (int)$usage['project_count'] ?> T:<?= (int)$usage['task_count'] ?>
           </span>
@@ -44,7 +44,20 @@ foreach ($scopeLabels as $scope => $label):
 <?php endforeach; ?>
 
 <?php if (!$tags): ?>
-  <p style="color:var(--ink-3);font-size:14px;">No tags yet. Tags are created from project and task pages.</p>
+  <div class="empty-state">
+    <span class="empty-state__tag">Otack Manager</span>
+    <p class="empty-state__text"><?= !empty($query) ? 'No tags match "' . e($query) . '".' : 'No tags yet.' ?></p>
+    <?php if (empty($query)): ?>
+      <span class="empty-state__sub">Tags are created from project and task pages.</span>
+    <?php endif; ?>
+  </div>
 <?php endif; ?>
+
+<?php
+  $hrefBuilder = function (int $p) use ($query) {
+      return '/admin/tags?page=' . $p . (!empty($query) ? '&q=' . urlencode($query) : '');
+  };
+  require APP_ROOT . '/views/partials/pagination.php';
+?>
 
 <script type="module" src="/assets/js/admin-tags.js"></script>

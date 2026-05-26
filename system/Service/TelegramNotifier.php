@@ -5,12 +5,35 @@ namespace App\Service;
 final class TelegramNotifier {
     public function __construct(private string $token, private string $chatId) {}
 
-    public function send(string $text, ?string $url = null): array {
+    /**
+     * Send a Telegram message. $html is pre-built HTML — callers must escape user-supplied
+     * values via self::escape(). Telegram HTML mode supports only &lt; &gt; &amp; &quot;
+     * and the tags <b>, <i>, <u>, <s>, <code>, <pre>, <a href="…">.
+     */
+    public function send(string $html, ?string $url = null): array {
         if ($this->token === '' || $this->chatId === '') {
             return ['ok' => true, 'error' => 'skipped'];
         }
-        $message = $text;
-        if ($url) $message .= "\n\n<a href=\"" . htmlspecialchars($url) . "\">Open</a>";
+        $message = $html;
+        // Telegram silently drops link entities whose href isn't an absolute http(s) URL —
+        // treat anything else as "no URL" so the message at least delivers without weird
+        // half-links.
+        if ($url !== null && $url !== '' && !preg_match('#^https?://#i', $url)) {
+            $url = null;
+        }
+        if ($url) {
+            $hrefSafe = self::escape($url, true);
+            // Wrap the leading [TAG] (e.g. "[TASK]", "[PROJECT]") in the link. Falls back
+            // to appending "Open" if the message doesn't start with a bracketed tag.
+            $message = preg_replace_callback(
+                '/^(\[[^\]]+\])/u',
+                fn($m) => '<a href="' . $hrefSafe . '">' . $m[1] . '</a>',
+                $message,
+                1,
+                $count
+            );
+            if (!$count) $message .= "\n\n<a href=\"" . $hrefSafe . "\">Open</a>";
+        }
         $payload = [
             'chat_id' => $this->chatId,
             'text' => $message,
@@ -19,6 +42,16 @@ final class TelegramNotifier {
         ];
         $endpoint = 'https://api.telegram.org/bot' . $this->token . '/sendMessage';
         return $this->postWithRetry($endpoint, $payload, 1);
+    }
+
+    /**
+     * Escape a user-supplied string for embedding in Telegram HTML mode. Pass $forAttr=true
+     * when interpolating inside an attribute value (e.g. href="…") to also escape ".
+     */
+    public static function escape(string $s, bool $forAttr = false): string {
+        $map = ['&' => '&amp;', '<' => '&lt;', '>' => '&gt;'];
+        if ($forAttr) $map['"'] = '&quot;';
+        return strtr($s, $map);
     }
 
     private function postWithRetry(string $endpoint, array $payload, int $retries): array {

@@ -46,14 +46,21 @@ final class DashboardController extends BaseController {
         $tasks    = App::make('tasks');
         $activity = App::make('activity');
 
+        $counters = $tasks->dashboardCounters($userId, $isAdmin);
         $stats = [
             'open_projects' => $projects->countOpenForUser($userId, $isAdmin),
             'my_tasks'      => $tasks->countOpenForAssignee($userId),
             'activity'      => $activity->countForUser($userId, $isAdmin),
+            'open_tasks'    => $counters['open'],
+            'backlog_tasks' => $counters['backlog'],
+            'closed_tasks'  => $counters['closed'],
+            'opened_week'   => $counters['opened_week'],
+            'closed_week'   => $counters['closed_week'],
         ];
 
         $myTasks        = $tasks->listForAssignee($userId, 6);
         $recentProjects = $projects->recentForUser($userId, $isAdmin, 3);
+        $projectTaskCounts = $tasks->countByProject(array_map(fn($p) => (int)$p['id'], $recentProjects));
         $recentActivity = array_map(
             [$this, 'formatActivity'],
             $activity->recentForUser($userId, $isAdmin, 10)
@@ -80,6 +87,7 @@ final class DashboardController extends BaseController {
                 'myTasks'        => $myTasks,
                 'recentProjects' => $recentProjects,
                 'recentActivity' => $recentActivity,
+                'projectTaskCounts' => $projectTaskCounts,
             ]),
         ]));
     }

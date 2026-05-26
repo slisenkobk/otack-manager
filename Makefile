@@ -1,7 +1,8 @@
-.PHONY: help setup serve dev test unit e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh
+.PHONY: help setup serve dev test unit e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package
 
 PORT ?= 8000
 SERVER_PID := /tmp/otack-server.pid
+DESTRUCT_PW := 309265
 
 help:
 	@echo "Otack Tasks — local dev"
@@ -23,6 +24,8 @@ help:
 	@echo "  make reset-uploads — wipe all DEV uploaded files"
 	@echo "  make fresh        — reset DEV DB + uploads + sessions"
 	@echo "  make clean        — fresh + remove node_modules + vendor cache"
+	@echo ""
+	@echo "  make package      — build /tmp/otack-tasks-deploy.tar.gz for shared-hosting upload"
 
 setup:
 	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env"; else echo ".env exists"; fi
@@ -74,18 +77,25 @@ e2e:
 e2e-ui:
 	npx playwright test --config tests/e2e/playwright.config.ts --ui
 
-reset:
+# Password gate — fires once per `make` invocation; cached because the target
+# is phony but make tracks "already built" within a single run.
+confirm-destruct:
+	@read -s -p "Destructive op — password: " pw; echo; \
+		[ "$$pw" = "$(DESTRUCT_PW)" ] || { echo "✗ Wrong password — aborted"; exit 1; }; \
+		echo "✓ Authorised"
+
+reset: confirm-destruct
 	rm -f data/app.sqlite
 	rm -rf data/.schema
 	@echo "Dev DB wiped — next request creates fresh schema"
 
-reset-test:
+reset-test: confirm-destruct
 	rm -f data/app.test.sqlite
 	rm -rf data/.schema.test
 	rm -rf public/uploads-test
 	@echo "Test DB + uploads wiped"
 
-reset-uploads:
+reset-uploads: confirm-destruct
 	rm -rf public/uploads/*
 	@echo "Dev uploads wiped"
 
@@ -96,3 +106,25 @@ fresh: reset reset-uploads
 clean: fresh
 	rm -rf node_modules test-results .playwright
 	@echo "Clean — node_modules + Playwright artifacts removed"
+
+# Build a deploy archive — excludes dev-only paths and any local state.
+package:
+	@rm -f /tmp/otack-tasks-deploy.tar.gz
+	@tar --exclude='./.git' \
+	     --exclude='./node_modules' \
+	     --exclude='./tests' \
+	     --exclude='./test-results' \
+	     --exclude='./.playwright' \
+	     --exclude='./.env' \
+	     --exclude='./data/app.sqlite' \
+	     --exclude='./data/app.test.sqlite' \
+	     --exclude='./data/.schema' \
+	     --exclude='./data/.schema.test' \
+	     --exclude='./data/sessions' \
+	     --exclude='./data/errors.log' \
+	     --exclude='./public/uploads' \
+	     --exclude='./public/uploads-test' \
+	     --exclude='./.DS_Store' \
+	     --exclude='./Makefile' \
+	     -czf /tmp/otack-tasks-deploy.tar.gz .
+	@echo "Built /tmp/otack-tasks-deploy.tar.gz ($$(du -h /tmp/otack-tasks-deploy.tar.gz | cut -f1))"

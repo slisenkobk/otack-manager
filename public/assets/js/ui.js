@@ -205,3 +205,105 @@ document.addEventListener('change', (e) => {
   const form = el.closest('form');
   if (form) form.submit();
 });
+
+// Custom select — replaces native <select> with styled dropdown.
+function initCustomSelect(root) {
+  if (root.__csInit) return;
+  root.__csInit = true;
+  const btn    = root.querySelector('.custom-select__btn');
+  const pop    = root.querySelector('.custom-select__pop');
+  const hidden = root.querySelector('input[type=hidden]');
+  const label  = root.querySelector('.custom-select__btn .custom-select__label');
+  const btnIco = root.querySelector('.custom-select__btn .custom-select__icon');
+  const updateAttr = root.dataset.updateAttr;
+  if (!btn || !pop || !hidden) return;
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    document.querySelectorAll('.custom-select__pop').forEach(p => { if (p !== pop) p.hidden = true; });
+    pop.hidden = !pop.hidden;
+  });
+  document.addEventListener('click', e => {
+    if (!root.contains(e.target)) pop.hidden = true;
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') pop.hidden = true;
+  });
+
+  pop.querySelectorAll('.custom-select__opt').forEach(opt => {
+    opt.addEventListener('click', () => {
+      const val = opt.dataset.value;
+      pop.hidden = true;
+      pop.querySelectorAll('.custom-select__opt').forEach(o => o.classList.toggle('is-selected', o === opt));
+      if (hidden.value === val) return;
+      hidden.value = val;
+      if (label) {
+        const lbl = opt.querySelector('.custom-select__opt-label');
+        label.textContent = lbl ? lbl.textContent : opt.textContent.trim();
+      }
+      if (btnIco) {
+        const srcIco = opt.querySelector('.custom-select__icon');
+        if (srcIco) {
+          btnIco.className = srcIco.className;
+          btnIco.style.cssText = srcIco.style.cssText;
+          btnIco.replaceChildren(...Array.from(srcIco.childNodes).map(n => n.cloneNode(true)));
+        }
+      }
+      if (updateAttr) {
+        root.setAttribute('data-' + updateAttr, val);
+      }
+      hidden.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+}
+
+document.querySelectorAll('[data-custom-select]').forEach(initCustomSelect);
+// Re-scan when nodes are added (e.g. modals / kanban quickadd).
+new MutationObserver(muts => {
+  muts.forEach(m => m.addedNodes.forEach(n => {
+    if (!(n instanceof HTMLElement)) return;
+    if (n.matches?.('[data-custom-select]')) initCustomSelect(n);
+    n.querySelectorAll?.('[data-custom-select]').forEach(initCustomSelect);
+  }));
+}).observe(document.body, { childList: true, subtree: true });
+
+// Build a custom-select element programmatically.
+// items: [{ value, label }], current: initial value
+export function buildCustomSelect(items, current) {
+  const root = document.createElement('div');
+  root.className = 'custom-select';
+  root.dataset.customSelect = '';
+  const cur = items.find(it => String(it.value) === String(current)) || items[0];
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'custom-select__btn';
+  const lbl = document.createElement('span');
+  lbl.className = 'custom-select__label';
+  lbl.textContent = cur ? cur.label : '';
+  btn.appendChild(lbl);
+  const chev = document.createElement('i');
+  chev.className = 'fa-solid fa-chevron-down custom-select__chevron';
+  btn.appendChild(chev);
+  root.appendChild(btn);
+  const pop = document.createElement('div');
+  pop.className = 'custom-select__pop';
+  pop.hidden = true;
+  items.forEach(it => {
+    const opt = document.createElement('div');
+    opt.className = 'custom-select__opt' + (String(it.value) === String(current) ? ' is-selected' : '');
+    opt.dataset.value = it.value;
+    const ol = document.createElement('span');
+    ol.className = 'custom-select__opt-label';
+    ol.textContent = it.label;
+    opt.appendChild(ol);
+    pop.appendChild(opt);
+  });
+  root.appendChild(pop);
+  const hidden = document.createElement('input');
+  hidden.type = 'hidden';
+  hidden.value = cur ? String(cur.value) : '';
+  root.appendChild(hidden);
+  initCustomSelect(root);
+  return { root, hidden };
+}
+window.buildCustomSelect = buildCustomSelect;

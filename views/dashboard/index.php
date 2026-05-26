@@ -1,16 +1,36 @@
-<section class="hero" style="margin-bottom:64px;">
-  <p class="kicker">
-    <span class="num">REQUEST · 01</span>
-    <span class="sep">/</span>
-    <span>Welcome back</span>
-  </p>
+<div class="dashboard-page">
+
+<section class="hero" style="margin-bottom:16px;">
   <h1 class="display" style="font-weight:700;">Hello, <span style="color:var(--brand);"><?= e($user['name']) ?></span></h1>
-  <p class="mono" style="margin-top:18px;font-size:12px;letter-spacing:.15em;color:var(--ink-3);text-transform:uppercase;">
+  <p class="mono" style="margin-top:12px;font-size:12px;letter-spacing:.15em;color:var(--ink-3);text-transform:uppercase;">
     <?= (int)$stats['open_projects'] ?> open projects · <?= (int)$stats['my_tasks'] ?> my tasks · <?= (int)$stats['activity'] ?> activity events
   </p>
 </section>
 
-<section style="margin-bottom:48px;">
+<section class="stats-grid">
+  <div class="stat-card">
+    <span class="stat-card__label">Open</span>
+    <span class="stat-card__value"><?= (int)$stats['open_tasks'] ?></span>
+    <span class="stat-card__sub">+ <?= (int)$stats['backlog_tasks'] ?> backlog</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-card__label">Closed</span>
+    <span class="stat-card__value"><?= (int)$stats['closed_tasks'] ?></span>
+    <span class="stat-card__sub">total done</span>
+  </div>
+  <div class="stat-card stat-card--accent">
+    <span class="stat-card__label">Opened this week</span>
+    <span class="stat-card__value"><?= (int)$stats['opened_week'] ?></span>
+    <span class="stat-card__sub">since Mon</span>
+  </div>
+  <div class="stat-card stat-card--green">
+    <span class="stat-card__label">Closed this week</span>
+    <span class="stat-card__value"><?= (int)$stats['closed_week'] ?></span>
+    <span class="stat-card__sub">since Mon</span>
+  </div>
+</section>
+
+<section style="margin-bottom:16px;">
   <div class="section-head">
     <div class="num">02</div>
     <div class="title">My <span style="color:var(--brand);font-weight:600;">tasks</span></div>
@@ -18,7 +38,10 @@
     <div class="meta"><?= (int)$stats['my_tasks'] ?> open</div>
   </div>
   <?php if (!$myTasks): ?>
-    <p class="muted" style="color:var(--ink-3);font-size:14px;">No assigned tasks. Enjoy the calm.</p>
+    <div class="empty-state">
+      <span class="empty-state__tag">Otack Manager</span>
+      <p class="empty-state__text">No assigned tasks. Enjoy the calm.</p>
+    </div>
   <?php else: ?>
     <div class="cards-row" style="grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));">
       <?php foreach ($myTasks as $i => $t): ?>
@@ -43,15 +66,21 @@
   <?php endif; ?>
 </section>
 
-<section style="margin-bottom:48px;">
+<section style="margin-bottom:16px;">
   <div class="section-head">
     <div class="num">03</div>
     <div class="title">Recent <span style="color:var(--brand);font-weight:600;">projects</span></div>
     <div class="rule"></div>
-    <a class="meta" href="/projects">All projects <span class="arr">&#8594;</span></a>
+    <div class="section-head__actions">
+      <a class="meta meta--action" href="/projects/new">+ New <span class="arr">&#8594;</span></a>
+      <a class="meta" href="/projects">All projects <span class="arr">&#8594;</span></a>
+    </div>
   </div>
   <?php if (!$recentProjects): ?>
-    <p class="muted" style="color:var(--ink-3);font-size:14px;">No projects yet. <a href="/projects/new" style="color:var(--brand);">Create one</a>.</p>
+    <div class="empty-state">
+      <span class="empty-state__tag">Otack Manager</span>
+      <p class="empty-state__text">No projects yet. <a href="/projects/new">Create one</a>.</p>
+    </div>
   <?php else: ?>
     <div class="cards-row">
       <?php foreach ($recentProjects as $i => $p): ?>
@@ -59,13 +88,19 @@
           <span class="corner-tag">P-<?= (int)$p['id'] ?></span>
           <span class="corner-meta"><?= fmt_date($p['updated_at']) ?></span>
           <div class="card-head">
-            <div class="ini"><?= e(mb_strtoupper(mb_substr($p['name'], 0, 2))) ?></div>
+            <div class="ini" style="background: <?= e($p['color'] ?? '#1A1612') ?>;"><?= e(mb_strtoupper(mb_substr($p['name'], 0, 2))) ?></div>
             <div><h3 class="name"><?= e($p['name']) ?></h3></div>
           </div>
           <?php $desc = trim(strip_tags((string)($p['description'] ?? ''))); ?>
           <?php if ($desc !== ''): ?>
             <p class="card__desc"><?= e($desc) ?></p>
           <?php endif; ?>
+          <?php $tc = ($projectTaskCounts ?? [])[(int)$p['id']] ?? ['open' => 0, 'total' => 0]; ?>
+          <div class="card__tasks">
+            <span class="card__tasks-caption">Tasks</span>
+            <span class="card__tasks-num"><?= (int)$tc['open'] ?></span>
+            <span class="card__tasks-label">open<?= $tc['total'] !== $tc['open'] ? ' / ' . (int)$tc['total'] . ' total' : '' ?></span>
+          </div>
           <div class="card-row">
             <span class="status<?= $p['status'] === 'active' ? ' is-ready' : '' ?>"><?= e($p['status']) ?></span>
             <span class="share-link">Open <span class="arr">&#8594;</span></span>
@@ -83,7 +118,10 @@
     <div class="rule"></div>
   </div>
   <?php if (!$recentActivity): ?>
-    <p class="muted" style="color:var(--ink-3);font-size:14px;">No activity yet.</p>
+    <div class="empty-state">
+      <span class="empty-state__tag">Otack Manager</span>
+      <p class="empty-state__text">No activity yet.</p>
+    </div>
   <?php else: ?>
     <div id="activity-list" class="activity-list">
       <?php foreach ($recentActivity as $a):
@@ -97,5 +135,7 @@
     <?php endif; ?>
   <?php endif; ?>
 </section>
+
+</div>
 
 <script type="module" src="/assets/js/dashboard.js"></script>

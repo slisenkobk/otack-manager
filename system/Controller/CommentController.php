@@ -70,6 +70,7 @@ final class CommentController extends BaseController
         $entityType = $data['entity_type'] ?? '';
         $entityId   = (int)($data['entity_id'] ?? 0);
         $body       = trim($data['body'] ?? '');
+        $parentId   = isset($data['parent_id']) && $data['parent_id'] ? (int)$data['parent_id'] : null;
 
         if ($body === '' || !in_array($entityType, ['project', 'task'], true) || !$entityId) {
             Response::json(['error' => 'Invalid input'], 422);
@@ -77,27 +78,46 @@ final class CommentController extends BaseController
         }
 
         $entity = $this->assertMembership($entityType, $entityId);
-        $id = $this->comments->create($entityType, $entityId, (int)$this->user['id'], $body);
 
-        $baseUrl = rtrim(App::env('APP_URL', ''), '/');
+        // Validate parent_id: must belong to the same entity. Normalize to the top-level
+        // root so threads stay one level deep (no replies-to-replies trees).
+        $replyToAuthor = null;
+        if ($parentId !== null) {
+            $parent = $this->comments->findById($parentId);
+            if (!$parent
+                || (string)$parent['entity_type'] !== $entityType
+                || (int)$parent['entity_id']   !== $entityId
+            ) {
+                Response::json(['error' => 'Invalid parent comment'], 422); return;
+            }
+            $parentId = (int)($parent['parent_id'] ?: $parent['id']);
+            // Resolve the root's author for the notification message
+            $rootAuthor = App::make('users')->findById((int)$parent['user_id']);
+            $replyToAuthor = $rootAuthor['name'] ?? null;
+        }
+
+        $id = $this->comments->create($entityType, $entityId, (int)$this->user['id'], $body, $parentId);
+
+        // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
         $targetName = '';
         $entityUrl  = '';
         if ($entityType === 'project') {
             $targetName = $entity['name'];
-            $entityUrl  = $baseUrl . '/projects/' . $entityId;
+            $entityUrl  = \abs_url('/projects/' . $entityId);
         } elseif ($entityType === 'task') {
             $targetName = $entity['title'];
-            $entityUrl  = $baseUrl . '/tasks/' . $entityId;
+            $entityUrl  = \abs_url('/tasks/' . $entityId);
         }
         App::make('events')->fire('comment.created', [
-            'comment_id'   => $id,
-            'entity_type'  => $entityType,
-            'entity_id'    => $entityId,
-            'entity_label' => $entityType,
-            'target_name'  => $targetName,
-            'author'       => $this->user['name'],
-            'body_text'    => $body,
-            'url'          => $entityUrl,
+            'comment_id'     => $id,
+            'entity_type'    => $entityType,
+            'entity_id'      => $entityId,
+            'entity_label'   => $entityType,
+            'target_name'    => $targetName,
+            'author'         => $this->user['name'],
+            'body_text'      => $body,
+            'url'            => $entityUrl,
+            'reply_to_author'=> $replyToAuthor,
         ]);
 
         $activityProjectId = $entityType === 'project' ? $entityId : (int)($entity['project_id'] ?? 0);
@@ -114,11 +134,14 @@ final class CommentController extends BaseController
         Response::json([
             'ok'      => true,
             'comment' => [
-                'id'          => $id,
-                'body_html'   => Markdown::render($body),
-                'author_name' => $this->user['name'],
-                'created_at'  => (new \DateTimeImmutable())->format('Y-m-d\TH:i:sP'),
-                'can_delete'  => true,
+                'id'            => $id,
+                'body_html'     => \App\Service\LinkPreview::enhance(Markdown::render($body)),
+                'author_name'   => $this->user['name'],
+                'author_avatar' => $this->user['avatar'] ?? null,
+                'user_id'       => (int)$this->user['id'],
+                'parent_id'     => $parentId,
+                'created_at'    => (new \DateTimeImmutable())->format('Y-m-d\TH:i:sP'),
+                'can_delete'    => true,
             ],
         ]);
     }
@@ -140,6 +163,47 @@ final class CommentController extends BaseController
         }
 
         $this->comments->delete($id);
+
+        $entityType = (string)$c['entity_type'];
+        $entityId   = (int)$c['entity_id'];
+        // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
+        $targetName = '';
+        $entityUrl  = '';
+        if ($entityType === 'project') {
+            $proj = App::make('projects')->findById($entityId);
+            $targetName = $proj['name'] ?? ('#' . $entityId);
+            $entityUrl  = \abs_url('/projects/' . $entityId);
+        } elseif ($entityType === 'task') {
+            $task = App::make('tasks')->findById($entityId);
+            $targetName = $task['title'] ?? ('#' . $entityId);
+            $entityUrl  = \abs_url('/tasks/' . $entityId);
+        }
+        App::make('events')->fire('comment.deleted', [
+            'comment_id'   => $id,
+            'entity_type'  => $entityType,
+            'entity_id'    => $entityId,
+            'entity_label' => $entityType,
+            'target_name'  => $targetName,
+            'actor_name'   => $this->user['name'],
+            'url'          => $entityUrl,
+        ]);
+        $activityProjectId = null;
+        $activityTaskId    = null;
+        if ($entityType === 'project') {
+            $activityProjectId = $entityId;
+        } elseif ($entityType === 'task') {
+            $activityTaskId = $entityId;
+            $task = App::make('tasks')->findById($entityId);
+            if ($task) $activityProjectId = (int)$task['project_id'];
+        }
+        App::make('activity')->log(
+            'comment.deleted',
+            (int)$this->user['id'],
+            $activityProjectId,
+            $activityTaskId,
+            "deleted a comment on {$entityType} '{$targetName}'",
+            ['comment_id' => $id]
+        );
         Response::json(['ok' => true]);
     }
 }

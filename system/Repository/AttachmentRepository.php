@@ -44,6 +44,28 @@ final class AttachmentRepository
         return $stmt->fetchAll();
     }
 
+    /**
+     * Returns attachments belonging to the task itself plus any files attached to comments
+     * on that task — single chronological list for the task's "Attachments" panel.
+     */
+    public function listForTaskAggregate(int $taskId): array
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT * FROM (
+                SELECT a.*, NULL AS comment_id
+                FROM attachments a
+                WHERE a.entity_type = 'task' AND a.entity_id = ?
+                UNION ALL
+                SELECT a.*, c.id AS comment_id
+                FROM attachments a
+                INNER JOIN comments c ON c.id = a.entity_id
+                WHERE a.entity_type = 'comment' AND c.entity_type = 'task' AND c.entity_id = ?
+             ) ORDER BY created_at ASC"
+        );
+        $stmt->execute([$taskId, $taskId]);
+        return $stmt->fetchAll();
+    }
+
     public function delete(int $id): void
     {
         $this->pdo->prepare('DELETE FROM attachments WHERE id = ?')->execute([$id]);

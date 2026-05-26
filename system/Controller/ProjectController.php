@@ -29,13 +29,33 @@ final class ProjectController extends BaseController {
 
     public function index(Request $req, array $params = []): void {
         $isAdmin = $this->user['role'] === 'admin';
-        $list = $this->projects->listForUser((int)$this->user['id'], $isAdmin);
+        $status  = ($req->query['status'] ?? 'active') === 'archived' ? 'archived' : 'active';
+        $query   = trim((string)($req->query['q'] ?? ''));
+        $page    = max(1, (int)($req->query['page'] ?? 1));
+        $perPage = 12;
+        $offset  = ($page - 1) * $perPage;
+        $list    = $this->projects->listForUserPaged((int)$this->user['id'], $isAdmin, $status, $perPage, $offset, $query);
+        $taskCounts = App::make('tasks')->countByProject(array_map(fn($p) => (int)$p['id'], $list));
+        $totalActive   = $this->projects->countAllForUser((int)$this->user['id'], $isAdmin, 'active', $query);
+        $totalArchived = $this->projects->countAllForUser((int)$this->user['id'], $isAdmin, 'archived', $query);
+        $total   = $status === 'active' ? $totalActive : $totalArchived;
+        $pages   = max(1, (int)ceil($total / $perPage));
         $csrf = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
         $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => 'Projects']);
         Response::html($this->view->render('layouts/main', [
             'title' => 'Projects', 'csrfToken' => $csrf, 'sidebar' => $sidebar, 'topbar' => $topbar,
-            'content' => $this->view->render('projects/index', ['projects' => $list]),
+            'content' => $this->view->render('projects/index', [
+                'projects'      => $list,
+                'status'        => $status,
+                'page'          => $page,
+                'pages'         => $pages,
+                'total'         => $total,
+                'totalActive'   => $totalActive,
+                'totalArchived' => $totalArchived,
+                'taskCounts'    => $taskCounts,
+                'query'         => $query,
+            ]),
         ]));
     }
 
@@ -55,17 +75,18 @@ final class ProjectController extends BaseController {
         if ($name === '') { Response::redirect('/projects/new'); return; }
         // ProjectRepository::create already wraps its INSERT in a transaction.
         // We run member add and column seed after, each atomic on its own.
-        $id = $this->projects->create($name, $description ?: null, (int)$this->user['id']);
+        $color = $req->post['color'] ?? null;
+        $id = $this->projects->create($name, $description ?: null, (int)$this->user['id'], $color);
         $this->members->add($id, (int)$this->user['id'], 'owner');
         $this->columns->seedDefaults($id);
-        $baseUrl = rtrim(App::env('APP_URL', ''), '/');
+        // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
         App::make('events')->fire('project.created', [
             'project_id' => $id,
             'name'       => $name,
             'actor_name' => $this->user['name'],
-            'url'        => $baseUrl . '/projects/' . $id,
+            'url'        => \abs_url('/projects/' . $id),
         ]);
-        Response::redirect('/projects/' . $id);
+        Response::redirect('/projects/' . $id . '?tab=overview');
     }
 
     public function show(Request $req, array $params): void {
@@ -167,33 +188,64 @@ final class ProjectController extends BaseController {
         $project = $this->projects->findById($id);
         if (!$project) { Response::notFound(); return; }
         $isOwnerOrAdmin = $this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']);
-        if (!$isOwnerOrAdmin) { Response::forbidden(); return; }
+        if (!$isOwnerOrAdmin) {
+            if ($this->isJsonRequest($req)) { Response::json(['error' => 'Forbidden'], 403); return; }
+            Response::forbidden(); return;
+        }
+        $isJson = $this->isJsonRequest($req);
+        $data   = $isJson ? (json_decode((string)file_get_contents('php://input'), true) ?: []) : $req->post;
         $fields = [];
-        if (isset($req->post['name'])) {
-            $name = trim($req->post['name']);
+        if (isset($data['name'])) {
+            $name = trim((string)$data['name']);
             if ($name !== '') { $fields['name'] = $name; }
         }
-        if (isset($req->post['description'])) {
-            $fields['description'] = \App\Service\HtmlSanitizer::clean(trim($req->post['description'])) ?: null;
+        if (array_key_exists('description', $data)) {
+            $rawDesc = (string)$data['description'];
+            $fields['description'] = trim($rawDesc) === '' ? null : \App\Service\HtmlSanitizer::clean($rawDesc);
         }
-        if (isset($req->post['status'])) {
-            $status = trim($req->post['status']);
+        if (isset($data['status'])) {
+            $status = trim((string)$data['status']);
             if (in_array($status, ['active', 'archived'], true)) {
                 $fields['status'] = $status;
+            }
+        }
+        if (isset($data['color'])) {
+            $color = (string)$data['color'];
+            if (preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
+                $fields['color'] = $color;
             }
         }
         if ($fields) {
             $this->projects->update($id, $fields);
         }
-        $name = $fields['name'] ?? $project['name'];
-        $baseUrl = rtrim(App::env('APP_URL', ''), '/');
+        $fresh   = $this->projects->findById($id);
+        $name    = $fields['name'] ?? $project['name'];
+        // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
         App::make('events')->fire('project.updated', [
             'project_id' => $id,
             'name'       => $name !== '' ? $name : $project['name'],
             'actor_name' => $this->user['name'],
-            'url'        => $baseUrl . '/projects/' . $id,
+            'url'        => \abs_url('/projects/' . $id),
         ]);
+        if ($isJson) {
+            Response::json([
+                'ok' => true,
+                'project' => [
+                    'id'          => (int)$fresh['id'],
+                    'name'        => $fresh['name'],
+                    'description' => \App\Service\LinkPreview::enhance((string)($fresh['description'] ?? '')),
+                    'status'      => $fresh['status'],
+                    'color'       => $fresh['color'] ?? '#1A1612',
+                ],
+            ]);
+            return;
+        }
         Response::redirect('/projects/' . $id);
+    }
+
+    private function isJsonRequest(Request $req): bool {
+        $ct = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
+        return stripos($ct, 'application/json') !== false;
     }
 
     public function delete(Request $req, array $params): void {
@@ -203,6 +255,19 @@ final class ProjectController extends BaseController {
         $isOwnerOrAdmin = $this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']);
         if (!$isOwnerOrAdmin) { Response::json(['error' => 'Forbidden'], 403); return; }
         $this->projects->delete($id);
+        App::make('events')->fire('project.deleted', [
+            'project_id' => $id,
+            'name'       => $project['name'],
+            'actor_name' => $this->user['name'],
+        ]);
+        App::make('activity')->log(
+            'project.deleted',
+            (int)$this->user['id'],
+            null,
+            null,
+            "deleted project '" . $project['name'] . "'",
+            ['project_id' => $id]
+        );
         Response::json(['ok' => true]);
     }
 

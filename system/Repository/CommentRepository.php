@@ -10,14 +10,15 @@ final class CommentRepository
         string $entityType,
         int    $entityId,
         int    $userId,
-        string $body
+        string $body,
+        ?int   $parentId = null
     ): int {
         $now  = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
         $stmt = $this->pdo->prepare(
-            'INSERT INTO comments (entity_type, entity_id, user_id, body, created_at)
-             VALUES (?, ?, ?, ?, ?)'
+            'INSERT INTO comments (entity_type, entity_id, user_id, body, parent_id, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$entityType, $entityId, $userId, $body, $now]);
+        $stmt->execute([$entityType, $entityId, $userId, $body, $parentId, $now]);
         return (int)$this->pdo->lastInsertId();
     }
 
@@ -31,7 +32,7 @@ final class CommentRepository
     public function listFor(string $entityType, int $entityId): array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT c.*, u.name AS author_name
+            'SELECT c.*, u.name AS author_name, u.avatar AS author_avatar
              FROM comments c
              INNER JOIN users u ON u.id = c.user_id
              WHERE c.entity_type = ? AND c.entity_id = ?
@@ -43,21 +44,22 @@ final class CommentRepository
 
     public function delete(int $id): void
     {
-        $this->pdo->prepare('DELETE FROM comments WHERE id = ?')->execute([$id]);
+        // Cascade replies so orphans don't linger with a dangling parent_id.
+        $this->pdo->prepare('DELETE FROM comments WHERE id = ? OR parent_id = ?')->execute([$id, $id]);
     }
 
     public function recentForUser(int $userId, bool $isAdmin, int $limit = 10, int $offset = 0): array
     {
         if ($isAdmin) {
             $stmt = $this->pdo->prepare(
-                'SELECT c.*, u.name AS author_name FROM comments c
+                'SELECT c.*, u.name AS author_name, u.avatar AS author_avatar FROM comments c
                  INNER JOIN users u ON u.id = c.user_id
                  ORDER BY c.created_at DESC LIMIT ? OFFSET ?'
             );
             $stmt->execute([$limit, $offset]);
         } else {
             $stmt = $this->pdo->prepare(
-                "SELECT c.*, u.name AS author_name FROM comments c
+                "SELECT c.*, u.name AS author_name, u.avatar AS author_avatar FROM comments c
                  INNER JOIN users u ON u.id = c.user_id
                  WHERE
                    (c.entity_type = 'project' AND c.entity_id IN (

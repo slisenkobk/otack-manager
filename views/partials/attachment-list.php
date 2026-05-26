@@ -2,24 +2,7 @@
 $canEdit       = $canEdit ?? false;
 $currentUserId = $currentUserId ?? 0;
 $isAdmin       = $isAdmin ?? false;
-?>
-<?php
-function attach_kind(array $a): string {
-    if ((int)($a['is_image'] ?? 0) === 1) return 'image';
-    $mime = (string)($a['mime'] ?? '');
-    $name = strtolower((string)($a['original_name'] ?? ''));
-    if (preg_match('/(zip|rar|7z|tar|gz|bz2)$/', $name)) return 'archive';
-    if (in_array($mime, ['application/zip', 'application/x-7z-compressed', 'application/x-rar-compressed', 'application/x-tar', 'application/gzip'], true)) return 'archive';
-    if ($mime === 'application/pdf' || str_starts_with($mime, 'text/')) return 'viewable';
-    if ($mime === 'application/json' || $mime === 'application/xml') return 'viewable';
-    return 'download';
-}
-function attach_icon(string $kind, string $mime): string {
-    if ($kind === 'archive') return 'fa-solid fa-file-zipper';
-    if ($mime === 'application/pdf') return 'fa-solid fa-file-pdf';
-    if (str_starts_with($mime, 'text/')) return 'fa-solid fa-file-lines';
-    return 'fa-solid fa-file';
-}
+$readOnly      = $readOnly ?? false; // disables per-item delete button and the upload field
 ?>
 <div class="attachments-section" data-entity-type="<?= e($entityType) ?>" data-entity-id="<?= (int)$entityId ?>">
   <div class="attach-grid">
@@ -28,33 +11,40 @@ function attach_icon(string $kind, string $mime): string {
       $url = '/' . $a['filename'];
       $kind = attach_kind($a);
     ?>
-      <article class="attach-item attach-item--<?= e($kind) ?>"
+      <article class="attach-item attach-item--<?= e($kind) ?><?= !empty($a['comment_id']) ? ' attach-item--from-comment' : '' ?>"
                data-attachment-id="<?= (int)$a['id'] ?>"
                data-is-image="<?= (int)$a['is_image'] ?>"
                data-url="<?= e($url) ?>"
-               data-name="<?= e($a['original_name']) ?>">
+               data-name="<?= e($a['original_name']) ?>"
+               <?= !empty($a['comment_id']) ? 'title="From comment"' : '' ?>>
+        <div class="attach-item__top">
+          <?php if ($kind === 'image'): ?>
+            <a href="#" class="attach-item__action" data-action="lightbox" title="View image">
+              <i class="fa-solid fa-magnifying-glass-plus"></i> View
+            </a>
+          <?php elseif ($kind === 'viewable'): ?>
+            <a href="<?= e($url) ?>" target="_blank" rel="noopener" class="attach-item__action" title="Open in browser">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> Open
+            </a>
+          <?php else: ?>
+            <a href="<?= e($url) ?>" download class="attach-item__action" title="Download">
+              <i class="fa-solid fa-download"></i> Download
+            </a>
+          <?php endif; ?>
+        </div>
         <?php if ($kind === 'image'): ?>
           <a href="#" class="attach-item__media" data-action="lightbox">
             <img src="<?= e($url) ?>" alt="<?= e($a['original_name']) ?>" loading="lazy">
           </a>
-        <?php elseif ($kind === 'viewable'): ?>
-          <a href="<?= e($url) ?>" target="_blank" rel="noopener" class="attach-item__media attach-item__media--icon"
-             title="Open in browser">
-            <i class="<?= attach_icon($kind, (string)$a['mime']) ?>"></i>
-            <div class="attach-item__name"><?= e(mb_strimwidth($a['original_name'], 0, 24, '…')) ?></div>
-            <span class="attach-item__cta"><i class="fa-solid fa-arrow-up-right-from-square"></i> open</span>
-          </a>
         <?php else: ?>
-          <a href="<?= e($url) ?>" download class="attach-item__media attach-item__media--icon"
-             title="Download">
+          <div class="attach-item__media attach-item__media--icon">
             <i class="<?= attach_icon($kind, (string)$a['mime']) ?>"></i>
             <div class="attach-item__name"><?= e(mb_strimwidth($a['original_name'], 0, 24, '…')) ?></div>
-            <span class="attach-item__cta"><i class="fa-solid fa-download"></i> download</span>
-          </a>
+          </div>
         <?php endif; ?>
         <div class="attach-item__foot">
           <span><?= fmt_size((int)$a['size']) ?></span>
-          <?php if ($canDelete): ?>
+          <?php if ($canDelete && !$readOnly): ?>
             <button type="button" class="attach-item__del" data-action="delete-attachment" aria-label="Delete">
               <i class="fa-solid fa-xmark"></i>
             </button>

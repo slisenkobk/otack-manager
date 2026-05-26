@@ -63,6 +63,31 @@ final class UserRepository {
         return $this->pdo->query('SELECT * FROM users ORDER BY created_at DESC')->fetchAll();
     }
 
+    public function listPaged(int $limit, int $offset, string $query = ''): array {
+        if ($query !== '') {
+            $like = '%' . mb_strtolower($query) . '%';
+            $stmt = $this->pdo->prepare(
+                'SELECT * FROM users WHERE LOWER(name) LIKE ? OR LOWER(email) LIKE ?
+                 ORDER BY created_at DESC LIMIT ? OFFSET ?'
+            );
+            $stmt->execute([$like, $like, $limit, $offset]);
+        } else {
+            $stmt = $this->pdo->prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?');
+            $stmt->execute([$limit, $offset]);
+        }
+        return $stmt->fetchAll();
+    }
+
+    public function countAll(string $query = ''): int {
+        if ($query !== '') {
+            $like = '%' . mb_strtolower($query) . '%';
+            $stmt = $this->pdo->prepare('SELECT COUNT(*) AS c FROM users WHERE LOWER(name) LIKE ? OR LOWER(email) LIKE ?');
+            $stmt->execute([$like, $like]);
+            return (int)$stmt->fetch()['c'];
+        }
+        return (int)$this->pdo->query('SELECT COUNT(*) AS c FROM users')->fetch()['c'];
+    }
+
     public function delete(int $id): void {
         $this->pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
     }
@@ -84,5 +109,13 @@ final class UserRepository {
 
     public function updateName(int $id, string $name): void {
         $this->pdo->prepare('UPDATE users SET name = ? WHERE id = ?')->execute([$name, $id]);
+    }
+
+    public function updateEmail(int $id, string $email): void {
+        $this->pdo->prepare('UPDATE users SET email = ? WHERE id = ?')->execute([$email, $id]);
+    }
+
+    public function updateAvatar(int $id, ?string $filename): void {
+        $this->pdo->prepare('UPDATE users SET avatar = ? WHERE id = ?')->execute([$filename, $id]);
     }
 }

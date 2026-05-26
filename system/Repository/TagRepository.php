@@ -87,6 +87,28 @@ final class TagRepository {
         return $stmt->fetchAll();
     }
 
+    public function listPaged(int $limit, int $offset, string $query = ''): array {
+        if ($query !== '') {
+            $like = '%' . mb_strtolower($query) . '%';
+            $stmt = $this->pdo->prepare('SELECT * FROM tags WHERE LOWER(name) LIKE ? ORDER BY scope ASC, name ASC LIMIT ? OFFSET ?');
+            $stmt->execute([$like, $limit, $offset]);
+        } else {
+            $stmt = $this->pdo->prepare('SELECT * FROM tags ORDER BY scope ASC, name ASC LIMIT ? OFFSET ?');
+            $stmt->execute([$limit, $offset]);
+        }
+        return $stmt->fetchAll();
+    }
+
+    public function countAll(string $query = ''): int {
+        if ($query !== '') {
+            $like = '%' . mb_strtolower($query) . '%';
+            $stmt = $this->pdo->prepare('SELECT COUNT(*) AS c FROM tags WHERE LOWER(name) LIKE ?');
+            $stmt->execute([$like]);
+            return (int)$stmt->fetch()['c'];
+        }
+        return (int)$this->pdo->query('SELECT COUNT(*) AS c FROM tags')->fetch()['c'];
+    }
+
     public function countUsage(int $tagId): array {
         $proj = $this->pdo->prepare('SELECT COUNT(*) FROM project_tag_map WHERE tag_id = ?');
         $proj->execute([$tagId]);

@@ -3,9 +3,7 @@
     <?php foreach ($members as $m): ?>
       <div class="member-chip" data-user-id="<?= (int)$m['id'] ?>"
            style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--paper);border:1px solid var(--rule);border-radius:6px;">
-        <div class="ini" style="width:24px;height:24px;font-size:10px;background:var(--ink);">
-          <?= e(mb_substr($m['name'], 0, 2)) ?>
-        </div>
+        <?= user_avatar_html((int)$m['id'], $m['name'], $m['avatar'] ?? null, 'sm') ?>
         <div style="flex:1;font-size:13px;">
           <?= e($m['name']) ?>
           <span class="muted" style="font-size:10px;color:var(--ink-3);"><?= e($m['role']) ?></span>
@@ -22,9 +20,9 @@
 
   <?php if ($canEdit): ?>
     <div class="member-add" style="margin-top:12px;position:relative;">
-      <input class="input" type="text" placeholder="+ Add member by name or email" data-member-search>
+      <input class="input" type="text" placeholder="+ Add member" data-member-search>
       <div class="dropdown" data-member-dropdown
-           style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--paper);border:1px solid var(--rule);max-height:200px;overflow-y:auto;z-index:10;margin-top:4px;border-radius:4px;">
+           style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--paper);border:1px solid var(--rule);max-height:260px;overflow-y:auto;z-index:var(--z-dropdown);border-radius:var(--radius-md);box-shadow:var(--shadow-pop);">
       </div>
       <input type="hidden" data-all-users value="<?= e(json_encode(array_values($allUsers))) ?>">
     </div>

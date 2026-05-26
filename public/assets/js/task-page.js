@@ -49,7 +49,7 @@ if (!sidebar) {
       const res = await api('/tasks/' + taskId, { method: 'POST', body: JSON.stringify({ description }) });
       // description_html is server-sanitized HTML — safe to set as innerHTML
       const safeHtml = res.task.description_html
-        || '<span class="muted" style="color:var(--ink-3);">No description. Click Edit to add one.</span>';
+        || '<em class="overview-panel__empty">No description. Click Edit to add one.</em>';
       rendered.innerHTML = safeHtml; // nosec: server-sanitized HTML
       editor.style.display = 'none';
       rendered.style.display = 'block';
@@ -104,12 +104,188 @@ if (!sidebar) {
       if (key === 'column_id') body.column_id = +val;
       else if (key === 'assignee_id') body.assignee_id = val ? +val : null;
       else if (key === 'due_date') body.due_date = val || null;
+      else if (key === 'priority') body.priority = val || 'none';
       try {
-        await api('/tasks/' + taskId, { method: 'POST', body: JSON.stringify(body) });
+        const res = await api('/tasks/' + taskId, { method: 'POST', body: JSON.stringify(body) });
+        if (key === 'column_id') {
+          const badge = document.querySelector('[data-task-sub-status]');
+          if (badge) {
+            const sub = res.task?.sub_status;
+            badge.className = 'sub-status' + (sub ? ' sub-status--' + sub : '');
+            badge.textContent = sub === 'reopened' ? '↻ Reopened'
+                              : sub === 'returned' ? '↩ Returned' : '';
+            badge.hidden = !sub;
+          }
+        }
         UI.toast(key.replace('_', ' ') + ' updated', 'success');
       } catch {}
     });
   });
+
+  // Related tasks
+  const linksSection = document.querySelector('[data-linked-tasks]');
+  if (linksSection) {
+    const list   = linksSection.querySelector('[data-linked-list]');
+    const picker = linksSection.querySelector('[data-linked-picker]');
+    const search = linksSection.querySelector('[data-linked-search]');
+    const results = linksSection.querySelector('[data-linked-results]');
+    const addBtn = linksSection.querySelector('[data-action=add-link]');
+
+    const ensureEmptyState = () => {
+      const rows = list.querySelectorAll('.linked-task');
+      const existing = list.querySelector('[data-linked-empty]');
+      if (rows.length === 0 && !existing) {
+        const em = document.createElement('em');
+        em.className = 'overview-panel__empty';
+        em.setAttribute('data-linked-empty', '');
+        em.textContent = 'No related tasks yet.';
+        list.appendChild(em);
+      } else if (rows.length > 0 && existing) {
+        existing.remove();
+      }
+    };
+
+    const statusHtml = (t) => {
+      const color = t.column_color || '#8B7C68';
+      const name  = t.column_name  || '—';
+      const dot   = document.createElement('span');
+      dot.className = 'dot col-dot';
+      dot.style.background = color;
+      const wrap = document.createElement('span');
+      wrap.appendChild(dot);
+      const lbl = document.createElement('span');
+      lbl.textContent = name;
+      wrap.appendChild(lbl);
+      return wrap;
+    };
+
+    const renderLinkedRow = (t) => {
+      const a = document.createElement('a');
+      a.className = 'linked-task';
+      a.href = '/tasks/' + t.id;
+      a.dataset.linkedId = t.id;
+
+      const idEl = document.createElement('span');
+      idEl.className = 'linked-task__id';
+      idEl.textContent = 'TASK-' + t.id;
+      a.appendChild(idEl);
+
+      const titleEl = document.createElement('span');
+      titleEl.className = 'linked-task__title';
+      titleEl.textContent = t.title;
+      a.appendChild(titleEl);
+
+      const status = statusHtml(t);
+      status.className = 'linked-task__status';
+      a.appendChild(status);
+
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'linked-task__remove';
+      rm.dataset.action = 'unlink';
+      rm.setAttribute('aria-label', 'Remove link');
+      rm.title = 'Remove link';
+      rm.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+      a.appendChild(rm);
+
+      return a;
+    };
+
+    const renderResults = (tasks) => {
+      results.innerHTML = '';
+      if (!tasks.length) {
+        const em = document.createElement('div');
+        em.className = 'linked-result__empty';
+        em.textContent = 'No tasks found.';
+        results.appendChild(em);
+        results.classList.add('is-open');
+        return;
+      }
+      tasks.forEach(t => {
+        const row = document.createElement('div');
+        row.className = 'linked-result';
+        row.dataset.linkedId = t.id;
+
+        const idEl = document.createElement('span');
+        idEl.className = 'linked-result__id';
+        idEl.textContent = 'TASK-' + t.id;
+        row.appendChild(idEl);
+
+        const titleEl = document.createElement('span');
+        titleEl.className = 'linked-result__title';
+        titleEl.textContent = t.title;
+        row.appendChild(titleEl);
+
+        const status = statusHtml(t);
+        status.className = 'linked-result__status';
+        row.appendChild(status);
+
+        row.addEventListener('click', async () => {
+          try {
+            const res = await api('/api/tasks/' + taskId + '/links', {
+              method: 'POST',
+              body: JSON.stringify({ linked_task_id: +t.id }),
+            });
+            list.appendChild(renderLinkedRow(res.task));
+            ensureEmptyState();
+            UI.toast('Task linked', 'success');
+            // refresh search to drop the just-linked item
+            doSearch(search.value);
+          } catch {}
+        });
+        results.appendChild(row);
+      });
+      results.classList.add('is-open');
+    };
+
+    let searchTimer = null;
+    const doSearch = (q) => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(async () => {
+        try {
+          const url = '/api/tasks/' + taskId + '/links/search' + (q ? '?q=' + encodeURIComponent(q) : '');
+          const res = await api(url);
+          renderResults(res.tasks || []);
+        } catch {}
+      }, 150);
+    };
+
+    addBtn?.addEventListener('click', () => {
+      picker.hidden = !picker.hidden;
+      if (!picker.hidden) {
+        search.value = '';
+        results.innerHTML = '';
+        doSearch('');
+        setTimeout(() => search.focus(), 0);
+      }
+    });
+
+    search?.addEventListener('input', () => doSearch(search.value));
+
+    document.addEventListener('click', (e) => {
+      if (!picker || picker.hidden) return;
+      if (!picker.contains(e.target) && !addBtn.contains(e.target)) {
+        picker.hidden = true;
+      }
+    });
+
+    list.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-action=unlink]');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const row = btn.closest('.linked-task');
+      const otherId = row?.dataset.linkedId;
+      if (!otherId) return;
+      if (!await UI.confirm('Remove this link?')) return;
+      try {
+        await api('/api/tasks/' + taskId + '/links/' + otherId + '/delete', { method: 'POST' });
+        row.remove();
+        ensureEmptyState();
+        UI.toast('Link removed', 'success');
+      } catch {}
+    });
+  }
 
   // Delete
   sidebar.querySelector('[data-action=delete-task]').addEventListener('click', async () => {

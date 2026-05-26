@@ -18,7 +18,13 @@ final class TagAdminController extends BaseController {
     }
 
     public function index(Request $req, array $params = []): void {
-        $allTags = $this->tags->listAll();
+        $page    = max(1, (int)($req->query['page'] ?? 1));
+        $query   = trim((string)($req->query['q'] ?? ''));
+        $perPage = 30;
+        $offset  = ($page - 1) * $perPage;
+        $allTags = $this->tags->listPaged($perPage, $offset, $query);
+        $total   = $this->tags->countAll($query);
+        $pages   = max(1, (int)ceil($total / $perPage));
         $usages  = [];
         foreach ($allTags as $tag) {
             $usages[(int)$tag['id']] = $this->tags->countUsage((int)$tag['id']);
@@ -38,6 +44,10 @@ final class TagAdminController extends BaseController {
             'content'   => $this->view->render('tags/index', [
                 'tags'   => $allTags,
                 'usages' => $usages,
+                'page'   => $page,
+                'pages'  => $pages,
+                'total'  => $total,
+                'query'  => $query,
             ]),
         ]));
     }

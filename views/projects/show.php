@@ -15,19 +15,12 @@ foreach ($boardColumns as $c) {
     $openBoardTasks += count($tasksByCol[(int)$c['id']] ?? []);
 }
 
-function tab_link(int $pid, string $key, string $current, string $label) {
-    $active = $current === $key;
-    return sprintf(
-        '<a href="/projects/%d?tab=%s" class="project-tab%s">%s</a>',
-        $pid, $key, $active ? ' project-tab--active' : '', htmlspecialchars($label, ENT_QUOTES, 'UTF-8')
-    );
-}
 ?>
-<div class="project-tabs">
-  <?= tab_link((int)$project['id'], 'board',    $currentTab, 'Board' . ($openBoardTasks ? ' · ' . $openBoardTasks : '')) ?>
-  <?= tab_link((int)$project['id'], 'backlog',  $currentTab, 'Backlog' . ($backlogTasks ? ' · ' . count($backlogTasks) : '')) ?>
-  <?= tab_link((int)$project['id'], 'overview', $currentTab, 'Overview') ?>
-</div>
+<?php
+  $boardOpenCount = $openBoardTasks;
+  $backlogCount   = count($backlogTasks);
+  require APP_ROOT . '/views/partials/project-tabs.php';
+?>
 
 <?php if ($currentTab === 'board'): ?>
   <div class="kanban-toolbar">
@@ -37,12 +30,21 @@ function tab_link(int $pid, string $key, string $current, string $label) {
         <button type="button" class="chip" data-tag="<?= e($t['name']) ?>"><?= e($t['name']) ?></button>
       <?php endforeach; ?>
     </div>
-    <div class="kanban-search">
+    <button type="button" class="kanban-sort-toggle" data-mine-toggle title="Show only my tasks">
+      <i class="fa-solid fa-user"></i>
+      <span data-mine-label>All</span>
+    </button>
+    <button type="button" class="kanban-sort-toggle" data-sort-toggle title="Toggle sort order">
+      <i class="fa-solid fa-arrow-down-wide-short"></i>
+      <span data-sort-label>Manual</span>
+    </button>
+    <div class="kanban-search kanban-search--with-submit">
       <i class="fa-solid fa-magnifying-glass"></i>
       <input class="input input--inline" placeholder="Search tasks…" data-task-search>
+      <button type="button" class="kanban-search__submit" data-task-search-submit aria-label="Search"><i class="fa-solid fa-arrow-right"></i></button>
     </div>
   </div>
-  <div class="kanban" data-project-id="<?= (int)$project['id'] ?>">
+  <div class="kanban" data-project-id="<?= (int)$project['id'] ?>" data-current-user-id="<?= (int)$currentUserId ?>">
     <?php foreach ($boardColumns as $col): ?>
       <?php $colTasks = $tasksByCol[$col['id']] ?? []; ?>
       <div class="kanban-col" data-column-id="<?= (int)$col['id'] ?>">
@@ -53,62 +55,26 @@ function tab_link(int $pid, string $key, string $current, string $label) {
           <span class="kanban-col__count kanban-col-count"><?= count($colTasks) ?></span>
           <button type="button" class="btn-icon col-settings kanban-col__settings" data-column-id="<?= (int)$col['id'] ?>" aria-label="Column settings"><i class="fa-solid fa-ellipsis"></i></button>
         </div>
-        <div class="kanban-list kanban-col__list" data-column-id="<?= (int)$col['id'] ?>">
-          <?php if (empty($colTasks)): ?>
+        <?php $kanbanInitial = 25; $colTotal = count($colTasks); $colInitial = array_slice($colTasks, 0, $kanbanInitial); ?>
+        <div class="kanban-list kanban-col__list"
+             data-column-id="<?= (int)$col['id'] ?>"
+             data-loaded="<?= count($colInitial) ?>"
+             data-total="<?= $colTotal ?>">
+          <?php if (empty($colInitial)): ?>
             <div class="kanban-empty">No tasks yet</div>
           <?php endif; ?>
-          <?php foreach ($colTasks as $t):
+          <?php foreach ($colInitial as $t):
             $tags = ($taskTags ?? [])[(int)$t['id']] ?? [];
             $meta = ($taskMeta ?? [])[(int)$t['id']] ?? ['comments' => 0, 'attachments' => 0];
-          ?>
-            <div class="kanban-card"
-                 data-task-id="<?= (int)$t['id'] ?>"
-                 data-task-url="/tasks/<?= (int)$t['id'] ?>"
-                 data-position="<?= (float)$t['position'] ?>"
-                 data-tags="<?= e(implode(',', array_column($tags, 'name'))) ?>"
-                 data-title="<?= e(strtolower($t['title'])) ?>">
-              <?php if ($tags): ?>
-                <div class="kanban-card__row">
-                  <?php foreach (array_slice($tags, 0, 2) as $tag): ?>
-                    <span class="kanban-card__tag tag"
-                          style="--tag: <?= e($tag['color']) ?>; --tag-bg: <?= e($tag['color']) ?>22;">
-                      <?= e($tag['name']) ?>
-                    </span>
-                  <?php endforeach; ?>
-                </div>
-              <?php endif; ?>
-              <div class="kanban-card__id">TASK-<?= (int)$t['id'] ?></div>
-              <div class="kanban-card__title"><?= e($t['title']) ?></div>
-              <?php if (!empty($t['assignee_id'])): ?>
-                <div class="kanban-card__assignee">
-                  <span class="user-avatar user-avatar--xs" style="background: <?= user_color((int)$t['assignee_id']) ?>"><?= e(mb_substr($t['assignee_name'] ?? '?', 0, 1)) ?></span>
-                  <span><?= e($t['assignee_name'] ?? '?') ?></span>
-                </div>
-              <?php endif; ?>
-              <?php if (!empty($t['due_date']) || $meta['comments'] || $meta['attachments']): ?>
-                <div class="kanban-card__meta">
-                  <?php if (!empty($t['due_date'])): ?>
-                    <span class="kanban-card__due">
-                      <i class="fa-regular fa-calendar"></i>
-                      <?= e(fmt_date($t['due_date'])) ?>
-                    </span>
-                  <?php else: ?>
-                    <span></span>
-                  <?php endif; ?>
-                  <?php if ($meta['comments'] || $meta['attachments']): ?>
-                    <span class="kanban-card__counts">
-                      <?php if ($meta['comments']): ?>
-                        <span><i class="fa-regular fa-comment"></i> <?= (int)$meta['comments'] ?></span>
-                      <?php endif; ?>
-                      <?php if ($meta['attachments']): ?>
-                        <span><i class="fa-solid fa-paperclip"></i> <?= (int)$meta['attachments'] ?></span>
-                      <?php endif; ?>
-                    </span>
-                  <?php endif; ?>
-                </div>
-              <?php endif; ?>
+            require APP_ROOT . '/views/partials/kanban-card.php';
+          endforeach; ?>
+          <?php if ($colTotal > count($colInitial)): ?>
+            <div class="kanban-load-sentinel" data-load-sentinel
+                 data-column-id="<?= (int)$col['id'] ?>"
+                 data-project-id="<?= (int)$project['id'] ?>">
+              Loading more…
             </div>
-          <?php endforeach; ?>
+          <?php endif; ?>
         </div>
         <div class="kanban-col__footer kanban-quickadd" data-column-id="<?= (int)$col['id'] ?>">
           <button type="button" class="kanban-col__add" data-quickadd-trigger data-column-id="<?= (int)$col['id'] ?>">
@@ -137,62 +103,86 @@ function tab_link(int $pid, string $key, string $current, string $label) {
         <span class="backlog__add-hint">Enter to save · Esc to cancel</span>
       </form>
       <?php if (!$backlogTasks): ?>
-        <p class="backlog__empty">No tasks parked in the backlog yet.</p>
+        <div class="empty-state">
+          <span class="empty-state__tag">Otack Manager</span>
+          <p class="empty-state__text">No tasks parked in the backlog yet.</p>
+        </div>
       <?php else: ?>
-        <ul class="backlog__list">
-          <?php foreach ($backlogTasks as $t):
+        <?php $backlogInitial = 30; $backlogTotal = count($backlogTasks); $backlogChunk = array_slice($backlogTasks, 0, $backlogInitial); ?>
+        <ul class="backlog__list"
+            data-backlog-list
+            data-column-id="<?= (int)$backlogCol['id'] ?>"
+            data-project-id="<?= (int)$project['id'] ?>"
+            data-loaded="<?= count($backlogChunk) ?>"
+            data-total="<?= $backlogTotal ?>">
+          <?php foreach ($backlogChunk as $t):
             $tags = ($taskTags ?? [])[(int)$t['id']] ?? [];
             $meta = ($taskMeta ?? [])[(int)$t['id']] ?? ['comments' => 0, 'attachments' => 0];
-          ?>
-            <li class="backlog__item">
-              <a class="backlog__link" href="/tasks/<?= (int)$t['id'] ?>">
-                <span class="backlog__id">TASK-<?= (int)$t['id'] ?></span>
-                <span class="backlog__title"><?= e($t['title']) ?></span>
-                <?php if ($tags): ?>
-                  <span class="backlog__tags">
-                    <?php foreach (array_slice($tags, 0, 3) as $tag): ?>
-                      <span class="tag" style="--tag: <?= e($tag['color']) ?>; --tag-bg: <?= e($tag['color']) ?>22;"><?= e($tag['name']) ?></span>
-                    <?php endforeach; ?>
-                  </span>
-                <?php endif; ?>
-                <?php if (!empty($t['assignee_name'])): ?>
-                  <span class="backlog__assignee">
-                    <span class="avatar avatar--xs"><?= e(mb_substr($t['assignee_name'], 0, 2)) ?></span>
-                    <span><?= e($t['assignee_name']) ?></span>
-                  </span>
-                <?php endif; ?>
-                <?php if (!empty($t['due_date'])): ?>
-                  <span class="backlog__due"><i class="fa-regular fa-calendar"></i> <?= e(fmt_date($t['due_date'])) ?></span>
-                <?php endif; ?>
-                <?php if ($meta['comments'] || $meta['attachments']): ?>
-                  <span class="backlog__counts">
-                    <?php if ($meta['comments']): ?><span><i class="fa-regular fa-comment"></i> <?= (int)$meta['comments'] ?></span><?php endif; ?>
-                    <?php if ($meta['attachments']): ?><span><i class="fa-solid fa-paperclip"></i> <?= (int)$meta['attachments'] ?></span><?php endif; ?>
-                  </span>
-                <?php endif; ?>
-              </a>
-            </li>
-          <?php endforeach; ?>
+            require APP_ROOT . '/views/partials/backlog-row.php';
+          endforeach; ?>
+          <?php if ($backlogTotal > count($backlogChunk)): ?>
+            <li class="backlog__sentinel" data-backlog-sentinel>Loading more…</li>
+          <?php endif; ?>
         </ul>
       <?php endif; ?>
     </div>
     <script type="module" src="/assets/js/backlog.js"></script>
   <?php endif; ?>
 <?php else: ?>
-  <div style="display:grid;grid-template-columns:1fr 280px;gap:32px;">
+  <div class="project-overview" data-project-id="<?= (int)$project['id'] ?>" style="display:grid;grid-template-columns:1fr 280px;gap:32px;">
     <div>
-      <h2 style="font-weight:600;font-size:18px;">Description</h2>
-      <div class="rich-text" style="color:var(--ink-2);"><?= $project['description'] ? \App\Service\HtmlSanitizer::clean((string)$project['description']) : '<em style="color:var(--ink-3);">No description</em>' ?></div>
-      <div style="margin-top:32px;">
-        <h3 style="font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);margin:0 0 12px;">Attachments</h3>
-        <?php
-          $entityType  = 'project';
-          $entityId    = (int)$project['id'];
-          $attachments = $projectAttachments ?? [];
-          require APP_ROOT . '/views/partials/attachment-list.php';
-        ?>
+      <div class="project-overview__header" style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+        <?php if (!empty($canEdit)): ?>
+          <label class="project-avatar-edit" title="Change project color">
+            <div class="ini project-avatar" style="width:44px;height:44px;font-size:14px;background: <?= e($project['color'] ?? '#1A1612') ?>;flex-shrink:0;">
+              <?= e(mb_strtoupper(mb_substr($project['name'], 0, 2))) ?>
+            </div>
+            <input type="color" data-project-color value="<?= e($project['color'] ?? '#1A1612') ?>">
+          </label>
+        <?php else: ?>
+          <div class="ini project-avatar" style="width:44px;height:44px;font-size:14px;background: <?= e($project['color'] ?? '#1A1612') ?>;flex-shrink:0;">
+            <?= e(mb_strtoupper(mb_substr($project['name'], 0, 2))) ?>
+          </div>
+        <?php endif; ?>
+        <h1 class="project-title<?= !empty($canEdit) ? ' is-editable' : '' ?>"
+            <?= !empty($canEdit) ? 'contenteditable="true" spellcheck="false"' : '' ?>
+            data-project-id="<?= (int)$project['id'] ?>"
+            style="font-size:32px;font-weight:700;letter-spacing:-0.02em;margin:0;outline:none;border-bottom:1px dashed transparent;padding-bottom:4px;flex:1;min-width:0;<?= !empty($canEdit) ? 'cursor:text;' : '' ?>"><?= e($project['name']) ?></h1>
       </div>
-      <div style="margin-top:32px;">
+      <section class="overview-panel">
+        <header class="overview-panel__head">
+          <h2 class="overview-panel__title">Description</h2>
+          <?php if (!empty($canEdit)): ?>
+            <button class="btn-ghost" type="button" data-action="edit-description" style="font-size:12px;">Edit</button>
+          <?php endif; ?>
+        </header>
+        <div class="overview-panel__body rich-text project-description-rendered"><?= $project['description'] ? \App\Service\LinkPreview::enhance(\App\Service\HtmlSanitizer::clean((string)$project['description'])) : '<em class="overview-panel__empty">No description</em>' ?></div>
+        <?php if (!empty($canEdit)): ?>
+          <div class="overview-panel__body project-description-editor" style="display:none;">
+            <div class="wysiwyg-host">
+              <div class="wysiwyg-editor"
+                   data-quill
+                   data-quill-target="#project-description-hidden"
+                   data-placeholder="Description…"><?= $project['description'] ? \App\Service\HtmlSanitizer::clean((string)$project['description']) : '' ?></div>
+            </div>
+            <input type="hidden" id="project-description-hidden" value="<?= e($project['description'] ?? '') ?>">
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <button class="btn btn--primary submit" type="button" data-action="save-description">Save</button>
+              <button class="btn btn--ghost" type="button" data-action="cancel-description">Cancel</button>
+            </div>
+          </div>
+        <?php endif; ?>
+        <footer class="overview-panel__attach">
+          <div class="overview-panel__attach-label">Attachments</div>
+          <?php
+            $entityType  = 'project';
+            $entityId    = (int)$project['id'];
+            $attachments = $projectAttachments ?? [];
+            require APP_ROOT . '/views/partials/attachment-list.php';
+          ?>
+        </footer>
+      </section>
+      <section class="overview-panel overview-panel--comments">
         <?php
           $entityType = 'project';
           $entityId   = (int)$project['id'];
@@ -201,17 +191,33 @@ function tab_link(int $pid, string $key, string $current, string $label) {
           // $commentAttachments passed from controller
           require APP_ROOT . '/views/partials/comment-thread.php';
         ?>
-      </div>
+      </section>
     </div>
     <aside>
       <?php if (!empty($canEdit)): ?>
         <h3 style="font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);">Status</h3>
         <form method="post" action="/projects/<?= (int)$project['id'] ?>" class="project-status-form" style="margin:12px 0 24px;">
           <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
-          <select class="select" name="status" data-auto-submit>
-            <option value="active"   <?= $project['status'] === 'active'   ? 'selected' : '' ?>>Active</option>
-            <option value="archived" <?= $project['status'] === 'archived' ? 'selected' : '' ?>>Archived</option>
-          </select>
+          <?php
+            $statusOpts = ['active' => 'Active', 'archived' => 'Archived'];
+            $curStatus  = $project['status'] ?? 'active';
+          ?>
+          <div class="custom-select" data-custom-select>
+            <button type="button" class="custom-select__btn">
+              <span class="custom-select__icon"><span class="status-dot status-dot--<?= e($curStatus) ?>"></span></span>
+              <span class="custom-select__label"><?= e($statusOpts[$curStatus]) ?></span>
+              <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
+            </button>
+            <div class="custom-select__pop" hidden>
+              <?php foreach ($statusOpts as $sVal => $sLabel): ?>
+                <div class="custom-select__opt<?= $curStatus === $sVal ? ' is-selected' : '' ?>" data-value="<?= e($sVal) ?>">
+                  <span class="custom-select__icon"><span class="status-dot status-dot--<?= e($sVal) ?>"></span></span>
+                  <span class="custom-select__opt-label"><?= e($sLabel) ?></span>
+                </div>
+              <?php endforeach; ?>
+            </div>
+            <input type="hidden" name="status" value="<?= e($curStatus) ?>" data-auto-submit>
+          </div>
         </form>
       <?php endif; ?>
       <h3 style="font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);">Members</h3>
@@ -227,6 +233,13 @@ function tab_link(int $pid, string $key, string $current, string $label) {
         $all        = $allProjectTags ?? [];
         require APP_ROOT . '/views/partials/tag-picker.php';
       ?>
+      <?php if (!empty($canEdit)): ?>
+        <button class="btn-danger" type="button" data-action="delete-project"
+                style="margin-top:24px;width:100%;padding:8px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;">
+          Delete project
+        </button>
+      <?php endif; ?>
     </aside>
   </div>
+  <script type="module" src="/assets/js/project-page.js"></script>
 <?php endif; ?>

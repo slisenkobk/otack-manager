@@ -19,12 +19,40 @@ document.querySelectorAll('.attachments-section').forEach(section => {
     const del = item.querySelector('[data-action=delete-attachment]');
     if (del) del.addEventListener('click', async e => {
       e.preventDefault();
+      e.stopPropagation();
       const id = item.dataset.attachmentId;
       if (!await UI.confirm('Delete this attachment?', { danger: true, confirmLabel: 'Delete' })) return;
       try {
         await api('/api/attachments/' + id + '/delete', { method: 'POST' });
         item.remove();
+        UI.toast('Attachment removed', 'success');
       } catch {}
+    });
+
+    // Click anywhere on the card triggers the primary action (lightbox / open / download),
+    // unless the user clicked the delete button or an existing link inside the top action bar.
+    item.style.cursor = 'pointer';
+    item.addEventListener('click', e => {
+      if (e.target.closest('[data-action=delete-attachment]')) return;
+      if (e.target.closest('[data-action=lightbox]')) return; // its own handler fires
+      if (e.target.closest('a[href]') && e.target.closest('.attach-item__top')) return;
+      if (+item.dataset.isImage === 1) {
+        openLightbox(item);
+        return;
+      }
+      // Non-image: replicate the existing media link behaviour
+      const media = item.querySelector('.attach-item__media');
+      if (media && media.tagName === 'A') {
+        media.click();
+      } else {
+        const url = item.dataset.url;
+        if (!url) return;
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.click();
+      }
     });
   }
 
@@ -35,28 +63,117 @@ document.querySelectorAll('.attachments-section').forEach(section => {
     UI.lightbox(urls, idx);
   }
 
-  input?.addEventListener('change', async (e) => {
-    const files = [...e.target.files];
-    for (const file of files) {
-      const isImage = file.type.startsWith('image/');
-      const limit   = isImage ? maxImage : maxFile;
-      if (file.size > limit) {
-        UI.toast(`${file.name}: ${isImage ? 'Image' : 'File'} exceeds ${Math.round(limit / 1048576)} MB`, 'error');
-        continue;
-      }
-      const fd = new FormData();
-      fd.set('entity_type', entityType);
-      fd.set('entity_id', entityId);
-      fd.set('file', file);
-      try {
-        const res  = await api('/api/attachments', { method: 'POST', body: fd });
-        const node = buildAttachmentNode(res.attachment);
-        grid.appendChild(node);
-        attachItem(node);
-      } catch {}
+  let activeUploads = 0;
+  function uploadStarted() {
+    activeUploads++;
+    section.classList.add('is-uploading');
+    if (!section.querySelector('.attach-loader')) {
+      const ldr = document.createElement('div');
+      ldr.className = 'attach-loader';
+      const sp = document.createElement('span');
+      sp.className = 'attach-loader__spinner';
+      const tx = document.createElement('span');
+      tx.textContent = 'Uploading…';
+      ldr.appendChild(sp);
+      ldr.appendChild(tx);
+      section.appendChild(ldr);
     }
+  }
+  function uploadEnded() {
+    activeUploads = Math.max(0, activeUploads - 1);
+    if (activeUploads === 0) {
+      section.classList.remove('is-uploading');
+      section.querySelector('.attach-loader')?.remove();
+    }
+  }
+
+  async function uploadFiles(files) {
+    if (!files.length) return;
+    uploadStarted();
+    try {
+      for (const file of files) {
+        const isImage = file.type.startsWith('image/');
+        const limit   = isImage ? maxImage : maxFile;
+        if (file.size > limit) {
+          UI.toast(`${file.name}: ${isImage ? 'Image' : 'File'} exceeds ${Math.round(limit / 1048576)} MB`, 'error');
+          continue;
+        }
+        const fd = new FormData();
+        fd.set('entity_type', entityType);
+        fd.set('entity_id', entityId);
+        // Always pass an explicit filename — some browsers send pasted files as "blob"
+        // with no extension, which PHP can reject during MIME sniffing.
+        fd.set('file', file, file.name || 'pasted-file');
+        try {
+          const res  = await api('/api/attachments', { method: 'POST', body: fd });
+          const node = buildAttachmentNode(res.attachment);
+          grid.appendChild(node);
+          attachItem(node);
+          UI.toast((file.name || 'file') + ' uploaded', 'success');
+        } catch (err) {
+          // api() already shows a generic toast — add context for common cases.
+          const msg  = String(err?.message || '');
+          const mb   = (file.size / 1048576).toFixed(1);
+          // "No file" from server usually means PHP rejected the upload (post_max_size
+          // exceeded) and dropped $_FILES entirely. Translate to something useful.
+          if (/no file/i.test(msg)) {
+            UI.toast(`${file.name || 'file'} (${mb} MB) — too big for the server. Ask admin to raise PHP upload limits.`, 'error');
+          } else if (/exceeds|too large|413/i.test(msg)) {
+            UI.toast(`${file.name || 'file'}: file is too large (${mb} MB)`, 'error');
+          } else if (/not allowed|svg/i.test(msg)) {
+            UI.toast(`${file.name || 'file'}: file type is not allowed`, 'error');
+          }
+        }
+      }
+    } finally {
+      uploadEnded();
+    }
+  }
+
+  input?.addEventListener('change', async (e) => {
+    await uploadFiles([...e.target.files]);
     e.target.value = '';
   });
+
+  // Paste-to-upload: capture clipboard files (Ctrl/Cmd+V) when the user is hovering
+  // this section. Lets you screenshot → hover → paste, without focusing any field.
+  // Each .attachments-section on the page registers its own listener; we mark the
+  // paste event the first time it's handled so the second listener skips it
+  // (otherwise the same File would be sent twice — second call gets empty clipboard
+  // and PHP returns 422 "No file").
+  let isHovering = false;
+  section.addEventListener('mouseenter', () => { isHovering = true; });
+  section.addEventListener('mouseleave', () => { isHovering = false; });
+  document.addEventListener('paste', (e) => {
+    if (!isHovering) return;
+    if (e.__otackPasteHandled) return;
+    e.__otackPasteHandled = true;
+    handlePaste(e);
+  });
+
+  function handlePaste(e) {
+    const items = e.clipboardData?.items || [];
+    const files = [];
+    for (const it of items) {
+      if (it.kind !== 'file') continue;
+      const f = it.getAsFile();
+      if (!f || !f.size) continue;
+      // Pasted screenshots usually arrive with no name (or "image.png") which trips up
+      // PHP's MIME / extension handling. Always rebuild as a named File.
+      const isGenericName = !f.name || f.name === 'image.png' || f.name === 'blob';
+      if (isGenericName && f.type) {
+        const ext = (f.type.split('/')[1] || 'bin').replace('jpeg', 'jpg');
+        const ts  = new Date().toISOString().replace(/[:.]/g, '-');
+        files.push(new File([f], `pasted-${ts}.${ext}`, { type: f.type }));
+      } else {
+        files.push(f);
+      }
+    }
+    if (!files.length) return;
+    e.preventDefault();
+    UI.toast(files.length === 1 ? 'Uploading from clipboard…' : `Uploading ${files.length} files from clipboard…`);
+    uploadFiles(files);
+  }
 
   function kindOf(a) {
     if (a.is_image) return 'image';

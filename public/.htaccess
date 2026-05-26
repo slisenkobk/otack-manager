@@ -7,3 +7,19 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 <Files ".env">
   Require all denied
 </Files>
+
+# PHP upload limits — mirrored from .user.ini; some shared hosts use Apache mod_php
+# instead of PHP-FPM and ignore .user.ini, so we set it here too. The IfModule
+# guards prevent 500s on hosts that lock these directives.
+<IfModule mod_php7.c>
+  php_value upload_max_filesize 60M
+  php_value post_max_size       60M
+  php_value max_file_uploads    20
+  php_value memory_limit        128M
+</IfModule>
+<IfModule mod_php.c>
+  php_value upload_max_filesize 60M
+  php_value post_max_size       60M
+  php_value max_file_uploads    20
+  php_value memory_limit        128M
+</IfModule>

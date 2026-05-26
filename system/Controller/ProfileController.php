@@ -58,13 +58,29 @@ final class ProfileController extends BaseController {
     }
 
     public function update(Request $req, array $params = []): void {
-        $name = trim($req->post['name'] ?? '');
+        $name  = trim($req->post['name']  ?? '');
+        $email = strtolower(trim($req->post['email'] ?? ''));
         if ($name === '') {
             $this->flash('flash_error', 'Name cannot be empty');
-        } else {
-            $this->users->updateName((int)$this->user['id'], $name);
-            $this->flash('flash_success', 'Name updated');
+            Response::redirect('/profile'); return;
         }
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->flash('flash_error', 'Email is not valid');
+            Response::redirect('/profile'); return;
+        }
+        // Email uniqueness — allow keeping our own
+        if (strtolower((string)$this->user['email']) !== $email) {
+            $taken = $this->users->findByEmail($email);
+            if ($taken && (int)$taken['id'] !== (int)$this->user['id']) {
+                $this->flash('flash_error', 'Email is already in use');
+                Response::redirect('/profile'); return;
+            }
+            $this->users->updateEmail((int)$this->user['id'], $email);
+        }
+        if ($name !== (string)$this->user['name']) {
+            $this->users->updateName((int)$this->user['id'], $name);
+        }
+        $this->flash('flash_success', 'Profile updated');
         Response::redirect('/profile');
     }
 
@@ -81,6 +97,45 @@ final class ProfileController extends BaseController {
         } else {
             $this->users->updatePassword((int)$this->user['id'], $this->hasher->hash($new));
             $this->flash('flash_success', 'Password changed');
+        }
+        Response::redirect('/profile');
+    }
+
+    public function updateAvatar(Request $req, array $params = []): void {
+        $file = $req->files['avatar'] ?? null;
+        if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            $this->flash('flash_error', 'No file uploaded');
+            Response::redirect('/profile'); return;
+        }
+        $uploader = App::make('uploader');
+        $err = $uploader->validate($file);
+        if ($err) { $this->flash('flash_error', $err); Response::redirect('/profile'); return; }
+        if (!$uploader->isImage($file['type'] ?? '')) {
+            $this->flash('flash_error', 'Avatar must be an image');
+            Response::redirect('/profile'); return;
+        }
+        try {
+            $stored = $uploader->store($file);
+        } catch (\Throwable $e) {
+            $this->flash('flash_error', 'Upload failed: ' . $e->getMessage());
+            Response::redirect('/profile'); return;
+        }
+        // Remove old avatar file (best-effort) before swapping.
+        if (!empty($this->user['avatar'])) {
+            $oldAbs = APP_ROOT . '/public/' . ltrim($this->user['avatar'], '/');
+            if (is_file($oldAbs)) @unlink($oldAbs);
+        }
+        $this->users->updateAvatar((int)$this->user['id'], $stored['filename']);
+        $this->flash('flash_success', 'Avatar updated');
+        Response::redirect('/profile');
+    }
+
+    public function removeAvatar(Request $req, array $params = []): void {
+        if (!empty($this->user['avatar'])) {
+            $oldAbs = APP_ROOT . '/public/' . ltrim($this->user['avatar'], '/');
+            if (is_file($oldAbs)) @unlink($oldAbs);
+            $this->users->updateAvatar((int)$this->user['id'], null);
+            $this->flash('flash_success', 'Avatar removed');
         }
         Response::redirect('/profile');
     }

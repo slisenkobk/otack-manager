@@ -1,17 +1,6 @@
 import { api, UI } from './ui.js';
 
-// Tag search / filter
-const tagSearch = document.querySelector('[data-tag-search]');
-if (tagSearch) {
-  const rows = document.querySelectorAll('[data-tag-row]');
-  tagSearch.addEventListener('input', () => {
-    const q = tagSearch.value.trim().toLowerCase();
-    rows.forEach(r => {
-      const name = (r.querySelector('[data-tag-name]')?.textContent || '').toLowerCase();
-      r.style.display = !q || name.includes(q) ? '' : 'none';
-    });
-  });
-}
+// Tag search form submits on Enter (native) or via the submit button.
 
 document.querySelectorAll('.card[data-tag-id]').forEach(card => {
   const tagId   = card.dataset.tagId;

@@ -18,7 +18,13 @@ final class UserController extends BaseController {
     }
 
     public function index(Request $req, array $params = []): void {
-        $list = $this->users->listAll();
+        $page    = max(1, (int)($req->query['page'] ?? 1));
+        $query   = trim((string)($req->query['q'] ?? ''));
+        $perPage = 20;
+        $offset  = ($page - 1) * $perPage;
+        $list    = $this->users->listPaged($perPage, $offset, $query);
+        $total   = $this->users->countAll($query);
+        $pages   = max(1, (int)ceil($total / $perPage));
         $csrfToken = App::make('csrf')->token();
         $sidebar = $this->view->render('partials/sidebar', [
             'user' => $this->user, 'activeNav' => 'users', 'csrfToken' => $csrfToken,
@@ -33,6 +39,8 @@ final class UserController extends BaseController {
             'topbar' => $topbar,
             'content' => $this->view->render('users/index', [
                 'users' => $list, 'currentUserId' => (int)$this->user['id'],
+                'page' => $page, 'pages' => $pages, 'total' => $total,
+                'query' => $query,
             ]),
         ]));
     }
@@ -67,6 +75,43 @@ final class UserController extends BaseController {
             Response::json(['error' => 'Invalid role'], 422); return;
         }
         $this->users->setRole((int)$params['id'], $role);
+        Response::json(['ok' => true]);
+    }
+
+    public function create(Request $req, array $params = []): void {
+        $data  = json_decode(file_get_contents('php://input'), true) ?? $req->post;
+        $name  = trim((string)($data['name'] ?? ''));
+        $email = trim((string)($data['email'] ?? ''));
+        $pass  = (string)($data['password'] ?? '');
+        $role  = ($data['role'] ?? 'member') === 'admin' ? 'admin' : 'member';
+        if ($name === '' || $email === '' || strlen($pass) < 8) {
+            Response::json(['error' => 'Name, email and password (min 8) are required'], 422); return;
+        }
+        if ($this->users->findByEmail($email)) {
+            Response::json(['error' => 'Email already registered'], 422); return;
+        }
+        $hash = App::make('hasher')->hash($pass);
+        $id   = $this->users->create($email, $hash, $name);
+        // create() defaults to pending for non-first users; admin-created → approved + chosen role.
+        $this->users->approve($id);
+        $this->users->setRole($id, $role);
+        Response::json(['ok' => true, 'id' => $id]);
+    }
+
+    public function update(Request $req, array $params): void {
+        $id   = (int)$params['id'];
+        $u    = $this->users->findById($id);
+        if (!$u) { Response::json(['error' => 'Not found'], 404); return; }
+        $data = json_decode(file_get_contents('php://input'), true) ?? $req->post;
+        $name = isset($data['name']) ? trim((string)$data['name']) : null;
+        $pass = isset($data['password']) ? (string)$data['password'] : '';
+        if ($name !== null && $name !== '' && $name !== $u['name']) {
+            $this->users->updateName($id, $name);
+        }
+        if ($pass !== '') {
+            if (strlen($pass) < 8) { Response::json(['error' => 'Password must be at least 8 chars'], 422); return; }
+            $this->users->updatePassword($id, App::make('hasher')->hash($pass));
+        }
         Response::json(['ok' => true]);
     }
 

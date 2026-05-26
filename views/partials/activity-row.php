@@ -2,16 +2,26 @@
 /** Expects $a as an associative array shaped by DashboardController::formatActivity. */
 $icon = match ($a['event']) {
     'comment.created'      => 'fa-regular fa-comment',
+    'comment.deleted'      => 'fa-regular fa-comment-slash',
     'attachment.uploaded'  => 'fa-solid fa-paperclip',
     'task.status_changed'  => 'fa-solid fa-arrow-right-arrow-left',
     'task.created'         => 'fa-solid fa-plus',
+    'task.deleted'         => 'fa-solid fa-trash',
+    'task.linked'          => 'fa-solid fa-link',
+    'task.unlinked'        => 'fa-solid fa-link-slash',
+    'project.deleted'      => 'fa-solid fa-folder-minus',
     default                => 'fa-regular fa-circle-dot',
 };
 $verb = match ($a['event']) {
     'comment.created'      => 'commented',
+    'comment.deleted'      => 'deleted comment',
     'attachment.uploaded'  => 'attached file',
     'task.status_changed'  => 'changed status',
     'task.created'         => 'created task',
+    'task.deleted'         => 'deleted task',
+    'task.linked'          => 'linked',
+    'task.unlinked'        => 'unlinked',
+    'project.deleted'      => 'deleted project',
     default                => 'updated',
 };
 ?>

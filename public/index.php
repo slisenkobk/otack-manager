@@ -58,6 +58,7 @@ App::singleton('projects', fn() => new \App\Repository\ProjectRepository(App::ma
 App::singleton('members',  fn() => new \App\Repository\ProjectMemberRepository(App::make('db')));
 App::singleton('columns',  fn() => new \App\Repository\TaskColumnRepository(App::make('db')));
 App::singleton('tasks',    fn() => new \App\Repository\TaskRepository(App::make('db')));
+App::singleton('task_links', fn() => new \App\Repository\TaskLinkRepository(App::make('db')));
 App::singleton('hasher',  fn() => new \App\Auth\PasswordHasher());
 App::singleton('events',   fn() => new \App\Service\EventBus());
 App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));
@@ -70,29 +71,53 @@ $tg = new \App\Service\NotificationLogger(
     new \App\Service\TelegramNotifier(App::env('TG_BOT_TOKEN'), App::env('TG_CHAT_ID')),
     App::make('notif_log')
 );
-$events->on('user.registered', function ($p) use ($tg) {
-    $tg->notify('user.registered', "[NEW] Registration request: {$p['name']} <{$p['email']}>", null, $p);
+$tgEsc  = fn ($s) => \App\Service\TelegramNotifier::escape((string)$s);
+$tgBold = fn ($s) => '<b>' . \App\Service\TelegramNotifier::escape((string)$s) . '</b>';
+
+$events->on('user.registered', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('user.registered', "[NEW] Registration request: " . $tgBold($p['name']) . " &lt;" . $tgEsc($p['email']) . "&gt;", null, $p);
 });
-$events->on('user.approved', function ($p) use ($tg) {
-    $tg->notify('user.approved', "[USER] {$p['name']} approved by {$p['actor_name']}", null, $p);
+$events->on('user.approved', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('user.approved', "[USER] " . $tgBold($p['name']) . " approved by " . $tgBold($p['actor_name']), null, $p);
 });
-$events->on('project.created', function ($p) use ($tg) {
-    $tg->notify('project.created', "[PROJECT] {$p['actor_name']} created '{$p['name']}'", $p['url'] ?? null, $p);
+$events->on('project.created', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('project.created', "[PROJECT] " . $tgBold($p['actor_name']) . " created \"" . $tgEsc($p['name']) . "\"", $p['url'] ?? null, $p);
 });
-$events->on('project.updated', function ($p) use ($tg) {
-    $tg->notify('project.updated', "[PROJECT] {$p['actor_name']} updated '{$p['name']}'", $p['url'] ?? null, $p);
+$events->on('project.updated', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('project.updated', "[PROJECT] " . $tgBold($p['actor_name']) . " updated \"" . $tgEsc($p['name']) . "\"", $p['url'] ?? null, $p);
 });
-$events->on('task.created', function ($p) use ($tg) {
-    $tg->notify('task.created', "[TASK] {$p['actor_name']} added '{$p['title']}' to {$p['project_name']}", $p['url'] ?? null, $p);
+$events->on('task.created', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('task.created', "[TASK] " . $tgBold($p['actor_name']) . " added \"" . $tgEsc($p['title']) . "\" to " . $tgEsc($p['project_name']), $p['url'] ?? null, $p);
 });
-$events->on('task.status_changed', function ($p) use ($tg) {
-    $tg->notify('task.status_changed', "[TASK] {$p['actor_name']} moved '{$p['title']}' → {$p['new_column']}", $p['url'] ?? null, $p);
+$events->on('task.status_changed', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('task.status_changed', "[TASK] " . $tgBold($p['actor_name']) . " moved \"" . $tgEsc($p['title']) . "\" → " . $tgEsc($p['new_column']), $p['url'] ?? null, $p);
 });
-$events->on('task.assignee_changed', function ($p) use ($tg) {
-    $tg->notify('task.assignee_changed', "[TASK] {$p['actor_name']} assigned '{$p['title']}' to {$p['assignee_name']}", $p['url'] ?? null, $p);
+$events->on('task.assignee_changed', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('task.assignee_changed', "[TASK] " . $tgBold($p['actor_name']) . " assigned \"" . $tgEsc($p['title']) . "\" to " . $tgBold($p['assignee_name']), $p['url'] ?? null, $p);
 });
-$events->on('comment.created', function ($p) use ($tg) {
-    $tg->notify('comment.created', "[COMMENT] {$p['author']} on {$p['entity_label']} '{$p['target_name']}': " . mb_substr($p['body_text'] ?? '', 0, 200), $p['url'] ?? null, $p);
+$events->on('comment.created', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $reply = !empty($p['reply_to_author'])
+        ? " (reply to " . $tgBold($p['reply_to_author']) . ")"
+        : "";
+    $tg->notify('comment.created',
+        "[COMMENT] " . $tgBold($p['author']) . " on " . $tgEsc($p['entity_label']) . " \"" . $tgEsc($p['target_name']) . "\"" . $reply . ": "
+        . $tgEsc(mb_substr($p['body_text'] ?? '', 0, 200)),
+        $p['url'] ?? null, $p);
+});
+$events->on('project.deleted', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('project.deleted', "[PROJECT] " . $tgBold($p['actor_name']) . " deleted \"" . $tgEsc($p['name']) . "\"", null, $p);
+});
+$events->on('task.deleted', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('task.deleted', "[TASK] " . $tgBold($p['actor_name']) . " deleted \"" . $tgEsc($p['title']) . "\" in " . $tgEsc($p['project_name']), null, $p);
+});
+$events->on('comment.deleted', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('comment.deleted', "[COMMENT] " . $tgBold($p['actor_name']) . " deleted a comment on " . $tgEsc($p['entity_label']) . " \"" . $tgEsc($p['target_name']) . "\"", $p['url'] ?? null, $p);
+});
+$events->on('task.linked', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('task.linked', "[LINK] " . $tgBold($p['actor_name']) . " linked \"" . $tgEsc($p['task_title']) . "\" ↔ \"" . $tgEsc($p['linked_title']) . "\" in " . $tgEsc($p['project_name']), $p['url'] ?? null, $p);
+});
+$events->on('task.unlinked', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('task.unlinked', "[LINK] " . $tgBold($p['actor_name']) . " unlinked \"" . $tgEsc($p['task_title']) . "\" ↔ \"" . $tgEsc($p['linked_title']) . "\" in " . $tgEsc($p['project_name']), $p['url'] ?? null, $p);
 });
 App::singleton('attachments', fn() => new \App\Repository\AttachmentRepository(App::make('db')));
 App::singleton('tags',     fn() => new \App\Repository\TagRepository(App::make('db')));
@@ -128,6 +153,8 @@ $router->get('/pending',  'Auth@pending');
 $router->post('/logout',  'Auth@logout');
 
 $router->get('/users', 'User@index');
+$router->post('/users', 'User@create');
+$router->post('/users/{id}', 'User@update');
 $router->post('/users/{id}/approve', 'User@approve');
 $router->post('/users/{id}/block', 'User@block');
 $router->post('/users/{id}/role', 'User@setRole');
@@ -136,6 +163,8 @@ $router->post('/users/{id}/delete', 'User@delete');
 $router->get('/profile', 'Profile@show');
 $router->post('/profile', 'Profile@update');
 $router->post('/profile/password', 'Profile@updatePassword');
+$router->post('/profile/avatar', 'Profile@updateAvatar');
+$router->post('/profile/avatar/delete', 'Profile@removeAvatar');
 
 $router->get('/projects', 'Project@index');
 $router->get('/projects/new', 'Project@createForm');
@@ -151,6 +180,10 @@ $router->post('/projects/{id}/tasks', 'Task@create');
 $router->post('/tasks/{id}/delete', 'Task@delete');
 $router->post('/api/tasks/{id}/move', 'Task@move');
 $router->get('/api/projects/{id}/tasks/search', 'Task@search');
+$router->get('/api/projects/{id}/columns/{cid}/tasks', 'Task@listForColumn');
+$router->get('/api/tasks/{id}/links/search', 'Task@searchLinkable');
+$router->post('/api/tasks/{id}/links', 'Task@link');
+$router->post('/api/tasks/{id}/links/{otherId}/delete', 'Task@unlink');
 
 $router->post('/api/projects/{id}/members', 'Project@addMember');
 $router->post('/api/projects/{id}/members/{userId}/delete', 'Project@removeMember');
@@ -177,6 +210,27 @@ $router->post('/api/columns/{id}/delete', 'Column@delete');
 $router->post('/api/projects/{id}/columns/reorder', 'Column@reorder');
 
 $req   = Request::fromGlobals();
+
+// ─── Public landing + login hash gate ────────────────────────────────────────
+$hasSession = (App::make('session')->store['user_id'] ?? null) !== null;
+$loginHash  = (string)App::env('LOGIN_HASH', '');
+
+// Anonymous on "/" — show landing page instead of redirecting to login.
+if ($req->method === 'GET' && $req->path === '/' && !$hasSession) {
+    require APP_ROOT . '/views/landing.php';
+    exit;
+}
+
+// `/login` is gated by ?hash=… (configured via LOGIN_HASH env). Already-logged-in
+// users skip the check (they'd be redirected to /dashboard inside Auth@loginForm).
+if ($req->method === 'GET' && $req->path === '/login' && !$hasSession && $loginHash !== '') {
+    $provided = (string)($req->query['hash'] ?? '');
+    if (!hash_equals($loginHash, $provided)) {
+        Response::redirect('/');
+        exit;
+    }
+}
+
 $match = $router->match($req->method, $req->path);
 if (!$match) {
     http_response_code(404);

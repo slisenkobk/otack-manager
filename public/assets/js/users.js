@@ -1,17 +1,65 @@
 import { api, UI } from './ui.js';
 
-// Search / filter
-const userSearch = document.querySelector('[data-user-search]');
-if (userSearch) {
-  const cards = document.querySelectorAll('article[data-user-id]');
-  userSearch.addEventListener('input', () => {
-    const q = userSearch.value.trim().toLowerCase();
-    cards.forEach(c => {
-      const txt = c.textContent.toLowerCase();
-      c.style.display = !q || txt.includes(q) ? '' : 'none';
-    });
-  });
+// Search form submits on Enter (native) or via the submit button.
+
+function buildField(label, factory) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+  wrap.style.marginBottom = '12px';
+  const l = document.createElement('label');
+  l.textContent = label;
+  l.style.fontSize = '11px';
+  l.style.textTransform = 'uppercase';
+  l.style.letterSpacing = '.1em';
+  l.style.color = 'var(--ink-3)';
+  l.style.display = 'block';
+  l.style.marginBottom = '4px';
+  wrap.appendChild(l);
+  const input = factory();
+  wrap.appendChild(input);
+  return { wrap, input };
 }
+
+function openUserModal({ title, name = '', email = '', isEdit = false, onSubmit }) {
+  const body = document.createElement('div');
+  const nameF = buildField('Name', () => { const i = document.createElement('input'); i.className = 'input'; i.value = name; return i; });
+  const emailF = buildField('Email', () => { const i = document.createElement('input'); i.className = 'input'; i.type = 'email'; i.value = email; if (isEdit) { i.disabled = true; i.style.opacity = '.6'; } return i; });
+  const passF = buildField(isEdit ? 'New password (leave blank to keep)' : 'Password (min 8)', () => { const i = document.createElement('input'); i.className = 'input'; i.type = 'password'; i.minLength = 8; return i; });
+  body.appendChild(nameF.wrap);
+  body.appendChild(emailF.wrap);
+  body.appendChild(passF.wrap);
+
+  UI.modal({
+    title,
+    body,
+    actions: [
+      { label: 'Cancel', variant: 'btn-ghost', onClick: c => c() },
+      { label: isEdit ? 'Save' : 'Create', variant: 'submit', onClick: async (close) => {
+          const payload = { name: nameF.input.value.trim() };
+          if (!isEdit) payload.email = emailF.input.value.trim();
+          if (passF.input.value) payload.password = passF.input.value;
+          try {
+            await onSubmit(payload);
+            close();
+            setTimeout(() => location.reload(), 400);
+          } catch {}
+        }
+      },
+    ],
+  });
+  setTimeout(() => nameF.input.focus(), 0);
+}
+
+document.querySelector('[data-action="new-user"]')?.addEventListener('click', () => {
+  openUserModal({
+    title: 'New user',
+    isEdit: false,
+    onSubmit: async (payload) => {
+      await api('/users', { method: 'POST', body: JSON.stringify(payload) });
+      UI.toast('User created', 'success');
+    },
+  });
+});
 
 document.querySelectorAll('article[data-user-id]').forEach(card => {
   card.querySelectorAll('[data-action]').forEach(btn => {
@@ -19,6 +67,19 @@ document.querySelectorAll('article[data-user-id]').forEach(card => {
       const id = card.dataset.userId;
       const action = btn.dataset.action;
       try {
+        if (action === 'edit-user') {
+          openUserModal({
+            title: 'Edit user',
+            name: card.querySelector('[data-user-name]')?.textContent.trim() || '',
+            email: card.querySelector('[data-user-email]')?.textContent.trim() || '',
+            isEdit: true,
+            onSubmit: async (payload) => {
+              await api('/users/' + id, { method: 'POST', body: JSON.stringify(payload) });
+              UI.toast('User updated', 'success');
+            },
+          });
+          return;
+        }
         if (action === 'approve') {
           await api('/users/' + id + '/approve', { method: 'POST' });
           UI.toast('Approved', 'success');
@@ -38,7 +99,6 @@ document.querySelectorAll('article[data-user-id]').forEach(card => {
           card.remove();
           return;
         }
-        // Reload the row by reloading the page (simple)
         setTimeout(() => location.reload(), 600);
       } catch (err) {
         // api() already shows the error toast
