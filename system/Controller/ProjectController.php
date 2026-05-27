@@ -29,16 +29,20 @@ final class ProjectController extends BaseController {
 
     public function index(Request $req, array $params = []): void {
         $isAdmin = $this->user['role'] === 'admin';
-        $status  = ($req->query['status'] ?? 'active') === 'archived' ? 'archived' : 'active';
+        $allStatuses = array_keys(\project_statuses());
+        $reqStatus   = (string)($req->query['status'] ?? 'active');
+        $status  = in_array($reqStatus, $allStatuses, true) ? $reqStatus : 'active';
         $query   = trim((string)($req->query['q'] ?? ''));
         $page    = max(1, (int)($req->query['page'] ?? 1));
         $perPage = 12;
         $offset  = ($page - 1) * $perPage;
         $list    = $this->projects->listForUserPaged((int)$this->user['id'], $isAdmin, $status, $perPage, $offset, $query);
         $taskCounts = App::make('tasks')->countByProject(array_map(fn($p) => (int)$p['id'], $list));
-        $totalActive   = $this->projects->countAllForUser((int)$this->user['id'], $isAdmin, 'active', $query);
-        $totalArchived = $this->projects->countAllForUser((int)$this->user['id'], $isAdmin, 'archived', $query);
-        $total   = $status === 'active' ? $totalActive : $totalArchived;
+        $statusCounts = [];
+        foreach ($allStatuses as $s) {
+            $statusCounts[$s] = $this->projects->countAllForUser((int)$this->user['id'], $isAdmin, $s, $query);
+        }
+        $total   = $statusCounts[$status] ?? 0;
         $pages   = max(1, (int)ceil($total / $perPage));
         $csrf = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
@@ -51,8 +55,7 @@ final class ProjectController extends BaseController {
                 'page'          => $page,
                 'pages'         => $pages,
                 'total'         => $total,
-                'totalActive'   => $totalActive,
-                'totalArchived' => $totalArchived,
+                'statusCounts'  => $statusCounts,
                 'taskCounts'    => $taskCounts,
                 'query'         => $query,
             ]),
@@ -131,9 +134,9 @@ final class ProjectController extends BaseController {
         $csrf    = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
         $statusPill = sprintf(
-            '<span class="status%s">%s</span>',
-            $project['status'] === 'active' ? ' is-ready' : '',
-            htmlspecialchars($project['status'], ENT_QUOTES, 'UTF-8')
+            '<span class="status status--%s">%s</span>',
+            htmlspecialchars((string)$project['status'], ENT_QUOTES, 'UTF-8'),
+            htmlspecialchars(\project_status_label($project['status']), ENT_QUOTES, 'UTF-8')
         );
         $topbar  = $this->view->render('partials/topbar', [
             'user'        => $this->user,
@@ -205,7 +208,7 @@ final class ProjectController extends BaseController {
         }
         if (isset($data['status'])) {
             $status = trim((string)$data['status']);
-            if (in_array($status, ['active', 'archived'], true)) {
+            if (in_array($status, array_keys(\project_statuses()), true)) {
                 $fields['status'] = $status;
             }
         }

@@ -199,13 +199,14 @@ foreach ($boardColumns as $c) {
         <form method="post" action="/projects/<?= (int)$project['id'] ?>" class="project-status-form" style="margin:12px 0 24px;">
           <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
           <?php
-            $statusOpts = ['active' => 'Active', 'archived' => 'Archived'];
+            $statusOpts = project_statuses();
             $curStatus  = $project['status'] ?? 'active';
+            $curLabel   = $statusOpts[$curStatus] ?? ucfirst($curStatus);
           ?>
           <div class="custom-select" data-custom-select>
             <button type="button" class="custom-select__btn">
               <span class="custom-select__icon"><span class="status-dot status-dot--<?= e($curStatus) ?>"></span></span>
-              <span class="custom-select__label"><?= e($statusOpts[$curStatus]) ?></span>
+              <span class="custom-select__label"><?= e($curLabel) ?></span>
               <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
             </button>
             <div class="custom-select__pop" hidden>

@@ -102,7 +102,7 @@
             <span class="card__tasks-label">open<?= $tc['total'] !== $tc['open'] ? ' / ' . (int)$tc['total'] . ' total' : '' ?></span>
           </div>
           <div class="card-row">
-            <span class="status<?= $p['status'] === 'active' ? ' is-ready' : '' ?>"><?= e($p['status']) ?></span>
+            <span class="status status--<?= e($p['status']) ?>"><?= e(project_status_label($p['status'])) ?></span>
             <span class="share-link">Open <span class="arr">&#8594;</span></span>
           </div>
         </a>

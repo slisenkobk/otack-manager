@@ -1,11 +1,10 @@
 <div class="page-actions">
   <div class="project-tabs project-tabs--inline">
-    <a class="project-tab<?= ($status ?? 'active') === 'active' ? ' is-active' : '' ?>" href="/projects?status=active">
-      Active <span class="project-tab__count"><?= (int)($totalActive ?? 0) ?></span>
-    </a>
-    <a class="project-tab<?= ($status ?? 'active') === 'archived' ? ' is-active' : '' ?>" href="/projects?status=archived">
-      Archived <span class="project-tab__count"><?= (int)($totalArchived ?? 0) ?></span>
-    </a>
+    <?php $cur = $status ?? 'active'; foreach (project_statuses() as $sVal => $sLabel): ?>
+      <a class="project-tab<?= $cur === $sVal ? ' is-active' : '' ?>" href="/projects?status=<?= e($sVal) ?>">
+        <?= e($sLabel) ?> <span class="project-tab__count"><?= (int)(($statusCounts ?? [])[$sVal] ?? 0) ?></span>
+      </a>
+    <?php endforeach; ?>
   </div>
   <div style="display:flex;gap:12px;align-items:center;">
     <form method="get" action="/projects" class="kanban-search kanban-search--with-submit" style="margin:0;">
@@ -24,8 +23,8 @@
     <p class="empty-state__text">
       <?php if (!empty($query)): ?>
         No projects match "<?= e($query) ?>".
-      <?php elseif (($status ?? 'active') === 'archived'): ?>
-        No archived projects.
+      <?php elseif (($status ?? 'active') !== 'active'): ?>
+        No projects with status "<?= e(project_status_label($status ?? '')) ?>".
       <?php else: ?>
         No projects yet. <a href="/projects/new">Create your first one</a>.
       <?php endif; ?>
@@ -54,7 +53,7 @@
           <span class="card__tasks-label">open<?= $tc['total'] !== $tc['open'] ? ' / ' . (int)$tc['total'] . ' total' : '' ?></span>
         </div>
         <div class="card-row">
-          <span class="status<?= $p['status'] === 'active' ? ' is-ready' : '' ?>"><?= e($p['status']) ?></span>
+          <span class="status status--<?= e($p['status']) ?>"><?= e(project_status_label($p['status'])) ?></span>
           <span class="share-link">Open <span class="arr">&#8594;</span></span>
         </div>
       </a>

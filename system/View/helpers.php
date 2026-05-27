@@ -104,6 +104,26 @@ function attach_icon(string $kind, string $mime): string
     return 'fa-solid fa-file';
 }
 
+/**
+ * Allowed project statuses with display labels.
+ * Centralized so controllers/views/repos agree.
+ */
+function project_statuses(): array
+{
+    return [
+        'active'       => 'Active',
+        'planning'     => 'Planning',
+        'under_review' => 'Under review',
+        'archived'     => 'Archived',
+    ];
+}
+
+function project_status_label(?string $status): string
+{
+    $map = project_statuses();
+    return $map[(string)$status] ?? ucfirst((string)$status);
+}
+
 function fmt_size(int $bytes): string
 {
     if ($bytes < 1024) return $bytes . ' B';
