@@ -2905,15 +2905,15 @@ a.link-card *,
   flex-direction: column;
   gap: var(--space-2);
 }
-.comment-group { display: flex; flex-direction: column; gap: 2px; position: relative; }
+.comment-group { display: flex; flex-direction: column; gap: 4px; position: relative; }
 /* Tree trunk — drawn on the group so it can start at the parent avatar's bottom edge.
    Height is set via --tree-end (computed in JS from the last reply's avatar centre). */
 .comment-group::before {
   content: "";
   position: absolute;
   left: 11px;
-  /* parent avatar bottom is around y=27 (2px padding + 1px margin + 24px avatar); start with a small gap. */
-  top: 30px;
+  /* parent avatar bottom ~ y=29 (4px padding + 1px margin + 24px avatar); start with a small gap. */
+  top: 33px;
   width: 2px;
   background: var(--rule);
   height: var(--tree-end, 0);
@@ -2923,7 +2923,7 @@ a.link-card *,
   display: grid;
   grid-template-columns: 24px 1fr;
   gap: 10px;
-  padding: 2px 0;
+  padding: 4px 0;
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -2947,8 +2947,8 @@ a.link-card *,
   color: color-mix(in srgb, var(--ink-3) 65%, transparent);
   letter-spacing: var(--ls-mono);
 }
-/* When Reply is absent (e.g. on a reply itself), time still goes right */
-.comment--reply .comment-meta__time { margin-left: auto; }
+/* When Reply is absent (no canPost), still push time to the right */
+.comment-meta:not(:has(.comment-reply-btn)) .comment-meta__time { margin-left: auto; }
 .comment-body {
   font-family: var(--font-sans);
   font-size: 14px;
@@ -2968,7 +2968,7 @@ a.link-card *,
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  opacity: 0;
+  opacity: .55;
   transition: opacity .12s ease, color .12s ease;
 }
 .comment:hover .comment-reply-btn,
@@ -2977,21 +2977,21 @@ a.link-card *,
 .comment-reply-btn i { font-size: 10px; }
 .comment-replies {
   margin-left: 0;
-  padding-left: 25px;
-  margin-top: 2px;
+  padding-left: 40px;
+  margin-top: 6px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 .comment-replies[hidden] { display: none; }
-.comment--reply { padding: 2px 0; position: relative; }
+.comment--reply { padding: 4px 0; position: relative; }
 /* Horizontal connector from the vertical trunk into each reply's avatar */
 .comment--reply::before {
   content: "";
   position: absolute;
-  left: -13px;
-  top: 14px;
-  width: 13px;
+  left: -28px;
+  top: 17px;
+  width: 28px;
   height: 0;
   border-top: 2px solid var(--rule);
 }

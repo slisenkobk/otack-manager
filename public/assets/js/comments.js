@@ -41,7 +41,7 @@ function buildComment(c, isReply) {
   name.className = 'comment-meta__name';
   name.textContent = c.author_name || '';
   meta.appendChild(name);
-  if (!isReply) {
+  {
     const reply = document.createElement('button');
     reply.type = 'button';
     reply.className = 'comment-reply-btn';
@@ -135,14 +135,16 @@ function buildReplyForm() {
 function updateTreeLine(group) {
   if (!group) return;
   const replies = group.querySelector('.comment-replies');
-  const last = replies && replies.lastElementChild;
-  if (!last || replies.hidden) {
+  // Look for the last actual reply comment, ignoring any open composer at the bottom.
+  const articles = replies ? replies.querySelectorAll(':scope > .comment--reply') : [];
+  const last = articles[articles.length - 1];
+  if (!last || (replies && replies.hidden)) {
     group.style.removeProperty('--tree-end');
     return;
   }
   // .comment-replies is not positioned, so last.offsetTop is relative to .comment-group already.
-  // Trunk starts at group's top:30px (just below parent avatar). Stop at last reply's avatar centre (~+14px).
-  const end = last.offsetTop + 14 - 30;
+  // Trunk starts at group's top:33px (just below parent avatar). Stop at last reply's avatar centre (~+17px).
+  const end = last.offsetTop + 17 - 33;
   group.style.setProperty('--tree-end', Math.max(0, end) + 'px');
 }
 
@@ -231,17 +233,31 @@ document.querySelectorAll('.comment-thread').forEach(thread => {
     if (reply) reply.addEventListener('click', () => toggleReplyForm(article));
   }
 
-  function toggleReplyForm(parentArticle) {
-    const main = parentArticle.querySelector('.comment__main');
-    const existing = main.querySelector('.comment-composer--reply');
-    if (existing) { existing.remove(); return; }
+  // Open the reply composer at the bottom of the thread (after the last child),
+  // regardless of which comment the Reply button was clicked on. Threads are
+  // flat (single level), so parent_id always resolves to the root anyway.
+  function toggleReplyForm(originArticle) {
+    const group = originArticle.closest('.comment-group');
+    const rootArticle = group ? group.querySelector('.comment:not(.comment--reply)') : originArticle;
+    let replies = group ? group.querySelector('.comment-replies') : null;
+    if (!replies) {
+      replies = document.createElement('div');
+      replies.className = 'comment-replies';
+      group.appendChild(replies);
+    }
+    const existing = replies.querySelector(':scope > .comment-composer--reply');
+    if (existing) { existing.remove(); if (!replies.querySelector(':scope > .comment--reply')) replies.hidden = true; return; }
+    replies.hidden = false;
     const form = buildReplyForm();
-    main.appendChild(form);
-    form.querySelector('[data-action=cancel-reply]').addEventListener('click', () => form.remove());
+    replies.appendChild(form);
+    form.querySelector('[data-action=cancel-reply]').addEventListener('click', () => {
+      form.remove();
+      if (!replies.querySelector(':scope > .comment--reply')) replies.hidden = true;
+    });
     const ta = form.querySelector('textarea');
     setTimeout(() => ta.focus(), 0);
     ta.addEventListener('keydown', e => { if (e.key === 'Escape') form.remove(); });
-    wireComposer(form, parseInt(parentArticle.dataset.commentId, 10), parentArticle);
+    wireComposer(form, parseInt(rootArticle.dataset.commentId, 10), rootArticle);
   }
 
   function wireComposer(form, parentId, parentArticle) {

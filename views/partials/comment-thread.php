@@ -21,7 +21,7 @@ $renderComment = function (array $c, bool $isReply = false) use ($commentAttachm
       <div class="comment__main">
         <div class="comment-meta">
           <span class="comment-meta__name"><?= e($c['author_name']) ?></span>
-          <?php if (!$isReply && $canPost): ?>
+          <?php if ($canPost): ?>
             <button type="button" class="comment-reply-btn" data-action="reply">
               <i class="fa-solid fa-reply"></i> Reply
             </button>
