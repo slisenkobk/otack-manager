@@ -45,9 +45,9 @@
 
 /* ─── §1 Layer B — Semantic roles ────────────────────────────── */
 :root {
-  /* Surfaces */
-  --bg:                var(--paper);
-  --bg-elevated:       var(--paper-2);
+  /* Surfaces — V4 Hybrid: warm paper base, white cards sit on top */
+  --bg:                var(--paper-2);
+  --bg-elevated:       var(--paper);
   --bg-sunken:         var(--paper-3);
 
   /* Text */
@@ -84,6 +84,101 @@
   /* Focus ring */
   --focus-ring:        var(--brand-pop);
   --focus-ring-alpha:  rgba(234, 88, 12, 0.25);
+
+  /* Component surfaces (extracted so dark theme can override cleanly).
+     topbar-bg matches the page bg with slight transparency so the rounded
+     top-left of .main reads as a single curved cream surface against the
+     white shell instead of a hard rectangular topbar covering it. */
+  --topbar-bg:         rgba(245, 242, 236, 0.92);
+  --surface-soft:      #f8f7f7;
+  --auth-page-bg:      #ffffff;
+}
+
+/* ─── §1 Layer D — Dark theme palette ────────────────────────
+   Token-level inversion. Every semantic role above still resolves
+   correctly because we only swap the leaf palette values. Activate
+   via `<html data-theme="dark">` (server-rendered from cookie) or
+   automatically via `prefers-color-scheme: dark` when no explicit
+   theme is chosen. */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* PAPER inverted — deep warm graphite stack */
+    --paper:     #1A1612;
+    --paper-2:   #221D17;
+    --paper-3:   #2D2620;
+    --paper-4:   #3A3128;
+
+    /* INK inverted — cream stack for text */
+    --ink:       #F5F2EC;
+    --ink-2:     #D7CFBF;
+    --ink-3:     #A89A85;
+    --ink-4:     #7A6E5C;
+
+    /* RULE — dark warm dividers */
+    --rule:      #3A3128;
+    --rule-2:    #4A3F33;
+    --rule-3:    #5A4E3F;
+
+    /* BRAND — warm orange slightly punchier on dark */
+    --brand:     #EA580C;
+    --brand-2:   #FB7837;
+    --brand-3:   #3D2014;
+    --brand-4:   #4F2A1B;
+    --brand-pop: #FB7837;
+
+    /* SEMANTIC TONES — solid stays, tint becomes deep version */
+    --green:     #7AA068;  --green-tint:   #1E2A18;
+    --red:       #D4604F;  --red-tint:     #2E1814;
+    --blue:      #5A92C5;  --blue-tint:    #172836;
+    --yellow:    #E0A93A;  --yellow-tint:  #2C2110;
+    --teal:      #5BAFAF;  --teal-tint:    #14302F;
+    --purple:    #9D7BB5;  --purple-tint:  #221A2C;
+    --magenta:   #C5688A;  --magenta-tint: #2A141E;
+    --brown:     #B07C58;  --brown-tint:   #2A1D14;
+    --olive:     #99A85A;  --olive-tint:   #1E2410;
+    --indigo:    #7A6FC2;  --indigo-tint:  #1A1730;
+
+    /* Component surface overrides */
+    --topbar-bg:    rgba(26, 22, 18, 0.85);
+    --surface-soft: #221D17;
+    --auth-page-bg: #1A1612;
+
+    color-scheme: dark;
+  }
+}
+/* Manual override — duplicated rule body so cascade works regardless of OS */
+:root[data-theme="dark"] {
+  --paper:     #1A1612;
+  --paper-2:   #221D17;
+  --paper-3:   #2D2620;
+  --paper-4:   #3A3128;
+  --ink:       #F5F2EC;
+  --ink-2:     #D7CFBF;
+  --ink-3:     #A89A85;
+  --ink-4:     #7A6E5C;
+  --rule:      #3A3128;
+  --rule-2:    #4A3F33;
+  --rule-3:    #5A4E3F;
+  --brand:     #EA580C;
+  --brand-2:   #FB7837;
+  --brand-3:   #3D2014;
+  --brand-4:   #4F2A1B;
+  --brand-pop: #FB7837;
+  --green:     #7AA068;  --green-tint:   #1E2A18;
+  --red:       #D4604F;  --red-tint:     #2E1814;
+  --blue:      #5A92C5;  --blue-tint:    #172836;
+  --yellow:    #E0A93A;  --yellow-tint:  #2C2110;
+  --teal:      #5BAFAF;  --teal-tint:    #14302F;
+  --purple:    #9D7BB5;  --purple-tint:  #221A2C;
+  --magenta:   #C5688A;  --magenta-tint: #2A141E;
+  --brown:     #B07C58;  --brown-tint:   #2A1D14;
+  --olive:     #99A85A;  --olive-tint:   #1E2410;
+  --indigo:    #7A6FC2;  --indigo-tint:  #1A1730;
+  --topbar-bg:    rgba(26, 22, 18, 0.85);
+  --surface-soft: #221D17;
+  --auth-page-bg: #1A1612;
+  color-scheme: dark;
 }
 
 /* ─── §2 Tokens — radius, shadow, motion, spacing, z-index ───── */
@@ -203,7 +298,7 @@ body {
 }
 
 /* Auth screens: page is plain white, the brief card carries the paper tone. */
-body.auth-page { background: #fff; }
+body.auth-page { background: var(--auth-page-bg); }
 body.auth-page::before { content: none; }
 body.auth-page .brief { background: var(--paper-2); }
 body.auth-page .brief .input,
@@ -246,15 +341,24 @@ body::before {
   display: grid;
   grid-template-columns: 240px 1fr;
   height: 100vh;
+  padding-top: 6px;
+  /* Tone matches the sidebar so .main's rounded top-left exposes a clean
+     white curve continuing the sidebar's right edge. The 6px top breathing
+     space exposes that same tone above .main, giving the corner curve a
+     visible cap. .sidebar uses calc(100vh - 6px) below so it doesn't
+     overflow into a vertical scroll bar. */
+  background: var(--bg-elevated);
+  box-sizing: border-box;
 }
 
 .sidebar {
   position: sticky;
   top: 0;
-  height: 100vh;
+  /* Match .shell padding-top so the sidebar fills exactly the available
+     viewport height — no inner scroll just because of the breathing space. */
+  height: calc(100vh - 6px);
   overflow-y: auto;
   background: var(--bg-elevated);
-  border-right: 1px solid var(--rule);
   padding: 0 var(--space-10) var(--space-12);
   display: flex;
   flex-direction: column;
@@ -266,7 +370,10 @@ body::before {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: calc(100vh - 6px);
+  background: var(--bg);
+  border-top-left-radius: var(--radius-xl);
+  overflow: hidden;
 }
 
 /* ─── §8 Sidebar: brand + nav ────────────────────────────────── */
@@ -278,7 +385,6 @@ body::before {
   padding: var(--space-6) var(--space-10);
   min-height: 65px;
   box-sizing: border-box;
-  border-bottom: 1px solid var(--rule);
   text-decoration: none;
   color: inherit;
 }
@@ -473,9 +579,11 @@ body::before {
   position: sticky;
   top: 0;
   z-index: var(--z-dropdown);
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--topbar-bg);
   backdrop-filter: blur(6px);
-  border-bottom: 1px solid var(--rule);
+  /* Whisper of a fade-out shadow — just enough to suggest a top layer.
+     Keeps the cream surfaces feeling continuous without a hard line. */
+  box-shadow: 0 4px 8px -10px rgba(26, 22, 18, 0.10);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -875,13 +983,16 @@ body::before {
   gap: var(--space-5);
   padding: var(--space-4) var(--space-6);
   border: 1px solid var(--rule);
-  background: var(--paper-2);
+  background: var(--bg-elevated);
   border-radius: var(--radius-sm);
   font-size: 13px;
   color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
+  box-shadow: 0 1px 2px rgba(26, 22, 18, .04);
+  transition: transform .15s ease, border-color .15s ease;
 }
+.activity-row:hover { border-color: var(--rule-2); transform: translateX(2px); }
 .activity-row__icon { color: var(--text-muted); font-size: 12px; flex-shrink: 0; width: 18px; text-align: center; }
 .activity-row__time { font-size: 10px; letter-spacing: var(--ls-mono); color: var(--text-muted); flex-shrink: 0; }
 .activity-row__actor { font-weight: 600; color: var(--text); flex-shrink: 0; }
@@ -1140,6 +1251,33 @@ body::before {
 .topbar__avatar:hover { background: var(--accent); transform: scale(1.05); }
 .topbar__avatar { border: none; cursor: pointer; padding: 0; }
 
+/* Combined name + avatar trigger in the topbar — replaces the avatar-only
+   button so a quick glance shows whose session is active. */
+.topbar__user {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 4px 4px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  font: 600 13px/1 var(--font-sans);
+  color: var(--text);
+  transition: background .15s ease, border-color .15s ease;
+}
+.topbar__user:hover { background: var(--bg-elevated); border-color: var(--rule); }
+.topbar__user-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .topbar__user-name { display: none; }
+  .topbar__user { padding: 0; border: 0; background: transparent; }
+}
+
 /* ─── User menu (avatar dropdown) ─────────────────────────────── */
 .user-menu { position: relative; }
 .user-menu__pop {
@@ -1301,21 +1439,14 @@ h1.display em {
   border: 1px solid var(--rule);
   padding: 26px 28px 18px;
   max-width: 880px;
+  margin-left: auto;
+  margin-right: auto;
   box-shadow: var(--shadow-card);
   border-radius: var(--radius-md);
 }
-.brief::before {
-  content: "Otack Manager";
-  position: absolute;
-  top: -1px; left: -1px;
-  background: var(--ink);
-  color: var(--paper);
-  font-family: var(--font-mono);
-  font-size: var(--fz-micro);
-  letter-spacing: var(--ls-mono-strong);
-  padding: var(--space-2) var(--space-5);
-  border-radius: var(--radius-sm) 0 var(--radius-sm) 0;
-}
+/* .brief corner-tag removed — was a literal "Otack Manager" string that
+   ignored white-label. If we ever want a brand chip back, render it from
+   PHP using app_name() rather than baking it into a pseudo-element. */
 .brief-meta {
   margin: var(--space-6) 0 var(--space-4);
   font-family: var(--font-mono);
@@ -1552,12 +1683,11 @@ h1.display em {
   position: relative;
   background: var(--paper);
   border: 1px solid var(--rule);
-  border-radius: var(--radius-md);
-  padding: var(--space-8) var(--space-10);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px 14px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  min-height: 110px;
+  min-height: 130px;
   overflow: hidden;
   transition: border-color var(--duration) var(--ease),
               transform var(--duration-fast) var(--ease),
@@ -1580,25 +1710,27 @@ h1.display em {
 .stat-card__label {
   position: relative;
   font-family: var(--font-mono);
-  font-size: var(--fz-micro);
-  letter-spacing: var(--ls-mono-strong);
+  font-size: 10px;
+  letter-spacing: .2em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text-2);
   font-weight: 700;
 }
 .stat-card__value {
   position: relative;
   font-family: var(--font-sans);
-  font-size: 36px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
   color: var(--text);
   line-height: 1;
+  margin: 8px 0 2px;
 }
 .stat-card__sub {
   position: relative;
   font-family: var(--font-mono);
-  font-size: var(--fz-micro);
+  font-size: 11px;
+  font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: var(--ls-mono);
@@ -1859,6 +1991,7 @@ h1.display em {
 .card.selected,
 .card--selected { border-color: var(--accent); background: var(--brand-3); }
 .card.is-pinned { border-color: var(--accent); }
+.card--clickable { cursor: pointer; }
 .card.is-pinned .corner-tag { background: var(--accent); color: var(--text-on-dark); }
 
 /* Pin button on project cards — sits below the top-right corner-meta (date). */
@@ -1899,14 +2032,12 @@ h1.display em {
 .card .corner-meta,
 .card__meta {
   position: absolute;
-  top: -1px; right: -1px;
-  background: var(--paper);
+  top: var(--space-3); right: var(--space-5);
+  background: transparent;
   color: var(--text-muted);
-  border-left: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
   font: 400 var(--fz-micro)/1 var(--font-mono);
   letter-spacing: var(--ls-mono);
-  padding: var(--space-2) var(--space-5);
+  padding: 0;
 }
 
 .card-head {
@@ -2023,7 +2154,8 @@ h1.display em {
   gap: 12px;
   padding: 12px 0;
   margin: 0;
-  background: var(--paper);
+  background: var(--topbar-bg);
+  backdrop-filter: blur(6px);
   transition: border-color .15s ease, box-shadow .15s ease, padding .15s ease;
   border-bottom: 1px solid transparent;
 }
@@ -2112,6 +2244,19 @@ h1.display em {
   .field-card__body { grid-template-columns: 1fr 1fr; }
   .contact-row { grid-template-columns: 1fr; }
 }
+
+.form-card__url {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--accent);
+  padding: 6px 10px;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: auto;
+}
+.form-card__url-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 
 .public-url-row {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -2386,12 +2531,12 @@ body.public-form {
   transition: border-color var(--duration) var(--ease),
               box-shadow var(--duration) var(--ease);
 }
-.wysiwyg-host .ql-toolbar {
+.wysiwyg-host .ql-toolbar.ql-snow {
   border: 0;
   border-bottom: 1px solid var(--rule);
   font-family: var(--font-sans);
 }
-.wysiwyg-host .ql-container {
+.wysiwyg-host .ql-container.ql-snow {
   border: 0;
   min-height: 120px;
   font-family: var(--font-sans);
@@ -2458,7 +2603,7 @@ body.public-form {
   align-items: center;
   gap: var(--space-8);
   padding: 15px;
-  background: #f8f7f7;
+  background: var(--surface-soft);
   border-radius: 16px;
   margin-bottom: var(--space-6);
   flex-shrink: 0;
@@ -3051,6 +3196,47 @@ a.link-card *,
   font-weight: 600;
 }
 .custom-select__opt-label { flex: 1; min-width: 0; }
+.custom-select__opt-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  letter-spacing: .02em;
+}
+.custom-select__opt.is-selected .custom-select__opt-meta { color: var(--ink-2); }
+.custom-select__opt[hidden] { display: none; }
+.custom-select__meta {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  letter-spacing: .02em;
+  padding-right: 8px;
+}
+/* Search header inside .custom-select__pop (sticky so it stays put when
+   scrolling a long list — e.g. timezones). */
+.custom-select__search {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px;
+  margin: -4px -4px 4px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+.custom-select__search i { color: var(--ink-3); font-size: 11px; }
+.custom-select__search input {
+  border: 0; outline: 0; background: transparent;
+  flex: 1; min-width: 0;
+  font-family: var(--font-sans); font-size: 13px;
+  color: var(--ink-2);
+  padding: 4px 0;
+}
+.custom-select__search input::placeholder { color: var(--text-placeholder); }
+.custom-select__no-results {
+  padding: 16px 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-3);
+}
 
 /* Reusable status / column dots used inside custom selects */
 .col-dot,
@@ -3698,11 +3884,11 @@ a.link-card *,
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.hero, .section-head, .cards-row, .stats-grid { animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.hero, .section-head, .cards-row, .stats-grid, .empty-state, .activity-list { animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
 .hero { animation-delay: 0.05s; }
 .stats-grid { animation-delay: 0.10s; }
 .section-head { animation-delay: 0.18s; }
-.cards-row { animation-delay: 0.22s; }
+.cards-row, .empty-state, .activity-list { animation-delay: 0.22s; }
 /* Stagger individual stat cards inside the grid */
 .stats-grid .stat-card { animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
 .stats-grid .stat-card:nth-child(1) { animation-delay: 0.10s; }
@@ -3748,3 +3934,290 @@ a.link-card *,
   .kanban { overflow-x: auto; height: calc(100vh - 240px); }
   .kanban-col { flex: 0 0 280px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   §V4 — Hybrid baked in (locked 2026-05-29)
+   - Page bg = paper-2, elevated surfaces = paper (handled in §1 Layer B)
+   - Stat-cards: semantic colors per [data-metric]
+   - Cards: ambient resting shadow + hover lift
+   - Section heads: marker dot for .num
+   - Corner tag: muted by default, brand on card hover
+   - .spark: optional 7-day mini-bar series (markup-driven, no JS)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* — Cards: subtle resting shadow + lighter corner-tag — */
+.card {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.6) inset,
+    0 1px 2px rgba(26, 22, 18, .04),
+    0 8px 20px -8px rgba(26, 22, 18, .08);
+}
+.card:hover {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.6) inset,
+    0 2px 4px rgba(26, 22, 18, .05),
+    0 16px 28px -12px rgba(26, 22, 18, .14);
+}
+/* Corner-tag fades into paper; only colors up when the card is hovered.
+   Pinned cards keep accent (handled by .card.is-pinned earlier in the file). */
+.card .corner-tag,
+.card__tag {
+  background: var(--paper-3);
+  color: var(--ink-2);
+}
+.card:hover .corner-tag,
+.card:hover .card__tag {
+  background: var(--accent);
+  color: var(--text-on-dark);
+}
+.card.is-pinned .corner-tag { background: var(--accent); color: var(--text-on-dark); }
+
+/* — Section head .num becomes a marker dot — */
+.section-head .num {
+  display: inline-grid;
+  place-items: center;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--rule);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-2);
+  letter-spacing: 0;
+}
+
+/* — Stat cards: semantic per data-metric, retain lift — */
+.stat-card {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.6) inset,
+    0 1px 2px rgba(26, 22, 18, .04),
+    0 8px 20px -8px rgba(26, 22, 18, .08);
+  background: var(--bg-elevated);
+  min-height: 130px;
+}
+.stat-card[data-metric] { position: relative; }
+.stat-card[data-metric]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: .08;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.stat-card[data-metric] > * { position: relative; z-index: 1; }
+.stat-card[data-metric="open"]        { color: var(--blue); }
+.stat-card[data-metric="closed"]      { color: var(--green); }
+.stat-card[data-metric="week-open"]   { color: var(--accent); }
+.stat-card[data-metric="week-closed"] { color: var(--yellow); }
+/* Value stays as text color, not metric tint */
+.stat-card[data-metric] .stat-card__value,
+.stat-card--accent .stat-card__value,
+.stat-card--green  .stat-card__value { color: var(--text); }
+
+/* — Sparkline (optional, used when 7-day series is available) — */
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 26px;
+  margin-top: 8px;
+  position: relative;
+  z-index: 1;
+}
+.spark > span {
+  flex: 1;
+  background: currentColor;
+  opacity: .35;
+  border-radius: 2px 2px 0 0;
+  min-width: 4px;
+}
+
+/* — Theme toggle in user-menu dropdown — */
+.user-menu__theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-5);
+  margin: var(--space-3) 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.user-menu__theme-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.theme-toggle {
+  display: inline-flex;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-full);
+  padding: 2px;
+  gap: 2px;
+}
+.theme-toggle__btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+  font-size: 11px;
+  transition: background .15s ease, color .15s ease;
+}
+.theme-toggle__btn:hover { color: var(--text); }
+.theme-toggle__btn.is-active {
+  background: var(--bg-elevated);
+  color: var(--accent);
+  box-shadow: 0 1px 2px rgba(26, 22, 18, .12);
+}
+
+/* — Brand color picker (settings page) — */
+.color-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.color-picker input[type="color"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 44px;
+  height: 36px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  padding: 2px;
+}
+.color-picker input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.color-picker input[type="color"]::-webkit-color-swatch { border: 0; border-radius: var(--radius-xs); }
+
+/* — Unified toolbar controls — keep heights consistent across pages — */
+
+/* Alias: .search-field is the semantic name (kanban-search predates this).
+   Keeping both selectors ensures legacy markup keeps working without churn. */
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-5);
+  background: var(--bg-elevated);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius);
+  min-width: 220px;
+  min-height: 36px;
+}
+.search-field input {
+  border: 0;
+  padding: var(--space-3) 0;
+  min-width: 0;
+  background: transparent;
+  flex: 1;
+  font: 400 var(--fz-body)/1.4 var(--font-sans);
+  color: var(--text);
+}
+.search-field input:focus { outline: none; }
+.search-field input::placeholder { color: var(--text-muted); }
+.search-field--with-submit { padding-right: 2px; }
+.search-field__submit {
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  width: 26px; height: 26px;
+  display: inline-grid; place-items: center;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 11px;
+  transition: background var(--duration) var(--ease);
+}
+.search-field__submit:hover { background: var(--accent); }
+.search-field:focus-within { border-color: var(--ink-3); }
+
+/* Compact custom-select for filter toolbars — matches .search-field height. */
+.custom-select--compact { margin-top: 0; }
+.custom-select--compact .custom-select__btn {
+  padding: 0 var(--space-5);
+  border-radius: var(--radius);
+  font-size: var(--fz-small);
+  min-height: 36px;
+  background: var(--bg-elevated);
+}
+.custom-select--compact .custom-select__chevron { font-size: 10px; }
+
+/* — Data table — used for /users and other admin catalogs.
+   Wrapped in .data-table-wrap so the card-style shell (paper bg, hairline
+   border, soft shadow) sits cleanly on cream while the table itself stays
+   light on rules. */
+.data-table-wrap {
+  background: var(--bg-elevated);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.6) inset,
+    0 1px 2px rgba(26, 22, 18, .04),
+    0 8px 20px -8px rgba(26, 22, 18, .08);
+  overflow: hidden;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: transparent;
+}
+.data-table thead th {
+  padding: 12px 16px;
+  background: var(--surface-soft);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: left;
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+.data-table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--text);
+  font-size: 14px;
+  vertical-align: middle;
+}
+.data-table tbody tr:last-child td { border-bottom: 0; }
+.data-table tbody tr { transition: background .12s ease; }
+.data-table tbody tr:hover { background: color-mix(in srgb, var(--accent-tint) 35%, transparent); }
+.data-table__cell--actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.data-table__cell--user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+}
+.data-table__name { font-weight: 600; font-size: 14px; }
+.data-table__sub  { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+.data-table__meta-time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: var(--ls-mono);
+  white-space: nowrap;
+}
+
+/* Important activity row — form submissions and similar customer touchpoints.
+   Thin accent rail on the left + brand-tinted background draws the eye
+   without making the whole row scream. */
+.activity-row--important {
+  border-left: 3px solid var(--accent);
+  background: var(--accent-tint);
+}
+.activity-row--important .activity-row__icon { color: var(--accent); }

@@ -10,6 +10,10 @@ $icon = match ($a['event']) {
     'task.linked'          => 'fa-solid fa-link',
     'task.unlinked'        => 'fa-solid fa-link-slash',
     'project.deleted'      => 'fa-solid fa-folder-minus',
+    'form.submitted'       => 'fa-solid fa-fire',
+    'form.created'         => 'fa-solid fa-clipboard-list',
+    'form.updated'         => 'fa-solid fa-pen',
+    'form.deleted'         => 'fa-solid fa-trash',
     default                => 'fa-regular fa-circle-dot',
 };
 $verb = match ($a['event']) {
@@ -22,13 +26,22 @@ $verb = match ($a['event']) {
     'task.linked'          => 'linked',
     'task.unlinked'        => 'unlinked',
     'project.deleted'      => 'deleted project',
+    'form.submitted'       => 'submitted form',
+    'form.created'         => 'created form',
+    'form.updated'         => 'updated form',
+    'form.deleted'         => 'deleted form',
     default                => 'updated',
 };
+// External form submissions: actor isn't a logged-in user. Override the
+// actor label with a neutral "Visitor" tag so it doesn't misattribute the
+// action to the form's owner (who is just the activity scope holder).
+$isExternal = $a['event'] === 'form.submitted';
+$actorName  = $isExternal ? 'Visitor' : $a['actor_name'];
 ?>
-<div class="activity-row">
+<div class="activity-row<?= $isExternal ? ' activity-row--important' : '' ?>">
   <i class="activity-row__icon <?= e($icon) ?>" aria-hidden="true"></i>
   <span class="activity-row__time mono"><?= fmt_datetime($a['created_at']) ?></span>
-  <span class="activity-row__actor"><?= e($a['actor_name']) ?></span>
+  <span class="activity-row__actor"><?= e($actorName) ?></span>
   <span class="activity-row__verb"><?= e($verb) ?></span>
   <span class="activity-row__target">
     <?php if ($a['task_id'] && $a['task_url']): ?>

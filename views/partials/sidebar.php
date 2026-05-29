@@ -12,13 +12,16 @@ if ($canFormsSb) {
 }
 ?>
 <aside class="sidebar">
-  <a class="brand" href="/" aria-label="Otack Manager">
+  <?php [$brandA, $brandB] = app_name_parts(); ?>
+  <a class="brand" href="/" aria-label="<?= e(app_name()) ?>">
     <span class="brand__mark" aria-hidden="true">
       <?php include APP_ROOT . '/public/assets/img/logo.svg'; ?>
     </span>
     <span class="brand__word">
-      <span class="brand__word-a">Otack</span>
-      <span class="brand__word-b">Manager</span>
+      <span class="brand__word-a"><?= e($brandA) ?></span>
+      <?php if ($brandB !== ''): ?>
+        <span class="brand__word-b"><?= e($brandB) ?></span>
+      <?php endif; ?>
     </span>
   </a>
 
@@ -66,7 +69,7 @@ if ($canFormsSb) {
   </div>
 
   <div class="sidebar__foot">
-    Otack Manager Ecosystem<br>
+    <?= e(app_name()) ?> Ecosystem<br>
     <span class="sidebar__foot-sub">By Goup Space</span>
   </div>
 </aside>

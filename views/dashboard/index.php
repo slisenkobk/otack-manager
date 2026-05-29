@@ -7,39 +7,59 @@
   </p>
 </section>
 
+<?php
+/**
+ * Build a 7-bar sparkline from an array of day counts. Heights are scaled
+ * against the local max so a slow week still shows shape; an all-zero
+ * week renders nothing (we hide the element instead of drawing flatline).
+ */
+$spark = function (array $series): string {
+    $max = max($series);
+    if ($max <= 0) return '';
+    $bars = '';
+    foreach ($series as $v) {
+        $h = max(8, (int)round(($v / $max) * 100));
+        $bars .= '<span style="height:' . $h . '%"></span>';
+    }
+    return '<span class="spark" aria-hidden="true">' . $bars . '</span>';
+};
+$sparkOpened = $spark($trend['opened'] ?? []);
+$sparkClosed = $spark($trend['closed'] ?? []);
+?>
 <section class="stats-grid">
-  <div class="stat-card">
+  <div class="stat-card" data-metric="open">
     <span class="stat-card__label">Open</span>
     <span class="stat-card__value"><?= (int)$stats['open_tasks'] ?></span>
     <span class="stat-card__sub">+ <?= (int)$stats['backlog_tasks'] ?> backlog</span>
   </div>
-  <div class="stat-card">
+  <div class="stat-card" data-metric="closed">
     <span class="stat-card__label">Closed</span>
     <span class="stat-card__value"><?= (int)$stats['closed_tasks'] ?></span>
     <span class="stat-card__sub">total done</span>
   </div>
-  <div class="stat-card stat-card--accent">
+  <div class="stat-card" data-metric="week-open">
     <span class="stat-card__label">Opened this week</span>
     <span class="stat-card__value"><?= (int)$stats['opened_week'] ?></span>
     <span class="stat-card__sub">since Mon</span>
+    <?= $sparkOpened ?>
   </div>
-  <div class="stat-card stat-card--green">
+  <div class="stat-card" data-metric="week-closed">
     <span class="stat-card__label">Closed this week</span>
     <span class="stat-card__value"><?= (int)$stats['closed_week'] ?></span>
     <span class="stat-card__sub">since Mon</span>
+    <?= $sparkClosed ?>
   </div>
 </section>
 
 <section style="margin-bottom:16px;">
   <div class="section-head">
-    <div class="num">02</div>
     <div class="title">My <span style="color:var(--brand);font-weight:600;">tasks</span></div>
     <div class="rule"></div>
     <div class="meta"><?= (int)$stats['my_tasks'] ?> open</div>
   </div>
   <?php if (!$myTasks): ?>
     <div class="empty-state">
-      <span class="empty-state__tag">Otack Manager</span>
+      <span class="empty-state__tag"><?= e(app_name()) ?></span>
       <p class="empty-state__text">No assigned tasks. Enjoy the calm.</p>
     </div>
   <?php else: ?>
@@ -68,7 +88,6 @@
 
 <section style="margin-bottom:16px;">
   <div class="section-head">
-    <div class="num">03</div>
     <div class="title">Recent <span style="color:var(--brand);font-weight:600;">projects</span></div>
     <div class="rule"></div>
     <div class="section-head__actions">
@@ -78,7 +97,7 @@
   </div>
   <?php if (!$recentProjects): ?>
     <div class="empty-state">
-      <span class="empty-state__tag">Otack Manager</span>
+      <span class="empty-state__tag"><?= e(app_name()) ?></span>
       <p class="empty-state__text">No projects yet. <a href="/projects/new">Create one</a>.</p>
     </div>
   <?php else: ?>
@@ -113,13 +132,12 @@
 
 <section>
   <div class="section-head">
-    <div class="num">04</div>
     <div class="title">Recent <span style="color:var(--brand);font-weight:600;">activity</span></div>
     <div class="rule"></div>
   </div>
   <?php if (!$recentActivity): ?>
     <div class="empty-state">
-      <span class="empty-state__tag">Otack Manager</span>
+      <span class="empty-state__tag"><?= e(app_name()) ?></span>
       <p class="empty-state__text">No activity yet.</p>
     </div>
   <?php else: ?>

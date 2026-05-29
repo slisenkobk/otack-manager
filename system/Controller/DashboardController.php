@@ -47,6 +47,7 @@ final class DashboardController extends BaseController {
         $activity = App::make('activity');
 
         $counters = $tasks->dashboardCounters($userId, $isAdmin);
+        $trend    = $tasks->dashboardWeekTrend($userId, $isAdmin);
         $stats = [
             'open_projects' => $projects->countOpenForUser($userId, $isAdmin),
             'my_tasks'      => $tasks->countOpenForAssignee($userId),
@@ -84,6 +85,7 @@ final class DashboardController extends BaseController {
             'content'   => $this->view->render('dashboard/index', [
                 'user'           => $this->user,
                 'stats'          => $stats,
+                'trend'          => $trend,
                 'myTasks'        => $myTasks,
                 'recentProjects' => $recentProjects,
                 'recentActivity' => $recentActivity,

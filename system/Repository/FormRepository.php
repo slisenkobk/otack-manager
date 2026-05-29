@@ -77,8 +77,18 @@ final class FormRepository
         return $stmt->fetch() ?: null;
     }
 
-    public function listAll(): array {
-        return $this->pdo->query('SELECT * FROM forms ORDER BY created_at DESC')->fetchAll();
+    public function listAll(string $query = ''): array {
+        if ($query === '') {
+            return $this->pdo->query('SELECT * FROM forms ORDER BY created_at DESC')->fetchAll();
+        }
+        $stmt = $this->pdo->prepare(
+            'SELECT * FROM forms
+             WHERE title LIKE ? OR description LIKE ?
+             ORDER BY created_at DESC'
+        );
+        $needle = '%' . $query . '%';
+        $stmt->execute([$needle, $needle]);
+        return $stmt->fetchAll();
     }
 
     public function delete(int $id): void {

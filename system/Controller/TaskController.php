@@ -300,7 +300,7 @@ final class TaskController extends BaseController {
         if (!$task) { Response::notFound(); return; }
         $projectId = (int)$task['project_id'];
         $project = $this->projects->findById($projectId);
-        $isAdmin = $this->user['role'] === 'admin';
+        $isAdmin = \App\Service\RolePolicy::isAdmin($this->user);
         if (!$isAdmin && !$this->members->isMember($projectId, (int)$this->user['id'])) {
             Response::forbidden(); return;
         }
@@ -554,11 +554,17 @@ final class TaskController extends BaseController {
         }
         if (isset($data['column_id'])) {
             $newColumnId = (int)$data['column_id'];
+            // Validate the column belongs to this task's project — otherwise a
+            // member of two projects could move a task across project boundaries
+            // just by sending the foreign column id.
+            $cols = App::make('columns')->listForProject((int)$task['project_id']);
+            $byId = [];
+            foreach ($cols as $c) { $byId[(int)$c['id']] = $c; }
+            if (!isset($byId[$newColumnId])) {
+                Response::json(['error' => 'Column does not belong to this project'], 422); return;
+            }
             $fields['column_id'] = $newColumnId;
             if ($newColumnId !== (int)$task['column_id']) {
-                $cols = App::make('columns')->listForProject((int)$task['project_id']);
-                $byId = [];
-                foreach ($cols as $c) { $byId[(int)$c['id']] = $c; }
                 $boardCols = array_values(array_filter($cols, fn($c) => (int)($c['is_backlog'] ?? 0) === 0));
                 usort($boardCols, fn($a, $b) => (int)$a['position'] <=> (int)$b['position']);
                 $todoColId = $boardCols ? (int)$boardCols[0]['id'] : 0;

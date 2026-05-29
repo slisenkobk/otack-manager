@@ -94,11 +94,9 @@ final class AttachmentController extends BaseController
             Response::json(['error' => 'No file'], 422); return;
         }
 
-        $err = $this->uploader->validate($file);
-        if ($err) {
-            Response::json(['error' => $err], 422); return;
-        }
-
+        // Skip browser-supplied MIME validation — FileUploader::store() re-sniffs
+        // the actual bytes with finfo and rejects mismatches, which is what we
+        // actually care about. Trusting $_FILES['type'] before that is a footgun.
         try {
             $stored = $this->uploader->store($file);
         } catch (\Throwable $e) {
@@ -163,6 +161,10 @@ final class AttachmentController extends BaseController
             Response::json(['error' => 'Not found'], 404); return;
         }
 
+        // Ownership: must be a member of the project that hosts this attachment
+        // (or admin) AND either the original uploader or admin. The membership
+        // check closes the prior IDOR where anyone could probe attachment IDs.
+        $this->assertMembership((string)$a['entity_type'], (int)$a['entity_id']);
         $isAdmin    = $this->user['role'] === 'admin';
         $isUploader = (int)$a['uploaded_by'] === (int)$this->user['id'];
         if (!$isAdmin && !$isUploader) {

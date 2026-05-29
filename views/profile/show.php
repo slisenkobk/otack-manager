@@ -1,9 +1,7 @@
-<?php if (!empty($success)): ?>
-  <div class="toast toast--success" style="position:static;margin-bottom:16px;"><?= e($success) ?></div>
-<?php endif; ?>
-<?php if (!empty($error)): ?>
-  <div class="toast toast--error" style="position:static;margin-bottom:16px;"><?= e($error) ?></div>
-<?php endif; ?>
+<?php
+echo !empty($success) ? flash_meta($success, 'success') : '';
+echo !empty($error)   ? flash_meta($error,   'error')   : '';
+?>
 
 <div style="display:flex;flex-direction:column;gap:24px;">
 

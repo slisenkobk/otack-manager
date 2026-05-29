@@ -5,8 +5,9 @@ header('Content-Type: text/html; charset=utf-8');
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Otack Manager - Submission received</title>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title><?= e(app_name()) ?> - Submission received</title>
+<link rel="icon" type="image/svg+xml" href="<?= e(app_favicon_href()) ?>">
+<?= app_brand_style_tag() ?>
 <link rel="stylesheet" href="/assets/css/app.css">
 <link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
 <style>

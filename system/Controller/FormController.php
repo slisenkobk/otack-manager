@@ -23,7 +23,8 @@ final class FormController extends BaseController
     }
 
     public function index(Request $req, array $params = []): void {
-        $list = $this->forms->listAll();
+        $query = trim((string)($req->query['q'] ?? ''));
+        $list  = $this->forms->listAll($query);
         $csrf = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', [
             'user' => $this->user, 'activeNav' => 'forms', 'csrfToken' => $csrf,
@@ -38,6 +39,7 @@ final class FormController extends BaseController
             'topbar'    => $topbar,
             'content'   => $this->view->render('forms/index', [
                 'forms' => $list,
+                'query' => $query,
             ]),
         ]));
     }
@@ -77,6 +79,11 @@ final class FormController extends BaseController
         $description    = trim($descriptionRaw) === '' ? '' : \App\Service\HtmlSanitizer::clean($descriptionRaw);
         $fields = $this->normaliseFields($data['fields'] ?? []);
         $rawFooter = is_array($data['footer'] ?? null) ? $data['footer'] : [];
+        // The note field is rendered as raw HTML on the public form (so it can
+        // carry formatting from Settings' Quill editor). Run any per-form override
+        // through the same allow-list sanitiser to close the stored-XSS gap.
+        $noteRaw = trim((string)($rawFooter['note'] ?? ''));
+        $note    = $noteRaw === '' ? '' : \App\Service\HtmlSanitizer::clean($noteRaw);
         $footer = [
             'show_company' => !empty($rawFooter['show_company']),
             'show_email'   => !empty($rawFooter['show_email']),
@@ -87,7 +94,7 @@ final class FormController extends BaseController
             'email'        => trim((string)($rawFooter['email']        ?? '')),
             'phone'        => trim((string)($rawFooter['phone']        ?? '')),
             'address'      => trim((string)($rawFooter['address']      ?? '')),
-            'note'         => trim((string)($rawFooter['note']         ?? '')),
+            'note'         => $note,
         ];
 
         if (!empty($params['id'])) {
@@ -104,11 +111,21 @@ final class FormController extends BaseController
                 'fields_json' => json_encode($fields, JSON_UNESCAPED_UNICODE),
                 'footer_json' => json_encode($footer, JSON_UNESCAPED_UNICODE),
             ]);
+            \App\App::make('activity')->log('form.updated', (int)$this->user['id'], null, null,
+                "updated form '$title'", ['form_id' => $id]);
+            \App\App::make('events')->fire('form.updated', [
+                'form_id' => $id, 'title' => $title, 'actor_name' => $this->user['name'],
+            ]);
             Response::json(['ok' => true, 'id' => $id]);
             return;
         }
 
         $id = $this->forms->create($title, $description !== '' ? $description : null, $fields, $footer, (int)$this->user['id']);
+        \App\App::make('activity')->log('form.created', (int)$this->user['id'], null, null,
+            "created form '$title'", ['form_id' => $id]);
+        \App\App::make('events')->fire('form.created', [
+            'form_id' => $id, 'title' => $title, 'actor_name' => $this->user['name'],
+        ]);
         Response::json(['ok' => true, 'id' => $id]);
     }
 
@@ -134,7 +151,13 @@ final class FormController extends BaseController
         if (!RolePolicy::isAdmin($this->user) && (int)$form['created_by'] !== (int)$this->user['id']) {
             Response::json(['error' => 'Forbidden'], 403); return;
         }
+        $title = $form['title'];
         $this->forms->delete($id);
+        \App\App::make('activity')->log('form.deleted', (int)$this->user['id'], null, null,
+            "deleted form '$title'", ['form_id' => $id]);
+        \App\App::make('events')->fire('form.deleted', [
+            'form_id' => $id, 'title' => $title, 'actor_name' => $this->user['name'],
+        ]);
         Response::json(['ok' => true]);
     }
 
@@ -144,12 +167,21 @@ final class FormController extends BaseController
      */
     private function normaliseFields(array $raw): array {
         $out = [];
+        $usedKeys = []; // dedup across the form so two fields can't share a key
         foreach ($raw as $i => $f) {
             $type = (string)($f['type'] ?? '');
             if (!in_array($type, self::FIELD_TYPES, true)) continue;
             $label = trim((string)($f['label'] ?? ''));
             if ($label === '') continue;
-            $key = preg_replace('/[^a-z0-9_]+/', '_', strtolower(trim((string)($f['key'] ?? '')))) ?: ('field_' . ($i + 1));
+            $base = preg_replace('/[^a-z0-9_]+/', '_', strtolower(trim((string)($f['key'] ?? ''))));
+            if ($base === '' || $base === null) $base = 'field_' . ($i + 1);
+            // Resolve collisions deterministically so a submission lookup by key
+            // can't have one answer silently overwrite another.
+            $key = $base;
+            $n = 2;
+            while (isset($usedKeys[$key])) { $key = $base . '_' . $n; $n++; }
+            $usedKeys[$key] = true;
+
             $required = !empty($f['required']);
             $options = [];
             if (in_array($type, ['select', 'radio', 'checkbox'], true)) {

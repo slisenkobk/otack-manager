@@ -198,6 +198,21 @@ if (document.readyState === 'loading') {
   initUserMenu();
 }
 
+// Page-load flash: if the layout rendered <meta name="flash-message">,
+// pipe it through UI.toast on first paint. Keeps every "saved" / "error"
+// confirmation visually consistent with the JS-fired toasts.
+function initFlash() {
+  const msg = document.querySelector('meta[name="flash-message"]')?.content;
+  if (!msg) return;
+  const type = document.querySelector('meta[name="flash-type"]')?.content || 'info';
+  UI.toast(msg, type);
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initFlash);
+} else {
+  initFlash();
+}
+
 // Auto-submit any form-control marked [data-auto-submit] on change.
 document.addEventListener('change', (e) => {
   const el = e.target.closest('[data-auto-submit]');
@@ -210,18 +225,29 @@ document.addEventListener('change', (e) => {
 function initCustomSelect(root) {
   if (root.__csInit) return;
   root.__csInit = true;
-  const btn    = root.querySelector('.custom-select__btn');
-  const pop    = root.querySelector('.custom-select__pop');
-  const hidden = root.querySelector('input[type=hidden]');
-  const label  = root.querySelector('.custom-select__btn .custom-select__label');
-  const btnIco = root.querySelector('.custom-select__btn .custom-select__icon');
+  const btn      = root.querySelector('.custom-select__btn');
+  const pop      = root.querySelector('.custom-select__pop');
+  const hidden   = root.querySelector('input[type=hidden]');
+  const label    = root.querySelector('.custom-select__btn .custom-select__label');
+  const btnMeta  = root.querySelector('.custom-select__btn .custom-select__meta');
+  const btnIco   = root.querySelector('.custom-select__btn .custom-select__icon');
+  const search   = root.querySelector('[data-custom-select-search-input]');
+  const noRes    = root.querySelector('.custom-select__no-results');
   const updateAttr = root.dataset.updateAttr;
   if (!btn || !pop || !hidden) return;
 
+  const openPop = () => {
+    document.querySelectorAll('.custom-select__pop').forEach(p => { if (p !== pop) p.hidden = true; });
+    pop.hidden = false;
+    if (search) { search.value = ''; runFilter(''); setTimeout(() => search.focus(), 0); }
+    // Scroll the selected option into view inside the pop
+    const sel = pop.querySelector('.custom-select__opt.is-selected');
+    if (sel) sel.scrollIntoView({ block: 'nearest' });
+  };
+
   btn.addEventListener('click', e => {
     e.stopPropagation();
-    document.querySelectorAll('.custom-select__pop').forEach(p => { if (p !== pop) p.hidden = true; });
-    pop.hidden = !pop.hidden;
+    if (pop.hidden) openPop(); else pop.hidden = true;
   });
   document.addEventListener('click', e => {
     if (!root.contains(e.target)) pop.hidden = true;
@@ -229,6 +255,23 @@ function initCustomSelect(root) {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') pop.hidden = true;
   });
+
+  if (search) {
+    search.addEventListener('input', () => runFilter(search.value));
+    search.addEventListener('keydown', e => { if (e.key === 'Escape') pop.hidden = true; });
+  }
+
+  function runFilter(q) {
+    const needle = q.trim().toLowerCase();
+    let shown = 0;
+    pop.querySelectorAll('.custom-select__opt').forEach(opt => {
+      const hay = opt.dataset.search || opt.textContent.toLowerCase();
+      const match = needle === '' || hay.includes(needle);
+      opt.hidden = !match;
+      if (match) shown++;
+    });
+    if (noRes) noRes.hidden = shown > 0;
+  }
 
   pop.querySelectorAll('.custom-select__opt').forEach(opt => {
     opt.addEventListener('click', () => {
@@ -240,6 +283,10 @@ function initCustomSelect(root) {
       if (label) {
         const lbl = opt.querySelector('.custom-select__opt-label');
         label.textContent = lbl ? lbl.textContent : opt.textContent.trim();
+      }
+      if (btnMeta) {
+        const meta = opt.querySelector('.custom-select__opt-meta');
+        btnMeta.textContent = meta ? meta.textContent : '';
       }
       if (btnIco) {
         const srcIco = opt.querySelector('.custom-select__icon');

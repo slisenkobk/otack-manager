@@ -76,7 +76,7 @@ document.querySelector('[data-action="new-user"]')?.addEventListener('click', ()
   });
 });
 
-document.querySelectorAll('article[data-user-id]').forEach(card => {
+document.querySelectorAll('[data-user-id]').forEach(card => {
   const roleSelect = card.querySelector('[data-role-select]');
   if (roleSelect) {
     let prev = roleSelect.value;

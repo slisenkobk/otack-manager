@@ -205,6 +205,59 @@ final class TaskRepository {
         ];
     }
 
+    /**
+     * 7-day daily counts for opened/closed tasks (used by the dashboard
+     * sparkline bars). Returns ['opened' => [int x 7], 'closed' => [int x 7]],
+     * oldest day first. Scope mirrors dashboardCounters().
+     */
+    public function dashboardWeekTrend(int $userId, bool $isAdmin): array {
+        $days = [];
+        $opened = array_fill(0, 7, 0);
+        $closed = array_fill(0, 7, 0);
+        $now = new \DateTimeImmutable('now');
+        for ($i = 6; $i >= 0; $i--) {
+            $d = $now->modify("-$i days")->format('Y-m-d');
+            $days[$d] = 6 - $i;
+        }
+        $rangeStart = (new \DateTimeImmutable('-6 days'))->format('Y-m-d\T00:00:00\Z');
+
+        $scopeJoin = '';
+        $scopeWhere = '';
+        $scopeArgs = [];
+        if (!$isAdmin) {
+            $scopeJoin  = ' INNER JOIN project_members pm ON pm.project_id = t.project_id';
+            $scopeWhere = ' AND pm.user_id = ?';
+            $scopeArgs[] = $userId;
+        }
+
+        // Opened: tasks created in the range.
+        $stmt = $this->pdo->prepare(
+            "SELECT substr(t.created_at, 1, 10) AS d, COUNT(*) AS c
+             FROM tasks t" . $scopeJoin . "
+             WHERE t.created_at >= ?" . $scopeWhere . "
+             GROUP BY d"
+        );
+        $stmt->execute(array_merge([$rangeStart], $scopeArgs));
+        foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            if (isset($days[$row['d']])) $opened[$days[$row['d']]] = (int)$row['c'];
+        }
+
+        // Closed: tasks whose last update landed in a done column inside the range.
+        $stmt = $this->pdo->prepare(
+            "SELECT substr(t.updated_at, 1, 10) AS d, COUNT(*) AS c
+             FROM tasks t
+             INNER JOIN task_columns c ON c.id = t.column_id" . $scopeJoin . "
+             WHERE c.is_done = 1 AND t.updated_at >= ?" . $scopeWhere . "
+             GROUP BY d"
+        );
+        $stmt->execute(array_merge([$rangeStart], $scopeArgs));
+        foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            if (isset($days[$row['d']])) $closed[$days[$row['d']]] = (int)$row['c'];
+        }
+
+        return ['opened' => $opened, 'closed' => $closed];
+    }
+
     public function countOpenForAssignee(int $userId): int {
         $stmt = $this->pdo->prepare(
             'SELECT COUNT(*) AS c FROM tasks t

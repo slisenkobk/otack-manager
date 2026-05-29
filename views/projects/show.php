@@ -104,7 +104,7 @@ foreach ($boardColumns as $c) {
       </form>
       <?php if (!$backlogTasks): ?>
         <div class="empty-state">
-          <span class="empty-state__tag">Otack Manager</span>
+          <span class="empty-state__tag"><?= e(app_name()) ?></span>
           <p class="empty-state__text">No tasks parked in the backlog yet.</p>
         </div>
       <?php else: ?>

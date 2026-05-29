@@ -122,6 +122,26 @@ $events->on('task.linked', function ($p) use ($tg, $tgEsc, $tgBold) {
 $events->on('task.unlinked', function ($p) use ($tg, $tgEsc, $tgBold) {
     $tg->notify('task.unlinked', "[LINK] " . $tgBold($p['actor_name']) . " unlinked \"" . $tgEsc($p['task_title']) . "\" ↔ \"" . $tgEsc($p['linked_title']) . "\" in " . $tgEsc($p['project_name']), $p['url'] ?? null, $p);
 });
+// Public form submissions — flagged IMPORTANT because they are customer
+// touchpoints (and surface in /forms-data immediately).
+$events->on('form.submitted', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $preview = !empty($p['preview']) ? "\n" . $tgEsc(mb_substr($p['preview'], 0, 280)) : '';
+    $tg->notify(
+        'form.submitted',
+        "🔥 <b>IMPORTANT</b> · [FORM] new submission on \"" . $tgEsc($p['form_title']) . "\"" . $preview,
+        $p['url'] ?? null,
+        $p
+    );
+});
+$events->on('form.created', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('form.created', "[FORM] " . $tgBold($p['actor_name']) . " created form \"" . $tgEsc($p['title']) . "\"", null, $p);
+});
+$events->on('form.updated', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('form.updated', "[FORM] " . $tgBold($p['actor_name']) . " updated form \"" . $tgEsc($p['title']) . "\"", null, $p);
+});
+$events->on('form.deleted', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify('form.deleted', "[FORM] " . $tgBold($p['actor_name']) . " deleted form \"" . $tgEsc($p['title']) . "\"", null, $p);
+});
 App::singleton('attachments', fn() => new \App\Repository\AttachmentRepository(App::make('db')));
 App::singleton('tags',     fn() => new \App\Repository\TagRepository(App::make('db')));
 App::singleton('uploader', fn() => new \App\Service\FileUploader(

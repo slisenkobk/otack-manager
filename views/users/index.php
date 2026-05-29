@@ -1,8 +1,8 @@
-<div class="page-actions" style="margin-bottom:var(--space-8);">
-  <form method="get" action="/users" class="kanban-search kanban-search--with-submit" style="max-width:360px;margin:0;">
-    <i class="fa-solid fa-magnifying-glass"></i>
+<div class="page-actions" style="margin-bottom:var(--space-8);justify-content:space-between;gap:10px;">
+  <form method="get" action="/users" class="search-field search-field--with-submit" style="margin:0;">
+    <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted);font-size:12px;"></i>
     <input class="input input--inline" name="q" placeholder="Search users by name or email…" value="<?= e($query ?? '') ?>" data-user-search>
-    <button type="submit" class="kanban-search__submit" aria-label="Search"><i class="fa-solid fa-arrow-right"></i></button>
+    <button type="submit" class="search-field__submit" aria-label="Search"><i class="fa-solid fa-arrow-right"></i></button>
   </form>
   <button type="button" class="btn btn--secondary" data-action="new-user">
     <i class="fa-solid fa-user-plus"></i> New user
@@ -11,54 +11,88 @@
 
 <?php if (!$users): ?>
   <div class="empty-state">
-    <span class="empty-state__tag">Otack Manager</span>
+    <span class="empty-state__tag"><?= e(app_name()) ?></span>
     <p class="empty-state__text"><?= !empty($query) ? 'No users match "' . e($query) . '".' : 'No users yet.' ?></p>
   </div>
 <?php else: ?>
-<div style="display:flex;flex-direction:column;gap:12px;">
-  <?php foreach ($users as $u): ?>
-    <article class="card" data-user-id="<?= (int)$u['id'] ?>" style="flex-direction:row;align-items:center;gap:18px;min-height:auto;">
-      <?php if ($u['status'] === 'pending'): ?>
-        <span class="corner-tag" style="background:var(--brand);">PENDING</span>
-      <?php endif; ?>
-      <?= user_avatar_html((int)$u['id'], $u['name'], $u['avatar'] ?? null, 'md') ?>
-      <div style="flex:1;min-width:0;">
-        <div data-user-name style="font-size:16px;font-weight:600;"><?= e($u['name']) ?></div>
-        <div data-user-email style="font-size:13px;color:var(--ink-3);font-family:var(--font-mono);"><?= e($u['email']) ?></div>
-      </div>
-      <span class="status<?= $u['status'] === 'approved' ? ' is-ready' : '' ?>"><?= e($u['status']) ?></span>
-      <?php if ((int)$u['id'] !== (int)$currentUserId): ?>
-        <select class="input input--inline" data-role-select style="width:auto;font-size:11px;padding:4px 8px;">
-          <?php foreach (['admin' => 'Admin', 'manager' => 'Manager', 'employee' => 'Employee'] as $rVal => $rLabel): ?>
-            <option value="<?= e($rVal) ?>"<?= $u['role'] === $rVal ? ' selected' : '' ?>><?= e($rLabel) ?></option>
-          <?php endforeach; ?>
-        </select>
-      <?php else: ?>
-        <span class="mono" style="font-size:11px;color:var(--ink-3);"><?= e($u['role']) ?></span>
-      <?php endif; ?>
-      <span class="mono" style="font-size:10px;color:var(--ink-3);"><?= fmt_date($u['created_at']) ?></span>
-      <div style="display:flex;gap:6px;" data-actions>
-        <?php if ($u['status'] === 'pending'): ?>
-          <button class="btn-secondary" data-action="approve" type="button" title="Approve">
-            <i class="fa-solid fa-check"></i> Approve
-          </button>
-        <?php endif; ?>
-        <button class="btn-secondary" data-action="edit-user" type="button" title="Edit user">
-          <i class="fa-solid fa-pen"></i>
-        </button>
-        <?php if ($u['status'] !== 'blocked' && (int)$u['id'] !== (int)$currentUserId): ?>
-          <button class="btn-secondary" data-action="block" type="button" title="Block">
-            <i class="fa-solid fa-ban"></i>
-          </button>
-        <?php endif; ?>
-        <?php if ((int)$u['id'] !== (int)$currentUserId): ?>
-          <button class="btn-danger" data-action="delete" type="button" title="Delete">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        <?php endif; ?>
-      </div>
-    </article>
-  <?php endforeach; ?>
+<?php $roleLabels = ['admin' => 'Admin', 'manager' => 'Manager', 'employee' => 'Employee']; ?>
+<div class="data-table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Role</th>
+        <th>Status</th>
+        <th>Joined</th>
+        <th class="data-table__cell--actions">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($users as $u): ?>
+        <tr data-user-id="<?= (int)$u['id'] ?>">
+          <td>
+            <div class="data-table__cell--user">
+              <?= user_avatar_html((int)$u['id'], $u['name'], $u['avatar'] ?? null, 'md') ?>
+              <div style="min-width:0;">
+                <div class="data-table__name" data-user-name><?= e($u['name']) ?></div>
+                <div class="data-table__sub" data-user-email><?= e($u['email']) ?></div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <?php if ((int)$u['id'] !== (int)$currentUserId): ?>
+              <div class="custom-select custom-select--compact" data-custom-select style="width:140px;">
+                <button type="button" class="custom-select__btn">
+                  <span class="custom-select__label"><?= e($roleLabels[$u['role']] ?? $u['role']) ?></span>
+                  <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
+                </button>
+                <div class="custom-select__pop" hidden>
+                  <div class="custom-select__opts">
+                    <?php foreach ($roleLabels as $rVal => $rLabel): ?>
+                      <div class="custom-select__opt<?= $u['role'] === $rVal ? ' is-selected' : '' ?>" data-value="<?= e($rVal) ?>">
+                        <span class="custom-select__opt-label"><?= e($rLabel) ?></span>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                </div>
+                <input type="hidden" data-role-select value="<?= e($u['role']) ?>">
+              </div>
+            <?php else: ?>
+              <span class="mono" style="font-size:11px;color:var(--ink-3);"><?= e($roleLabels[$u['role']] ?? $u['role']) ?></span>
+            <?php endif; ?>
+          </td>
+          <td>
+            <span class="status<?= $u['status'] === 'approved' ? ' is-ready' : '' ?>"><?= e($u['status']) ?></span>
+          </td>
+          <td>
+            <span class="data-table__meta-time"><?= fmt_date($u['created_at']) ?></span>
+          </td>
+          <td class="data-table__cell--actions">
+            <div style="display:inline-flex;gap:6px;" data-actions>
+              <?php if ($u['status'] === 'pending'): ?>
+                <button class="btn-secondary" data-action="approve" type="button" title="Approve">
+                  <i class="fa-solid fa-check"></i> Approve
+                </button>
+              <?php endif; ?>
+              <button class="btn-secondary" data-action="edit-user" type="button" title="Edit user">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <?php if ($u['status'] !== 'blocked' && (int)$u['id'] !== (int)$currentUserId): ?>
+                <button class="btn-secondary" data-action="block" type="button" title="Block">
+                  <i class="fa-solid fa-ban"></i>
+                </button>
+              <?php endif; ?>
+              <?php if ((int)$u['id'] !== (int)$currentUserId): ?>
+                <button class="btn-danger" data-action="delete" type="button" title="Delete">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              <?php endif; ?>
+            </div>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
 </div>
 <?php
   $hrefBuilder = function (int $p) use ($query) {

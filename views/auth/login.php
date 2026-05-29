@@ -1,8 +1,6 @@
+<?= !empty($error) ? flash_meta($error, 'error') : '' ?>
 <div class="brief">
   <h1 style="font-size:32px;font-weight:700;margin:0 0 24px;">Sign in</h1>
-  <?php if (!empty($error)): ?>
-    <div class="toast toast--error" style="position:static;margin-bottom:16px;"><?= e($error) ?></div>
-  <?php endif; ?>
   <form method="post" action="/login">
     <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
     <div class="field">

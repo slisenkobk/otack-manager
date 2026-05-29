@@ -11,8 +11,9 @@
   <div class="topbar__rhs">
     <?php if (!empty($user['name'])): ?>
       <div class="user-menu" data-user-menu>
-        <button type="button" class="topbar__avatar" data-user-menu-toggle
+        <button type="button" class="topbar__user" data-user-menu-toggle
                 aria-haspopup="menu" aria-expanded="false" aria-label="Open account menu">
+          <span class="topbar__user-name"><?= e($user['name']) ?></span>
           <?= user_avatar_html((int)($user['id'] ?? 0), $user['name'] ?? '', $user['avatar'] ?? null, 'md') ?>
         </button>
         <div class="user-menu__pop" role="menu" hidden>
@@ -26,6 +27,21 @@
             <i class="fa-regular fa-user" aria-hidden="true"></i>
             <span>Profile</span>
           </a>
+          <?php $themeCurrent = $_COOKIE['theme'] ?? 'auto'; ?>
+          <div class="user-menu__theme" role="group" aria-label="Theme">
+            <span class="user-menu__theme-label">Theme</span>
+            <div class="theme-toggle" data-theme-toggle>
+              <button type="button" data-theme-set="light" class="theme-toggle__btn<?= $themeCurrent === 'light' ? ' is-active' : '' ?>" aria-label="Light theme">
+                <i class="fa-solid fa-sun" aria-hidden="true"></i>
+              </button>
+              <button type="button" data-theme-set="auto" class="theme-toggle__btn<?= $themeCurrent === 'auto' ? ' is-active' : '' ?>" aria-label="Match system">
+                <i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i>
+              </button>
+              <button type="button" data-theme-set="dark" class="theme-toggle__btn<?= $themeCurrent === 'dark' ? ' is-active' : '' ?>" aria-label="Dark theme">
+                <i class="fa-solid fa-moon" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
           <form method="post" action="/logout" class="user-menu__item user-menu__item--form" role="none">
             <input type="hidden" name="_csrf" value="<?= e($csrfToken ?? '') ?>">
             <button type="submit" role="menuitem">

@@ -8,20 +8,35 @@ final class FormSubmissionRepository
 
     public function __construct(private \PDO $pdo) {}
 
-    public function create(int $formId, array $data, array $footer): int {
+    public function create(int $formId, array $data, array $footer, ?string $remoteIp = null): int {
         $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
         $stmt = $this->pdo->prepare(
-            'INSERT INTO form_submissions (form_id, data_json, footer_json, status, created_at, updated_at)
-             VALUES (?, ?, ?, "new", ?, ?)'
+            'INSERT INTO form_submissions (form_id, data_json, footer_json, status, remote_ip, created_at, updated_at)
+             VALUES (?, ?, ?, "new", ?, ?, ?)'
         );
         $stmt->execute([
             $formId,
             json_encode($data, JSON_UNESCAPED_UNICODE),
             json_encode($footer, JSON_UNESCAPED_UNICODE),
+            $remoteIp,
             $now,
             $now,
         ]);
         return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Count submissions from a given IP within the last $windowSeconds.
+     * Used by PublicFormController to throttle anonymous spam.
+     */
+    public function countRecentByIp(string $remoteIp, int $windowSeconds): int {
+        $since = (new \DateTimeImmutable('-' . max(1, $windowSeconds) . ' seconds'))
+            ->format('Y-m-d\TH:i:s.u\Z');
+        $stmt = $this->pdo->prepare(
+            'SELECT COUNT(*) FROM form_submissions WHERE remote_ip = ? AND created_at >= ?'
+        );
+        $stmt->execute([$remoteIp, $since]);
+        return (int)$stmt->fetchColumn();
     }
 
     public function findById(int $id): ?array {
@@ -30,8 +45,13 @@ final class FormSubmissionRepository
         return $stmt->fetch() ?: null;
     }
 
-    /** Filter by form_id and/or status; both optional. */
-    public function listAll(?int $formId = null, ?string $status = null): array {
+    /**
+     * Filter by form_id, status, and a free-text query. Query searches
+     * the submission JSON blob (raw text match) and the parent form title;
+     * users mostly remember submissions by what was typed in or which
+     * form it belonged to.
+     */
+    public function listAll(?int $formId = null, ?string $status = null, string $query = ''): array {
         $sql  = 'SELECT s.*, f.title AS form_title, f.hash AS form_hash
                  FROM form_submissions s
                  INNER JOIN forms f ON f.id = s.form_id
@@ -39,6 +59,12 @@ final class FormSubmissionRepository
         $args = [];
         if ($formId !== null) { $sql .= ' AND s.form_id = ?'; $args[] = $formId; }
         if ($status !== null && $status !== '') { $sql .= ' AND s.status = ?'; $args[] = $status; }
+        if ($query !== '') {
+            $sql .= ' AND (s.data_json LIKE ? OR f.title LIKE ?)';
+            $needle = '%' . $query . '%';
+            $args[] = $needle;
+            $args[] = $needle;
+        }
         $sql .= ' ORDER BY s.created_at DESC';
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($args);
@@ -67,15 +93,19 @@ final class FormSubmissionRepository
      * their status back to 'new' so the user can re-convert them.
      */
     public function detachConverted(string $kind, int $entityId): int {
-        if (!in_array($kind, ['project', 'task'], true)) return 0;
-        $col = $kind === 'project' ? 'converted_project_id' : 'converted_task_id';
+        // Hard-coded column literals via match — no $col interpolation, no
+        // chance a future $kind value introduces SQL injection.
+        [$sqlUpdate, $sqlWhere] = match ($kind) {
+            'project' => ['converted_project_id = NULL', 'converted_project_id = ?'],
+            'task'    => ['converted_task_id    = NULL', 'converted_task_id    = ?'],
+            default   => [null, null],
+        };
+        if ($sqlUpdate === null) return 0;
         $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
         $stmt = $this->pdo->prepare(
             "UPDATE form_submissions
-                SET $col = NULL,
-                    status = 'new',
-                    updated_at = ?
-              WHERE $col = ?"
+                SET $sqlUpdate, status = 'new', updated_at = ?
+              WHERE $sqlWhere"
         );
         $stmt->execute([$now, $entityId]);
         return (int)$stmt->rowCount();

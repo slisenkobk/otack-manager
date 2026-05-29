@@ -27,7 +27,8 @@ final class FormDataController extends BaseController
         $formId = isset($req->query['form_id']) && $req->query['form_id'] !== ''
             ? (int)$req->query['form_id'] : null;
         $status = (string)($req->query['status'] ?? '');
-        $rows  = $this->subs->listAll($formId, $status !== '' ? $status : null);
+        $query  = trim((string)($req->query['q'] ?? ''));
+        $rows  = $this->subs->listAll($formId, $status !== '' ? $status : null, $query);
         $forms = $this->forms->listAll();
         $byStatus = $this->subs->countByStatus();
 
@@ -48,6 +49,7 @@ final class FormDataController extends BaseController
                 'forms'       => $forms,
                 'currentForm' => $formId,
                 'currentStatus' => $status,
+                'query'       => $query,
                 'byStatus'    => $byStatus,
             ]),
         ]));
@@ -59,13 +61,17 @@ final class FormDataController extends BaseController
         if (!$sub) { Response::notFound(); return; }
         $form = $this->forms->findById((int)$sub['form_id']);
         if (!$form) { Response::notFound(); return; }
+        // Manager can only open submissions of forms they created; admin sees all.
+        if (!$this->canManage($sub)) {
+            Response::forbidden('This submission belongs to a form you do not own'); return;
+        }
 
         $fields = json_decode((string)$form['fields_json'], true) ?: [];
         $data   = json_decode((string)$sub['data_json'], true) ?: [];
         $footer = json_decode((string)$sub['footer_json'], true) ?: [];
 
         // Projects list for the convert-to-task picker (manager scope: visible projects only).
-        $isAdmin = $this->user['role'] === 'admin';
+        $isAdmin = RolePolicy::isAdmin($this->user);
         $projects = App::make('projects')->listForUser((int)$this->user['id'], $isAdmin);
 
         $csrf = $this->csrfToken();
@@ -118,6 +124,12 @@ final class FormDataController extends BaseController
         if (!$this->canManage($sub)) {
             Response::json(['error' => 'Forbidden'], 403); return;
         }
+        // Prevent re-conversion (double click / race) — the source of truth is
+        // the submission's status. detachConverted() on project/task delete
+        // resets it back to 'new', so re-promoting is still possible after a cleanup.
+        if (in_array($sub['status'], ['converted_task', 'converted_project'], true)) {
+            Response::json(['error' => 'Submission has already been converted'], 422); return;
+        }
         $form = $this->forms->findById((int)$sub['form_id']);
         if (!$form) { Response::json(['error' => 'Form gone'], 404); return; }
 
@@ -146,7 +158,7 @@ final class FormDataController extends BaseController
             $projectId = (int)($payload['project_id'] ?? 0);
             $project   = $projectId ? App::make('projects')->findById($projectId) : null;
             if (!$project) { Response::json(['error' => 'Pick a project'], 422); return; }
-            $isAdmin = $this->user['role'] === 'admin';
+            $isAdmin = RolePolicy::isAdmin($this->user);
             if (!$isAdmin && !App::make('members')->isMember($projectId, (int)$this->user['id'])) {
                 Response::json(['error' => 'You are not a member of that project'], 403); return;
             }

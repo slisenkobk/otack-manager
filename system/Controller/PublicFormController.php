@@ -26,8 +26,19 @@ final class PublicFormController extends BaseController
         $this->settings = App::make('settings');
     }
 
+    /** Hash format expected from the public URL — base64url alphabet, length 8..24. */
+    private const HASH_RE = '/^[A-Za-z0-9_-]{8,24}$/';
+
+    /** Anti-spam window for anonymous POSTs. */
+    private const RATE_LIMIT_PER_IP = 5;
+    private const RATE_LIMIT_WINDOW = 600;
+
     public function show(Request $req, array $params): void {
         $hash = (string)($params['hash'] ?? '');
+        if (!preg_match(self::HASH_RE, $hash)) {
+            Response::html($this->view->render('public/form-not-found', [], null));
+            return;
+        }
         $form = $this->forms->findByHash($hash);
         if (!$form || $form['status'] === 'archived') {
             Response::html($this->view->render('public/form-not-found', [], null));
@@ -45,11 +56,29 @@ final class PublicFormController extends BaseController
 
     public function submit(Request $req, array $params): void {
         $hash = (string)($params['hash'] ?? '');
+        if (!preg_match(self::HASH_RE, $hash)) {
+            Response::html($this->view->render('public/form-not-found', [], null));
+            return;
+        }
         $form = $this->forms->findByHash($hash);
         if (!$form || $form['status'] === 'archived') {
             Response::html($this->view->render('public/form-not-found', [], null));
             return;
         }
+        // Anti-spam: throttle per IP. Behind a reverse proxy we trust
+        // X-Forwarded-For's first hop; otherwise REMOTE_ADDR.
+        $remoteIp = $this->resolveRemoteIp();
+        if ($remoteIp !== '' && $this->subs->countRecentByIp($remoteIp, self::RATE_LIMIT_WINDOW) >= self::RATE_LIMIT_PER_IP) {
+            http_response_code(429);
+            Response::html(
+                '<!doctype html><meta charset="utf-8"><title>Too many submissions</title>'
+                . '<style>body{font-family:system-ui;display:grid;place-items:center;min-height:100vh;margin:0;background:#F5F0E6;color:#1A1612;}'
+                . 'div{max-width:520px;text-align:center;padding:32px;}</style>'
+                . '<div><h1>Slow down</h1><p>You\'ve submitted this form a few times already. Please try again in 10 minutes.</p></div>'
+            );
+            return;
+        }
+
         $fields = $this->decodeFields($form);
         $data   = [];
         $errors = [];
@@ -85,11 +114,53 @@ final class PublicFormController extends BaseController
 
         // Submission no longer carries user-edited footer data — the contact
         // block on the public form is read-only display only.
-        $this->subs->create((int)$form['id'], $data, []);
+        $submissionId = $this->subs->create((int)$form['id'], $data, [], $remoteIp !== '' ? $remoteIp : null);
+
+        // Activity feed: external submissions don't have an actor_id, so we
+        // attribute to the form owner (created_by) so admins/managers see it
+        // in their scope. The "external" flag in meta keeps downstream code
+        // honest about who really filed it.
+        $ownerId = (int)$form['created_by'];
+        $preview = mb_substr(implode(' · ', array_filter(array_map(
+            fn($v) => is_array($v) ? implode(',', $v) : (string)$v,
+            $data
+        ), fn($s) => trim($s) !== '')), 0, 160);
+        \App\App::make('activity')->log(
+            'form.submitted',
+            $ownerId,
+            null,
+            null,
+            'new submission on "' . $form['title'] . '"' . ($preview !== '' ? ' — ' . $preview : ''),
+            ['form_id' => (int)$form['id'], 'submission_id' => $submissionId, 'external' => true]
+        );
+
+        // Fire the Telegram event with an IMPORTANT marker — these are
+        // customer touchpoints, more urgent than internal task chatter.
+        \App\App::make('events')->fire('form.submitted', [
+            'form_id'       => (int)$form['id'],
+            'form_title'    => $form['title'],
+            'submission_id' => $submissionId,
+            'preview'       => $preview,
+            'url'           => '/forms-data/' . $submissionId,
+        ]);
 
         Response::html($this->view->render('public/form-thanks', [
             'form' => $form,
         ], null));
+    }
+
+    /**
+     * Best-effort visitor IP. Honours X-Forwarded-For first hop only.
+     * Returns '' if nothing usable is in the request.
+     */
+    private function resolveRemoteIp(): string {
+        $xff = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+        if ($xff !== '') {
+            $first = trim(strtok($xff, ','));
+            if ($first !== '' && filter_var($first, FILTER_VALIDATE_IP)) return $first;
+        }
+        $ra = $_SERVER['REMOTE_ADDR'] ?? '';
+        return filter_var($ra, FILTER_VALIDATE_IP) ? $ra : '';
     }
 
     private function decodeFields(array $form): array {

@@ -298,12 +298,23 @@ final class Migrations
                     status TEXT NOT NULL DEFAULT "new",
                     converted_task_id INTEGER NULL,
                     converted_project_id INTEGER NULL,
+                    remote_ip TEXT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )'
             );
             $pdo->exec('CREATE INDEX IF NOT EXISTS idx_submissions_form ON form_submissions(form_id)');
             $pdo->exec('CREATE INDEX IF NOT EXISTS idx_submissions_status ON form_submissions(status)');
+            $pdo->exec('CREATE INDEX IF NOT EXISTS idx_form_submissions_ip_time ON form_submissions(remote_ip, created_at)');
+        });
+
+        // For installations created before form_submissions had remote_ip.
+        $boot->ensure('form_submissions_remote_ip', 1, function (\PDO $pdo) {
+            $cols = $pdo->query('PRAGMA table_info(form_submissions)')->fetchAll(\PDO::FETCH_ASSOC);
+            if (!$cols) return;
+            foreach ($cols as $c) { if ($c['name'] === 'remote_ip') return; }
+            $pdo->exec('ALTER TABLE form_submissions ADD COLUMN remote_ip TEXT NULL');
+            $pdo->exec('CREATE INDEX IF NOT EXISTS idx_form_submissions_ip_time ON form_submissions(remote_ip, created_at)');
         });
 
         $boot->ensure('projects_pinned_at', 1, function (\PDO $pdo) {

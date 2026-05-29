@@ -5,12 +5,14 @@ const ICONS = {
   'attachment.uploaded': 'fa-solid fa-paperclip',
   'task.status_changed': 'fa-solid fa-arrow-right-arrow-left',
   'task.created':        'fa-solid fa-plus',
+  'form.submitted':      'fa-solid fa-fire',
 };
 const VERBS = {
   'comment.created':     'commented',
   'attachment.uploaded': 'attached file',
   'task.status_changed': 'changed status',
   'task.created':        'created task',
+  'form.submitted':      'submitted form',
 };
 
 function tag(name, className, text) {
@@ -27,13 +29,15 @@ function link(href, text, className) {
 }
 
 function renderActivityRow(a) {
-  const row = tag('div', 'activity-row');
+  const isExternal = a.event === 'form.submitted';
+  const row = tag('div', 'activity-row' + (isExternal ? ' activity-row--important' : ''));
   const iconClass = ICONS[a.event] || 'fa-regular fa-circle-dot';
   const verb = VERBS[a.event] || 'updated';
+  const actor = isExternal ? 'Visitor' : a.actor_name;
 
   row.appendChild(tag('i', 'activity-row__icon ' + iconClass));
   row.appendChild(tag('span', 'activity-row__time mono', a.created_at));
-  row.appendChild(tag('span', 'activity-row__actor', a.actor_name));
+  row.appendChild(tag('span', 'activity-row__actor', actor));
   row.appendChild(tag('span', 'activity-row__verb', verb));
 
   const target = tag('span', 'activity-row__target');

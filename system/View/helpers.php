@@ -39,21 +39,23 @@ function icon(string $name, string $extraClass = ''): string
 }
 
 /**
- * Resolve the configured timezone once per request. Falls back to UTC if the
- * settings table hasn't been initialised yet (early bootstrap).
+ * Resolve the configured timezone. No cross-request static cache — long-lived
+ * workers (PHP-FPM, the dev server) would otherwise serve stale values after an
+ * admin changes the setting until the worker recycles. One settings lookup per
+ * call is fine; the values are read from a small key-value table.
+ *
+ * Falls back to UTC if the settings table hasn't been initialised yet
+ * (early bootstrap, before migrations).
  */
 function app_timezone(): \DateTimeZone
 {
-    static $tz = null;
-    if ($tz) return $tz;
     try {
         $name = \App\App::make('settings')->get('timezone', 'Europe/Kyiv');
         if ($name === '') $name = 'Europe/Kyiv';
-        $tz = new \DateTimeZone($name);
+        return new \DateTimeZone($name);
     } catch (\Throwable $e) {
-        $tz = new \DateTimeZone('UTC');
+        return new \DateTimeZone('UTC');
     }
-    return $tz;
 }
 
 function fmt_date(?string $iso): string
@@ -149,6 +151,126 @@ function project_status_label(?string $status): string
 {
     $map = project_statuses();
     return $map[(string)$status] ?? ucfirst((string)$status);
+}
+
+/**
+ * White-label app name from settings ('app_name'); falls back to "Otack Manager"
+ * if unset. Cached per-request — the settings read is cheap (single K/V lookup)
+ * but we still avoid hitting it once per partial render.
+ */
+function app_name(): string
+{
+    static $cached = null;
+    if ($cached !== null) return $cached;
+    try {
+        $val = trim((string)\App\App::make('settings')->get('app_name', ''));
+    } catch (\Throwable $e) {
+        $val = '';
+    }
+    return $cached = ($val !== '' ? $val : 'Otack Manager');
+}
+
+/**
+ * Split the app name into [first_word, rest] so the sidebar brand can color
+ * the first word in --accent and the rest in --text. Single-word names get
+ * an empty second element — caller should hide it.
+ *
+ * @return array{0:string, 1:string}
+ */
+function app_name_parts(): array
+{
+    $name = app_name();
+    $sp = mb_strpos($name, ' ');
+    if ($sp === false) return [$name, ''];
+    return [mb_substr($name, 0, $sp), trim(mb_substr($name, $sp + 1))];
+}
+
+/**
+ * Brand color override from settings ('app_color'). Empty → use default
+ * --brand from the design system (the warm Otack orange). Returned with
+ * the leading '#'; never falls through to malformed values because the
+ * controller validates input as #RRGGBB before persisting.
+ */
+function app_color(): ?string
+{
+    static $cached = false;
+    if ($cached !== false) return $cached;
+    try {
+        $val = trim((string)\App\App::make('settings')->get('app_color', ''));
+    } catch (\Throwable $e) {
+        $val = '';
+    }
+    return $cached = ($val !== '' ? $val : null);
+}
+
+/**
+ * Build the brand-aware favicon as a base64 data URI so a custom app_color
+ * shows in the browser tab without an extra HTTP roundtrip. Uses the SVG
+ * logo as a template; the path/rects carry `currentColor`, which we swap
+ * to the chosen brand. Falls back to the static /favicon.svg when no
+ * override is set.
+ */
+/**
+ * Build the brand-aware favicon as a base64 data URI. Always returns a data
+ * URI so the browser treats each color choice as a distinct resource and
+ * actually refreshes the tab icon — falling back to the static `/favicon.svg`
+ * would just serve `currentColor`, which renders as black in standalone SVG
+ * and ignores brand changes. When no override is set we still bake in the
+ * default brand orange so the static SVG's `currentColor` stops mattering.
+ */
+function app_favicon_href(): string
+{
+    $color = app_color() ?? '#c2410c';
+    $svgPath = APP_ROOT . '/public/favicon.svg';
+    if (!is_file($svgPath)) return '/favicon.svg';
+    $svg = (string)file_get_contents($svgPath);
+    $svg = str_replace('currentColor', $color, $svg);
+    return 'data:image/svg+xml;base64,' . base64_encode($svg);
+}
+
+/**
+ * Inline <style> that re-bases the brand palette (and its dark-theme pair)
+ * onto the user-chosen color from settings. Empty when no override is set
+ * — letting the design-system defaults from app.css apply unchanged.
+ * Renders nothing-safe HTML so it can sit directly in <head>.
+ */
+function app_brand_style_tag(): string
+{
+    $c = app_color();
+    if ($c === null) return '';
+    return '<style>' .
+        ':root{' .
+            '--brand:' . $c . ';' .
+            '--brand-2:color-mix(in srgb,' . $c . ' 78%,#000 22%);' .
+            '--brand-3:color-mix(in srgb,' . $c . ' 18%,#ffffff 82%);' .
+            '--brand-4:color-mix(in srgb,' . $c . ' 30%,#ffffff 70%);' .
+            '--brand-pop:color-mix(in srgb,' . $c . ' 88%,#ffffff 12%);' .
+            '--focus-ring-alpha:color-mix(in srgb,' . $c . ' 25%,transparent);' .
+        '}' .
+        ':root[data-theme="dark"]{' .
+            '--brand:' . $c . ';' .
+            '--brand-2:color-mix(in srgb,' . $c . ' 70%,#ffffff 30%);' .
+            '--brand-3:color-mix(in srgb,' . $c . ' 22%,#1A1612 78%);' .
+            '--brand-4:color-mix(in srgb,' . $c . ' 32%,#1A1612 68%);' .
+            '--brand-pop:color-mix(in srgb,' . $c . ' 85%,#ffffff 15%);' .
+        '}' .
+        '</style>';
+}
+
+/**
+ * Render a flash message as <meta> tags. A boot script reads these on page
+ * load and pipes them through UI.toast, so we get the same animated toast
+ * everywhere (matches the JS-fired toasts on tag rename, file upload, etc.)
+ * without each view re-implementing the inline-banner pattern.
+ *
+ * Pass empty $message to render nothing — safe to call unconditionally.
+ */
+function flash_meta(string $message, string $type = 'success'): string
+{
+    if ($message === '') return '';
+    $type = in_array($type, ['success', 'error', 'info'], true) ? $type : 'info';
+    return '<meta name="flash-message" content="' . e($message) . '">'
+         . '<meta name="flash-type" content="' . $type . '">';
 }
 
 function fmt_size(int $bytes): string

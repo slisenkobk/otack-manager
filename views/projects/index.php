@@ -21,7 +21,7 @@
 
 <?php if (!$projects): ?>
   <div class="empty-state">
-    <span class="empty-state__tag">Otack Manager</span>
+    <span class="empty-state__tag"><?= e(app_name()) ?></span>
     <p class="empty-state__text">
       <?php if (!empty($query)): ?>
         No projects match "<?= e($query) ?>".

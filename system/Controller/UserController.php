@@ -74,6 +74,10 @@ final class UserController extends BaseController {
         if (!in_array($role, ['admin', 'manager', 'employee'], true)) {
             Response::json(['error' => 'Invalid role'], 422); return;
         }
+        if ((int)$params['id'] === (int)$this->user['id']) {
+            // Prevent the sole admin from locking themselves out of admin functions.
+            Response::json(['error' => 'Cannot change your own role'], 422); return;
+        }
         $this->users->setRole((int)$params['id'], $role);
         Response::json(['ok' => true]);
     }

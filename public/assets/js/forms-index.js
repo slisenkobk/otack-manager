@@ -1,12 +1,21 @@
 import { api, UI } from './ui.js';
 
-document.querySelectorAll('a.card[data-form-id]').forEach(card => {
+document.querySelectorAll('.card[data-form-id]').forEach(card => {
   const id = card.dataset.formId;
+  const href = card.dataset.href;
 
-  // Stop any [data-stop] click from following the card's href.
+  // Stop any [data-stop] click from bubbling up to the card-level navigation.
   card.querySelectorAll('[data-stop]').forEach(el => {
-    el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+    el.addEventListener('click', (e) => { e.stopPropagation(); });
   });
+
+  // Clicking anywhere on the card (outside [data-stop] children) opens edit.
+  if (href) {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('[data-stop]')) return;
+      location.href = href;
+    });
+  }
 
   const del = card.querySelector('[data-action=delete-form]');
   if (del) del.addEventListener('click', async () => {

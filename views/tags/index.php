@@ -45,7 +45,7 @@ foreach ($scopeLabels as $scope => $label):
 
 <?php if (!$tags): ?>
   <div class="empty-state">
-    <span class="empty-state__tag">Otack Manager</span>
+    <span class="empty-state__tag"><?= e(app_name()) ?></span>
     <p class="empty-state__text"><?= !empty($query) ? 'No tags match "' . e($query) . '".' : 'No tags yet.' ?></p>
     <?php if (empty($query)): ?>
       <span class="empty-state__sub">Tags are created from project and task pages.</span>

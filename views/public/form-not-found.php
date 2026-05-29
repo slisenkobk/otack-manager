@@ -6,7 +6,7 @@ http_response_code(404);
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Otack Manager - Form not found</title>
+<title><?= e(app_name()) ?> - Form not found</title>
 <link rel="stylesheet" href="/assets/css/app.css">
 <style>
   body { background: var(--paper); min-height: 100vh; display: grid; place-items: center; padding: 40px; }

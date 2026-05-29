@@ -1,11 +1,19 @@
+<?php
+// Theme preference: cookie 'theme' ∈ {light,dark,auto}. 'auto' (or unset)
+// falls back to prefers-color-scheme — handled purely in CSS.
+$themePref = $_COOKIE['theme'] ?? 'auto';
+if (!in_array($themePref, ['light', 'dark', 'auto'], true)) $themePref = 'auto';
+$themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
+?>
 <!doctype html>
-<html lang="uk">
+<html lang="uk"<?= $themeAttr ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= e('Otack Manager' . (!empty($title) ? ' - ' . $title : '')) ?></title>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title><?= e(app_name() . (!empty($title) ? ' - ' . $title : '')) ?></title>
+<link rel="icon" type="image/svg+xml" href="<?= e(app_favicon_href()) ?>">
 <link rel="stylesheet" href="/assets/css/app.css">
+<?= app_brand_style_tag() ?>
 <link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
 <link rel="stylesheet" href="/assets/vendor/quill/quill.snow.css">
 <meta name="csrf-token" content="<?= e($csrfToken ?? '') ?>">
@@ -24,6 +32,7 @@
 <?php require APP_ROOT . '/views/partials/toast-root.php'; ?>
 <?php require APP_ROOT . '/views/partials/lightbox-root.php'; ?>
 <script src="/assets/vendor/quill/quill.min.js" defer></script>
+<script type="module" src="/assets/js/theme.js"></script>
 <script type="module" src="/assets/js/ui.js"></script>
 <script type="module" src="/assets/js/wysiwyg.js"></script>
 </body>

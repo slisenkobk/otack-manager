@@ -68,11 +68,24 @@ $converted = in_array($sub['status'], ['converted_task', 'converted_project'], t
 
     <div class="brief" style="max-width:none;">
       <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-3);margin:0 0 12px;">Status</h3>
-      <select class="input" data-status-select>
-        <?php foreach (['new', 'in_progress', 'rejected', 'done'] as $s): ?>
-          <option value="<?= e($s) ?>"<?= $sub['status'] === $s ? ' selected' : '' ?>><?= e($statusLabels[$s]) ?></option>
-        <?php endforeach; ?>
-      </select>
+      <div class="custom-select" data-custom-select>
+        <button type="button" class="custom-select__btn">
+          <span class="custom-select__icon"><span class="status-dot status-dot--<?= e($sub['status']) ?>"></span></span>
+          <span class="custom-select__label"><?= e($statusLabels[$sub['status']] ?? $sub['status']) ?></span>
+          <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
+        </button>
+        <div class="custom-select__pop" hidden>
+          <div class="custom-select__opts">
+            <?php foreach (['new', 'in_progress', 'rejected', 'done'] as $s): ?>
+              <div class="custom-select__opt<?= $sub['status'] === $s ? ' is-selected' : '' ?>" data-value="<?= e($s) ?>">
+                <span class="custom-select__icon"><span class="status-dot status-dot--<?= e($s) ?>"></span></span>
+                <span class="custom-select__opt-label"><?= e($statusLabels[$s]) ?></span>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+        <input type="hidden" data-status-select value="<?= e($sub['status']) ?>">
+      </div>
       <?php if ($converted): ?>
         <p class="muted" style="font-size:11px;color:var(--ink-3);margin:10px 0 0;">
           <?= e($statusLabels[$sub['status']]) ?>
@@ -93,12 +106,29 @@ $converted = in_array($sub['status'], ['converted_task', 'converted_project'], t
         </button>
         <div class="field">
           <label style="font-size:12px;color:var(--ink-3);">Or pick a project for a new task</label>
-          <select class="input" data-task-project>
-            <option value="">— pick project —</option>
-            <?php foreach ($projects as $p): ?>
-              <option value="<?= (int)$p['id'] ?>"><?= e($p['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
+          <div class="custom-select" data-custom-select<?= count($projects) > 6 ? ' data-custom-select-search' : '' ?>>
+            <button type="button" class="custom-select__btn">
+              <span class="custom-select__label" style="color:var(--ink-3);">— pick project —</span>
+              <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
+            </button>
+            <div class="custom-select__pop" hidden>
+              <?php if (count($projects) > 6): ?>
+                <div class="custom-select__search">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <input type="text" placeholder="Search projects…" data-custom-select-search-input>
+                </div>
+              <?php endif; ?>
+              <div class="custom-select__opts">
+                <?php foreach ($projects as $p): ?>
+                  <div class="custom-select__opt" data-value="<?= (int)$p['id'] ?>" data-search="<?= e(mb_strtolower((string)$p['name'])) ?>">
+                    <span class="custom-select__opt-label"><?= e($p['name']) ?></span>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+              <div class="custom-select__no-results" hidden>No matches.</div>
+            </div>
+            <input type="hidden" data-task-project value="">
+          </div>
         </div>
         <button type="button" class="btn-secondary" style="width:100%;margin-top:8px;" data-action="convert-task">
           <i class="fa-solid fa-list-check"></i> Create task

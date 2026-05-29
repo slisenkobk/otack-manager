@@ -15,6 +15,8 @@ final class SettingsController extends BaseController
      * Values shown on the form footer of public Forms read from these.
      */
     public const KEYS = [
+        'app_name'              => ['label' => 'App name',           'default' => ''],
+        'app_color'             => ['label' => 'Brand color',        'default' => ''],
         'timezone'              => ['label' => 'Timezone',           'default' => 'Europe/Kyiv'],
         'contact_company_name'  => ['label' => 'Company name',       'default' => ''],
         'contact_email'         => ['label' => 'Contact email',      'default' => ''],
@@ -53,9 +55,25 @@ final class SettingsController extends BaseController
                 'values'    => $values,
                 'fields'    => self::KEYS,
                 'csrfToken' => $csrfToken,
-                'timezones' => \DateTimeZone::listIdentifiers(),
+                'timezones' => $this->timezonesWithOffsets(),
             ]),
         ]));
+    }
+
+    /**
+     * Build a flat list of timezones with their current UTC offset string,
+     * sorted alphabetically. Used to render the searchable timezone picker.
+     *
+     * @return array<int, array{tz:string, offset:string}>
+     */
+    private function timezonesWithOffsets(): array {
+        $now = new \DateTime('now');
+        $rows = [];
+        foreach (\DateTimeZone::listIdentifiers() as $tz) {
+            $now->setTimezone(new \DateTimeZone($tz));
+            $rows[] = ['tz' => $tz, 'offset' => $now->format('P')];
+        }
+        return $rows;
     }
 
     public function update(Request $req, array $params = []): void {
@@ -69,6 +87,11 @@ final class SettingsController extends BaseController
                 : trim($raw);
             if ($k === 'timezone' && $val !== '') {
                 if (!in_array($val, \DateTimeZone::listIdentifiers(), true)) continue;
+            }
+            if ($k === 'app_color' && $val !== '') {
+                // Accept #RRGGBB only — input type=color always sends 7 chars.
+                if (!preg_match('/^#[0-9a-f]{6}$/i', $val)) continue;
+                $val = strtolower($val);
             }
             $pairs[$k] = $val;
         }

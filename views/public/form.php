@@ -9,16 +9,17 @@ $contact = $contact ?? [];
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= e('Otack Manager - ' . $form['title']) ?></title>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title><?= e(app_name() . ' - ' . $form['title']) ?></title>
+<link rel="icon" type="image/svg+xml" href="<?= e(app_favicon_href()) ?>">
 <link rel="stylesheet" href="/assets/css/app.css">
 <link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
+<?= app_brand_style_tag() ?>
 </head>
 <body class="public-form">
   <div class="pf-shell">
 
     <header class="pf-header">
-      <span class="pf-tag">Otack Manager</span>
+      <span class="pf-tag"><?= e(app_name()) ?></span>
       <h1 class="pf-title"><?= e($form['title']) ?></h1>
       <?php if (!empty($form['description'])): ?>
         <div class="pf-desc rich-text"><?= $form['description'] /* server-sanitised HTML */ ?></div>
