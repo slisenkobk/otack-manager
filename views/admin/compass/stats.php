@@ -1,12 +1,5 @@
 <?php
 // Inputs: $db {tables:[{name,rows}], db_path, db_size, last_migration}
-$hb = function (int $bytes): string {
-    if ($bytes < 1024) return $bytes . ' B';
-    $units = ['KB', 'MB', 'GB'];
-    $v = $bytes / 1024; $i = 0;
-    while ($v >= 1024 && $i < count($units) - 1) { $v /= 1024; $i++; }
-    return number_format($v, $v >= 100 ? 0 : 1) . ' ' . $units[$i];
-};
 $totalRows = 0;
 foreach ($db['tables'] as $t) if ($t['rows'] >= 0) $totalRows += $t['rows'];
 ?>
@@ -18,7 +11,7 @@ foreach ($db['tables'] as $t) if ($t['rows'] >= 0) $totalRows += $t['rows'];
       <h2 style="font-size:20px;font-weight:600;margin:0 0 var(--space-2);">Database</h2>
       <p class="muted" style="font-size:13px;margin:0;">
         <code><?= e(basename($db['db_path'])) ?></code> ·
-        <?= e($hb((int)$db['db_size'])) ?> ·
+        <?= e(human_bytes((int)$db['db_size'])) ?> ·
         <?= count($db['tables']) ?> tables ·
         <?= number_format($totalRows) ?> total rows
       </p>

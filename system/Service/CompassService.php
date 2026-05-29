@@ -5,6 +5,7 @@ namespace App\Service;
 use App\App;
 use App\Database\Migrations;
 use App\Database\SchemaBootstrap;
+use App\Repository\SettingsRepository;
 
 // Encapsulates the filesystem walks, row counters and log-tail logic powering
 // the /admin/compass panel. Stateless — every call works against the live
@@ -14,6 +15,7 @@ final class CompassService
     public function __construct(
         private \PDO $pdo,
         private SchemaBootstrap $boot,
+        private SettingsRepository $settings,
         private string $sessionsDir,
         private string $uploadsDir,
         private string $errorsLogPath,
@@ -101,15 +103,17 @@ final class CompassService
     /**
      * @return array{total:int, orphan:int, orphan_bytes:int}
      * Orphan = file on disk under uploadsDir/YYYY/MM/ but no matching row in
-     * the attachments table.
+     * the attachments table. Comparison uses the full relative path
+     * (uploads/YYYY/MM/<uuid>.<ext>) — basename matching would silently merge
+     * files that share a name across YYYY/MM dirs.
      */
     public function uploadsStats(): array
     {
-        $known = $this->knownAttachmentBasenames();
+        $known = $this->knownAttachmentRelativePaths();
         $total = 0; $orphan = 0; $orphanBytes = 0;
         foreach ($this->iterUploadFiles() as $path) {
             $total++;
-            if (!isset($known[basename($path)])) {
+            if (!isset($known[$this->relativeToParent($path)])) {
                 $orphan++;
                 $size = @filesize($path);
                 if ($size !== false) $orphanBytes += $size;
@@ -118,13 +122,37 @@ final class CompassService
         return ['total' => $total, 'orphan' => $orphan, 'orphan_bytes' => $orphanBytes];
     }
 
-    /** @return array{deleted:int, bytes:int} */
+    /**
+     * Delete files present on disk but missing from `attachments`.
+     *
+     * Race-safety: we collect candidate orphans against an initial DB snapshot,
+     * then re-snapshot the DB right before deleting each candidate. A row
+     * inserted between the walk and the delete (e.g., an attachment uploaded
+     * concurrently) will be in the second snapshot and skipped. This narrows
+     * the TOCTOU window from "the whole walk" to "between re-snapshot and
+     * unlink" — small enough that an active upload would have to complete and
+     * INSERT its row inside microseconds to lose data.
+     *
+     * @return array{deleted:int, bytes:int}
+     */
     public function clearOrphanUploads(): array
     {
-        $known = $this->knownAttachmentBasenames();
-        $deleted = 0; $bytes = 0;
+        $known = $this->knownAttachmentRelativePaths();
+        $candidates = [];
         foreach ($this->iterUploadFiles() as $path) {
-            if (isset($known[basename($path)])) continue;
+            if (!isset($known[$this->relativeToParent($path)])) {
+                $candidates[] = $path;
+            }
+        }
+
+        if (!$candidates) return ['deleted' => 0, 'bytes' => 0];
+
+        // Re-check against a fresh DB snapshot so files inserted during the
+        // walk aren't deleted as orphans.
+        $known = $this->knownAttachmentRelativePaths();
+        $deleted = 0; $bytes = 0;
+        foreach ($candidates as $path) {
+            if (isset($known[$this->relativeToParent($path)])) continue;
             $size = @filesize($path) ?: 0;
             if (@unlink($path)) {
                 $deleted++;
@@ -143,13 +171,13 @@ final class CompassService
     public function bumpAssetVersion(): string
     {
         $version = (string)time();
-        App::make('settings')->set('asset_version', $version);
+        $this->settings->set('asset_version', $version);
         return $version;
     }
 
     public function currentAssetVersion(): string
     {
-        return App::make('settings')->get('asset_version', '');
+        return $this->settings->get('asset_version', '');
     }
 
     // ─── DB stats ────────────────────────────────────────────────────────────
@@ -278,14 +306,33 @@ final class CompassService
         }
     }
 
-    /** @return array<string, true> basenames of attachments stored on disk */
-    private function knownAttachmentBasenames(): array
+    /**
+     * @return array<string, true> Relative paths (as stored in attachments.filename,
+     * e.g. "uploads/2026/05/<uuid>.<ext>") of every attachment row.
+     */
+    private function knownAttachmentRelativePaths(): array
     {
         $stmt = $this->pdo->query('SELECT filename FROM attachments');
         $out = [];
         foreach ($stmt->fetchAll(\PDO::FETCH_COLUMN) ?: [] as $rel) {
-            $out[basename((string)$rel)] = true;
+            $rel = (string)$rel;
+            if ($rel !== '') $out[$rel] = true;
         }
         return $out;
+    }
+
+    /**
+     * Convert an absolute upload-file path into the same relative form stored
+     * in attachments.filename (e.g. /…/public/uploads/2026/05/abc.jpg becomes
+     * "uploads/2026/05/abc.jpg"). Falls back to basename if the path is
+     * unexpectedly outside the uploads tree.
+     */
+    private function relativeToParent(string $absolute): string
+    {
+        $parent = dirname(rtrim($this->uploadsDir, '/')) . '/';
+        if (str_starts_with($absolute, $parent)) {
+            return substr($absolute, strlen($parent));
+        }
+        return basename($absolute);
     }
 }

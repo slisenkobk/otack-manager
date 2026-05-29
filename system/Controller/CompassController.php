@@ -99,7 +99,7 @@ final class CompassController extends BaseController
             'Cleared %d stale session%s (%s)',
             $res['deleted'],
             $res['deleted'] === 1 ? '' : 's',
-            $this->humanBytes($res['bytes'])
+            human_bytes($res['bytes'])
         );
         $this->auditAndNotify(
             'compass.cache.sessions_cleared',
@@ -117,7 +117,7 @@ final class CompassController extends BaseController
             'Cleared %d orphan upload%s (%s)',
             $res['deleted'],
             $res['deleted'] === 1 ? '' : 's',
-            $this->humanBytes($res['bytes'])
+            human_bytes($res['bytes'])
         );
         $this->auditAndNotify(
             'compass.cache.uploads_orphans_cleared',
@@ -193,13 +193,4 @@ final class CompassController extends BaseController
         ]);
     }
 
-    private function humanBytes(int $bytes): string
-    {
-        if ($bytes < 1024) return $bytes . ' B';
-        $units = ['KB', 'MB', 'GB'];
-        $val = $bytes / 1024;
-        $i = 0;
-        while ($val >= 1024 && $i < count($units) - 1) { $val /= 1024; $i++; }
-        return number_format($val, $val >= 100 ? 0 : 1) . ' ' . $units[$i];
-    }
 }

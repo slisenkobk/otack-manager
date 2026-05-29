@@ -41,14 +41,28 @@ function icon(string $name, string $extraClass = ''): string
 // Append a `?v=…` cache-buster to a static asset URL. Reads `asset_version`
 // from settings (bumped via /admin/compass cache tab). Returns the path
 // unchanged when no version is set yet.
+//
+// Intentionally NOT memoised in a function static: that would persist across
+// requests in PHP-FPM / php -S workers and silently serve stale URLs after a
+// bump. The settings table lookup is a single indexed SELECT — cheap enough
+// to do on each call (typically 4 calls per page).
 function asset_url(string $path): string
 {
-    static $ver = null;
-    if ($ver === null) {
-        try { $ver = \App\App::make('settings')->get('asset_version', ''); }
-        catch (\Throwable $_) { $ver = ''; }
-    }
-    return $ver === '' ? $path : $path . (str_contains($path, '?') ? '&' : '?') . 'v=' . rawurlencode($ver);
+    try { $ver = \App\App::make('settings')->get('asset_version', ''); }
+    catch (\Throwable $_) { $ver = ''; }
+    if ($ver === '') return $path;
+    return $path . (str_contains($path, '?') ? '&' : '?') . 'v=' . rawurlencode($ver);
+}
+
+// Format a byte count as human-readable. Used in admin diagnostic views.
+function human_bytes(int $bytes): string
+{
+    if ($bytes < 1024) return $bytes . ' B';
+    $units = ['KB', 'MB', 'GB', 'TB'];
+    $v = $bytes / 1024;
+    $i = 0;
+    while ($v >= 1024 && $i < count($units) - 1) { $v /= 1024; $i++; }
+    return number_format($v, $v >= 100 ? 0 : 1) . ' ' . $units[$i];
 }
 
 /**

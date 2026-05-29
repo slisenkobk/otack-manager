@@ -1,12 +1,5 @@
 <?php
 // Inputs: $entries (list of {time, level, body}), $logSize (int), $level (string)
-$hb = function (int $bytes): string {
-    if ($bytes < 1024) return $bytes . ' B';
-    $units = ['KB', 'MB', 'GB'];
-    $v = $bytes / 1024; $i = 0;
-    while ($v >= 1024 && $i < count($units) - 1) { $v /= 1024; $i++; }
-    return number_format($v, $v >= 100 ? 0 : 1) . ' ' . $units[$i];
-};
 $levels = ['' => 'All levels', 'error' => 'Error', 'warning' => 'Warning', 'notice' => 'Notice', 'deprecated' => 'Deprecated'];
 ?>
 <div style="max-width:960px;margin:0 auto;">
@@ -16,7 +9,7 @@ $levels = ['' => 'All levels', 'error' => 'Error', 'warning' => 'Warning', 'noti
     <div>
       <h2 style="font-size:20px;font-weight:600;margin:0 0 var(--space-2);">data/errors.log</h2>
       <p class="muted" style="font-size:13px;margin:0;">
-        <?= e($hb((int)$logSize)) ?> on disk · showing last <?= count($entries) ?> entr<?= count($entries) === 1 ? 'y' : 'ies' ?>
+        <?= e(human_bytes((int)$logSize)) ?> on disk · showing last <?= count($entries) ?> entr<?= count($entries) === 1 ? 'y' : 'ies' ?>
         <?php if ($level !== ''): ?>· filtered by <code><?= e($level) ?></code><?php endif; ?>
       </p>
     </div>

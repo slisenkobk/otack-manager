@@ -71,6 +71,7 @@ App::singleton('activity', fn() => new \App\Repository\ActivityLogRepository(App
 App::singleton('compass', fn() => new \App\Service\CompassService(
     App::make('db'),
     App::make('schema'),
+    App::make('settings'),
     APP_ROOT . '/data/sessions',
     APP_ROOT . '/' . App::env('UPLOAD_DIR', 'public/uploads'),
     APP_ROOT . '/data/errors.log',

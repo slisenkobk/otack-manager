@@ -1,5 +1,9 @@
 /data/app.sqlite
+/data/app.sqlite-wal
+/data/app.sqlite-shm
 /data/app.test.sqlite
+/data/app.test.sqlite-wal
+/data/app.test.sqlite-shm
 /data/sessions/
 /data/.schema/
 /data/.schema.test/

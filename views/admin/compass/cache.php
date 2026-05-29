@@ -2,13 +2,6 @@
 // Inputs: $sessions{total,stale,stale_bytes,lifetime_seconds},
 //         $uploads{total,orphan,orphan_bytes},
 //         $assetVersion, $csrfToken
-$hb = function (int $bytes): string {
-    if ($bytes < 1024) return $bytes . ' B';
-    $units = ['KB', 'MB', 'GB'];
-    $v = $bytes / 1024; $i = 0;
-    while ($v >= 1024 && $i < count($units) - 1) { $v /= 1024; $i++; }
-    return number_format($v, $v >= 100 ? 0 : 1) . ' ' . $units[$i];
-};
 $hours = (int)round($sessions['lifetime_seconds'] / 3600);
 $card = 'background:var(--paper);border:1px solid var(--rule);border-radius:var(--radius);padding:var(--space-8);display:flex;flex-direction:column;gap:var(--space-4);';
 $cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:center;gap:var(--space-3);';
@@ -28,7 +21,7 @@ $cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:c
         <strong style="color:<?= $sessions['stale'] > 0 ? 'var(--accent)' : 'var(--text-2)' ?>;">
           <?= (int)$sessions['stale'] ?>
         </strong> stale
-        <span class="muted">(<?= e($hb((int)$sessions['stale_bytes'])) ?>)</span>
+        <span class="muted">(<?= e(human_bytes((int)$sessions['stale_bytes'])) ?>)</span>
       </p>
       <p class="muted" style="font-size:12px;margin:0;">Stale = older than <?= $hours ?>h (SESSION_LIFETIME). Active sessions are kept.</p>
       <div>
@@ -51,7 +44,7 @@ $cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:c
         <strong style="color:<?= $uploads['orphan'] > 0 ? 'var(--accent)' : 'var(--text-2)' ?>;">
           <?= (int)$uploads['orphan'] ?>
         </strong> orphan
-        <span class="muted">(<?= e($hb((int)$uploads['orphan_bytes'])) ?>)</span>
+        <span class="muted">(<?= e(human_bytes((int)$uploads['orphan_bytes'])) ?>)</span>
       </p>
       <p class="muted" style="font-size:12px;margin:0;">
         Files present in <code>public/uploads/</code> but missing from the <code>attachments</code> table.
