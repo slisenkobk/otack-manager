@@ -5,13 +5,13 @@ $errors = $errors ?? [];
 $values = $values ?? [];
 $contact = $contact ?? [];
 ?><!doctype html>
-<html lang="en">
+<html lang="<?= e(user_locale()) ?>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e(app_name() . ' - ' . $form['title']) ?></title>
 <link rel="icon" type="image/svg+xml" href="<?= e(app_favicon_href()) ?>">
-<link rel="stylesheet" href="/assets/css/app.css">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/app.css')) ?>">
 <link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
 <?= app_brand_style_tag() ?>
 </head>
@@ -29,7 +29,7 @@ $contact = $contact ?? [];
     <form method="post" action="/f/<?= e($form['hash']) ?>" novalidate>
       <?php // Anti-bot honeypot — hidden from sighted users + screen readers. ?>
       <div class="pf-honeypot" aria-hidden="true">
-        <label>Leave this field empty:
+        <label><?= e(t('public_form.honeypot')) ?>
           <input type="text" name="<?= e($honeypot ?? 'email_address') ?>" tabindex="-1" autocomplete="off">
         </label>
       </div>
@@ -38,7 +38,7 @@ $contact = $contact ?? [];
       <input type="hidden" name="ts_sig" value="<?= e((string)($trap['sig'] ?? '')) ?>">
 
       <div class="pf-card">
-        <h3 class="pf-card__title">Your answers</h3>
+        <h3 class="pf-card__title"><?= e(t('public_form.your_answers')) ?></h3>
 
         <?php foreach ($fields as $f):
           $val = $values[$f['key']] ?? '';
@@ -54,7 +54,7 @@ $contact = $contact ?? [];
             <?php elseif ($f['type'] === 'select'): ?>
               <div class="pf-select">
                 <select id="f_<?= e($f['key']) ?>" class="select" name="<?= e($f['key']) ?>">
-                  <option value="">— pick —</option>
+                  <option value=""><?= e(t('public_form.pick')) ?></option>
                   <?php foreach (($f['options'] ?? []) as $opt): ?>
                     <option value="<?= e($opt) ?>"<?= $val === $opt ? ' selected' : '' ?>><?= e($opt) ?></option>
                   <?php endforeach; ?>
@@ -105,7 +105,7 @@ $contact = $contact ?? [];
         $contactNotes = array_values(array_filter($contact, fn($r) => $r['kind'] === 'note'));
       ?>
         <aside class="pf-contact">
-          <h3 class="pf-card__title">Contact info</h3>
+          <h3 class="pf-card__title"><?= e(t('public_form.contact_info')) ?></h3>
           <?php if (!empty($contactRows)): ?>
             <dl class="pf-contact__list">
               <?php foreach ($contactRows as $row): ?>
@@ -131,7 +131,7 @@ $contact = $contact ?? [];
       <?php endif; ?>
 
       <div class="pf-actions">
-        <button class="btn btn--primary submit pf-submit" type="submit">Submit <i class="fa-solid fa-arrow-right"></i></button>
+        <button class="btn btn--primary submit pf-submit" type="submit"><?= e(t('public_form.submit')) ?> <i class="fa-solid fa-arrow-right"></i></button>
       </div>
     </form>
 

@@ -14,22 +14,23 @@ $cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:c
     <section style="<?= e($card) ?>">
       <h3 style="<?= e($cardTitle) ?>">
         <i class="fa-solid fa-clock-rotate-left" style="color:var(--text-2);" aria-hidden="true"></i>
-        Sessions
+        <?= e(t('compass.cache.sessions')) ?>
       </h3>
       <p style="margin:0;font-size:14px;">
-        <strong><?= (int)$sessions['total'] ?></strong> total ·
-        <strong style="color:<?= $sessions['stale'] > 0 ? 'var(--accent)' : 'var(--text-2)' ?>;">
-          <?= (int)$sessions['stale'] ?>
-        </strong> stale
-        <span class="muted">(<?= e(human_bytes((int)$sessions['stale_bytes'])) ?>)</span>
+        <?= t('compass.cache.sessions.stats', [
+            'total' => '<strong>' . (int)$sessions['total'] . '</strong>',
+            'stale' => '<strong style="color:' . ($sessions['stale'] > 0 ? 'var(--accent)' : 'var(--text-2)') . ';">' . (int)$sessions['stale'] . '</strong>',
+            'bytes' => '<span class="muted">' . e(human_bytes((int)$sessions['stale_bytes'])) . '</span>',
+        ]) ?>
       </p>
-      <p class="muted" style="font-size:12px;margin:0;">Stale = older than <?= $hours ?>h (SESSION_LIFETIME). Active sessions are kept.</p>
+      <p class="muted" style="font-size:12px;margin:0;"><?= e(t('compass.cache.sessions.hint', ['hours' => $hours])) ?></p>
       <div>
         <button class="btn btn--danger" type="button"
                 data-compass-action="clear-sessions"
-                data-compass-count="<?= (int)$sessions['stale'] ?>"
+                data-compass-confirm="<?= e(t('compass.cache.sessions.confirm', ['n' => (int)$sessions['stale']])) ?>"
+                data-compass-confirm-label="<?= e(t('common.delete')) ?>"
                 <?= $sessions['stale'] === 0 ? 'disabled' : '' ?>>
-          Clear stale sessions
+          <?= e(t('compass.cache.sessions.clear')) ?>
         </button>
       </div>
     </section>
@@ -37,24 +38,25 @@ $cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:c
     <section style="<?= e($card) ?>">
       <h3 style="<?= e($cardTitle) ?>">
         <i class="fa-solid fa-folder-open" style="color:var(--text-2);" aria-hidden="true"></i>
-        Orphan uploads
+        <?= e(t('compass.cache.uploads')) ?>
       </h3>
       <p style="margin:0;font-size:14px;">
-        <strong><?= (int)$uploads['total'] ?></strong> files on disk ·
-        <strong style="color:<?= $uploads['orphan'] > 0 ? 'var(--accent)' : 'var(--text-2)' ?>;">
-          <?= (int)$uploads['orphan'] ?>
-        </strong> orphan
-        <span class="muted">(<?= e(human_bytes((int)$uploads['orphan_bytes'])) ?>)</span>
+        <?= t('compass.cache.uploads.stats', [
+            'total'  => '<strong>' . (int)$uploads['total'] . '</strong>',
+            'orphan' => '<strong style="color:' . ($uploads['orphan'] > 0 ? 'var(--accent)' : 'var(--text-2)') . ';">' . (int)$uploads['orphan'] . '</strong>',
+            'bytes'  => '<span class="muted">' . e(human_bytes((int)$uploads['orphan_bytes'])) . '</span>',
+        ]) ?>
       </p>
       <p class="muted" style="font-size:12px;margin:0;">
-        Files present in <code>public/uploads/</code> but missing from the <code>attachments</code> table.
+        <?= t('compass.cache.uploads.hint', ['path' => '<code>public/uploads/</code>', 'table' => '<code>attachments</code>']) ?>
       </p>
       <div>
         <button class="btn btn--danger" type="button"
                 data-compass-action="clear-uploads-orphans"
-                data-compass-count="<?= (int)$uploads['orphan'] ?>"
+                data-compass-confirm="<?= e(t('compass.cache.uploads.confirm', ['n' => (int)$uploads['orphan']])) ?>"
+                data-compass-confirm-label="<?= e(t('common.delete')) ?>"
                 <?= $uploads['orphan'] === 0 ? 'disabled' : '' ?>>
-          Delete orphan files
+          <?= e(t('compass.cache.uploads.clear')) ?>
         </button>
       </div>
     </section>
@@ -62,24 +64,24 @@ $cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:c
     <section style="<?= e($card) ?>">
       <h3 style="<?= e($cardTitle) ?>">
         <i class="fa-solid fa-rotate" style="color:var(--text-2);" aria-hidden="true"></i>
-        Asset cache
+        <?= e(t('compass.cache.assets')) ?>
       </h3>
       <p style="margin:0;font-size:14px;">
-        Current version:
-        <strong>
-          <?php if ($assetVersion !== ''): ?>
-            <code><?= e($assetVersion) ?></code>
-          <?php else: ?>
-            <span class="muted">none</span>
-          <?php endif; ?>
-        </strong>
+        <?= t('compass.cache.assets.current', [
+            'version' => $assetVersion !== ''
+                ? '<strong><code>' . e($assetVersion) . '</code></strong>'
+                : '<strong><span class="muted">' . e(t('compass.cache.assets.none')) . '</span></strong>',
+        ]) ?>
       </p>
       <p class="muted" style="font-size:12px;margin:0;">
-        Bumps the <code>?v=</code> query on every CSS/JS link so clients refetch.
+        <?= e(t('compass.cache.assets.hint')) ?>
       </p>
       <div>
-        <button class="btn btn--primary" type="button" data-compass-action="bust-asset-cache">
-          Bust browser cache
+        <button class="btn btn--primary" type="button"
+                data-compass-action="bust-asset-cache"
+                data-compass-confirm="<?= e(t('compass.cache.assets.confirm')) ?>"
+                data-compass-confirm-label="<?= e(t('compass.cache.assets.bump')) ?>">
+          <?= e(t('compass.cache.assets.bust')) ?>
         </button>
       </div>
     </section>

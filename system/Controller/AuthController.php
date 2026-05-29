@@ -42,7 +42,7 @@ final class AuthController extends BaseController {
     public function loginForm(Request $req, array $params = []): void {
         if ($this->user) { Response::redirect('/'); return; }
         Response::html($this->view->render('auth/login', [
-            'title'     => 'Login',
+            'title'     => t('auth.sign_in'),
             'csrfToken' => $this->csrf->token(),
             'error'     => $this->consumeFlash('flash_error'),
         ], 'layouts/auth'));
@@ -54,28 +54,30 @@ final class AuthController extends BaseController {
         $result   = $this->auth->login($email, $password);
 
         if ($result === null) {
-            $this->flash('flash_error', 'Невірний email або пароль');
+            $this->flash('flash_error', t('auth.invalid_credentials'));
             Response::redirect('/login'); return;
         }
         if ($result === 'throttled') {
-            $this->flash('flash_error', 'Забагато спроб. Спробуйте за 15 хв');
+            $this->flash('flash_error', t('auth.throttled'));
             Response::redirect('/login'); return;
         }
         if ($result === 'pending') {
             Response::redirect('/pending'); return;
         }
         if ($result === 'blocked') {
-            $this->flash('flash_error', 'Обліковий запис заблоковано');
+            $this->flash('flash_error', t('auth.account_blocked'));
             Response::redirect('/login'); return;
         }
-        // success
+        // success — drop the resolved-locale cache so the post-login page picks
+        // up the new user's locale instead of the Accept-Language fallback.
+        i18n_reset_cache();
         $this->csrf->regenerate();
         Response::redirect('/');
     }
 
     public function registerForm(Request $req, array $params = []): void {
         Response::html($this->view->render('auth/register', [
-            'title'     => 'Register',
+            'title'     => t('auth.create_account'),
             'csrfToken' => $this->csrf->token(),
             'error'     => $this->consumeFlash('flash_error'),
         ], 'layouts/auth'));
@@ -86,29 +88,45 @@ final class AuthController extends BaseController {
         $email    = trim($req->post['email'] ?? '');
         $password = $req->post['password'] ?? '';
 
-        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 8) {
-            $this->flash('flash_error', 'Перевірте поля: ім\'я, валідна пошта, пароль від 8 символів');
+        if ($name === '') {
+            $this->flash('flash_error', t('auth.name_required'));
+            Response::redirect('/register'); return;
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->flash('flash_error', t('auth.invalid_credentials'));
+            Response::redirect('/register'); return;
+        }
+        if (strlen($password) < 8) {
+            $this->flash('flash_error', t('auth.password_too_short'));
             Response::redirect('/register'); return;
         }
         if ($this->users->findByEmail($email)) {
-            $this->flash('flash_error', 'Користувач з цією поштою вже існує');
+            $this->flash('flash_error', t('auth.email_taken'));
             Response::redirect('/register'); return;
         }
 
         $hasher = App::make('hasher');
         $hash   = $hasher->hash($password);
         $id     = $this->users->create($email, $hash, $name);
+
+        // Inherit the admin-configured default locale, but never write an
+        // unknown code (defaults to 'en' if the setting is missing/invalid).
+        $defaultLocale = App::make('settings')->get('default_locale', 'en');
+        if (!in_array($defaultLocale, available_locales(), true)) $defaultLocale = 'en';
+        $this->users->updateLocale($id, $defaultLocale);
+
         App::make('events')->fire('user.registered', [
             'user_id' => $id,
             'name'    => $name,
             'email'   => $email,
         ]);
-        $user   = $this->users->findById($id);
+        $user = $this->users->findById($id);
 
         // First-ever user is auto-approved + auto-logged-in
         if (($user['status'] ?? '') === 'approved') {
             $s = &$this->session();
             $s['user_id'] = (int)$id;
+            i18n_reset_cache();
             $this->csrf->regenerate();
             Response::redirect('/'); return;
         }
@@ -118,7 +136,7 @@ final class AuthController extends BaseController {
 
     public function pending(Request $req, array $params = []): void {
         Response::html($this->view->render('auth/pending', [
-            'title'     => 'Awaiting approval',
+            'title'     => t('auth.pending_title'),
             'csrfToken' => $this->csrf->token(),
         ], 'layouts/auth'));
     }

@@ -1,30 +1,30 @@
 <div class="page-actions" style="margin-bottom:var(--space-8);justify-content:space-between;gap:10px;">
   <form method="get" action="/users" class="search-field search-field--with-submit" style="margin:0;">
     <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted);font-size:12px;"></i>
-    <input class="input input--inline" name="q" placeholder="Search users by name or email…" value="<?= e($query ?? '') ?>" data-user-search>
-    <button type="submit" class="search-field__submit" aria-label="Search"><i class="fa-solid fa-arrow-right"></i></button>
+    <input class="input input--inline" name="q" placeholder="<?= e(t('users.search_placeholder')) ?>" value="<?= e($query ?? '') ?>" data-user-search>
+    <button type="submit" class="search-field__submit" aria-label="<?= e(t('common.search')) ?>"><i class="fa-solid fa-arrow-right"></i></button>
   </form>
   <button type="button" class="btn btn--secondary" data-action="new-user">
-    <i class="fa-solid fa-user-plus"></i> New user
+    <i class="fa-solid fa-user-plus"></i> <?= e(t('users.new_user')) ?>
   </button>
 </div>
 
 <?php if (!$users): ?>
   <div class="empty-state">
     <span class="empty-state__tag"><?= e(app_name()) ?></span>
-    <p class="empty-state__text"><?= !empty($query) ? 'No users match "' . e($query) . '".' : 'No users yet.' ?></p>
+    <p class="empty-state__text"><?= !empty($query) ? e(t('users.empty.match', ['q' => $query])) : e(t('users.empty.none')) ?></p>
   </div>
 <?php else: ?>
-<?php $roleLabels = ['admin' => 'Admin', 'manager' => 'Manager', 'employee' => 'Employee']; ?>
+<?php $roleLabels = ['admin' => t('role.admin'), 'manager' => t('role.manager'), 'employee' => t('role.employee')]; ?>
 <div class="data-table-wrap">
   <table class="data-table">
     <thead>
       <tr>
-        <th>User</th>
-        <th>Role</th>
-        <th>Status</th>
-        <th>Joined</th>
-        <th class="data-table__cell--actions">Actions</th>
+        <th><?= e(t('users.table.user')) ?></th>
+        <th><?= e(t('users.table.role')) ?></th>
+        <th><?= e(t('users.table.status')) ?></th>
+        <th><?= e(t('users.table.joined')) ?></th>
+        <th class="data-table__cell--actions"><?= e(t('common.actions')) ?></th>
       </tr>
     </thead>
     <tbody>
@@ -62,7 +62,7 @@
             <?php endif; ?>
           </td>
           <td>
-            <span class="status<?= $u['status'] === 'approved' ? ' is-ready' : '' ?>"><?= e($u['status']) ?></span>
+            <span class="status<?= $u['status'] === 'approved' ? ' is-ready' : '' ?>"><?= e(t('status.user.' . $u['status'])) ?></span>
           </td>
           <td>
             <span class="data-table__meta-time"><?= fmt_date($u['created_at']) ?></span>
@@ -70,20 +70,20 @@
           <td class="data-table__cell--actions">
             <div style="display:inline-flex;gap:6px;" data-actions>
               <?php if ($u['status'] === 'pending'): ?>
-                <button class="btn-secondary" data-action="approve" type="button" title="Approve">
-                  <i class="fa-solid fa-check"></i> Approve
+                <button class="btn-secondary" data-action="approve" type="button" title="<?= e(t('users.action.approve')) ?>">
+                  <i class="fa-solid fa-check"></i> <?= e(t('users.action.approve')) ?>
                 </button>
               <?php endif; ?>
-              <button class="btn-secondary" data-action="edit-user" type="button" title="Edit user">
+              <button class="btn-secondary" data-action="edit-user" type="button" title="<?= e(t('users.action.edit')) ?>">
                 <i class="fa-solid fa-pen"></i>
               </button>
               <?php if ($u['status'] !== 'blocked' && (int)$u['id'] !== (int)$currentUserId): ?>
-                <button class="btn-secondary" data-action="block" type="button" title="Block">
+                <button class="btn-secondary" data-action="block" type="button" title="<?= e(t('users.action.block')) ?>">
                   <i class="fa-solid fa-ban"></i>
                 </button>
               <?php endif; ?>
               <?php if ((int)$u['id'] !== (int)$currentUserId): ?>
-                <button class="btn-danger" data-action="delete" type="button" title="Delete">
+                <button class="btn-danger" data-action="delete" type="button" title="<?= e(t('users.action.delete')) ?>">
                   <i class="fa-solid fa-trash"></i>
                 </button>
               <?php endif; ?>

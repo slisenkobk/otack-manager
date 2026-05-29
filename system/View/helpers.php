@@ -65,6 +65,189 @@ function human_bytes(int $bytes): string
     return number_format($v, $v >= 100 ? 0 : 1) . ' ' . $units[$i];
 }
 
+// ─── i18n ────────────────────────────────────────────────────────────────────
+//
+// Plain-PHP catalogs under system/i18n/<locale>.php — each returns an array
+// of `'dotted.key' => 'String'` mappings. Plural-aware entries are arrays
+// keyed by the language's plural form names (en: one/other, pl: one/few/many).
+//
+// Locale resolution per request, cached by i18n_locale_cache():
+//   1. ?locale= query param (only when APP_DEBUG=true)
+//   2. session _locale_override (set when an admin temporarily previews PL)
+//   3. authenticated user's users.locale
+//   4. Accept-Language header (`en` / `pl` prefix match)
+//   5. fallback 'en'
+
+/** @return list<string> */
+function available_locales(): array { return ['en', 'pl']; }
+
+/** @return array<string, string> code => native display name */
+function locale_display_names(): array
+{
+    return ['en' => 'English', 'pl' => 'Polski'];
+}
+
+function user_locale(): string
+{
+    if (isset($GLOBALS['__i18n_locale_resolved__'])) return $GLOBALS['__i18n_locale_resolved__'];
+    $available = available_locales();
+    $debug = false;
+    try { $debug = \App\App::env('APP_DEBUG') === 'true'; } catch (\Throwable $_) {}
+
+    if ($debug) {
+        $q = (string)($_GET['locale'] ?? '');
+        if ($q !== '' && in_array($q, $available, true)) {
+            return $GLOBALS['__i18n_locale_resolved__'] = $q;
+        }
+    }
+
+    $override = $_SESSION['_locale_override'] ?? null;
+    if (is_string($override) && in_array($override, $available, true)) {
+        return $GLOBALS['__i18n_locale_resolved__'] = $override;
+    }
+
+    try {
+        $store = \App\App::make('session')->store ?? [];
+        $userId = $store['user_id'] ?? null;
+        if ($userId) {
+            $u = \App\App::make('users')->findById((int)$userId);
+            if ($u && !empty($u['locale']) && in_array($u['locale'], $available, true)) {
+                return $GLOBALS['__i18n_locale_resolved__'] = (string)$u['locale'];
+            }
+        }
+    } catch (\Throwable $_) {}
+
+    $accept = (string)($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '');
+    foreach (explode(',', $accept) as $tag) {
+        $code = strtolower(substr(trim(explode(';', $tag)[0]), 0, 2));
+        if (in_array($code, $available, true)) {
+            return $GLOBALS['__i18n_locale_resolved__'] = $code;
+        }
+    }
+
+    return $GLOBALS['__i18n_locale_resolved__'] = 'en';
+}
+
+/**
+ * Resets the per-request locale + catalog cache. Tests call this between
+ * cases; production code never needs to.
+ */
+function i18n_reset_cache(): void
+{
+    unset(
+        $GLOBALS['__i18n_catalog__'],
+        $GLOBALS['__i18n_locale__'],
+        $GLOBALS['__i18n_locale_resolved__']
+    );
+}
+
+/** @return array<string, mixed> the loaded catalog for the current locale */
+function i18n_catalog(): array
+{
+    $locale = user_locale();
+    if (!empty($GLOBALS['__i18n_catalog__']) && ($GLOBALS['__i18n_locale__'] ?? null) === $locale) {
+        return $GLOBALS['__i18n_catalog__'];
+    }
+    $path = APP_ROOT . '/system/i18n/' . $locale . '.php';
+    $cat = is_file($path) ? (require $path) : [];
+    if (!is_array($cat)) $cat = [];
+    $GLOBALS['__i18n_catalog__'] = $cat;
+    $GLOBALS['__i18n_locale__']  = $locale;
+    return $cat;
+}
+
+/**
+ * Translate a key. Falls back to the key itself when missing — that surfaces
+ * untranslated strings in development without crashing pages.
+ *
+ * `$args` substitutes `:name` placeholders via strtr. Example:
+ *   t('greeting', ['name' => 'Bohdan'])  // catalog: 'Hello, :name!'
+ */
+function t(string $key, array $args = []): string
+{
+    $cat = i18n_catalog();
+    $val = $cat[$key] ?? null;
+    if (!is_string($val) || $val === '') {
+        // English fallback when the active locale is missing this key.
+        if (user_locale() !== 'en') {
+            $en = APP_ROOT . '/system/i18n/en.php';
+            if (is_file($en)) {
+                $fb = require $en;
+                if (is_array($fb) && isset($fb[$key]) && is_string($fb[$key])) {
+                    $val = $fb[$key];
+                }
+            }
+        }
+    }
+    if (!is_string($val) || $val === '') return $key;
+    if ($args) {
+        $sub = [];
+        foreach ($args as $k => $v) $sub[':' . $k] = (string)$v;
+        return strtr($val, $sub);
+    }
+    return $val;
+}
+
+/**
+ * Plural-aware translate. The catalog stores the key as an array of plural
+ * forms; we pick the form matching $count using the current locale's rules,
+ * substitute `:n` (and any extra $args) into the chosen form.
+ *
+ * Catalog shape:
+ *   'tasks.count' => ['one' => ':n task', 'other' => ':n tasks'],          // en
+ *   'tasks.count' => ['one' => ':n zadanie', 'few' => ':n zadania',         // pl
+ *                     'many' => ':n zadań'],
+ *
+ * Polish forms:
+ *   one  → n = 1
+ *   few  → n % 10 ∈ {2,3,4} AND n % 100 ∉ {12,13,14}
+ *   many → everything else (0, 5–21, 22–24 use few again, …)
+ */
+function tn(string $key, int $count, array $args = []): string
+{
+    $cat = i18n_catalog();
+    $entry = $cat[$key] ?? null;
+    if (!is_array($entry)) {
+        // Missing or wrong shape — fall back to English catalog so the page
+        // doesn't break on an untranslated key.
+        if (user_locale() !== 'en') {
+            $en = APP_ROOT . '/system/i18n/en.php';
+            if (is_file($en)) {
+                $fb = require $en;
+                if (is_array($fb) && isset($fb[$key]) && is_array($fb[$key])) {
+                    $entry = $fb[$key];
+                }
+            }
+        }
+    }
+    if (!is_array($entry)) return $key;
+
+    $form = i18n_plural_form(user_locale(), $count);
+    $tmpl = $entry[$form] ?? ($entry['other'] ?? ($entry['many'] ?? reset($entry)));
+    if (!is_string($tmpl)) return $key;
+
+    $sub = [':n' => (string)$count];
+    foreach ($args as $k => $v) $sub[':' . $k] = (string)$v;
+    return strtr($tmpl, $sub);
+}
+
+/** Pick which plural form name applies to a count under a given locale. */
+function i18n_plural_form(string $locale, int $count): string
+{
+    $n = abs($count);
+    if ($locale === 'pl') {
+        if ($n === 1) return 'one';
+        $rem10 = $n % 10;
+        $rem100 = $n % 100;
+        if ($rem10 >= 2 && $rem10 <= 4 && !($rem100 >= 12 && $rem100 <= 14)) {
+            return 'few';
+        }
+        return 'many';
+    }
+    // English (and default): one / other.
+    return $n === 1 ? 'one' : 'other';
+}
+
 /**
  * Resolve the configured timezone. No cross-request static cache — long-lived
  * workers (PHP-FPM, the dev server) would otherwise serve stale values after an
@@ -164,20 +347,25 @@ function attach_icon(string $kind, string $mime): string
  * Allowed project statuses with display labels.
  * Centralized so controllers/views/repos agree.
  */
+/**
+ * Returns the list of project statuses as `code => translated label`.
+ * The keys are the underlying values stored in the DB; the labels are
+ * resolved via the i18n catalog so they follow the active locale.
+ */
 function project_statuses(): array
 {
-    return [
-        'active'       => 'Active',
-        'planning'     => 'Planning',
-        'under_review' => 'Under review',
-        'archived'     => 'Archived',
-    ];
+    $codes = ['active', 'planning', 'under_review', 'archived'];
+    $out = [];
+    foreach ($codes as $code) $out[$code] = t('status.project.' . $code);
+    return $out;
 }
 
 function project_status_label(?string $status): string
 {
-    $map = project_statuses();
-    return $map[(string)$status] ?? ucfirst((string)$status);
+    $code = (string)$status;
+    if ($code === '') return '';
+    $label = t('status.project.' . $code);
+    return $label !== 'status.project.' . $code ? $label : ucfirst($code);
 }
 
 /**

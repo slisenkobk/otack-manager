@@ -1,14 +1,14 @@
 <?php
 header('Content-Type: text/html; charset=utf-8');
 ?><!doctype html>
-<html lang="en">
+<html lang="<?= e(user_locale()) ?>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= e(app_name()) ?> - Submission received</title>
+<title><?= e(app_name()) ?> - <?= e(t('public_form.thanks_title')) ?></title>
 <link rel="icon" type="image/svg+xml" href="<?= e(app_favicon_href()) ?>">
 <?= app_brand_style_tag() ?>
-<link rel="stylesheet" href="/assets/css/app.css">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/app.css')) ?>">
 <link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
 <style>
   body { background:
@@ -28,8 +28,8 @@ header('Content-Type: text/html; charset=utf-8');
 <body>
   <div class="pf-thanks">
     <i class="fa-solid fa-circle-check"></i>
-    <h1>Thanks — your submission was received</h1>
-    <p>We'll get back to you shortly.<br>You may close this tab.</p>
+    <h1><?= e(t('public_form.thanks_title')) ?></h1>
+    <p><?= e(t('public_form.thanks_body')) ?></p>
   </div>
 </body>
 </html>

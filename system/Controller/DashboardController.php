@@ -75,10 +75,10 @@ final class DashboardController extends BaseController {
         ]);
         $topbar = $this->view->render('partials/topbar', [
             'user'  => $this->user,
-            'crumb' => 'Dashboard',
+            'crumb' => t('nav.dashboard'),
         ]);
         Response::html($this->view->render('layouts/main', [
-            'title'     => 'Dashboard',
+            'title'     => t('nav.dashboard'),
             'csrfToken' => $csrfToken,
             'sidebar'   => $sidebar,
             'topbar'    => $topbar,

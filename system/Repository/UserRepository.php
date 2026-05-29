@@ -118,4 +118,8 @@ final class UserRepository {
     public function updateAvatar(int $id, ?string $filename): void {
         $this->pdo->prepare('UPDATE users SET avatar = ? WHERE id = ?')->execute([$filename, $id]);
     }
+
+    public function updateLocale(int $id, string $locale): void {
+        $this->pdo->prepare('UPDATE users SET locale = ? WHERE id = ?')->execute([$locale, $id]);
+    }
 }

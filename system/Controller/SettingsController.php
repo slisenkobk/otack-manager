@@ -18,6 +18,7 @@ final class SettingsController extends BaseController
         'app_name'              => ['label' => 'App name',           'default' => ''],
         'app_color'             => ['label' => 'Brand color',        'default' => ''],
         'timezone'              => ['label' => 'Timezone',           'default' => 'Europe/Kyiv'],
+        'default_locale'        => ['label' => 'Default language',   'default' => 'en'],
         'contact_company_name'  => ['label' => 'Company name',       'default' => ''],
         'contact_email'         => ['label' => 'Contact email',      'default' => ''],
         'contact_phone'         => ['label' => 'Contact phone',      'default' => ''],
@@ -44,10 +45,10 @@ final class SettingsController extends BaseController
             'user' => $this->user, 'activeNav' => 'settings', 'csrfToken' => $csrfToken,
         ]);
         $topbar  = $this->view->render('partials/topbar', [
-            'user' => $this->user, 'crumb' => 'Settings',
+            'user' => $this->user, 'crumb' => t('settings.title'),
         ]);
         Response::html($this->view->render('layouts/main', [
-            'title'     => 'Settings',
+            'title'     => t('settings.title'),
             'csrfToken' => $csrfToken,
             'sidebar'   => $sidebar,
             'topbar'    => $topbar,
@@ -92,6 +93,9 @@ final class SettingsController extends BaseController
                 // Accept #RRGGBB only — input type=color always sends 7 chars.
                 if (!preg_match('/^#[0-9a-f]{6}$/i', $val)) continue;
                 $val = strtolower($val);
+            }
+            if ($k === 'default_locale') {
+                if (!in_array($val, available_locales(), true)) continue;
             }
             $pairs[$k] = $val;
         }

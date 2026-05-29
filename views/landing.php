@@ -1,7 +1,7 @@
 <?php
 header('Content-Type: text/html; charset=utf-8');
 ?><!doctype html>
-<html lang="en">
+<html lang="<?= e(user_locale()) ?>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -168,20 +168,14 @@ header('Content-Type: text/html; charset=utf-8');
       <span class="brand__logo">Ot</span>
       <span class="brand__name"><strong>Otack</strong> Manager</span>
     </div>
-    <h1>Welcome to <em>Otack Manager</em>.</h1>
-    <p>
-      This is a private workspace for the Otack team — project boards, tasks,
-      and collaboration tools. Access is invite-only.
-    </p>
-    <p style="margin-bottom:0;">
-      Need an account? Please reach out to your administrator and they will
-      provide you with the access link.
-    </p>
+    <h1><?= t('landing.h1', ['app' => '<em>' . e(app_name()) . '</em>']) ?></h1>
+    <p><?= e(t('landing.body_1')) ?></p>
+    <p style="margin-bottom:0;"><?= e(t('landing.body_2')) ?></p>
     <div class="meta" style="margin-top:32px;">
       <span class="meta__dot"></span>
-      <span>Restricted area</span>
+      <span><?= e(t('landing.tag_restricted')) ?></span>
       <span class="meta__sep">·</span>
-      <span>Invite required</span>
+      <span><?= e(t('landing.tag_invite')) ?></span>
     </div>
   </article>
 </main>

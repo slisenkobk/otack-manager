@@ -207,6 +207,7 @@ $router->post('/profile', 'Profile@update');
 $router->post('/profile/password', 'Profile@updatePassword');
 $router->post('/profile/avatar', 'Profile@updateAvatar');
 $router->post('/profile/avatar/delete', 'Profile@removeAvatar');
+$router->post('/profile/locale', 'Profile@updateLocale');
 
 $router->get('/projects', 'Project@index');
 $router->get('/projects/new', 'Project@createForm');

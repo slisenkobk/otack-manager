@@ -3,7 +3,7 @@
     <?php if (!empty($crumbNum)): ?>
       <span class="topbar__title-num"><?= e($crumbNum) ?></span>
     <?php endif; ?>
-    <span><?= e($crumb ?? 'Dashboard') ?></span>
+    <span><?= e($crumb ?? t('nav.dashboard')) ?></span>
     <?php if (!empty($crumbExtra)): ?>
       <span class="topbar__title-extra"><?= $crumbExtra ?></span>
     <?php endif; ?>
@@ -12,7 +12,7 @@
     <?php if (!empty($user['name'])): ?>
       <div class="user-menu" data-user-menu>
         <button type="button" class="topbar__user" data-user-menu-toggle
-                aria-haspopup="menu" aria-expanded="false" aria-label="Open account menu">
+                aria-haspopup="menu" aria-expanded="false" aria-label="<?= e(t('nav.profile')) ?>">
           <span class="topbar__user-name"><?= e($user['name']) ?></span>
           <?= user_avatar_html((int)($user['id'] ?? 0), $user['name'] ?? '', $user['avatar'] ?? null, 'md') ?>
         </button>
@@ -25,19 +25,19 @@
           </div>
           <a class="user-menu__item" href="/profile" role="menuitem">
             <i class="fa-solid fa-user" aria-hidden="true"></i>
-            <span>Profile</span>
+            <span><?= e(t('nav.profile')) ?></span>
           </a>
           <?php $themeCurrent = $_COOKIE['theme'] ?? 'auto'; ?>
-          <div class="user-menu__theme" role="group" aria-label="Theme">
-            <span class="user-menu__theme-label">Theme</span>
+          <div class="user-menu__theme" role="group" aria-label="<?= e(t('theme.label')) ?>">
+            <span class="user-menu__theme-label"><?= e(t('theme.label')) ?></span>
             <div class="theme-toggle" data-theme-toggle>
-              <button type="button" data-theme-set="light" class="theme-toggle__btn<?= $themeCurrent === 'light' ? ' is-active' : '' ?>" aria-label="Light theme">
+              <button type="button" data-theme-set="light" class="theme-toggle__btn<?= $themeCurrent === 'light' ? ' is-active' : '' ?>" aria-label="<?= e(t('theme.light')) ?>">
                 <i class="fa-solid fa-sun" aria-hidden="true"></i>
               </button>
-              <button type="button" data-theme-set="auto" class="theme-toggle__btn<?= $themeCurrent === 'auto' ? ' is-active' : '' ?>" aria-label="Match system">
+              <button type="button" data-theme-set="auto" class="theme-toggle__btn<?= $themeCurrent === 'auto' ? ' is-active' : '' ?>" aria-label="<?= e(t('theme.auto')) ?>">
                 <i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i>
               </button>
-              <button type="button" data-theme-set="dark" class="theme-toggle__btn<?= $themeCurrent === 'dark' ? ' is-active' : '' ?>" aria-label="Dark theme">
+              <button type="button" data-theme-set="dark" class="theme-toggle__btn<?= $themeCurrent === 'dark' ? ' is-active' : '' ?>" aria-label="<?= e(t('theme.dark')) ?>">
                 <i class="fa-solid fa-moon" aria-hidden="true"></i>
               </button>
             </div>
@@ -46,7 +46,7 @@
             <input type="hidden" name="_csrf" value="<?= e($csrfToken ?? '') ?>">
             <button type="submit" role="menuitem">
               <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
-              <span>Logout</span>
+              <span><?= e(t('nav.logout')) ?></span>
             </button>
           </form>
         </div>

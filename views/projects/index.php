@@ -10,11 +10,11 @@
     <form method="get" action="/projects" class="kanban-search kanban-search--with-submit" style="margin:0;">
       <input type="hidden" name="status" value="<?= e($status ?? 'active') ?>">
       <i class="fa-solid fa-magnifying-glass"></i>
-      <input class="input input--inline" name="q" placeholder="Search projects…" value="<?= e($query ?? '') ?>" data-project-search>
-      <button type="submit" class="kanban-search__submit" aria-label="Search"><i class="fa-solid fa-arrow-right"></i></button>
+      <input class="input input--inline" name="q" placeholder="<?= e(t('projects.search_placeholder')) ?>" value="<?= e($query ?? '') ?>" data-project-search>
+      <button type="submit" class="kanban-search__submit" aria-label="<?= e(t('common.search')) ?>"><i class="fa-solid fa-arrow-right"></i></button>
     </form>
     <?php if (!empty($canCreateProject)): ?>
-      <a href="/projects/new" class="btn btn--secondary" style="text-decoration:none;">+ New project</a>
+      <a href="/projects/new" class="btn btn--secondary" style="text-decoration:none;"><?= e(t('projects.new_project_short')) ?></a>
     <?php endif; ?>
   </div>
 </div>
@@ -24,11 +24,11 @@
     <span class="empty-state__tag"><?= e(app_name()) ?></span>
     <p class="empty-state__text">
       <?php if (!empty($query)): ?>
-        No projects match "<?= e($query) ?>".
+        <?= e(t('projects.empty.match', ['q' => $query])) ?>
       <?php elseif (($status ?? 'active') !== 'active'): ?>
-        No projects with status "<?= e(project_status_label($status ?? '')) ?>".
+        <?= e(t('projects.empty.status', ['label' => project_status_label($status ?? '')])) ?>
       <?php else: ?>
-        No projects yet. <a href="/projects/new">Create your first one</a>.
+        <?= t('projects.empty.none', ['link' => '<a href="/projects/new">' . e(t('projects.empty.create_first')) . '</a>']) ?>
       <?php endif; ?>
     </p>
   </div>
@@ -36,9 +36,9 @@
   <div class="cards-row">
     <?php foreach ($projects as $i => $p): ?>
       <a class="card<?= !empty($p['pinned_at']) ? ' is-pinned' : '' ?>" href="/projects/<?= (int)$p['id'] ?>" data-project-id="<?= (int)$p['id'] ?>" style="text-decoration:none;color:inherit;">
-        <span class="corner-tag">P-<?= (int)$p['id'] ?></span>
+        <span class="corner-tag"><?= e(t('projects.label.id', ['id' => (int)$p['id']])) ?></span>
         <span class="corner-meta"><?= fmt_date($p['updated_at']) ?></span>
-        <button type="button" class="card-pin<?= !empty($p['pinned_at']) ? ' is-on' : '' ?>" data-action="toggle-pin" aria-label="Pin">
+        <button type="button" class="card-pin<?= !empty($p['pinned_at']) ? ' is-on' : '' ?>" data-action="toggle-pin" aria-label="<?= e(t('projects.pin_aria')) ?>">
           <i class="fa-solid fa-thumbtack"></i>
         </button>
         <div class="card-head">
@@ -53,13 +53,13 @@
         <?php endif; ?>
         <?php $tc = $taskCounts[(int)$p['id']] ?? ['open' => 0, 'total' => 0]; ?>
         <div class="card__tasks">
-          <span class="card__tasks-caption">Tasks</span>
+          <span class="card__tasks-caption"><?= e(t('projects.tasks_caption')) ?></span>
           <span class="card__tasks-num"><?= (int)$tc['open'] ?></span>
-          <span class="card__tasks-label">open<?= $tc['total'] !== $tc['open'] ? ' / ' . (int)$tc['total'] . ' total' : '' ?></span>
+          <span class="card__tasks-label"><?= e(t('projects.tasks_open_label')) ?><?= $tc['total'] !== $tc['open'] ? e(t('projects.tasks_total_suffix', ['n' => (int)$tc['total']])) : '' ?></span>
         </div>
         <div class="card-row">
           <span class="status status--<?= e($p['status']) ?>"><?= e(project_status_label($p['status'])) ?></span>
-          <span class="share-link">Open <span class="arr">&#8594;</span></span>
+          <span class="share-link"><?= e(t('common.open')) ?> <span class="arr">&#8594;</span></span>
         </div>
       </a>
     <?php endforeach; ?>
@@ -74,4 +74,4 @@
   ?>
 <?php endif; ?>
 
-<script type="module" src="/assets/js/projects.js"></script>
+<script type="module" src="<?= e(asset_url('/assets/js/projects.js')) ?>"></script>

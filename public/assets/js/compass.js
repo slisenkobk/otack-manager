@@ -1,31 +1,21 @@
 // Wires the destructive Compass buttons (Migrations · Cache tabs). Reads
-// `data-compass-action` on a button, asks for confirmation via UI.confirm,
-// POSTs to the matching admin endpoint, then toasts + reloads on success.
+// `data-compass-action` on a button + i18n-aware copy from `data-compass-*`
+// attributes injected server-side, asks for confirmation via UI.confirm,
+// POSTs to the matching endpoint, then toasts the server-returned `message`
+// (already translated) and reloads.
 
 const ACTIONS = {
   'clear-sessions': {
     url: '/admin/compass/cache/sessions/clear',
-    confirm: (btn) => {
-      const n = parseInt(btn.dataset.compassCount || '0', 10);
-      return `Delete ${n} stale session file${n === 1 ? '' : 's'}? Users with active sessions are unaffected.`;
-    },
-    confirmLabel: 'Delete',
-    success: (data) => `Cleared ${data.deleted} session${data.deleted === 1 ? '' : 's'}`,
+    danger: true,
   },
   'clear-uploads-orphans': {
     url: '/admin/compass/cache/uploads/orphans/clear',
-    confirm: (btn) => {
-      const n = parseInt(btn.dataset.compassCount || '0', 10);
-      return `Delete ${n} orphan upload${n === 1 ? '' : 's'}? Files referenced by attachments are kept.`;
-    },
-    confirmLabel: 'Delete',
-    success: (data) => `Deleted ${data.deleted} orphan file${data.deleted === 1 ? '' : 's'}`,
+    danger: true,
   },
   'bust-asset-cache': {
     url: '/admin/compass/cache/bust',
-    confirm: () => 'Force every visitor\'s browser to re-download CSS and JS on next page load?',
-    confirmLabel: 'Bump version',
-    success: (data) => `Asset version bumped to ${data.version}`,
+    danger: false,
   },
 };
 
@@ -33,17 +23,19 @@ async function runAction(btn) {
   const key = btn.dataset.compassAction;
   const spec = ACTIONS[key];
   if (!spec) return;
+  const confirmText  = btn.dataset.compassConfirm || 'Are you sure?';
+  const confirmLabel = btn.dataset.compassConfirmLabel || 'OK';
 
-  const ok = await UI.confirm(spec.confirm(btn), {
-    confirmLabel: spec.confirmLabel,
-    danger: spec.confirmLabel === 'Delete',
+  const ok = await UI.confirm(confirmText, {
+    confirmLabel,
+    danger: spec.danger,
   });
   if (!ok) return;
 
   btn.disabled = true;
   try {
     const data = await api(spec.url, { method: 'POST' });
-    UI.toast(spec.success(data), 'success');
+    UI.toast(data.message || 'OK', 'success');
     setTimeout(() => window.location.reload(), 600);
   } catch (err) {
     btn.disabled = false;
@@ -51,20 +43,16 @@ async function runAction(btn) {
 }
 
 async function runMigrations(btn) {
-  const ok = await UI.confirm(
-    'Run all pending migrations now? This wraps everything in one BEGIN IMMEDIATE.',
-    { confirmLabel: 'Run', danger: false }
-  );
+  const confirmText  = btn.dataset.compassConfirm || 'Run pending migrations?';
+  const confirmLabel = btn.dataset.compassConfirmLabel || 'Run';
+
+  const ok = await UI.confirm(confirmText, { confirmLabel, danger: false });
   if (!ok) return;
 
   btn.disabled = true;
   try {
     const data = await api('/admin/compass/migrations/run', { method: 'POST' });
-    const n = (data.applied || []).length;
-    UI.toast(
-      n === 0 ? 'Schema already up to date' : `Applied ${n} migration${n === 1 ? '' : 's'}`,
-      'success'
-    );
+    UI.toast(data.message || 'OK', 'success');
     setTimeout(() => window.location.reload(), 600);
   } catch (err) {
     btn.disabled = false;

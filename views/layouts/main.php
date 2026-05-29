@@ -6,7 +6,7 @@ if (!in_array($themePref, ['light', 'dark', 'auto'], true)) $themePref = 'auto';
 $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 ?>
 <!doctype html>
-<html lang="uk"<?= $themeAttr ?>>
+<html lang="<?= e(user_locale()) ?>"<?= $themeAttr ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

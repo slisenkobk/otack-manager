@@ -30,10 +30,10 @@ final class UserController extends BaseController {
             'user' => $this->user, 'activeNav' => 'users', 'csrfToken' => $csrfToken,
         ]);
         $topbar = $this->view->render('partials/topbar', [
-            'user' => $this->user, 'crumb' => 'Users',
+            'user' => $this->user, 'crumb' => t('nav.users'),
         ]);
         Response::html($this->view->render('layouts/main', [
-            'title' => 'Users',
+            'title' => t('nav.users'),
             'csrfToken' => $csrfToken,
             'sidebar' => $sidebar,
             'topbar' => $topbar,

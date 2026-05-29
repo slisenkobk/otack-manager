@@ -45,9 +45,9 @@ final class ProjectController extends BaseController {
         $pages   = max(1, (int)ceil($total / $perPage));
         $csrf = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
-        $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => 'Projects']);
+        $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => t('nav.projects')]);
         Response::html($this->view->render('layouts/main', [
-            'title' => 'Projects', 'csrfToken' => $csrf, 'sidebar' => $sidebar, 'topbar' => $topbar,
+            'title' => t('nav.projects'), 'csrfToken' => $csrf, 'sidebar' => $sidebar, 'topbar' => $topbar,
             'content' => $this->view->render('projects/index', [
                 'projects'      => $list,
                 'status'        => $status,
@@ -68,9 +68,9 @@ final class ProjectController extends BaseController {
         }
         $csrf = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
-        $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => 'New project']);
+        $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => t('projects.new_project')]);
         Response::html($this->view->render('layouts/main', [
-            'title' => 'New project', 'csrfToken' => $csrf, 'sidebar' => $sidebar, 'topbar' => $topbar,
+            'title' => t('projects.new_project'), 'csrfToken' => $csrf, 'sidebar' => $sidebar, 'topbar' => $topbar,
             'content' => $this->view->render('projects/form', ['csrfToken' => $csrf, 'project' => null, 'mode' => 'create']),
         ]));
     }

@@ -41,7 +41,7 @@ final class CompassController extends BaseController
         $pendingCount = 0;
         foreach ($status as $r) if (!$r['applied']) $pendingCount++;
 
-        $this->renderTab('migrations', 'Migrations', [
+        $this->renderTab('migrations', t('compass.tab.migrations'), [
             'status' => $status,
             'appliedAt' => $appliedAt,
             'pendingCount' => $pendingCount,
@@ -50,7 +50,7 @@ final class CompassController extends BaseController
 
     public function cache(Request $req, array $params = []): void
     {
-        $this->renderTab('cache', 'Cache', [
+        $this->renderTab('cache', t('compass.tab.cache'), [
             'sessions'      => $this->compass->sessionsStats(),
             'uploads'       => $this->compass->uploadsStats(),
             'assetVersion'  => $this->compass->currentAssetVersion(),
@@ -59,7 +59,7 @@ final class CompassController extends BaseController
 
     public function stats(Request $req, array $params = []): void
     {
-        $this->renderTab('stats', 'DB stats', [
+        $this->renderTab('stats', t('compass.tab.stats'), [
             'db' => $this->compass->dbStats(),
         ]);
     }
@@ -67,7 +67,7 @@ final class CompassController extends BaseController
     public function logs(Request $req, array $params = []): void
     {
         $level = (string)($req->query['level'] ?? '');
-        $this->renderTab('logs', 'Logs', [
+        $this->renderTab('logs', t('compass.tab.logs'), [
             'entries'  => $this->compass->tailErrorsLog(100, $level !== '' ? $level : null),
             'logSize'  => $this->compass->errorsLogSize(),
             'level'    => $level,
@@ -81,64 +81,58 @@ final class CompassController extends BaseController
         $applied = $this->compass->runPendingMigrations();
         $count = count($applied);
         $summary = $count === 0
-            ? 'No pending migrations'
-            : sprintf('Applied %d migration%s', $count, $count === 1 ? '' : 's');
+            ? t('compass.migrations.no_pending')
+            : tn('compass.migrations.applied_n', $count, ['n' => $count]);
         $this->auditAndNotify(
             'compass.migrations.run',
             $summary,
             ['applied' => $applied],
-            $count === 0 ? 'no pending migrations' : "applied $count migration(s)"
+            $count === 0
+                ? t('compass.migrations.no_pending')
+                : tn('compass.migrations.applied_n', $count, ['n' => $count])
         );
-        Response::json(['ok' => true, 'applied' => $applied]);
+        Response::json(['ok' => true, 'applied' => $applied, 'message' => $summary]);
     }
 
     public function clearSessions(Request $req, array $params = []): void
     {
         $res = $this->compass->clearStaleSessions();
-        $summary = sprintf(
-            'Cleared %d stale session%s (%s)',
-            $res['deleted'],
-            $res['deleted'] === 1 ? '' : 's',
-            human_bytes($res['bytes'])
-        );
+        $summary = tn('compass.cache.sessions.cleared', $res['deleted'], ['n' => $res['deleted']])
+            . ' (' . human_bytes($res['bytes']) . ')';
         $this->auditAndNotify(
             'compass.cache.sessions_cleared',
             $summary,
             $res,
-            sprintf('cleared %d stale sessions', $res['deleted'])
+            tn('compass.cache.sessions.cleared', $res['deleted'], ['n' => $res['deleted']])
         );
-        Response::json(['ok' => true] + $res);
+        Response::json(['ok' => true, 'message' => $summary] + $res);
     }
 
     public function clearOrphanUploads(Request $req, array $params = []): void
     {
         $res = $this->compass->clearOrphanUploads();
-        $summary = sprintf(
-            'Cleared %d orphan upload%s (%s)',
-            $res['deleted'],
-            $res['deleted'] === 1 ? '' : 's',
-            human_bytes($res['bytes'])
-        );
+        $summary = tn('compass.cache.uploads.cleared', $res['deleted'], ['n' => $res['deleted']])
+            . ' (' . human_bytes($res['bytes']) . ')';
         $this->auditAndNotify(
             'compass.cache.uploads_orphans_cleared',
             $summary,
             $res,
-            sprintf('cleared %d orphan uploads', $res['deleted'])
+            tn('compass.cache.uploads.cleared', $res['deleted'], ['n' => $res['deleted']])
         );
-        Response::json(['ok' => true] + $res);
+        Response::json(['ok' => true, 'message' => $summary] + $res);
     }
 
     public function bustAssetCache(Request $req, array $params = []): void
     {
         $version = $this->compass->bumpAssetVersion();
-        $summary = 'Bumped asset cache version to ' . $version;
+        $summary = t('compass.cache.assets.bumped', ['version' => $version]);
         $this->auditAndNotify(
             'compass.cache.asset_bust',
             $summary,
             ['version' => $version],
-            'bumped asset cache version'
+            $summary
         );
-        Response::json(['ok' => true, 'version' => $version]);
+        Response::json(['ok' => true, 'version' => $version, 'message' => $summary]);
     }
 
     // ─── Internals ───────────────────────────────────────────────────────────
@@ -153,14 +147,14 @@ final class CompassController extends BaseController
             'user' => $this->user, 'activeNav' => 'compass', 'csrfToken' => $csrfToken,
         ]);
         $topbar  = $this->view->render('partials/topbar', [
-            'user' => $this->user, 'crumb' => 'Compass · ' . $crumb,
+            'user' => $this->user, 'crumb' => t('nav.compass') . ' · ' . $crumb,
         ]);
         $content = $this->view->render(
             'admin/compass/' . $tab,
             $extra + ['currentTab' => $tab, 'csrfToken' => $csrfToken],
         );
         Response::html($this->view->render('layouts/main', [
-            'title'     => 'Compass · ' . $crumb,
+            'title'     => t('nav.compass') . ' · ' . $crumb,
             'csrfToken' => $csrfToken,
             'sidebar'   => $sidebar,
             'topbar'    => $topbar,

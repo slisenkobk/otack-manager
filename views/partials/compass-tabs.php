@@ -1,10 +1,10 @@
 <?php
 // Inputs: $currentTab ∈ {migrations, cache, stats, logs}
 $tabs = [
-    'migrations' => ['label' => 'Migrations', 'href' => '/admin/compass/migrations', 'icon' => 'fa-database'],
-    'cache'      => ['label' => 'Cache',      'href' => '/admin/compass/cache',      'icon' => 'fa-broom'],
-    'stats'      => ['label' => 'DB stats',   'href' => '/admin/compass/db-stats',   'icon' => 'fa-chart-simple'],
-    'logs'       => ['label' => 'Logs',       'href' => '/admin/compass/logs',       'icon' => 'fa-file-lines'],
+    'migrations' => ['label' => t('compass.tab.migrations'), 'href' => '/admin/compass/migrations', 'icon' => 'fa-database'],
+    'cache'      => ['label' => t('compass.tab.cache'),      'href' => '/admin/compass/cache',      'icon' => 'fa-broom'],
+    'stats'      => ['label' => t('compass.tab.stats'),      'href' => '/admin/compass/db-stats',   'icon' => 'fa-chart-simple'],
+    'logs'       => ['label' => t('compass.tab.logs'),       'href' => '/admin/compass/logs',       'icon' => 'fa-file-lines'],
 ];
 ?>
 <div class="project-tabs" style="margin-bottom:var(--space-8);">
