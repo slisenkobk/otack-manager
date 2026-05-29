@@ -38,6 +38,19 @@ function icon(string $name, string $extraClass = ''): string
     return '<i class="fa-solid fa-' . e($name) . ($extraClass ? ' ' . e($extraClass) : '') . '"></i>';
 }
 
+// Append a `?v=…` cache-buster to a static asset URL. Reads `asset_version`
+// from settings (bumped via /admin/compass cache tab). Returns the path
+// unchanged when no version is set yet.
+function asset_url(string $path): string
+{
+    static $ver = null;
+    if ($ver === null) {
+        try { $ver = \App\App::make('settings')->get('asset_version', ''); }
+        catch (\Throwable $_) { $ver = ''; }
+    }
+    return $ver === '' ? $path : $path . (str_contains($path, '?') ? '&' : '?') . 'v=' . rawurlencode($ver);
+}
+
 /**
  * Resolve the configured timezone. No cross-request static cache — long-lived
  * workers (PHP-FPM, the dev server) would otherwise serve stale values after an

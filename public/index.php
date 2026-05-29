@@ -68,6 +68,14 @@ App::singleton('events',   fn() => new \App\Service\EventBus());
 App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));
 App::singleton('notif_log', fn() => new \App\Repository\NotificationLogRepository(App::make('db')));
 App::singleton('activity', fn() => new \App\Repository\ActivityLogRepository(App::make('db')));
+App::singleton('compass', fn() => new \App\Service\CompassService(
+    App::make('db'),
+    App::make('schema'),
+    APP_ROOT . '/data/sessions',
+    APP_ROOT . '/' . App::env('UPLOAD_DIR', 'public/uploads'),
+    APP_ROOT . '/data/errors.log',
+    \App\Database\Migrations::DIR,
+));
 
 // Wire Telegram listeners after all singletons are registered
 $events = App::make('events');
@@ -142,6 +150,15 @@ $events->on('form.updated', function ($p) use ($tg, $tgEsc, $tgBold) {
 });
 $events->on('form.deleted', function ($p) use ($tg, $tgEsc, $tgBold) {
     $tg->notify('form.deleted', "[FORM] " . $tgBold($p['actor_name']) . " deleted form \"" . $tgEsc($p['title']) . "\"", null, $p);
+});
+// Compass: admin housekeeping actions (sessions cleared, asset bust, etc.).
+$events->on('compass.action', function ($p) use ($tg, $tgEsc, $tgBold) {
+    $tg->notify(
+        'compass.action',
+        "[COMPASS] " . $tgBold($p['actor_name']) . ' ' . $tgEsc($p['summary']),
+        null,
+        $p
+    );
 });
 App::singleton('attachments', fn() => new \App\Repository\AttachmentRepository(App::make('db')));
 App::singleton('tags',     fn() => new \App\Repository\TagRepository(App::make('db')));
@@ -228,6 +245,16 @@ $router->post('/api/tasks/{id}/tags/{tagId}/delete', 'Tag@detachFromTask');
 
 $router->get('/admin/settings', 'Settings@show');
 $router->post('/admin/settings', 'Settings@update');
+
+$router->get('/admin/compass',                          'Compass@index');
+$router->get('/admin/compass/migrations',               'Compass@migrations');
+$router->post('/admin/compass/migrations/run',          'Compass@runMigrations');
+$router->get('/admin/compass/cache',                    'Compass@cache');
+$router->post('/admin/compass/cache/sessions/clear',    'Compass@clearSessions');
+$router->post('/admin/compass/cache/uploads/orphans/clear', 'Compass@clearOrphanUploads');
+$router->post('/admin/compass/cache/bust',              'Compass@bustAssetCache');
+$router->get('/admin/compass/db-stats',                 'Compass@stats');
+$router->get('/admin/compass/logs',                     'Compass@logs');
 
 $router->get('/forms', 'Form@index');
 $router->get('/forms/new', 'Form@builder');
