@@ -581,9 +581,11 @@ function initToolbar(root) {
   const mineBtn = toolbar.querySelector('[data-mine-toggle]');
   const mineLbl = toolbar.querySelector('[data-mine-label]');
   if (mineBtn) {
+    const labelMine = mineBtn.dataset.labelMine || 'Mine';
+    const labelAll  = mineBtn.dataset.labelAll  || 'All';
     function paintMine() {
       mineBtn.dataset.sort = mineOnly ? 'priority' : ''; // reuse highlight style
-      mineLbl.textContent = mineOnly ? 'Mine' : 'All';
+      mineLbl.textContent = mineOnly ? labelMine : labelAll;
     }
     paintMine();
     refilter();
@@ -598,9 +600,11 @@ function initToolbar(root) {
   const sortBtn = toolbar.querySelector('[data-sort-toggle]');
   const sortLbl = toolbar.querySelector('[data-sort-label]');
   const sortKey = 'kanban-sort-' + projectId;
+  const labelPriority = sortBtn?.dataset.labelPriority || 'Priority';
+  const labelManual   = sortBtn?.dataset.labelManual   || 'Manual';
   function setSortMode(mode) {
     sortBtn.dataset.sort = mode;
-    sortLbl.textContent = mode === 'priority' ? 'Priority' : 'Manual';
+    sortLbl.textContent = mode === 'priority' ? labelPriority : labelManual;
     applySort(root, mode);
     try { localStorage.setItem(sortKey, mode); } catch {}
   }

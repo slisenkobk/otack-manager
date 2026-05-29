@@ -2,6 +2,14 @@ import { api, UI } from './ui.js';
 
 // Search form submits on Enter (native) or via the submit button.
 
+function getLocales() {
+  try {
+    return JSON.parse(document.querySelector('meta[name=i18n-locales]')?.content || '[]');
+  } catch {
+    return [];
+  }
+}
+
 function buildField(label, factory) {
   const wrap = document.createElement('div');
   wrap.className = 'field';
@@ -20,7 +28,7 @@ function buildField(label, factory) {
   return { wrap, input };
 }
 
-function openUserModal({ title, name = '', email = '', isEdit = false, onSubmit }) {
+function openUserModal({ title, name = '', email = '', locale = 'en', isEdit = false, onSubmit }) {
   const body = document.createElement('div');
   const nameF = buildField('Name', () => { const i = document.createElement('input'); i.className = 'input'; i.value = name; return i; });
   const emailF = buildField('Email', () => { const i = document.createElement('input'); i.className = 'input'; i.type = 'email'; i.value = email; if (isEdit) { i.disabled = true; i.style.opacity = '.6'; } return i; });
@@ -28,6 +36,7 @@ function openUserModal({ title, name = '', email = '', isEdit = false, onSubmit 
   body.appendChild(nameF.wrap);
   body.appendChild(emailF.wrap);
   body.appendChild(passF.wrap);
+
   let roleF = null;
   if (!isEdit) {
     roleF = buildField('Role', () => {
@@ -43,6 +52,21 @@ function openUserModal({ title, name = '', email = '', isEdit = false, onSubmit 
     body.appendChild(roleF.wrap);
   }
 
+  // Language picker — both on create and edit. Admin sets the locale the
+  // user will see; user can still change it themselves later via /profile.
+  const localeF = buildField('Language', () => {
+    const s = document.createElement('select');
+    s.className = 'input';
+    for (const { code, name: displayName } of getLocales()) {
+      const o = document.createElement('option');
+      o.value = code; o.textContent = displayName;
+      if (code === locale) o.selected = true;
+      s.appendChild(o);
+    }
+    return s;
+  });
+  body.appendChild(localeF.wrap);
+
   UI.modal({
     title,
     body,
@@ -53,6 +77,7 @@ function openUserModal({ title, name = '', email = '', isEdit = false, onSubmit 
           if (!isEdit) payload.email = emailF.input.value.trim();
           if (passF.input.value) payload.password = passF.input.value;
           if (roleF) payload.role = roleF.input.value;
+          payload.locale = localeF.input.value;
           try {
             await onSubmit(payload);
             close();
@@ -66,9 +91,13 @@ function openUserModal({ title, name = '', email = '', isEdit = false, onSubmit 
 }
 
 document.querySelector('[data-action="new-user"]')?.addEventListener('click', () => {
+  // New users default to the admin-configured default_locale via the server;
+  // the picker just shows the current default as pre-selected.
+  const defaultLocale = document.querySelector('meta[name=i18n-locale]')?.content || 'en';
   openUserModal({
     title: 'New user',
     isEdit: false,
+    locale: defaultLocale,
     onSubmit: async (payload) => {
       await api('/users', { method: 'POST', body: JSON.stringify(payload) });
       UI.toast('User created', 'success');
@@ -107,6 +136,7 @@ document.querySelectorAll('[data-user-id]').forEach(card => {
             title: 'Edit user',
             name: card.querySelector('[data-user-name]')?.textContent.trim() || '',
             email: card.querySelector('[data-user-email]')?.textContent.trim() || '',
+            locale: card.dataset.userLocale || 'en',
             isEdit: true,
             onSubmit: async (payload) => {
               await api('/users/' + id, { method: 'POST', body: JSON.stringify(payload) });

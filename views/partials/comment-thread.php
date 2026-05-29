@@ -45,7 +45,7 @@ $renderComment = function (array $c, bool $isReply = false) use ($commentAttachm
 };
 ?>
 <div class="comment-thread" data-entity-type="<?= e($entityType) ?>" data-entity-id="<?= (int)$entityId ?>">
-  <h3 class="comment-thread__title">Comments</h3>
+  <h3 class="comment-thread__title"><?= e(t('tasks.comments')) ?></h3>
   <div class="comment-list">
     <?php foreach ($roots as $root): ?>
       <div class="comment-group" data-root-id="<?= (int)$root['id'] ?>">
@@ -59,13 +59,13 @@ $renderComment = function (array $c, bool $isReply = false) use ($commentAttachm
   </div>
   <?php if ($canPost): ?>
     <form class="comment-composer" data-composer="root">
-      <textarea class="textarea" name="body" placeholder="Write a comment… **bold** `code` [link](https://…)" rows="3"></textarea>
+      <textarea class="textarea" name="body" placeholder="<?= e(t('tasks.comment_placeholder')) ?>" rows="3"></textarea>
       <div class="comment-composer__row">
         <label class="btn-ghost comment-composer__attach">
-          <i class="fa-solid fa-paperclip"></i> Attach files
+          <i class="fa-solid fa-paperclip"></i> <?= e(t('attach.attach_files')) ?>
           <input type="file" multiple hidden data-comment-attach>
         </label>
-        <button class="submit" type="submit">Post comment →</button>
+        <button class="submit" type="submit"><?= e(t('tasks.post_comment')) ?></button>
       </div>
       <div class="comment-pending-attachments"></div>
     </form>

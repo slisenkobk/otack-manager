@@ -1,111 +1,137 @@
 <?php
-// Flash messages render via <meta> tags + a global JS listener that pipes
-// them through UI.toast — one consistent toast pattern across the app.
+// Inputs: $values, $fields (SettingsController::KEYS), $csrfToken,
+//         $timezones, $currentTab ∈ {workspace, contact}
 echo isset($_GET['saved']) ? flash_meta(t('settings.saved'), 'success') : '';
 $localeNames = locale_display_names();
 ?>
 
-<div style="display:flex;flex-direction:column;gap:24px;max-width:760px;margin:0 auto;">
+<div style="max-width:760px;margin:0 auto;">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-6);margin-bottom:var(--space-8);flex-wrap:wrap;">
+    <div class="project-tabs">
+      <a href="/admin/settings?tab=workspace"
+         class="project-tab<?= $currentTab === 'workspace' ? ' project-tab--active' : '' ?>">
+        <i class="fa-solid fa-briefcase" aria-hidden="true" style="margin-right:var(--space-2);"></i>
+        <?= e(t('settings.tab.workspace')) ?>
+      </a>
+      <a href="/admin/settings?tab=contact"
+         class="project-tab<?= $currentTab === 'contact' ? ' project-tab--active' : '' ?>">
+        <i class="fa-solid fa-address-card" aria-hidden="true" style="margin-right:var(--space-2);"></i>
+        <?= e(t('settings.tab.contact')) ?>
+      </a>
+    </div>
+    <a href="/admin/compass" class="btn btn--secondary btn--sm"
+       title="<?= e(t('settings.compass_hint')) ?>"
+       style="text-decoration:none;display:inline-flex;align-items:center;gap:var(--space-2);">
+      <i class="fa-solid fa-compass" aria-hidden="true"></i>
+      <?= e(t('settings.compass_link')) ?>
+    </a>
+  </div>
 
   <form method="post" action="/admin/settings" class="brief" style="max-width:none;">
     <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
+    <input type="hidden" name="_tab" value="<?= e($currentTab) ?>">
 
-    <h2 style="font-size:20px;font-weight:600;margin:0 0 6px;"><?= e(t('settings.section.workspace')) ?></h2>
-    <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('settings.section.workspace_hint', ['fallback' => 'Otack Manager'])) ?></p>
+    <?php if ($currentTab === 'workspace'): ?>
 
-    <div class="field-row" style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;">
-      <div class="field">
-        <label><?= e(t('settings.field.app_name')) ?></label>
-        <input class="input" type="text" name="app_name" value="<?= e($values['app_name'] ?? '') ?>" placeholder="Otack Manager" maxlength="60">
+      <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('settings.section.workspace_hint', ['fallback' => 'Otack Manager'])) ?></p>
+
+      <div class="field-row" style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;">
+        <div class="field">
+          <label><?= e(t('settings.field.app_name')) ?></label>
+          <input class="input" type="text" name="app_name" value="<?= e($values['app_name'] ?? '') ?>" placeholder="Otack Manager" maxlength="60">
+        </div>
+        <div class="field" style="min-width:0;">
+          <label title="<?= e(t('settings.field.brand_color_title')) ?>"><?= e(t('settings.field.brand_color')) ?></label>
+          <?php $currentColor = $values['app_color'] ?? ''; ?>
+          <div class="color-picker" data-color-picker-group>
+            <input type="color"
+                   value="<?= e($currentColor !== '' ? $currentColor : '#c2410c') ?>"
+                   data-color-picker
+                   aria-label="<?= e(t('settings.field.brand_color_aria')) ?>">
+            <input type="hidden" name="app_color" data-color-value value="<?= e($currentColor) ?>">
+            <button type="button" class="btn btn--ghost btn--sm" data-color-reset title="<?= e(t('settings.field.brand_reset')) ?>">
+              <i class="fa-solid fa-rotate-left" aria-hidden="true"></i> <?= e(t('common.reset')) ?>
+            </button>
+          </div>
+        </div>
       </div>
-      <div class="field" style="min-width:0;">
-        <label title="<?= e(t('settings.field.brand_color_title')) ?>"><?= e(t('settings.field.brand_color')) ?></label>
-        <?php $currentColor = $values['app_color'] ?? ''; ?>
-        <div class="color-picker" data-color-picker-group>
-          <input type="color"
-                 value="<?= e($currentColor !== '' ? $currentColor : '#c2410c') ?>"
-                 data-color-picker
-                 aria-label="<?= e(t('settings.field.brand_color_aria')) ?>">
-          <input type="hidden" name="app_color" data-color-value value="<?= e($currentColor) ?>">
-          <button type="button" class="btn btn--ghost btn--sm" data-color-reset title="<?= e(t('settings.field.brand_reset')) ?>">
-            <i class="fa-solid fa-rotate-left" aria-hidden="true"></i> <?= e(t('common.reset')) ?>
+
+      <div class="field" style="margin-top:14px;">
+        <label><?= e(t('settings.field.timezone')) ?></label>
+        <?php
+          $cur = $values['timezone'] ?? 'Europe/Kyiv';
+          $curOffset = '';
+          foreach ($timezones as $r) { if ($r['tz'] === $cur) { $curOffset = $r['offset']; break; } }
+        ?>
+        <div class="custom-select" data-custom-select data-custom-select-search>
+          <button type="button" class="custom-select__btn">
+            <span class="custom-select__label"><?= e($cur) ?></span>
+            <span class="custom-select__meta"><?= e($curOffset) ?></span>
+            <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
           </button>
+          <div class="custom-select__pop" hidden>
+            <div class="custom-select__search">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" placeholder="<?= e(t('settings.field.timezone_search')) ?>" data-custom-select-search-input>
+            </div>
+            <div class="custom-select__opts">
+              <?php foreach ($timezones as $r): ?>
+                <div class="custom-select__opt<?= $cur === $r['tz'] ? ' is-selected' : '' ?>" data-value="<?= e($r['tz']) ?>" data-search="<?= e(mb_strtolower($r['tz'] . ' ' . $r['offset'])) ?>">
+                  <span class="custom-select__opt-label"><?= e($r['tz']) ?></span>
+                  <span class="custom-select__opt-meta"><?= e($r['offset']) ?></span>
+                </div>
+              <?php endforeach; ?>
+            </div>
+            <div class="custom-select__no-results" hidden><?= e(t('common.no_results')) ?></div>
+          </div>
+          <input type="hidden" name="timezone" value="<?= e($cur) ?>">
         </div>
       </div>
-    </div>
 
-    <div class="field" style="margin-top:14px;">
-      <label><?= e(t('settings.field.timezone')) ?></label>
-      <?php
-        $cur = $values['timezone'] ?? 'Europe/Kyiv';
-        $curOffset = '';
-        foreach ($timezones as $r) { if ($r['tz'] === $cur) { $curOffset = $r['offset']; break; } }
-      ?>
-      <div class="custom-select" data-custom-select data-custom-select-search>
-        <button type="button" class="custom-select__btn">
-          <span class="custom-select__label"><?= e($cur) ?></span>
-          <span class="custom-select__meta"><?= e($curOffset) ?></span>
-          <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
-        </button>
-        <div class="custom-select__pop" hidden>
-          <div class="custom-select__search">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="text" placeholder="<?= e(t('settings.field.timezone_search')) ?>" data-custom-select-search-input>
-          </div>
-          <div class="custom-select__opts">
-            <?php foreach ($timezones as $r): ?>
-              <div class="custom-select__opt<?= $cur === $r['tz'] ? ' is-selected' : '' ?>" data-value="<?= e($r['tz']) ?>" data-search="<?= e(mb_strtolower($r['tz'] . ' ' . $r['offset'])) ?>">
-                <span class="custom-select__opt-label"><?= e($r['tz']) ?></span>
-                <span class="custom-select__opt-meta"><?= e($r['offset']) ?></span>
-              </div>
-            <?php endforeach; ?>
-          </div>
-          <div class="custom-select__no-results" hidden><?= e(t('common.no_results')) ?></div>
+      <div class="field" style="margin-top:14px;">
+        <label><?= e(t('settings.field.default_locale')) ?></label>
+        <?php $curLocale = $values['default_locale'] ?? 'en'; ?>
+        <select class="input" name="default_locale">
+          <?php foreach (available_locales() as $code): ?>
+            <option value="<?= e($code) ?>"<?= $code === $curLocale ? ' selected' : '' ?>><?= e($localeNames[$code] ?? $code) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <p class="muted" style="font-size:12px;color:var(--ink-3);margin:8px 0 0;"><?= e(t('settings.field.default_locale_hint')) ?></p>
+      </div>
+
+    <?php else: /* contact tab */ ?>
+
+      <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('settings.section.contact_hint')) ?></p>
+
+      <div class="field">
+        <label><?= e(t('settings.field.company_name')) ?></label>
+        <input class="input" type="text" name="contact_company_name" value="<?= e($values['contact_company_name'] ?? '') ?>">
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label><?= e(t('settings.field.contact_email')) ?></label>
+        <input class="input" type="email" name="contact_email" value="<?= e($values['contact_email'] ?? '') ?>">
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label><?= e(t('settings.field.contact_phone')) ?></label>
+        <input class="input" type="tel" name="contact_phone" value="<?= e($values['contact_phone'] ?? '') ?>">
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label><?= e(t('settings.field.contact_address')) ?></label>
+        <input class="input" type="text" name="contact_address" value="<?= e($values['contact_address'] ?? '') ?>">
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label><?= e(t('settings.field.contact_footer')) ?></label>
+        <div class="wysiwyg-host">
+          <div class="wysiwyg-editor"
+               data-quill
+               data-quill-target="#contact-default-text-hidden"
+               data-placeholder="<?= e(t('settings.field.contact_footer_placeholder')) ?>"><?= $values['contact_default_text'] ?? '' ?></div>
         </div>
-        <input type="hidden" name="timezone" value="<?= e($cur) ?>">
+        <input type="hidden" id="contact-default-text-hidden" name="contact_default_text" value="<?= e($values['contact_default_text'] ?? '') ?>">
       </div>
-    </div>
 
-    <div class="field" style="margin-top:14px;">
-      <label><?= e(t('settings.field.default_locale')) ?></label>
-      <?php $curLocale = $values['default_locale'] ?? 'en'; ?>
-      <select class="input" name="default_locale">
-        <?php foreach (available_locales() as $code): ?>
-          <option value="<?= e($code) ?>"<?= $code === $curLocale ? ' selected' : '' ?>><?= e($localeNames[$code] ?? $code) ?></option>
-        <?php endforeach; ?>
-      </select>
-      <p class="muted" style="font-size:12px;color:var(--ink-3);margin:8px 0 0;"><?= e(t('settings.field.default_locale_hint')) ?></p>
-    </div>
-
-    <h2 style="font-size:20px;font-weight:600;margin:28px 0 6px;"><?= e(t('settings.section.contact')) ?></h2>
-    <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('settings.section.contact_hint')) ?></p>
-
-    <div class="field">
-      <label><?= e(t('settings.field.company_name')) ?></label>
-      <input class="input" type="text" name="contact_company_name" value="<?= e($values['contact_company_name'] ?? '') ?>">
-    </div>
-    <div class="field" style="margin-top:14px;">
-      <label><?= e(t('settings.field.contact_email')) ?></label>
-      <input class="input" type="email" name="contact_email" value="<?= e($values['contact_email'] ?? '') ?>">
-    </div>
-    <div class="field" style="margin-top:14px;">
-      <label><?= e(t('settings.field.contact_phone')) ?></label>
-      <input class="input" type="tel" name="contact_phone" value="<?= e($values['contact_phone'] ?? '') ?>">
-    </div>
-    <div class="field" style="margin-top:14px;">
-      <label><?= e(t('settings.field.contact_address')) ?></label>
-      <input class="input" type="text" name="contact_address" value="<?= e($values['contact_address'] ?? '') ?>">
-    </div>
-    <div class="field" style="margin-top:14px;">
-      <label><?= e(t('settings.field.contact_footer')) ?></label>
-      <div class="wysiwyg-host">
-        <div class="wysiwyg-editor"
-             data-quill
-             data-quill-target="#contact-default-text-hidden"
-             data-placeholder="<?= e(t('settings.field.contact_footer_placeholder')) ?>"><?= $values['contact_default_text'] ?? '' ?></div>
-      </div>
-      <input type="hidden" id="contact-default-text-hidden" name="contact_default_text" value="<?= e($values['contact_default_text'] ?? '') ?>">
-    </div>
+    <?php endif; ?>
 
     <div style="margin-top:22px;display:flex;gap:10px;">
       <button class="btn btn--primary submit" type="submit"><?= e(t('settings.save_button')) ?></button>

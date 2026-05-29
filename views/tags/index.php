@@ -1,15 +1,15 @@
 <form method="get" action="/admin/tags" class="kanban-search kanban-search--with-submit" style="max-width:360px;margin-bottom:var(--space-8);">
   <i class="fa-solid fa-magnifying-glass"></i>
-  <input class="input input--inline" name="q" placeholder="Search tags…" value="<?= e($query ?? '') ?>" data-tag-search>
-  <button type="submit" class="kanban-search__submit" aria-label="Search"><i class="fa-solid fa-arrow-right"></i></button>
+  <input class="input input--inline" name="q" placeholder="<?= e(t('tags.search_placeholder')) ?>" value="<?= e($query ?? '') ?>" data-tag-search>
+  <button type="submit" class="kanban-search__submit" aria-label="<?= e(t('common.search')) ?>"><i class="fa-solid fa-arrow-right"></i></button>
 </form>
 
 <?php
 $byScope = [];
-foreach ($tags as $t) {
-    $byScope[$t['scope']][] = $t;
+foreach ($tags as $tg) {
+    $byScope[$tg['scope']][] = $tg;
 }
-$scopeLabels = ['project' => 'Project tags', 'task' => 'Task tags'];
+$scopeLabels = ['project' => t('tags.project_tags'), 'task' => t('tags.task_tags')];
 foreach ($scopeLabels as $scope => $label):
     if (empty($byScope[$scope])) continue;
 ?>
@@ -30,13 +30,13 @@ foreach ($scopeLabels as $scope => $label):
                 style="font-weight:600;font-size:14px;flex:1;outline:none;border-bottom:1px dashed transparent;cursor:text;padding-bottom:2px;">
             <?= e($tag['name']) ?>
           </span>
-          <label class="color-swatch tag-swatch" title="Change color" style="background: <?= e($tag['color']) ?>; width:32px;">
+          <label class="color-swatch tag-swatch" title="<?= e(t('tags.change_color')) ?>" style="background: <?= e($tag['color']) ?>; width:32px;">
             <input type="color" class="tag-color-input" value="<?= e($tag['color']) ?>">
           </label>
           <span class="mono" style="font-size:11px;color:var(--ink-3);min-width:90px;text-align:right;">
             P:<?= (int)$usage['project_count'] ?> T:<?= (int)$usage['task_count'] ?>
           </span>
-          <button class="btn-danger" data-action="delete-tag" type="button" style="flex-shrink:0;font-size:12px;padding:4px 10px;">Delete</button>
+          <button class="btn-danger" data-action="delete-tag" type="button" style="flex-shrink:0;font-size:12px;padding:4px 10px;"><?= e(t('common.delete')) ?></button>
         </article>
       <?php endforeach; ?>
     </div>
@@ -46,9 +46,9 @@ foreach ($scopeLabels as $scope => $label):
 <?php if (!$tags): ?>
   <div class="empty-state">
     <span class="empty-state__tag"><?= e(app_name()) ?></span>
-    <p class="empty-state__text"><?= !empty($query) ? 'No tags match "' . e($query) . '".' : 'No tags yet.' ?></p>
+    <p class="empty-state__text"><?= !empty($query) ? e(t('tags.empty.match', ['q' => $query])) : e(t('tags.empty.none')) ?></p>
     <?php if (empty($query)): ?>
-      <span class="empty-state__sub">Tags are created from project and task pages.</span>
+      <span class="empty-state__sub"><?= e(t('tags.created_from_hint')) ?></span>
     <?php endif; ?>
   </div>
 <?php endif; ?>
@@ -60,4 +60,4 @@ foreach ($scopeLabels as $scope => $label):
   require APP_ROOT . '/views/partials/pagination.php';
 ?>
 
-<script type="module" src="/assets/js/admin-tags.js"></script>
+<script type="module" src="<?= e(asset_url('/assets/js/admin-tags.js')) ?>"></script>

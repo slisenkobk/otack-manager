@@ -6,7 +6,7 @@ $meta['links'] = $meta['links'] ?? 0;
 ?>
 <li class="backlog__item">
   <a class="backlog__link" href="/tasks/<?= (int)$t['id'] ?>">
-    <span class="backlog__id">TASK-<?= (int)$t['id'] ?></span>
+    <span class="backlog__id"><?= e(t('tasks.id_prefix', ['id' => (int)$t['id']])) ?></span>
     <span class="backlog__title"><?= e($t['title']) ?></span>
     <?php if ($tags): ?>
       <span class="backlog__tags">
@@ -28,7 +28,7 @@ $meta['links'] = $meta['links'] ?? 0;
       <span class="backlog__counts">
         <?php if ($meta['comments']): ?><span><i class="fa-regular fa-comment"></i> <?= (int)$meta['comments'] ?></span><?php endif; ?>
         <?php if ($meta['attachments']): ?><span><i class="fa-solid fa-paperclip"></i> <?= (int)$meta['attachments'] ?></span><?php endif; ?>
-        <?php if ($meta['links']): ?><span title="Linked tasks"><i class="fa-solid fa-link"></i> <?= (int)$meta['links'] ?></span><?php endif; ?>
+        <?php if ($meta['links']): ?><span title="<?= e(t('tasks.linked_tasks')) ?>"><i class="fa-solid fa-link"></i> <?= (int)$meta['links'] ?></span><?php endif; ?>
       </span>
     <?php endif; ?>
   </a>

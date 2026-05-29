@@ -16,19 +16,19 @@ $readOnly      = $readOnly ?? false; // disables per-item delete button and the 
                data-is-image="<?= (int)$a['is_image'] ?>"
                data-url="<?= e($url) ?>"
                data-name="<?= e($a['original_name']) ?>"
-               <?= !empty($a['comment_id']) ? 'title="From comment"' : '' ?>>
+               <?= !empty($a['comment_id']) ? 'title="' . e(t('attach.from_comment')) . '"' : '' ?>>
         <div class="attach-item__top">
           <?php if ($kind === 'image'): ?>
-            <a href="#" class="attach-item__action" data-action="lightbox" title="View image">
-              <i class="fa-solid fa-magnifying-glass-plus"></i> View
+            <a href="#" class="attach-item__action" data-action="lightbox" title="<?= e(t('tasks.view_image')) ?>">
+              <i class="fa-solid fa-magnifying-glass-plus"></i> <?= e(t('attach.view')) ?>
             </a>
           <?php elseif ($kind === 'viewable'): ?>
-            <a href="<?= e($url) ?>" target="_blank" rel="noopener" class="attach-item__action" title="Open in browser">
-              <i class="fa-solid fa-arrow-up-right-from-square"></i> Open
+            <a href="<?= e($url) ?>" target="_blank" rel="noopener" class="attach-item__action" title="<?= e(t('tasks.open_in_browser')) ?>">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> <?= e(t('attach.open')) ?>
             </a>
           <?php else: ?>
-            <a href="<?= e($url) ?>" download class="attach-item__action" title="Download">
-              <i class="fa-solid fa-download"></i> Download
+            <a href="<?= e($url) ?>" download class="attach-item__action" title="<?= e(t('tasks.download')) ?>">
+              <i class="fa-solid fa-download"></i> <?= e(t('attach.download_btn')) ?>
             </a>
           <?php endif; ?>
         </div>
@@ -45,7 +45,7 @@ $readOnly      = $readOnly ?? false; // disables per-item delete button and the 
         <div class="attach-item__foot">
           <span><?= fmt_size((int)$a['size']) ?></span>
           <?php if ($canDelete && !$readOnly): ?>
-            <button type="button" class="attach-item__del" data-action="delete-attachment" aria-label="Delete">
+            <button type="button" class="attach-item__del" data-action="delete-attachment" aria-label="<?= e(t('common.delete')) ?>">
               <i class="fa-solid fa-xmark"></i>
             </button>
           <?php endif; ?>
@@ -57,14 +57,14 @@ $readOnly      = $readOnly ?? false; // disables per-item delete button and the 
   <?php if ($canEdit): ?>
     <div style="margin-top:16px;">
       <label class="btn-secondary" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;">
-        <i class="fa-solid fa-paperclip"></i> Attach file(s)
+        <i class="fa-solid fa-paperclip"></i> <?= e(t('attach.attach_files')) ?>
         <input type="file" multiple style="display:none;" data-attach-input>
       </label>
       <span class="muted" style="font-size:12px;color:var(--ink-3);margin-left:12px;">
-        Images up to 5 MB; other files up to 50 MB. SVG not allowed.
+        <?= e(t('attach.size_hint')) ?>
       </span>
     </div>
   <?php endif; ?>
 </div>
 
-<script type="module" src="/assets/js/attachments.js"></script>
+<script type="module" src="<?= e(asset_url('/assets/js/attachments.js')) ?>"></script>

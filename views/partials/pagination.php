@@ -4,7 +4,7 @@ if (($pages ?? 1) <= 1) return;
 $prev = max(1, $page - 1);
 $next = min($pages, $page + 1);
 ?>
-<nav class="pager" aria-label="Pagination">
+<nav class="pager" aria-label="<?= e(t('common.pagination')) ?>">
   <a class="pager__btn<?= $page <= 1 ? ' is-disabled' : '' ?>" <?= $page > 1 ? 'href="' . e($hrefBuilder($prev)) . '"' : '' ?>>
     <i class="fa-solid fa-chevron-left"></i>
   </a>

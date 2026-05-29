@@ -19,6 +19,15 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 <meta name="csrf-token" content="<?= e($csrfToken ?? '') ?>">
 <meta name="upload-max-image" content="<?= e(\App\App::env('UPLOAD_MAX_IMAGE', '5242880')) ?>">
 <meta name="upload-max-file"  content="<?= e(\App\App::env('UPLOAD_MAX_FILE',  '52428800')) ?>">
+<?php
+  // Locale list for JS modals (user create/edit dropdown, etc.).
+  $localeMeta = [];
+  foreach (available_locales() as $code) {
+      $localeMeta[] = ['code' => $code, 'name' => locale_display_names()[$code] ?? $code];
+  }
+?>
+<meta name="i18n-locales" content="<?= e(json_encode($localeMeta)) ?>">
+<meta name="i18n-locale"  content="<?= e(user_locale()) ?>">
 </head>
 <body>
 <div class="shell">

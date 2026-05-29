@@ -23,13 +23,13 @@ $meta['links'] = $meta['links'] ?? 0;
       <?php endforeach; ?>
       <?php if (!empty($t['sub_status'])): ?>
         <span class="sub-status sub-status--<?= e($t['sub_status']) ?>" title="<?= e(ucfirst($t['sub_status'])) ?>">
-          <?= $t['sub_status'] === 'reopened' ? '↻ Reopened' : '↩ Returned' ?>
+          <?= e($t['sub_status'] === 'reopened' ? t('tasks.sub_status.reopened') : t('tasks.sub_status.returned')) ?>
         </span>
       <?php endif; ?>
     </div>
   <?php endif; ?>
   <div class="kanban-card__head">
-    <span class="kanban-card__id">TASK-<?= (int)$t['id'] ?></span>
+    <span class="kanban-card__id"><?= e(t('tasks.id_prefix', ['id' => (int)$t['id']])) ?></span>
     <?php if ($prio !== 'none'): ?>
       <span class="kanban-card__prio" title="<?= e(ucfirst($prio)) ?> priority">
         <span class="priority-dot" aria-hidden="true"></span>
@@ -63,7 +63,7 @@ $meta['links'] = $meta['links'] ?? 0;
             <span><i class="fa-solid fa-paperclip"></i> <?= (int)$meta['attachments'] ?></span>
           <?php endif; ?>
           <?php if ($meta['links']): ?>
-            <span title="Linked tasks"><i class="fa-solid fa-link"></i> <?= (int)$meta['links'] ?></span>
+            <span title="<?= e(t('tasks.linked_tasks')) ?>"><i class="fa-solid fa-link"></i> <?= (int)$meta['links'] ?></span>
           <?php endif; ?>
         </span>
       <?php endif; ?>

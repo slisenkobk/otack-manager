@@ -100,6 +100,14 @@ final class UserController extends BaseController {
         // create() defaults to pending for non-first users; admin-created → approved + chosen role.
         $this->users->approve($id);
         $this->users->setRole($id, $role);
+        // Locale: take the admin-provided value if valid, otherwise inherit
+        // settings.default_locale (also 'en' if unset).
+        $locale = (string)($data['locale'] ?? '');
+        if (!in_array($locale, available_locales(), true)) {
+            $locale = App::make('settings')->get('default_locale', 'en');
+            if (!in_array($locale, available_locales(), true)) $locale = 'en';
+        }
+        $this->users->updateLocale($id, $locale);
         Response::json(['ok' => true, 'id' => $id]);
     }
 
@@ -116,6 +124,10 @@ final class UserController extends BaseController {
         if ($pass !== '') {
             if (strlen($pass) < 8) { Response::json(['error' => 'Password must be at least 8 chars'], 422); return; }
             $this->users->updatePassword($id, App::make('hasher')->hash($pass));
+        }
+        $locale = isset($data['locale']) ? (string)$data['locale'] : null;
+        if ($locale !== null && in_array($locale, available_locales(), true) && $locale !== ($u['locale'] ?? 'en')) {
+            $this->users->updateLocale($id, $locale);
         }
         Response::json(['ok' => true]);
     }

@@ -15,7 +15,10 @@
     <p class="empty-state__text"><?= !empty($query) ? e(t('users.empty.match', ['q' => $query])) : e(t('users.empty.none')) ?></p>
   </div>
 <?php else: ?>
-<?php $roleLabels = ['admin' => t('role.admin'), 'manager' => t('role.manager'), 'employee' => t('role.employee')]; ?>
+<?php
+$roleLabels = ['admin' => t('role.admin'), 'manager' => t('role.manager'), 'employee' => t('role.employee')];
+$localeNames = locale_display_names();
+?>
 <div class="data-table-wrap">
   <table class="data-table">
     <thead>
@@ -23,13 +26,14 @@
         <th><?= e(t('users.table.user')) ?></th>
         <th><?= e(t('users.table.role')) ?></th>
         <th><?= e(t('users.table.status')) ?></th>
+        <th><?= e(t('users.table.language')) ?></th>
         <th><?= e(t('users.table.joined')) ?></th>
         <th class="data-table__cell--actions"><?= e(t('common.actions')) ?></th>
       </tr>
     </thead>
     <tbody>
       <?php foreach ($users as $u): ?>
-        <tr data-user-id="<?= (int)$u['id'] ?>">
+        <tr data-user-id="<?= (int)$u['id'] ?>" data-user-locale="<?= e($u['locale'] ?? 'en') ?>">
           <td>
             <div class="data-table__cell--user">
               <?= user_avatar_html((int)$u['id'], $u['name'], $u['avatar'] ?? null, 'md') ?>
@@ -63,6 +67,9 @@
           </td>
           <td>
             <span class="status<?= $u['status'] === 'approved' ? ' is-ready' : '' ?>"><?= e(t('status.user.' . $u['status'])) ?></span>
+          </td>
+          <td>
+            <span class="mono" style="font-size:11px;color:var(--ink-3);"><?= e($localeNames[$u['locale'] ?? 'en'] ?? ($u['locale'] ?? 'en')) ?></span>
           </td>
           <td>
             <span class="data-table__meta-time"><?= fmt_date($u['created_at']) ?></span>

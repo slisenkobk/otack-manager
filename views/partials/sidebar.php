@@ -65,11 +65,6 @@ if ($canFormsSb) {
         <span><?= e(t('nav.settings')) ?></span>
         <span></span>
       </a>
-      <a class="nav-item<?= ($activeNav ?? '') === 'compass' ? ' nav-item--active' : '' ?>" href="/admin/compass">
-        <span class="nav-item__marker"><i class="fa-solid fa-compass"></i></span>
-        <span><?= e(t('nav.compass')) ?></span>
-        <span></span>
-      </a>
     <?php endif; ?>
   </div>
 

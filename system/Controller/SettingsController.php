@@ -40,6 +40,9 @@ final class SettingsController extends BaseController
         foreach (self::KEYS as $k => $cfg) { $defaults[$k] = $cfg['default']; }
         $values = $this->settings->getMany($keys, $defaults);
 
+        $tab = (string)($req->query['tab'] ?? 'workspace');
+        if (!in_array($tab, ['workspace', 'contact'], true)) $tab = 'workspace';
+
         $csrfToken = App::make('csrf')->token();
         $sidebar = $this->view->render('partials/sidebar', [
             'user' => $this->user, 'activeNav' => 'settings', 'csrfToken' => $csrfToken,
@@ -53,10 +56,11 @@ final class SettingsController extends BaseController
             'sidebar'   => $sidebar,
             'topbar'    => $topbar,
             'content'   => $this->view->render('admin/settings', [
-                'values'    => $values,
-                'fields'    => self::KEYS,
-                'csrfToken' => $csrfToken,
-                'timezones' => $this->timezonesWithOffsets(),
+                'values'     => $values,
+                'fields'     => self::KEYS,
+                'csrfToken'  => $csrfToken,
+                'timezones'  => $this->timezonesWithOffsets(),
+                'currentTab' => $tab,
             ]),
         ]));
     }
@@ -100,6 +104,8 @@ final class SettingsController extends BaseController
             $pairs[$k] = $val;
         }
         $this->settings->setMany($pairs);
-        Response::redirect('/admin/settings?saved=1');
+        $tab = (string)($req->post['_tab'] ?? 'workspace');
+        if (!in_array($tab, ['workspace', 'contact'], true)) $tab = 'workspace';
+        Response::redirect('/admin/settings?tab=' . $tab . '&saved=1');
     }
 }

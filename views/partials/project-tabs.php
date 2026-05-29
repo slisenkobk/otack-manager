@@ -10,7 +10,7 @@ $tab_link = function (string $key, string $label) use ($pid, $currentTab) {
 };
 ?>
 <div class="project-tabs">
-  <?= $tab_link('board',    'Board' . (!empty($boardOpenCount) ? ' · ' . (int)$boardOpenCount : '')) ?>
-  <?= $tab_link('backlog',  'Backlog' . (!empty($backlogCount) ? ' · ' . (int)$backlogCount : '')) ?>
-  <?= $tab_link('overview', 'Overview') ?>
+  <?= $tab_link('board',    t('projects.tab.board')    . (!empty($boardOpenCount) ? ' · ' . (int)$boardOpenCount : '')) ?>
+  <?= $tab_link('backlog',  t('projects.tab.backlog')  . (!empty($backlogCount) ? ' · ' . (int)$backlogCount : '')) ?>
+  <?= $tab_link('overview', t('projects.tab.overview')) ?>
 </div>

@@ -25,23 +25,29 @@ foreach ($boardColumns as $c) {
 <?php if ($currentTab === 'board'): ?>
   <div class="kanban-toolbar">
     <div class="kanban-tagbar">
-      <button type="button" class="chip chip--active" data-tag="">All</button>
-      <?php foreach ($allTaskTagsInProject ?? [] as $t): ?>
-        <button type="button" class="chip" data-tag="<?= e($t['name']) ?>"><?= e($t['name']) ?></button>
+      <button type="button" class="chip chip--active" data-tag=""><?= e(t('projects.kanban.filter_all')) ?></button>
+      <?php foreach ($allTaskTagsInProject ?? [] as $tg): ?>
+        <button type="button" class="chip" data-tag="<?= e($tg['name']) ?>"><?= e($tg['name']) ?></button>
       <?php endforeach; ?>
     </div>
-    <button type="button" class="kanban-sort-toggle" data-mine-toggle title="Show only my tasks">
+    <button type="button" class="kanban-sort-toggle" data-mine-toggle
+            title="<?= e(t('projects.kanban.filter_mine')) ?>"
+            data-label-mine="<?= e(t('projects.kanban.filter_mine_label')) ?>"
+            data-label-all="<?= e(t('projects.kanban.filter_all')) ?>">
       <i class="fa-solid fa-user"></i>
-      <span data-mine-label>All</span>
+      <span data-mine-label><?= e(t('projects.kanban.filter_all')) ?></span>
     </button>
-    <button type="button" class="kanban-sort-toggle" data-sort-toggle title="Toggle sort order">
+    <button type="button" class="kanban-sort-toggle" data-sort-toggle
+            title="<?= e(t('projects.kanban.sort_toggle')) ?>"
+            data-label-priority="<?= e(t('projects.kanban.sort_priority')) ?>"
+            data-label-manual="<?= e(t('projects.kanban.sort_manual')) ?>">
       <i class="fa-solid fa-arrow-down-wide-short"></i>
-      <span data-sort-label>Manual</span>
+      <span data-sort-label><?= e(t('projects.kanban.sort_manual')) ?></span>
     </button>
     <div class="kanban-search kanban-search--with-submit">
       <i class="fa-solid fa-magnifying-glass"></i>
-      <input class="input input--inline" placeholder="Search tasks…" data-task-search>
-      <button type="button" class="kanban-search__submit" data-task-search-submit aria-label="Search"><i class="fa-solid fa-arrow-right"></i></button>
+      <input class="input input--inline" placeholder="<?= e(t('projects.kanban.task_search')) ?>" data-task-search>
+      <button type="button" class="kanban-search__submit" data-task-search-submit aria-label="<?= e(t('common.search')) ?>"><i class="fa-solid fa-arrow-right"></i></button>
     </div>
   </div>
   <div class="kanban" data-project-id="<?= (int)$project['id'] ?>" data-current-user-id="<?= (int)$currentUserId ?>">
@@ -49,11 +55,11 @@ foreach ($boardColumns as $c) {
       <?php $colTasks = $tasksByCol[$col['id']] ?? []; ?>
       <div class="kanban-col" data-column-id="<?= (int)$col['id'] ?>">
         <div class="kanban-col__head kanban-col-head">
-          <button type="button" class="kanban-col__drag" aria-label="Reorder column" title="Drag to reorder column"><i class="fa-solid fa-grip-vertical"></i></button>
+          <button type="button" class="kanban-col__drag" aria-label="<?= e(t('projects.kanban.col_reorder')) ?>" title="<?= e(t('projects.kanban.col_reorder_title')) ?>"><i class="fa-solid fa-grip-vertical"></i></button>
           <span class="kanban-col__dot dot" style="background: <?= e($col['color']) ?>"></span>
           <span class="kanban-col__name name"><?= e($col['name']) ?></span>
           <span class="kanban-col__count kanban-col-count"><?= count($colTasks) ?></span>
-          <button type="button" class="btn-icon col-settings kanban-col__settings" data-column-id="<?= (int)$col['id'] ?>" aria-label="Column settings"><i class="fa-solid fa-ellipsis"></i></button>
+          <button type="button" class="btn-icon col-settings kanban-col__settings" data-column-id="<?= (int)$col['id'] ?>" aria-label="<?= e(t('projects.kanban.col_settings')) ?>"><i class="fa-solid fa-ellipsis"></i></button>
         </div>
         <?php $kanbanInitial = 25; $colTotal = count($colTasks); $colInitial = array_slice($colTasks, 0, $kanbanInitial); ?>
         <div class="kanban-list kanban-col__list"
@@ -61,51 +67,52 @@ foreach ($boardColumns as $c) {
              data-loaded="<?= count($colInitial) ?>"
              data-total="<?= $colTotal ?>">
           <?php if (empty($colInitial)): ?>
-            <div class="kanban-empty">No tasks yet</div>
+            <div class="kanban-empty"><?= e(t('projects.kanban.empty')) ?></div>
           <?php endif; ?>
-          <?php foreach ($colInitial as $t):
-            $tags = ($taskTags ?? [])[(int)$t['id']] ?? [];
-            $meta = ($taskMeta ?? [])[(int)$t['id']] ?? ['comments' => 0, 'attachments' => 0];
+          <?php foreach ($colInitial as $tk):
+            $tags = ($taskTags ?? [])[(int)$tk['id']] ?? [];
+            $meta = ($taskMeta ?? [])[(int)$tk['id']] ?? ['comments' => 0, 'attachments' => 0];
+            $t = $tk;
             require APP_ROOT . '/views/partials/kanban-card.php';
           endforeach; ?>
           <?php if ($colTotal > count($colInitial)): ?>
             <div class="kanban-load-sentinel" data-load-sentinel
                  data-column-id="<?= (int)$col['id'] ?>"
                  data-project-id="<?= (int)$project['id'] ?>">
-              Loading more…
+              <?= e(t('projects.kanban.loading_more')) ?>
             </div>
           <?php endif; ?>
         </div>
         <div class="kanban-col__footer kanban-quickadd" data-column-id="<?= (int)$col['id'] ?>">
           <button type="button" class="kanban-col__add" data-quickadd-trigger data-column-id="<?= (int)$col['id'] ?>">
-            <i class="fa-solid fa-plus"></i> Add task
+            <i class="fa-solid fa-plus"></i> <?= e(t('projects.kanban.add_task')) ?>
           </button>
           <form class="kanban-col__form" data-column-id="<?= (int)$col['id'] ?>" hidden>
-            <input class="input input--sm" type="text" name="title" placeholder="Task title" maxlength="200">
-            <span class="kanban-col__hint">Enter to save, Esc to cancel</span>
+            <input class="input input--sm" type="text" name="title" placeholder="<?= e(t('projects.kanban.task_title')) ?>" maxlength="200">
+            <span class="kanban-col__hint"><?= e(t('projects.kanban.task_hint')) ?></span>
           </form>
         </div>
       </div>
     <?php endforeach; ?>
-    <button type="button" class="btn-secondary add-column"><i class="fa-solid fa-plus"></i> Column</button>
+    <button type="button" class="btn-secondary add-column"><i class="fa-solid fa-plus"></i> <?= e(t('projects.kanban.add_column')) ?></button>
   </div>
   <script src="/assets/vendor/sortable.min.js"></script>
-  <script type="module" src="/assets/js/kanban.js"></script>
+  <script type="module" src="<?= e(asset_url('/assets/js/kanban.js')) ?>"></script>
 <?php elseif ($currentTab === 'backlog'): ?>
   <?php if (!$backlogCol): ?>
-    <p style="color:var(--text-muted);">Backlog column not configured for this project.</p>
+    <p style="color:var(--text-muted);"><?= e(t('projects.backlog.no_column')) ?></p>
   <?php else: ?>
     <div class="backlog" data-project-id="<?= (int)$project['id'] ?>" data-column-id="<?= (int)$backlogCol['id'] ?>">
       <form class="backlog__add" data-quickadd-trigger data-column-id="<?= (int)$backlogCol['id'] ?>" autocomplete="off"
             onclick="this.querySelector('input').focus()">
         <i class="fa-solid fa-plus"></i>
-        <input class="input input--inline" type="text" name="title" placeholder="Type a task title and press Enter…" maxlength="200">
-        <span class="backlog__add-hint">Enter to save · Esc to cancel</span>
+        <input class="input input--inline" type="text" name="title" placeholder="<?= e(t('projects.backlog.quickadd')) ?>" maxlength="200">
+        <span class="backlog__add-hint"><?= e(t('projects.backlog.hint')) ?></span>
       </form>
       <?php if (!$backlogTasks): ?>
         <div class="empty-state">
           <span class="empty-state__tag"><?= e(app_name()) ?></span>
-          <p class="empty-state__text">No tasks parked in the backlog yet.</p>
+          <p class="empty-state__text"><?= e(t('tasks.empty.backlog')) ?></p>
         </div>
       <?php else: ?>
         <?php $backlogInitial = 30; $backlogTotal = count($backlogTasks); $backlogChunk = array_slice($backlogTasks, 0, $backlogInitial); ?>
@@ -115,25 +122,26 @@ foreach ($boardColumns as $c) {
             data-project-id="<?= (int)$project['id'] ?>"
             data-loaded="<?= count($backlogChunk) ?>"
             data-total="<?= $backlogTotal ?>">
-          <?php foreach ($backlogChunk as $t):
-            $tags = ($taskTags ?? [])[(int)$t['id']] ?? [];
-            $meta = ($taskMeta ?? [])[(int)$t['id']] ?? ['comments' => 0, 'attachments' => 0];
+          <?php foreach ($backlogChunk as $tk):
+            $tags = ($taskTags ?? [])[(int)$tk['id']] ?? [];
+            $meta = ($taskMeta ?? [])[(int)$tk['id']] ?? ['comments' => 0, 'attachments' => 0];
+            $t = $tk;
             require APP_ROOT . '/views/partials/backlog-row.php';
           endforeach; ?>
           <?php if ($backlogTotal > count($backlogChunk)): ?>
-            <li class="backlog__sentinel" data-backlog-sentinel>Loading more…</li>
+            <li class="backlog__sentinel" data-backlog-sentinel><?= e(t('projects.kanban.loading_more')) ?></li>
           <?php endif; ?>
         </ul>
       <?php endif; ?>
     </div>
-    <script type="module" src="/assets/js/backlog.js"></script>
+    <script type="module" src="<?= e(asset_url('/assets/js/backlog.js')) ?>"></script>
   <?php endif; ?>
 <?php else: ?>
   <div class="project-overview" data-project-id="<?= (int)$project['id'] ?>" style="display:grid;grid-template-columns:1fr 280px;gap:32px;align-items:start;">
     <div>
       <div class="project-overview__header" style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
         <?php if (!empty($canEdit)): ?>
-          <label class="project-avatar-edit" title="Change project color">
+          <label class="project-avatar-edit" title="<?= e(t('projects.overview.color_title')) ?>">
             <div class="ini project-avatar" style="width:44px;height:44px;font-size:14px;background: <?= e($project['color'] ?? '#1A1612') ?>;flex-shrink:0;">
               <?= e(mb_strtoupper(mb_substr($project['name'], 0, 2))) ?>
             </div>
@@ -151,29 +159,29 @@ foreach ($boardColumns as $c) {
       </div>
       <section class="overview-panel">
         <header class="overview-panel__head">
-          <h2 class="overview-panel__title">Description</h2>
+          <h2 class="overview-panel__title"><?= e(t('projects.overview.title')) ?></h2>
           <?php if (!empty($canEdit)): ?>
-            <button class="btn-ghost" type="button" data-action="edit-description" style="font-size:12px;">Edit</button>
+            <button class="btn-ghost" type="button" data-action="edit-description" style="font-size:12px;"><?= e(t('common.edit')) ?></button>
           <?php endif; ?>
         </header>
-        <div class="overview-panel__body rich-text project-description-rendered"><?= $project['description'] ? \App\Service\LinkPreview::enhance(\App\Service\HtmlSanitizer::clean((string)$project['description'])) : '<em class="overview-panel__empty">No description</em>' ?></div>
+        <div class="overview-panel__body rich-text project-description-rendered"><?= $project['description'] ? \App\Service\LinkPreview::enhance(\App\Service\HtmlSanitizer::clean((string)$project['description'])) : '<em class="overview-panel__empty">' . e(t('projects.overview.no_description')) . '</em>' ?></div>
         <?php if (!empty($canEdit)): ?>
           <div class="overview-panel__body project-description-editor" style="display:none;">
             <div class="wysiwyg-host">
               <div class="wysiwyg-editor"
                    data-quill
                    data-quill-target="#project-description-hidden"
-                   data-placeholder="Description…"><?= $project['description'] ? \App\Service\HtmlSanitizer::clean((string)$project['description']) : '' ?></div>
+                   data-placeholder="<?= e(t('projects.overview.description_placeholder')) ?>"><?= $project['description'] ? \App\Service\HtmlSanitizer::clean((string)$project['description']) : '' ?></div>
             </div>
             <input type="hidden" id="project-description-hidden" value="<?= e($project['description'] ?? '') ?>">
             <div style="display:flex;gap:8px;margin-top:8px;">
-              <button class="btn btn--primary submit" type="button" data-action="save-description">Save</button>
-              <button class="btn btn--ghost" type="button" data-action="cancel-description">Cancel</button>
+              <button class="btn btn--primary submit" type="button" data-action="save-description"><?= e(t('common.save')) ?></button>
+              <button class="btn btn--ghost" type="button" data-action="cancel-description"><?= e(t('common.cancel')) ?></button>
             </div>
           </div>
         <?php endif; ?>
         <footer class="overview-panel__attach">
-          <div class="overview-panel__attach-label">Attachments</div>
+          <div class="overview-panel__attach-label"><?= e(t('projects.overview.attachments')) ?></div>
           <?php
             $entityType  = 'project';
             $entityId    = (int)$project['id'];
@@ -195,11 +203,11 @@ foreach ($boardColumns as $c) {
     </div>
     <aside class="project-sidebar"
            style="border:1px solid var(--rule);padding:18px;background:var(--paper);border-radius:4px;">
-      <h3 style="font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.15em;color:var(--ink-3);margin:0 0 8px;">Details</h3>
+      <h3 style="font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.15em;color:var(--ink-3);margin:0 0 8px;"><?= e(t('projects.overview.details')) ?></h3>
 
       <?php if (!empty($canEdit)): ?>
         <div class="field" style="margin-bottom:7px;">
-          <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;">Status</label>
+          <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;"><?= e(t('projects.overview.status')) ?></label>
           <form method="post" action="/projects/<?= (int)$project['id'] ?>" class="project-status-form" style="margin:0;">
             <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
             <?php
@@ -228,12 +236,12 @@ foreach ($boardColumns as $c) {
       <?php endif; ?>
 
       <div class="field" style="margin-bottom:7px;">
-        <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;">Members</label>
+        <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;"><?= e(t('projects.overview.members')) ?></label>
         <?php $projectId = (int)$project['id']; require APP_ROOT . '/views/partials/members.php'; ?>
       </div>
 
       <div class="field" style="margin-bottom:7px;">
-        <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;">Tags</label>
+        <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;"><?= e(t('projects.overview.tags')) ?></label>
         <?php
           $scope      = 'project';
           $entityType = 'project';
@@ -247,10 +255,10 @@ foreach ($boardColumns as $c) {
       <?php if (!empty($canEdit)): ?>
         <button class="btn-danger" type="button" data-action="delete-project"
                 style="margin-top:9px;width:100%;padding:8px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;">
-          Delete project
+          <?= e(t('projects.overview.delete_btn')) ?>
         </button>
       <?php endif; ?>
     </aside>
   </div>
-  <script type="module" src="/assets/js/project-page.js"></script>
+  <script type="module" src="<?= e(asset_url('/assets/js/project-page.js')) ?>"></script>
 <?php endif; ?>
