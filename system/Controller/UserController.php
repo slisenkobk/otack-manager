@@ -71,7 +71,7 @@ final class UserController extends BaseController {
     public function setRole(Request $req, array $params): void {
         $data = json_decode(file_get_contents('php://input'), true) ?? $req->post;
         $role = $data['role'] ?? '';
-        if (!in_array($role, ['admin', 'member'], true)) {
+        if (!in_array($role, ['admin', 'manager', 'employee'], true)) {
             Response::json(['error' => 'Invalid role'], 422); return;
         }
         $this->users->setRole((int)$params['id'], $role);
@@ -83,7 +83,8 @@ final class UserController extends BaseController {
         $name  = trim((string)($data['name'] ?? ''));
         $email = trim((string)($data['email'] ?? ''));
         $pass  = (string)($data['password'] ?? '');
-        $role  = ($data['role'] ?? 'member') === 'admin' ? 'admin' : 'member';
+        $role  = in_array($data['role'] ?? 'employee', ['admin', 'manager', 'employee'], true)
+            ? $data['role'] : 'employee';
         if ($name === '' || $email === '' || strlen($pass) < 8) {
             Response::json(['error' => 'Name, email and password (min 8) are required'], 422); return;
         }

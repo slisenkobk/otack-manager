@@ -13,7 +13,9 @@
       <input class="input input--inline" name="q" placeholder="Search projects…" value="<?= e($query ?? '') ?>" data-project-search>
       <button type="submit" class="kanban-search__submit" aria-label="Search"><i class="fa-solid fa-arrow-right"></i></button>
     </form>
-    <a href="/projects/new" class="btn btn--secondary" style="text-decoration:none;">+ New project</a>
+    <?php if (!empty($canCreateProject)): ?>
+      <a href="/projects/new" class="btn btn--secondary" style="text-decoration:none;">+ New project</a>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -33,9 +35,12 @@
 <?php else: ?>
   <div class="cards-row">
     <?php foreach ($projects as $i => $p): ?>
-      <a class="card" href="/projects/<?= (int)$p['id'] ?>" style="text-decoration:none;color:inherit;">
+      <a class="card<?= !empty($p['pinned_at']) ? ' is-pinned' : '' ?>" href="/projects/<?= (int)$p['id'] ?>" data-project-id="<?= (int)$p['id'] ?>" style="text-decoration:none;color:inherit;">
         <span class="corner-tag">P-<?= (int)$p['id'] ?></span>
         <span class="corner-meta"><?= fmt_date($p['updated_at']) ?></span>
+        <button type="button" class="card-pin<?= !empty($p['pinned_at']) ? ' is-on' : '' ?>" data-action="toggle-pin" aria-label="Pin">
+          <i class="fa-solid fa-thumbtack"></i>
+        </button>
         <div class="card-head">
           <div class="ini" style="background: <?= e($p['color'] ?? '#1A1612') ?>;"><?= e(mb_strtoupper(mb_substr($p['name'], 0, 2))) ?></div>
           <div>

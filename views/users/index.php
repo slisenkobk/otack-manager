@@ -27,7 +27,15 @@
         <div data-user-email style="font-size:13px;color:var(--ink-3);font-family:var(--font-mono);"><?= e($u['email']) ?></div>
       </div>
       <span class="status<?= $u['status'] === 'approved' ? ' is-ready' : '' ?>"><?= e($u['status']) ?></span>
-      <span class="mono" style="font-size:11px;color:var(--ink-3);"><?= e($u['role']) ?></span>
+      <?php if ((int)$u['id'] !== (int)$currentUserId): ?>
+        <select class="input input--inline" data-role-select style="width:auto;font-size:11px;padding:4px 8px;">
+          <?php foreach (['admin' => 'Admin', 'manager' => 'Manager', 'employee' => 'Employee'] as $rVal => $rLabel): ?>
+            <option value="<?= e($rVal) ?>"<?= $u['role'] === $rVal ? ' selected' : '' ?>><?= e($rLabel) ?></option>
+          <?php endforeach; ?>
+        </select>
+      <?php else: ?>
+        <span class="mono" style="font-size:11px;color:var(--ink-3);"><?= e($u['role']) ?></span>
+      <?php endif; ?>
       <span class="mono" style="font-size:10px;color:var(--ink-3);"><?= fmt_date($u['created_at']) ?></span>
       <div style="display:flex;gap:6px;" data-actions>
         <?php if ($u['status'] === 'pending'): ?>
@@ -44,10 +52,6 @@
           </button>
         <?php endif; ?>
         <?php if ((int)$u['id'] !== (int)$currentUserId): ?>
-          <button class="btn-secondary" data-action="toggle-role" data-current-role="<?= e($u['role']) ?>" type="button"
-                  title="<?= $u['role'] === 'admin' ? 'Demote to member' : 'Promote to admin' ?>">
-            <i class="fa-solid fa-<?= $u['role'] === 'admin' ? 'user-minus' : 'user-shield' ?>"></i>
-          </button>
           <button class="btn-danger" data-action="delete" type="button" title="Delete">
             <i class="fa-solid fa-trash"></i>
           </button>

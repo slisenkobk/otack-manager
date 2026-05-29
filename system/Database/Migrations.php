@@ -255,6 +255,66 @@ final class Migrations
             }
         });
 
+        // Roles upgrade: existing 'member' rows mapped to 'employee'. New role
+        // 'manager' is introduced and accepted by UserController going forward.
+        $boot->ensure('users_role_employee_manager', 1, function (\PDO $pdo) {
+            $pdo->exec("UPDATE users SET role = 'employee' WHERE role = 'member'");
+        });
+
+        $boot->ensure('settings', 1, function (\PDO $pdo) {
+            $pdo->exec(
+                'CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL DEFAULT ""
+                )'
+            );
+        });
+
+        $boot->ensure('forms', 1, function (\PDO $pdo) {
+            $pdo->exec(
+                'CREATE TABLE IF NOT EXISTS forms (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    hash TEXT NOT NULL UNIQUE,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    fields_json TEXT NOT NULL DEFAULT "[]",
+                    footer_json TEXT NOT NULL DEFAULT "{}",
+                    status TEXT NOT NULL DEFAULT "published",
+                    created_by INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )'
+            );
+            $pdo->exec('CREATE INDEX IF NOT EXISTS idx_forms_status ON forms(status)');
+        });
+
+        $boot->ensure('form_submissions', 1, function (\PDO $pdo) {
+            $pdo->exec(
+                'CREATE TABLE IF NOT EXISTS form_submissions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    form_id INTEGER NOT NULL,
+                    data_json TEXT NOT NULL DEFAULT "{}",
+                    footer_json TEXT NOT NULL DEFAULT "{}",
+                    status TEXT NOT NULL DEFAULT "new",
+                    converted_task_id INTEGER NULL,
+                    converted_project_id INTEGER NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )'
+            );
+            $pdo->exec('CREATE INDEX IF NOT EXISTS idx_submissions_form ON form_submissions(form_id)');
+            $pdo->exec('CREATE INDEX IF NOT EXISTS idx_submissions_status ON form_submissions(status)');
+        });
+
+        $boot->ensure('projects_pinned_at', 1, function (\PDO $pdo) {
+            $cols = $pdo->query('PRAGMA table_info(projects)')->fetchAll(\PDO::FETCH_ASSOC);
+            $has = false;
+            foreach ($cols as $c) { if ($c['name'] === 'pinned_at') { $has = true; break; } }
+            if (!$has) {
+                $pdo->exec('ALTER TABLE projects ADD COLUMN pinned_at TEXT NULL');
+            }
+        });
+
         $boot->ensure('task_links', 1, function (\PDO $pdo) {
             $pdo->exec(
                 "CREATE TABLE IF NOT EXISTS task_links (

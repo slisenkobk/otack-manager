@@ -18,7 +18,6 @@ final class ProjectController extends BaseController {
         $this->columns  = App::make('columns');
     }
 
-    private function csrfToken(): string { return App::make('csrf')->token(); }
 
     private function assertAccess(array $project): void {
         $isAdmin = $this->user['role'] === 'admin';
@@ -58,11 +57,15 @@ final class ProjectController extends BaseController {
                 'statusCounts'  => $statusCounts,
                 'taskCounts'    => $taskCounts,
                 'query'         => $query,
+                'canCreateProject' => \App\Service\RolePolicy::canCreateProject($this->user),
             ]),
         ]));
     }
 
     public function createForm(Request $req, array $params = []): void {
+        if (!\App\Service\RolePolicy::canCreateProject($this->user)) {
+            Response::forbidden('Employees cannot create projects'); return;
+        }
         $csrf = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
         $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => 'New project']);
@@ -73,6 +76,9 @@ final class ProjectController extends BaseController {
     }
 
     public function create(Request $req, array $params = []): void {
+        if (!\App\Service\RolePolicy::canCreateProject($this->user)) {
+            Response::forbidden('Employees cannot create projects'); return;
+        }
         $name        = trim($req->post['name'] ?? '');
         $description = \App\Service\HtmlSanitizer::clean(trim($req->post['description'] ?? ''));
         if ($name === '') { Response::redirect('/projects/new'); return; }
@@ -246,6 +252,19 @@ final class ProjectController extends BaseController {
         Response::redirect('/projects/' . $id);
     }
 
+    public function togglePin(Request $req, array $params): void {
+        $id      = (int)$params['id'];
+        $project = $this->projects->findById($id);
+        if (!$project) { Response::json(['error' => 'Not found'], 404); return; }
+        $isAdmin = $this->user['role'] === 'admin';
+        if (!$isAdmin && !$this->members->isMember($id, (int)$this->user['id'])) {
+            Response::json(['error' => 'Forbidden'], 403); return;
+        }
+        $shouldPin = empty($project['pinned_at']);
+        $this->projects->setPinned($id, $shouldPin);
+        Response::json(['ok' => true, 'pinned' => $shouldPin]);
+    }
+
     private function isJsonRequest(Request $req): bool {
         $ct = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
         return stripos($ct, 'application/json') !== false;
@@ -258,6 +277,9 @@ final class ProjectController extends BaseController {
         $isOwnerOrAdmin = $this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']);
         if (!$isOwnerOrAdmin) { Response::json(['error' => 'Forbidden'], 403); return; }
         $this->projects->delete($id);
+        // Detach any submissions converted into this project so they can be
+        // re-promoted instead of pointing at a dead /projects/{id} link.
+        App::make('form_submissions')->detachConverted('project', $id);
         App::make('events')->fire('project.deleted', [
             'project_id' => $id,
             'name'       => $project['name'],

@@ -8,30 +8,33 @@ if (!sidebar) {
   const taskId = sidebar.dataset.taskId;
   const projectId = sidebar.dataset.projectId;
 
-  // Title blur
-  let lastTitle = titleEl.textContent;
-  titleEl.addEventListener('blur', async () => {
-    const title = titleEl.textContent.trim();
-    if (!title || title === lastTitle) { titleEl.textContent = lastTitle; return; }
-    try {
-      const res = await api('/tasks/' + taskId, { method: 'POST', body: JSON.stringify({ title }) });
-      lastTitle = res.task.title;
-      titleEl.textContent = res.task.title;
-      UI.toast('Title saved', 'success');
-    } catch {
-      titleEl.textContent = lastTitle;
-    }
-  });
-  titleEl.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
-    if (e.key === 'Escape') { titleEl.textContent = lastTitle; titleEl.blur(); }
-  });
+  // Title blur (only wired if the element is contenteditable — non-author/non-admin gets a read-only h1)
+  if (titleEl && titleEl.isContentEditable) {
+    let lastTitle = titleEl.textContent;
+    titleEl.addEventListener('blur', async () => {
+      const title = titleEl.textContent.trim();
+      if (!title || title === lastTitle) { titleEl.textContent = lastTitle; return; }
+      try {
+        const res = await api('/tasks/' + taskId, { method: 'POST', body: JSON.stringify({ title }) });
+        lastTitle = res.task.title;
+        titleEl.textContent = res.task.title;
+        UI.toast('Title saved', 'success');
+      } catch {
+        titleEl.textContent = lastTitle;
+      }
+    });
+    titleEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
+      if (e.key === 'Escape') { titleEl.textContent = lastTitle; titleEl.blur(); }
+    });
+  }
 
   // Description edit/save/cancel (Quill WYSIWYG)
   const descSection = document.querySelector('.task-description-section');
   const rendered = descSection.querySelector('.task-description-rendered');
   const editor = descSection.querySelector('.task-description-editor');
-  descSection.querySelector('[data-action=edit-description]').addEventListener('click', () => {
+  const editDescBtn = descSection.querySelector('[data-action=edit-description]');
+  if (editDescBtn) editDescBtn.addEventListener('click', () => {
     rendered.style.display = 'none';
     editor.style.display = 'block';
     // Focus Quill editor if available
@@ -287,12 +290,26 @@ if (!sidebar) {
     });
   }
 
-  // Delete
-  sidebar.querySelector('[data-action=delete-task]').addEventListener('click', async () => {
+  // Delete (button may be absent for non-author/non-admin)
+  const deleteBtn = sidebar.querySelector('[data-action=delete-task]');
+  if (deleteBtn) deleteBtn.addEventListener('click', async () => {
     if (!await UI.confirm('Delete this task permanently?', {danger: true, confirmLabel: 'Delete'})) return;
     try {
       await api('/tasks/' + taskId + '/delete', { method: 'POST' });
       location.href = '/projects/' + projectId;
     } catch {}
+  });
+
+  // Spin task off into a brand-new project
+  const promoteBtn = sidebar.querySelector('[data-action=promote-to-project]');
+  if (promoteBtn) promoteBtn.addEventListener('click', async () => {
+    if (!await UI.confirm('Create a new project from this task? Title and description will be copied.', { confirmLabel: 'Create project' })) return;
+    promoteBtn.disabled = true;
+    try {
+      const res = await api('/api/tasks/' + taskId + '/promote-to-project', { method: 'POST' });
+      if (res?.url) location.href = res.url;
+    } catch {
+      promoteBtn.disabled = false;
+    }
   });
 }

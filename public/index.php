@@ -59,6 +59,9 @@ App::singleton('members',  fn() => new \App\Repository\ProjectMemberRepository(A
 App::singleton('columns',  fn() => new \App\Repository\TaskColumnRepository(App::make('db')));
 App::singleton('tasks',    fn() => new \App\Repository\TaskRepository(App::make('db')));
 App::singleton('task_links', fn() => new \App\Repository\TaskLinkRepository(App::make('db')));
+App::singleton('settings',  fn() => new \App\Repository\SettingsRepository(App::make('db')));
+App::singleton('forms',     fn() => new \App\Repository\FormRepository(App::make('db')));
+App::singleton('form_submissions', fn() => new \App\Repository\FormSubmissionRepository(App::make('db')));
 App::singleton('hasher',  fn() => new \App\Auth\PasswordHasher());
 App::singleton('events',   fn() => new \App\Service\EventBus());
 App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));
@@ -173,11 +176,13 @@ $router->get('/projects/{id}', 'Project@show');
 $router->get('/projects/{id}/edit', 'Project@editForm');
 $router->post('/projects/{id}', 'Project@update');
 $router->post('/projects/{id}/delete', 'Project@delete');
+$router->post('/api/projects/{id}/pin', 'Project@togglePin');
 
 $router->get('/tasks/{id}', 'Task@show');
 $router->post('/tasks/{id}', 'Task@update');
 $router->post('/projects/{id}/tasks', 'Task@create');
 $router->post('/tasks/{id}/delete', 'Task@delete');
+$router->post('/api/tasks/{id}/promote-to-project', 'Task@promoteToProject');
 $router->post('/api/tasks/{id}/move', 'Task@move');
 $router->get('/api/projects/{id}/tasks/search', 'Task@search');
 $router->get('/api/projects/{id}/columns/{cid}/tasks', 'Task@listForColumn');
@@ -199,6 +204,26 @@ $router->post('/api/projects/{id}/tags', 'Tag@attachToProject');
 $router->post('/api/projects/{id}/tags/{tagId}/delete', 'Tag@detachFromProject');
 $router->post('/api/tasks/{id}/tags', 'Tag@attachToTask');
 $router->post('/api/tasks/{id}/tags/{tagId}/delete', 'Tag@detachFromTask');
+
+$router->get('/admin/settings', 'Settings@show');
+$router->post('/admin/settings', 'Settings@update');
+
+$router->get('/forms', 'Form@index');
+$router->get('/forms/new', 'Form@builder');
+$router->post('/forms', 'Form@save');
+$router->get('/forms/{id}', 'Form@builder');
+$router->post('/forms/{id}', 'Form@save');
+$router->post('/forms/{id}/delete', 'Form@delete');
+$router->post('/forms/{id}/rotate-hash', 'Form@regenerateHash');
+
+$router->get('/forms-data', 'FormData@index');
+$router->get('/forms-data/{id}', 'FormData@show');
+$router->post('/api/forms-data/{id}/status', 'FormData@setStatus');
+$router->post('/api/forms-data/{id}/promote', 'FormData@promote');
+$router->post('/api/forms-data/{id}/delete', 'FormData@delete');
+
+$router->get('/f/{hash}', 'PublicForm@show');
+$router->post('/f/{hash}', 'PublicForm@submit');
 
 $router->get('/admin/tags', 'TagAdmin@index');
 $router->post('/api/admin/tags/{id}', 'TagAdmin@update');
@@ -238,19 +263,21 @@ if (!$match) {
     exit;
 }
 
-if ($req->method === 'POST') {
-    $token = $req->post['_csrf'] ?? $req->header('x-csrf-token');
-    if (!$csrf->verify($token)) { Response::json(['error' => 'CSRF mismatch'], 419); exit; }
-}
-
 // Public routes — never require auth
 $publicGets = ['/login', '/register', '/pending'];
 if (App::env('APP_DEBUG') === 'true') {
     $publicGets[] = '/ui-sandbox';
 }
 $publicPosts = ['/login', '/register'];
-$isPublic = ($req->method === 'GET'  && in_array($req->path, $publicGets, true))
-         || ($req->method === 'POST' && in_array($req->path, $publicPosts, true));
+// Public form rendering / submission lives under /f/{hash}
+$isFormPath = str_starts_with($req->path, '/f/');
+$isPublic = ($req->method === 'GET'  && (in_array($req->path, $publicGets, true)  || $isFormPath))
+         || ($req->method === 'POST' && (in_array($req->path, $publicPosts, true) || $isFormPath));
+
+if ($req->method === 'POST' && !$isFormPath) {
+    $token = $req->post['_csrf'] ?? $req->header('x-csrf-token');
+    if (!$csrf->verify($token)) { Response::json(['error' => 'CSRF mismatch'], 419); exit; }
+}
 
 $currentUser = null;
 if (!$isPublic) {

@@ -28,15 +28,17 @@
           <span class="sub-status" data-task-sub-status hidden></span>
         <?php endif; ?>
       </div>
-      <h1 class="task-title is-editable" contenteditable="true" spellcheck="false"
-          style="font-size:24px;font-weight:700;letter-spacing:-0.015em;margin:0;outline:none;border-bottom:1px dashed transparent;padding-bottom:4px;cursor:text;line-height:1.25;"
+      <h1 class="task-title<?= !empty($canEditTask) ? ' is-editable' : '' ?>" <?= !empty($canEditTask) ? 'contenteditable="true"' : '' ?> spellcheck="false"
+          style="font-size:24px;font-weight:700;letter-spacing:-0.015em;margin:0;outline:none;border-bottom:1px dashed transparent;padding-bottom:4px;<?= !empty($canEditTask) ? 'cursor:text;' : '' ?>line-height:1.25;"
           data-task-id="<?= (int)$task['id'] ?>"><?= e($task['title']) ?></h1>
     </div>
 
     <section class="overview-panel task-description-section">
       <header class="overview-panel__head">
         <h2 class="overview-panel__title">Description</h2>
-        <button class="btn-ghost" type="button" data-action="edit-description" style="font-size:12px;">Edit</button>
+        <?php if (!empty($canEditTask)): ?>
+          <button class="btn-ghost" type="button" data-action="edit-description" style="font-size:12px;">Edit</button>
+        <?php endif; ?>
       </header>
       <div class="overview-panel__body rich-text task-description-rendered">
         <?= $task['description'] ? \App\Service\LinkPreview::enhance((string)$task['description']) : '<em class="overview-panel__empty">No description. Click Edit to add one.</em>' ?>
@@ -251,10 +253,19 @@
       <div style="margin-top:4px;font-family:var(--font-mono);"><?= fmt_datetime($task['created_at']) ?></div>
     </div>
 
-    <button class="btn-danger" type="button" data-action="delete-task"
-            style="margin-top:18px;width:100%;padding:8px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;">
-      Delete task
-    </button>
+    <?php if (!empty($canCreateProject)): ?>
+      <button class="btn-ghost" type="button" data-action="promote-to-project"
+              style="margin-top:18px;width:100%;padding:8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+        <i class="fa-solid fa-up-right-from-square"></i> Promote to project
+      </button>
+    <?php endif; ?>
+
+    <?php if (!empty($canEditTask)): ?>
+      <button class="btn-danger" type="button" data-action="delete-task"
+              style="margin-top:10px;width:100%;padding:8px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;">
+        Delete task
+      </button>
+    <?php endif; ?>
   </aside>
 </div>
 

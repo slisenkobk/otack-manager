@@ -28,6 +28,20 @@ function openUserModal({ title, name = '', email = '', isEdit = false, onSubmit 
   body.appendChild(nameF.wrap);
   body.appendChild(emailF.wrap);
   body.appendChild(passF.wrap);
+  let roleF = null;
+  if (!isEdit) {
+    roleF = buildField('Role', () => {
+      const s = document.createElement('select');
+      s.className = 'input';
+      for (const [v, l] of [['employee', 'Employee'], ['manager', 'Manager'], ['admin', 'Admin']]) {
+        const o = document.createElement('option');
+        o.value = v; o.textContent = l;
+        s.appendChild(o);
+      }
+      return s;
+    });
+    body.appendChild(roleF.wrap);
+  }
 
   UI.modal({
     title,
@@ -38,6 +52,7 @@ function openUserModal({ title, name = '', email = '', isEdit = false, onSubmit 
           const payload = { name: nameF.input.value.trim() };
           if (!isEdit) payload.email = emailF.input.value.trim();
           if (passF.input.value) payload.password = passF.input.value;
+          if (roleF) payload.role = roleF.input.value;
           try {
             await onSubmit(payload);
             close();
@@ -62,6 +77,26 @@ document.querySelector('[data-action="new-user"]')?.addEventListener('click', ()
 });
 
 document.querySelectorAll('article[data-user-id]').forEach(card => {
+  const roleSelect = card.querySelector('[data-role-select]');
+  if (roleSelect) {
+    let prev = roleSelect.value;
+    roleSelect.addEventListener('change', async () => {
+      const next = roleSelect.value;
+      const id = card.dataset.userId;
+      if (!await UI.confirm('Set role to "' + next + '"?')) {
+        roleSelect.value = prev;
+        return;
+      }
+      try {
+        await api('/users/' + id + '/role', { method: 'POST', body: JSON.stringify({ role: next }) });
+        prev = next;
+        UI.toast('Role updated', 'success');
+      } catch {
+        roleSelect.value = prev;
+      }
+    });
+  }
+
   card.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = card.dataset.userId;
@@ -87,11 +122,6 @@ document.querySelectorAll('article[data-user-id]').forEach(card => {
           if (!await UI.confirm('Block this user?', {danger: true})) return;
           await api('/users/' + id + '/block', { method: 'POST' });
           UI.toast('Blocked', 'success');
-        } else if (action === 'toggle-role') {
-          const next = btn.dataset.currentRole === 'admin' ? 'member' : 'admin';
-          if (!await UI.confirm('Set role to ' + next + '?')) return;
-          await api('/users/' + id + '/role', { method: 'POST', body: JSON.stringify({ role: next }) });
-          UI.toast('Role updated', 'success');
         } else if (action === 'delete') {
           if (!await UI.confirm('Delete this user permanently?', {danger:true, confirmLabel:'Delete'})) return;
           await api('/users/' + id + '/delete', { method: 'POST' });

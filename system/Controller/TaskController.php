@@ -74,8 +74,12 @@ final class TaskController extends BaseController {
         $task = $this->tasks->findById($id);
         if (!$task) { Response::json(['error' => 'Not found'], 404); return; }
         $this->assertMember((int)$task['project_id']);
+        if (!\App\Service\RolePolicy::canEditTask($this->user, $task, $this->members)) {
+            Response::json(['error' => 'Only the task author or project owner can delete this task'], 403); return;
+        }
         $project = $this->projects->findById((int)$task['project_id']);
         $this->tasks->delete($id);
+        App::make('form_submissions')->detachConverted('task', $id);
         App::make('events')->fire('task.deleted', [
             'task_id'      => $id,
             'title'        => $task['title'],
@@ -91,6 +95,71 @@ final class TaskController extends BaseController {
             ['task_id' => $id]
         );
         Response::json(['ok' => true]);
+    }
+
+    /**
+     * Spin a task off into a new project. Copies:
+     *  - title → name, description → description
+     *  - attachments (duplicates rows pointing at the same files; both task and project keep them)
+     *  - tags      (finds/creates a project-scope tag with same name/color for each task tag)
+     */
+    public function promoteToProject(Request $req, array $params): void {
+        $id   = (int)$params['id'];
+        $task = $this->tasks->findById($id);
+        if (!$task) { Response::json(['error' => 'Not found'], 404); return; }
+        $this->assertMember((int)$task['project_id']);
+        if (!\App\Service\RolePolicy::canPromoteTaskToProject($this->user)) {
+            Response::json(['error' => 'Employees cannot create projects'], 403); return;
+        }
+
+        $name = trim((string)$task['title']);
+        if ($name === '') { Response::json(['error' => 'Task has no title'], 422); return; }
+        $description = (string)($task['description'] ?? '');
+
+        $newId = $this->projects->create($name, $description !== '' ? $description : null, (int)$this->user['id']);
+        App::make('members')->add($newId, (int)$this->user['id'], 'owner');
+        App::make('columns')->seedDefaults($newId);
+
+        // Duplicate attachment rows so the new project carries the same files
+        // (filename column is a path, shared — files themselves are not copied).
+        $attachments = App::make('attachments')->listFor('task', $id);
+        foreach ($attachments as $a) {
+            App::make('attachments')->create([
+                'entity_type'   => 'project',
+                'entity_id'     => $newId,
+                'filename'      => $a['filename'],
+                'original_name' => $a['original_name'],
+                'mime'          => $a['mime'],
+                'size'          => (int)$a['size'],
+                'is_image'      => (int)$a['is_image'] === 1,
+                'uploaded_by'   => (int)$this->user['id'],
+            ]);
+        }
+
+        // Copy tags. Task tags live in 'task' scope, project tags in 'project'
+        // scope — so we resolve/create a sibling tag in the project scope by name+color.
+        $tagsRepo = App::make('tags');
+        foreach ($tagsRepo->listForTask($id) as $tg) {
+            $projTagId = $tagsRepo->create('project', (string)$tg['name'], (string)($tg['color'] ?? '#8B7C68'));
+            $tagsRepo->attachToProject($newId, $projTagId);
+        }
+
+        App::make('events')->fire('project.created', [
+            'project_id' => $newId,
+            'name'       => $name,
+            'actor_name' => $this->user['name'],
+            'url'        => \abs_url('/projects/' . $newId),
+        ]);
+        App::make('activity')->log(
+            'project.created',
+            (int)$this->user['id'],
+            $newId,
+            null,
+            "spun off project '$name' from task '" . $task['title'] . "'",
+            ['from_task_id' => $id, 'copied_attachments' => count($attachments)]
+        );
+
+        Response::json(['ok' => true, 'project_id' => $newId, 'url' => '/projects/' . $newId . '?tab=overview']);
     }
 
     public function move(Request $req, array $params): void {
@@ -300,6 +369,8 @@ final class TaskController extends BaseController {
                 'createdBy' => $createdBy, 'csrfToken' => $csrfToken,
                 'currentUserId' => (int)$this->user['id'], 'isAdmin' => $isAdmin,
                 'canEdit' => true,
+                'canEditTask' => \App\Service\RolePolicy::canEditTask($this->user, $task, $this->members),
+                'canCreateProject' => \App\Service\RolePolicy::canCreateProject($this->user),
                 'taskTags'    => $taskTags,
                 'allTaskTags' => $allTaskTags,
                 'commentAttachments' => $commentAttachments,
@@ -462,6 +533,14 @@ final class TaskController extends BaseController {
         if (!$task) { Response::json(['error' => 'Not found'], 404); return; }
         $this->assertMember((int)$task['project_id']);
         $data = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        // Title/description are "structural" edits — restricted to the author,
+        // project manager (owner), or admin. Status / assignee / due / priority
+        // remain open to any project member (employees can re-prioritise, move).
+        $touchesRestricted = isset($data['title']) || array_key_exists('description', $data);
+        if ($touchesRestricted && !\App\Service\RolePolicy::canEditTask($this->user, $task, $this->members)) {
+            Response::json(['error' => 'Only the task author or project owner can edit title/description'], 403); return;
+        }
 
         $fields = [];
         if (isset($data['title'])) {

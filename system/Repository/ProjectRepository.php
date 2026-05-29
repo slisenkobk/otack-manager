@@ -58,13 +58,13 @@ final class ProjectRepository {
 
     public function listForUser(int $userId, bool $isAdmin): array {
         if ($isAdmin) {
-            return $this->pdo->query('SELECT * FROM projects ORDER BY updated_at DESC')->fetchAll();
+            return $this->pdo->query('SELECT * FROM projects ORDER BY (pinned_at IS NULL), pinned_at DESC, updated_at DESC')->fetchAll();
         }
         $stmt = $this->pdo->prepare(
             'SELECT p.* FROM projects p
              INNER JOIN project_members pm ON pm.project_id = p.id
              WHERE pm.user_id = ?
-             ORDER BY p.updated_at DESC'
+             ORDER BY (p.pinned_at IS NULL), p.pinned_at DESC, p.updated_at DESC'
         );
         $stmt->execute([$userId]);
         return $stmt->fetchAll();
@@ -72,6 +72,15 @@ final class ProjectRepository {
 
     public function delete(int $id): void {
         $this->pdo->prepare('DELETE FROM projects WHERE id = ?')->execute([$id]);
+    }
+
+    public function setPinned(int $id, bool $pinned): void {
+        if ($pinned) {
+            $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+            $this->pdo->prepare('UPDATE projects SET pinned_at = ? WHERE id = ?')->execute([$now, $id]);
+        } else {
+            $this->pdo->prepare('UPDATE projects SET pinned_at = NULL WHERE id = ?')->execute([$id]);
+        }
     }
 
     public function countAllForUser(int $userId, bool $isAdmin, ?string $status = null, string $query = ''): int {
@@ -99,14 +108,14 @@ final class ProjectRepository {
         if ($status !== null) { $where .= ' AND p.status = ?'; $args[] = $status; }
         if ($query !== '')    { $where .= ' AND LOWER(p.name) LIKE ?'; $args[] = '%' . mb_strtolower($query) . '%'; }
         if ($isAdmin) {
-            $sql = 'SELECT * FROM projects p WHERE 1=1' . $where . ' ORDER BY p.updated_at DESC LIMIT ? OFFSET ?';
+            $sql = 'SELECT * FROM projects p WHERE 1=1' . $where . ' ORDER BY (p.pinned_at IS NULL), p.pinned_at DESC, p.updated_at DESC LIMIT ? OFFSET ?';
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute(array_merge($args, [$limit, $offset]));
         } else {
             $sql = 'SELECT p.* FROM projects p
                     INNER JOIN project_members pm ON pm.project_id = p.id
                     WHERE pm.user_id = ?' . $where . '
-                    ORDER BY p.updated_at DESC LIMIT ? OFFSET ?';
+                    ORDER BY (p.pinned_at IS NULL), p.pinned_at DESC, p.updated_at DESC LIMIT ? OFFSET ?';
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute(array_merge([$userId], $args, [$limit, $offset]));
         }
@@ -130,14 +139,14 @@ final class ProjectRepository {
 
     public function recentForUser(int $userId, bool $isAdmin, int $limit = 3): array {
         if ($isAdmin) {
-            $stmt = $this->pdo->prepare('SELECT * FROM projects ORDER BY updated_at DESC LIMIT ?');
+            $stmt = $this->pdo->prepare('SELECT * FROM projects ORDER BY (pinned_at IS NULL), pinned_at DESC, updated_at DESC LIMIT ?');
             $stmt->execute([$limit]);
         } else {
             $stmt = $this->pdo->prepare(
                 'SELECT p.* FROM projects p
                  INNER JOIN project_members pm ON pm.project_id = p.id
                  WHERE pm.user_id = ?
-                 ORDER BY p.updated_at DESC LIMIT ?'
+                 ORDER BY (p.pinned_at IS NULL), p.pinned_at DESC, p.updated_at DESC LIMIT ?'
             );
             $stmt->execute([$userId, $limit]);
         }

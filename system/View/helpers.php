@@ -38,20 +38,47 @@ function icon(string $name, string $extraClass = ''): string
     return '<i class="fa-solid fa-' . e($name) . ($extraClass ? ' ' . e($extraClass) : '') . '"></i>';
 }
 
+/**
+ * Resolve the configured timezone once per request. Falls back to UTC if the
+ * settings table hasn't been initialised yet (early bootstrap).
+ */
+function app_timezone(): \DateTimeZone
+{
+    static $tz = null;
+    if ($tz) return $tz;
+    try {
+        $name = \App\App::make('settings')->get('timezone', 'Europe/Kyiv');
+        if ($name === '') $name = 'Europe/Kyiv';
+        $tz = new \DateTimeZone($name);
+    } catch (\Throwable $e) {
+        $tz = new \DateTimeZone('UTC');
+    }
+    return $tz;
+}
+
 function fmt_date(?string $iso): string
 {
     if (!$iso) return '';
-    return date('d.m.Y', strtotime($iso));
+    try {
+        $d = new \DateTimeImmutable($iso);
+        return $d->setTimezone(app_timezone())->format('d.m.Y');
+    } catch (\Throwable $e) {
+        return '';
+    }
 }
 
 function fmt_datetime(?string $iso): string
 {
     if (!$iso) return '';
-    $t = strtotime($iso);
-    if ($t === false) return '';
-    return date('Y-m-d') === date('Y-m-d', $t)
-        ? date('H:i', $t)
-        : date('d.m.Y H:i', $t);
+    try {
+        $d = (new \DateTimeImmutable($iso))->setTimezone(app_timezone());
+    } catch (\Throwable $e) {
+        return '';
+    }
+    $today = (new \DateTimeImmutable('now', app_timezone()))->format('Y-m-d');
+    return $d->format('Y-m-d') === $today
+        ? $d->format('H:i')
+        : $d->format('d.m.Y H:i');
 }
 
 /** Deterministic OKLCH-ish hue per user id → stable colored avatar background. */
