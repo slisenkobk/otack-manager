@@ -8,15 +8,13 @@ use App\Auth\AuthManager;
 
 function _new_auth_setup(): array {
     $tmpDb = sys_get_temp_dir() . '/otack-auth-' . uniqid() . '.sqlite';
-    $tmpMark = sys_get_temp_dir() . '/otack-amark-' . uniqid();
-    mkdir($tmpMark, 0755, true);
     $pdo = Connection::open($tmpDb);
-    Migrations::run(new SchemaBootstrap($pdo, $tmpMark));
+    Migrations::run(new SchemaBootstrap($pdo));
     $session = [];
     $repo = new UserRepository($pdo);
     $hasher = new PasswordHasher();
     $auth = new AuthManager($repo, $hasher, $session);
-    return [$auth, $repo, $hasher, &$session, $tmpDb, $tmpMark];
+    return [$auth, $repo, $hasher, &$session, $tmpDb];
 }
 
 it('login with wrong password returns null and increments fails', function () {

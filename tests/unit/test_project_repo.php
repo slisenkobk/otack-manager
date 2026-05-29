@@ -9,15 +9,13 @@ use App\Repository\TaskColumnRepository;
 
 function _new_project_setup(): array {
     $db = sys_get_temp_dir() . '/otack-proj-' . uniqid() . '.sqlite';
-    $mk = sys_get_temp_dir() . '/otack-pmk-' . uniqid();
-    mkdir($mk, 0755, true);
     $pdo = Connection::open($db);
-    Migrations::run(new SchemaBootstrap($pdo, $mk));
-    return [$pdo, $db, $mk];
+    Migrations::run(new SchemaBootstrap($pdo));
+    return [$pdo, $db];
 }
 
 it('ProjectRepository::create returns id and seeds slug', function () {
-    [$pdo, $db, $mk] = _new_project_setup();
+    [$pdo, $db] = _new_project_setup();
     $users = new UserRepository($pdo);
     $admin = $users->create('a@x', 'h', 'A');
     $projects = new ProjectRepository($pdo);
@@ -29,7 +27,7 @@ it('ProjectRepository::create returns id and seeds slug', function () {
 });
 
 it('ProjectRepository::slugify ensures uniqueness via -2/-3 suffix', function () {
-    [$pdo, $db, $mk] = _new_project_setup();
+    [$pdo, $db] = _new_project_setup();
     $users = new UserRepository($pdo);
     $admin = $users->create('a@x', 'h', 'A');
     $projects = new ProjectRepository($pdo);
@@ -43,7 +41,7 @@ it('ProjectRepository::slugify ensures uniqueness via -2/-3 suffix', function ()
 });
 
 it('ProjectMemberRepository add/list/remove/isMember/isOwner', function () {
-    [$pdo, $db, $mk] = _new_project_setup();
+    [$pdo, $db] = _new_project_setup();
     $users = new UserRepository($pdo);
     $u1 = $users->create('a@x', 'h', 'A');
     $u2 = $users->create('b@x', 'h', 'B');
@@ -64,7 +62,7 @@ it('ProjectMemberRepository add/list/remove/isMember/isOwner', function () {
 });
 
 it('TaskColumnRepository seedDefaults creates 3 columns in correct order', function () {
-    [$pdo, $db, $mk] = _new_project_setup();
+    [$pdo, $db] = _new_project_setup();
     $users = new UserRepository($pdo);
     $u1 = $users->create('a@x', 'h', 'A');
     $projects = new ProjectRepository($pdo);
@@ -72,13 +70,12 @@ it('TaskColumnRepository seedDefaults creates 3 columns in correct order', funct
     $columns = new TaskColumnRepository($pdo);
     $columns->seedDefaults($pid);
     $cols = $columns->listForProject($pid);
-    assert_eq(3, count($cols));
-    assert_eq('To Do', $cols[0]['name']);
-    assert_eq('In Progress', $cols[1]['name']);
-    assert_eq('Done', $cols[2]['name']);
-    assert_eq('#5A4E3F', $cols[0]['color']);
-    assert_eq('#C2410C', $cols[1]['color']);
-    assert_eq('#4D6840', $cols[2]['color']);
-    assert_eq(1, (int)$cols[2]['is_done']);
+    assert_eq(4, count($cols));
+    assert_eq('Backlog', $cols[0]['name']);
+    assert_eq('To Do', $cols[1]['name']);
+    assert_eq('In Progress', $cols[2]['name']);
+    assert_eq('Done', $cols[3]['name']);
+    assert_eq(1, (int)$cols[0]['is_backlog']);
+    assert_eq(1, (int)$cols[3]['is_done']);
     @unlink($db);
 });

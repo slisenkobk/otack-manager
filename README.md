@@ -38,6 +38,18 @@ php -S localhost:8000 -t public public/index.php
 # Subsequent self-registrations land in /pending until admin approves them at /users.
 ```
 
+## Database migrations
+
+Per-file migrations live in `system/Database/migrations/` and apply automatically on first HTTP hit. To run them explicitly:
+
+```bash
+make migrate           # or: php bin/migrate.php
+```
+
+Applied migrations are tracked in the `schema_migrations` table inside the app DB. See [docs/MIGRATIONS.md](docs/MIGRATIONS.md) for the file format, naming convention, and the (one-time) backfill from legacy `data/.schema/` markers.
+
+**Filenames are permanent once shipped** — renaming an applied migration would re-execute it on the next deploy.
+
 ## Telegram notifications
 
 To enable notifications:
@@ -58,7 +70,7 @@ If the env vars are empty, notifications are silently skipped (logged with `erro
 The included `.htaccess` files handle the routing. Point Apache at the project root; the front controller is at `public/index.php`.
 
 Make sure:
-- `data/` is writable (SQLite + sessions + schema markers + error log)
+- `data/` is writable (SQLite + sessions + error log; legacy `data/.schema/` markers, if present, are read once on first boot then ignored)
 - `public/uploads/` is writable (file storage)
 - `.env` and `data/` are NOT web-accessible (blocked by the root `.htaccess`).
 
@@ -91,7 +103,7 @@ otack-manager/
 │   ├── App.php              Static service container
 │   ├── Auth/                AuthManager, PasswordHasher, SessionManager
 │   ├── Controller/          BaseController + per-resource controllers
-│   ├── Database/            Connection, SchemaBootstrap, Migrations
+│   ├── Database/            Connection, SchemaBootstrap, Migrations + migrations/*.php
 │   ├── Http/                Request, Response, Csrf, AuthGuard
 │   ├── Repository/          User, Project, Task, Comment, Attachment, Tag, …
 │   ├── Routing/Router.php
@@ -110,7 +122,8 @@ otack-manager/
 │   ├── tags/index.php       Admin tag management
 │   ├── users/index.php
 │   └── profile/show.php
-├── data/                    SQLite + sessions + schema markers + error log
+├── bin/migrate.php          Stand-alone CLI runner for schema migrations
+├── data/                    SQLite + sessions + error log
 ├── tests/
 │   ├── run.php              Hand-rolled PHP test runner
 │   ├── unit/                ~45 unit tests

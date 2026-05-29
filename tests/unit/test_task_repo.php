@@ -9,10 +9,8 @@ use App\Repository\TaskRepository;
 
 function _new_task_setup(): array {
     $db = sys_get_temp_dir() . '/otack-task-' . uniqid() . '.sqlite';
-    $mk = sys_get_temp_dir() . '/otack-tmk-' . uniqid();
-    mkdir($mk, 0755, true);
     $pdo = Connection::open($db);
-    Migrations::run(new SchemaBootstrap($pdo, $mk));
+    Migrations::run(new SchemaBootstrap($pdo));
     $users = new UserRepository($pdo);
     $u = $users->create('a@x', 'h', 'A');
     $proj = new ProjectRepository($pdo);

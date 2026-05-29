@@ -47,8 +47,9 @@ $session->start((int)App::env('SESSION_LIFETIME', '43200'));
 $store = &$session->storage();
 
 App::singleton('db',     fn() => Connection::open(APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite')));
-App::singleton('schema', fn() => new SchemaBootstrap(App::make('db'), APP_ROOT . '/' . App::env('SCHEMA_PATH', 'data/.schema')));
+App::singleton('schema', fn() => new SchemaBootstrap(App::make('db')));
 App::singleton('view',   fn() => new Renderer(APP_ROOT . '/views'));
+SchemaBootstrap::$legacyMarkerDir = APP_ROOT . '/data/.schema';
 Migrations::run(App::make('schema'));
 
 $csrf = new Csrf($store);

@@ -1,4 +1,4 @@
-.PHONY: help setup serve dev test unit e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package
+.PHONY: help setup serve dev test unit e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package migrate
 
 PORT ?= 8000
 SERVER_PID := /tmp/otack-server.pid
@@ -13,6 +13,8 @@ help:
 	@echo "  make stop         — stop background dev server"
 	@echo "  make status       — show whether dev server is running"
 	@echo "  make logs         — tail dev-server log"
+	@echo ""
+	@echo "  make migrate      — apply pending schema migrations explicitly (CLI/CI)"
 	@echo ""
 	@echo "  make test         — run all tests (PHP unit + Playwright E2E)"
 	@echo "  make unit         — run PHP unit tests only"
@@ -65,6 +67,9 @@ status:
 logs:
 	@touch /tmp/otack-server.log
 	@tail -f /tmp/otack-server.log
+
+migrate:
+	php bin/migrate.php
 
 test: unit e2e
 

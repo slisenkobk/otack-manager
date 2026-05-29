@@ -1,6 +1,13 @@
 <?php
 declare(strict_types=1);
 
+// Suppress the default-admin seed migration when running tests against tmp
+// SQLite DBs — the test suite needs to control the user count itself.
+// bootstrap.php's .env loader honours pre-set $_ENV / getenv values, so this
+// wins over any value in the real .env file.
+$_ENV['SEED_DEFAULT_ADMIN_EMAIL'] = '';
+putenv('SEED_DEFAULT_ADMIN_EMAIL=');
+
 $root = dirname(__DIR__);
 require $root . '/system/bootstrap.php';
 
