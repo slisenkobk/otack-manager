@@ -4,6 +4,7 @@
 /data/.schema/
 /data/.schema.test/
 /data/errors.log
+/data.backup-*/
 /public/uploads/
 /public/uploads-test/
 /.env
