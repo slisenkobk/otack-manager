@@ -4239,7 +4239,7 @@ a.link-card *,
 .task-detail {
   display: grid;
   grid-template-columns: 1fr 280px;
-  gap: var(--space-14);
+  gap: var(--space-12);
   align-items: start;
 }
 
@@ -4313,6 +4313,78 @@ a.link-card *,
   word-break: break-word;
 }
 .submission-answers__value--empty { color: var(--ink-3); font-style: italic; }
+
+/* ─── Tags admin — compact chip cards ────────────────────────────
+   Tags render as small inline cards that wrap to the next row instead
+   of stretching to fill the container. Each chip auto-sizes around its
+   content; the row uses flex-wrap with a gap so they tile neatly. */
+.tag-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.tag-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-5);
+  min-height: auto;
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-elevated);
+  cursor: default;
+}
+.tag-chip:hover { transform: none; }
+.tag-chip__name {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 28px;
+  outline: none;
+  border-bottom: 1px dashed transparent;
+  cursor: text;
+  white-space: nowrap;
+  /* Match the 28 px height of the swatch + delete button so contenteditable
+     doesn't shift the baseline when the user hovers or clicks. */
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+}
+.tag-chip__name:focus { border-bottom-color: var(--accent); }
+.tag-chip__swatch {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 6px;
+}
+.tag-chip__usage {
+  font-size: 11px;
+  color: var(--ink-3);
+  letter-spacing: var(--ls-mono);
+  white-space: nowrap;
+  /* Same trick as the name — match the 28 px row height so all four
+     elements (swatch, name, usage, delete) sit on the same vertical
+     centre line. */
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+}
+.tag-chip__delete {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  /* Override .btn-danger's min-height: 36px — otherwise the delete button
+     pushes the chip's content box taller than the swatch / name height
+     and the swatch ends up visually nearer the top edge. */
+  min-height: 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+.tag-chip__delete i { font-size: 12px; }
 
 /* Phone-tight (≤600 px) — collapse / re-flow the components added by the
    recent settings + profile + page-head work. */

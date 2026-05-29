@@ -19,24 +19,25 @@ foreach ($scopeLabels as $scope => $label):
       <?= e($label) ?>
       <span style="font-size:11px;font-weight:400;color:var(--ink-3);">(<?= count($byScope[$scope]) ?>)</span>
     </summary>
-    <div style="display:flex;flex-direction:column;gap:10px;">
+    <div class="tag-chip-row">
       <?php foreach ($byScope[$scope] as $tag):
         $usage = $usages[(int)$tag['id']] ?? ['project_count' => 0, 'task_count' => 0];
       ?>
-        <article class="card" data-tag-id="<?= (int)$tag['id'] ?>" data-tag-row style="flex-direction:row;align-items:center;gap:16px;min-height:auto;padding:12px 16px;">
-          <span class="tag-name" contenteditable="true" spellcheck="false"
-                data-original="<?= e($tag['name']) ?>"
-                data-tag-name
-                style="font-weight:600;font-size:14px;flex:1;outline:none;border-bottom:1px dashed transparent;cursor:text;padding-bottom:2px;">
-            <?= e($tag['name']) ?>
-          </span>
-          <label class="color-swatch tag-swatch" title="<?= e(t('tags.change_color')) ?>" style="background: <?= e($tag['color']) ?>; width:32px;">
+        <article class="card tag-chip" data-tag-id="<?= (int)$tag['id'] ?>" data-tag-row>
+          <label class="color-swatch tag-swatch tag-chip__swatch" title="<?= e(t('tags.change_color')) ?>" style="background: <?= e($tag['color']) ?>;">
             <input type="color" class="tag-color-input" value="<?= e($tag['color']) ?>">
           </label>
-          <span class="mono" style="font-size:11px;color:var(--ink-3);min-width:90px;text-align:right;">
+          <span class="tag-name tag-chip__name" contenteditable="true" spellcheck="false"
+                data-original="<?= e($tag['name']) ?>"
+                data-tag-name>
+            <?= e($tag['name']) ?>
+          </span>
+          <span class="tag-chip__usage mono">
             P:<?= (int)$usage['project_count'] ?> T:<?= (int)$usage['task_count'] ?>
           </span>
-          <button class="btn-danger" data-action="delete-tag" type="button" style="flex-shrink:0;font-size:12px;padding:4px 10px;"><?= e(t('common.delete')) ?></button>
+          <button class="btn-danger tag-chip__delete" data-action="delete-tag" type="button" aria-label="<?= e(t('common.delete')) ?>">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
         </article>
       <?php endforeach; ?>
     </div>
