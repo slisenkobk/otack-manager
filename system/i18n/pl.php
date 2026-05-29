@@ -46,6 +46,7 @@ return [
 
     // ─── Navigation ──────────────────────────────────────────────────────────
     'nav.workspace'   => 'Obszar pracy',
+    'nav.menu'        => 'Menu',
     'nav.dashboard'   => 'Pulpit',
     'nav.projects'    => 'Projekty',
     'nav.forms'       => 'Formularze',
@@ -67,6 +68,7 @@ return [
     // ─── Auth ────────────────────────────────────────────────────────────────
     'auth.sign_in'              => 'Zaloguj się',
     'auth.sign_in_arrow'        => 'Zaloguj się →',
+    'auth.remember_me'          => 'Zapamiętaj mnie na 30 dni',
     'auth.sign_out'             => 'Wyloguj się',
     'auth.create_account'       => 'Utwórz konto',
     'auth.create_account_arrow' => 'Utwórz konto →',
@@ -230,6 +232,8 @@ return [
     'forms.rotate'             => 'Wygeneruj nowy',
     'forms.rotate_title'       => 'Wygeneruj nowy link (obecny przestanie działać)',
     'forms.basics'             => 'Podstawy formularza',
+    'forms.locale_label'       => 'Język',
+    'forms.locale_hint'        => 'Język, który zobaczy odwiedzający formularz publiczny.',
     'forms.title_label'        => 'Tytuł (widoczny dla użytkowników)',
     'forms.title_placeholder'  => 'Zapytanie klienta',
     'forms.description_label'  => 'Opis (opcjonalnie, obsługuje formatowanie)',
@@ -362,7 +366,8 @@ return [
     'profile.section.language' => 'Język',
     'profile.language_label'   => 'Preferowany język',
     'profile.language_hint'    => 'Używany w całym interfejsie. Formularze publiczne zachowują język ich twórcy.',
-    'profile.section.password' => 'Hasło',
+    'profile.section.password' => 'Zmień hasło',
+    'profile.password_hint'    => 'Zostaw puste, aby zachować bieżące hasło.',
     'profile.change_password'  => 'Zmień hasło →',
     'profile.notifications_note' => 'Powiadomienia idą na wspólny kanał Telegram skonfigurowany przez administratora.',
     'profile.saved'            => 'Profil zapisany.',
@@ -442,7 +447,8 @@ return [
     'compass.db.error'       => 'błąd',
 
     'compass.logs.heading'   => 'data/errors.log',
-    'compass.logs.meta'      => ':size na dysku · ostatnie :n wpisów',
+    'compass.logs.meta'      => ':size na dysku · ostatnie :n',
+    'compass.logs.entries_n' => ['one' => 'wpis', 'few' => 'wpisy', 'many' => 'wpisów'],
     'compass.logs.filter'    => 'filtr: :level',
     'compass.logs.level'     => 'Poziom',
     'compass.logs.all_levels' => 'Wszystkie poziomy',
@@ -451,6 +457,10 @@ return [
     'compass.logs.level.notice'     => 'Uwaga',
     'compass.logs.level.deprecated' => 'Przestarzałe',
     'compass.logs.empty'     => 'Brak wpisów w logu.',
+    'compass.logs.clear'     => 'Wyczyść błędy',
+    'compass.logs.clear.confirm' => 'Wyczyścić plik błędów? Bieżące wpisy zostaną utracone. Nowe błędy są nadal rejestrowane.',
+    'compass.logs.cleared'   => 'Log błędów wyczyszczony (odzyskano :size)',
+    'compass.back_to_settings' => 'Ustawienia',
 
     // ─── Activity verbs ──────────────────────────────────────────────────────
     'activity.user.registered'    => 'poprosił(a) o konto',

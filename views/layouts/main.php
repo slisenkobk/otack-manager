@@ -30,7 +30,8 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 <meta name="i18n-locale"  content="<?= e(user_locale()) ?>">
 </head>
 <body>
-<div class="shell">
+<div class="shell" data-shell>
+  <div class="mobile-nav-backdrop" data-mobile-nav-backdrop hidden></div>
   <?= $sidebar ?? '' ?>
   <main class="main">
     <?= $topbar ?? '' ?>

@@ -10,7 +10,7 @@
   require APP_ROOT . '/views/partials/project-tabs.php';
 ?>
 
-<div style="display:grid;grid-template-columns:1fr 280px;gap:40px;align-items:start;">
+<div class="task-detail">
   <main>
     <p class="mono muted task-breadcrumb-line">
       <a href="/projects/<?= (int)$project['id'] ?>" class="task-breadcrumb-line__project"><?= e($project['name']) ?></a>

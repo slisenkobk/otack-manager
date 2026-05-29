@@ -178,6 +178,20 @@ App::singleton('session', function () use (&$store) {
         public function __construct(array &$s) { $this->store = &$s; }
     };
 });
+// Expose the SessionManager itself so the login flow can re-issue the
+// session cookie with the right lifetime (24h vs 30d for remember-me).
+App::singleton('session_manager', function () use ($session) { return $session; });
+
+// Slide the remember-me window forward on every authenticated request: each
+// page view bumps the cookie expiry to "now + 30 days" so an active user
+// stays signed in indefinitely; an inactive one ages out naturally.
+if (!empty($store['user_id'])) {
+    $session->extendCookie(
+        !empty($store['__remember'])
+            ? SessionManager::REMEMBER_LIFETIME
+            : SessionManager::DEFAULT_LIFETIME
+    );
+}
 
 $router = new Router();
 $router->get('/', 'Dashboard@index');
@@ -210,7 +224,6 @@ $router->post('/profile/avatar/delete', 'Profile@removeAvatar');
 $router->post('/profile/locale', 'Profile@updateLocale');
 
 $router->get('/projects', 'Project@index');
-$router->get('/projects/new', 'Project@createForm');
 $router->post('/projects', 'Project@create');
 $router->get('/projects/{id}', 'Project@show');
 $router->get('/projects/{id}/edit', 'Project@editForm');
@@ -257,6 +270,7 @@ $router->post('/admin/compass/cache/uploads/orphans/clear', 'Compass@clearOrphan
 $router->post('/admin/compass/cache/bust',              'Compass@bustAssetCache');
 $router->get('/admin/compass/db-stats',                 'Compass@stats');
 $router->get('/admin/compass/logs',                     'Compass@logs');
+$router->post('/admin/compass/logs/clear',              'Compass@clearErrorLog');
 
 $router->get('/forms', 'Form@index');
 $router->get('/forms/new', 'Form@builder');

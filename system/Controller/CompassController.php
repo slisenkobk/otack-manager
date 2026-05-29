@@ -68,7 +68,9 @@ final class CompassController extends BaseController
     {
         $level = (string)($req->query['level'] ?? '');
         $this->renderTab('logs', t('compass.tab.logs'), [
-            'entries'  => $this->compass->tailErrorsLog(100, $level !== '' ? $level : null),
+            // Hard cap: the log can grow unbounded; we never want to render the
+            // whole thing. Newest entries first.
+            'entries'  => $this->compass->tailErrorsLog(50, $level !== '' ? $level : null),
             'logSize'  => $this->compass->errorsLogSize(),
             'level'    => $level,
         ]);
@@ -118,6 +120,19 @@ final class CompassController extends BaseController
             $summary,
             $res,
             tn('compass.cache.uploads.cleared', $res['deleted'], ['n' => $res['deleted']])
+        );
+        Response::json(['ok' => true, 'message' => $summary] + $res);
+    }
+
+    public function clearErrorLog(Request $req, array $params = []): void
+    {
+        $res = $this->compass->clearErrorsLog();
+        $summary = t('compass.logs.cleared', ['size' => human_bytes((int)$res['bytes'])]);
+        $this->auditAndNotify(
+            'compass.logs.cleared',
+            $summary,
+            $res,
+            $summary
         );
         Response::json(['ok' => true, 'message' => $summary] + $res);
     }

@@ -11,7 +11,7 @@ final class FormRepository
         return substr(rtrim(strtr(base64_encode(random_bytes(16)), '+/', '-_'), '='), 0, $len);
     }
 
-    public function create(string $title, ?string $description, array $fields, array $footer, int $createdBy): int {
+    public function create(string $title, ?string $description, array $fields, array $footer, int $createdBy, string $locale = 'en'): int {
         $now  = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
         $hash = self::generateHash();
         // tiny retry on the off-chance of a hash collision
@@ -20,8 +20,8 @@ final class FormRepository
             $hash = self::generateHash();
         }
         $stmt = $this->pdo->prepare(
-            'INSERT INTO forms (hash, title, description, fields_json, footer_json, status, created_by, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, "published", ?, ?, ?)'
+            'INSERT INTO forms (hash, title, description, fields_json, footer_json, locale, status, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, "published", ?, ?, ?)'
         );
         $stmt->execute([
             $hash,
@@ -29,6 +29,7 @@ final class FormRepository
             $description,
             json_encode($fields, JSON_UNESCAPED_UNICODE),
             json_encode($footer, JSON_UNESCAPED_UNICODE),
+            $locale,
             $createdBy,
             $now,
             $now,
@@ -52,7 +53,7 @@ final class FormRepository
     }
 
     public function update(int $id, array $fields): void {
-        $allowed = ['title' => true, 'description' => true, 'fields_json' => true, 'footer_json' => true, 'status' => true];
+        $allowed = ['title' => true, 'description' => true, 'fields_json' => true, 'footer_json' => true, 'status' => true, 'locale' => true];
         $set = []; $vals = [];
         foreach ($fields as $k => $v) {
             if (!isset($allowed[$k])) continue;

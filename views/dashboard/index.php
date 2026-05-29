@@ -95,7 +95,7 @@ $sparkClosed = $spark($trend['closed'] ?? []);
     <div class="title"><?= t('dashboard.recent_projects', ['highlight' => '<span style="color:var(--brand);font-weight:600;">' . e(t('dashboard.recent_projects_highlight')) . '</span>']) ?></div>
     <div class="rule"></div>
     <div class="section-head__actions">
-      <a class="meta meta--action" href="/projects/new"><?= e(t('common.new')) ?> <span class="arr">&#8594;</span></a>
+      <a class="meta meta--action" href="/projects?new=1"><?= e(t('common.new')) ?> <span class="arr">&#8594;</span></a>
       <a class="meta" href="/projects"><?= e(t('dashboard.all_projects')) ?> <span class="arr">&#8594;</span></a>
     </div>
   </div>
@@ -103,7 +103,7 @@ $sparkClosed = $spark($trend['closed'] ?? []);
     <div class="empty-state">
       <span class="empty-state__tag"><?= e(app_name()) ?></span>
       <p class="empty-state__text">
-        <?= t('dashboard.empty.projects', ['link' => '<a href="/projects/new">' . e(t('dashboard.empty.projects_link')) . '</a>']) ?>
+        <?= t('dashboard.empty.projects', ['link' => '<a href="/projects?new=1">' . e(t('dashboard.empty.projects_link')) . '</a>']) ?>
       </p>
     </div>
   <?php else: ?>

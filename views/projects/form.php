@@ -1,18 +1,17 @@
 <?php
-$isEdit = ($mode ?? 'create') === 'edit';
-$palette = \App\Repository\ProjectRepository::PALETTE;
-$initialColor = $isEdit
-    ? ($project['color'] ?? '#1A1612')
-    : $palette[array_rand($palette)];
+// Edit-only — project creation now happens through the index-page modal.
+$palette      = \App\Repository\ProjectRepository::PALETTE;
+$initialColor = $project['color'] ?? $palette[array_rand($palette)];
 ?>
-<form method="post" action="<?= $isEdit ? '/projects/' . (int)$project['id'] : '/projects' ?>" class="brief" style="max-width:none;">
+<div class="page-form">
+<form method="post" action="/projects/<?= (int)$project['id'] ?>" class="brief" style="max-width:none;">
   <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
   <div class="field">
-    <label>Name</label>
-    <input class="input" type="text" name="name" required autofocus value="<?= $isEdit ? e($project['name']) : '' ?>">
+    <label><?= e(t('projects.form.name')) ?></label>
+    <input class="input" type="text" name="name" required autofocus value="<?= e($project['name']) ?>">
   </div>
   <div class="field" style="margin-top:14px;">
-    <label>Color</label>
+    <label><?= e(t('projects.form.color')) ?></label>
     <div class="color-picker-row">
       <input type="text" class="input" name="color" id="project-color-text" value="<?= e($initialColor) ?>" maxlength="7">
       <label class="color-swatch" style="background: <?= e($initialColor) ?>;">
@@ -21,20 +20,21 @@ $initialColor = $isEdit
     </div>
   </div>
   <div class="field" style="margin-top:14px;">
-    <label>Description (optional)</label>
+    <label><?= e(t('projects.form.description')) ?></label>
     <div class="wysiwyg-host">
       <div class="wysiwyg-editor"
            data-quill
            data-quill-target="#project-description-hidden"
-           data-placeholder="What is this project about?"><?= $isEdit ? ($project['description'] ?? '') : '' ?></div>
+           data-placeholder="What is this project about?"><?= $project['description'] ?? '' ?></div>
     </div>
     <input type="hidden" name="description" id="project-description-hidden"
-           value="<?= $isEdit ? e($project['description'] ?? '') : '' ?>">
+           value="<?= e($project['description'] ?? '') ?>">
   </div>
   <button class="submit" type="submit" style="margin-top:18px;">
-    <?= $isEdit ? 'Save changes &#8594;' : 'Create project &#8594;' ?>
+    <?= e(t('common.save')) ?> &#8594;
   </button>
 </form>
+</div>
 <script>
 (function () {
   const text   = document.getElementById('project-color-text');
@@ -51,4 +51,3 @@ $initialColor = $isEdit
   text.addEventListener('input', () => apply(text.value));
 })();
 </script>
-<script type="module" src="/assets/js/wysiwyg.js"></script>

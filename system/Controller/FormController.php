@@ -77,6 +77,11 @@ final class FormController extends BaseController
         // task/project descriptions to strip script/style/etc.
         $descriptionRaw = (string)($data['description'] ?? '');
         $description    = trim($descriptionRaw) === '' ? '' : \App\Service\HtmlSanitizer::clean($descriptionRaw);
+        $locale = (string)($data['locale'] ?? '');
+        if (!in_array($locale, available_locales(), true)) {
+            $locale = (string)App::make('settings')->get('default_locale', 'en');
+            if (!in_array($locale, available_locales(), true)) $locale = 'en';
+        }
         $fields = $this->normaliseFields($data['fields'] ?? []);
         $rawFooter = is_array($data['footer'] ?? null) ? $data['footer'] : [];
         // The note field is rendered as raw HTML on the public form (so it can
@@ -110,6 +115,7 @@ final class FormController extends BaseController
                 'description' => $description,
                 'fields_json' => json_encode($fields, JSON_UNESCAPED_UNICODE),
                 'footer_json' => json_encode($footer, JSON_UNESCAPED_UNICODE),
+                'locale'      => $locale,
             ]);
             \App\App::make('activity')->log('form.updated', (int)$this->user['id'], null, null,
                 "updated form '$title'", ['form_id' => $id]);
@@ -120,7 +126,7 @@ final class FormController extends BaseController
             return;
         }
 
-        $id = $this->forms->create($title, $description !== '' ? $description : null, $fields, $footer, (int)$this->user['id']);
+        $id = $this->forms->create($title, $description !== '' ? $description : null, $fields, $footer, (int)$this->user['id'], $locale);
         \App\App::make('activity')->log('form.created', (int)$this->user['id'], null, null,
             "created form '$title'", ['form_id' => $id]);
         \App\App::make('events')->fire('form.created', [

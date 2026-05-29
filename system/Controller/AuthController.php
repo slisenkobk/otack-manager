@@ -51,6 +51,7 @@ final class AuthController extends BaseController {
     public function login(Request $req, array $params = []): void {
         $email    = trim($req->post['email'] ?? '');
         $password = $req->post['password'] ?? '';
+        $remember = !empty($req->post['remember']);
         $result   = $this->auth->login($email, $password);
 
         if ($result === null) {
@@ -68,6 +69,16 @@ final class AuthController extends BaseController {
             $this->flash('flash_error', t('auth.account_blocked'));
             Response::redirect('/login'); return;
         }
+        // Persist the remember-me intent so every subsequent request can
+        // re-issue the session cookie with the right horizon (sliding window
+        // in public/index.php).
+        $session = App::make('session');
+        $session->store['__remember'] = $remember;
+        App::make('session_manager')->extendCookie(
+            $remember
+                ? \App\Auth\SessionManager::REMEMBER_LIFETIME
+                : \App\Auth\SessionManager::DEFAULT_LIFETIME
+        );
         // success — drop the resolved-locale cache so the post-login page picks
         // up the new user's locale instead of the Accept-Language fallback.
         i18n_reset_cache();

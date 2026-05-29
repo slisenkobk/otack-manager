@@ -7,7 +7,8 @@ $tabs = [
     'logs'       => ['label' => t('compass.tab.logs'),       'href' => '/admin/compass/logs',       'icon' => 'fa-file-lines'],
 ];
 ?>
-<div class="project-tabs" style="margin-bottom:var(--space-8);">
+<div class="page-head">
+  <div class="project-tabs">
     <?php foreach ($tabs as $key => $tab): ?>
       <a href="<?= e($tab['href']) ?>"
          class="project-tab<?= $currentTab === $key ? ' project-tab--active' : '' ?>">
@@ -15,4 +16,10 @@ $tabs = [
         <?= e($tab['label']) ?>
       </a>
     <?php endforeach; ?>
+  </div>
+  <a href="/admin/settings" class="btn btn--secondary btn--sm page-head__btn"
+     style="text-decoration:none;display:inline-flex;align-items:center;gap:var(--space-2);">
+    <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+    <?= e(t('compass.back_to_settings')) ?>
+  </a>
 </div>

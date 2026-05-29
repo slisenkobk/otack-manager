@@ -7,6 +7,12 @@
 
 function initQuill(el) {
   if (typeof window.Quill === 'undefined') return;
+  // Guard against double-init: the layout loads this module via a cache-busted
+  // URL and individual pages may import it again (or the MutationObserver in
+  // ui.js re-runs init when modal nodes are inserted). Without the guard,
+  // Quill builds a second toolbar above the editor.
+  if (el.dataset.quillReady === '1') return;
+  el.dataset.quillReady = '1';
 
   const targetSelector = el.dataset.quillTarget;
   const hidden = targetSelector ? document.querySelector(targetSelector) : null;
@@ -49,8 +55,20 @@ function tryInit() {
   }
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', tryInit);
-} else {
-  tryInit();
+if (!window.__otackQuillInit) {
+  window.__otackQuillInit = true;
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tryInit);
+  } else {
+    tryInit();
+  }
+  // Catch [data-quill] elements that get inserted dynamically (modals,
+  // kanban quick-edit, etc.) — mirrors the custom-select observer in ui.js.
+  new MutationObserver((muts) => {
+    muts.forEach((m) => m.addedNodes.forEach((n) => {
+      if (!(n instanceof HTMLElement)) return;
+      if (n.matches?.('[data-quill]')) initQuill(n);
+      n.querySelectorAll?.('[data-quill]').forEach(initQuill);
+    }));
+  }).observe(document.body, { childList: true, subtree: true });
 }

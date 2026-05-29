@@ -16,14 +16,10 @@ document.querySelectorAll('.card[data-project-id] [data-action="toggle-pin"]').f
       btn.classList.toggle('is-on', pinned);
       card.classList.toggle('is-pinned', pinned);
       UI.toast(pinned ? 'Project pinned to top' : 'Project unpinned', 'success');
-      // Re-render order locally: pinned cards go to the start of their grid,
-      // preserving the rest of the (server-side) chronological order.
       const grid = card.closest('.cards-row');
       if (grid) {
         if (pinned) grid.prepend(card);
         else {
-          // Move after the last pinned card; if none, just leave in place
-          // (server will reorder on next page reload).
           const pinnedCards = grid.querySelectorAll('.card.is-pinned');
           const lastPinned = pinnedCards[pinnedCards.length - 1];
           if (lastPinned && lastPinned !== card) lastPinned.after(card);
@@ -33,3 +29,153 @@ document.querySelectorAll('.card[data-project-id] [data-action="toggle-pin"]').f
     finally { btn.disabled = false; }
   });
 });
+
+// New-project modal — replaces the standalone /projects/new page so creation
+// feels light-weight (same modal shell as the new-user flow). Labels travel
+// in data-attributes on the trigger so the modal stays in the user's locale
+// without us building a parallel JS i18n catalogue.
+function pickPaletteColor() {
+  const palette = ['#EA580C', '#5A4E3F', '#2563EB', '#CA8A04', '#4D6840',
+                   '#6D28D9', '#DC2626', '#0891B2', '#9333EA', '#0F766E'];
+  return palette[Math.floor(Math.random() * palette.length)];
+}
+
+function buildField(label, factory) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+  wrap.style.marginBottom = '12px';
+  const l = document.createElement('label');
+  l.textContent = label;
+  l.style.fontSize = '11px';
+  l.style.textTransform = 'uppercase';
+  l.style.letterSpacing = '.1em';
+  l.style.color = 'var(--ink-3)';
+  l.style.display = 'block';
+  l.style.marginBottom = '4px';
+  wrap.appendChild(l);
+  const input = factory();
+  wrap.appendChild(input);
+  return { wrap, input };
+}
+
+function openProjectModal(trigger) {
+  const L = trigger.dataset || {};
+  const labels = {
+    title:       L.labelTitle       || 'New project',
+    name:        L.labelName        || 'Name',
+    description: L.labelDescription || 'Description',
+    color:       L.labelColor       || 'Color',
+    submit:      L.labelSubmit      || 'Create',
+    cancel:      L.labelCancel      || 'Cancel',
+  };
+
+  const body = document.createElement('div');
+  const nameF = buildField(labels.name, () => {
+    const i = document.createElement('input');
+    i.className = 'input';
+    i.placeholder = labels.name;
+    return i;
+  });
+  body.appendChild(nameF.wrap);
+
+  // Color: text + native picker, matching the show-page chip style. We avoid
+  // Quill here on purpose — description-at-creation is rare and a textarea
+  // keeps the modal compact (matches the user-create modal in feel).
+  const colorVal = pickPaletteColor();
+  const colorWrap = buildField(labels.color, () => {
+    const row = document.createElement('div');
+    row.className = 'color-picker-row';
+    const text = document.createElement('input');
+    text.type = 'text';
+    text.className = 'input';
+    text.value = colorVal;
+    text.maxLength = 7;
+    const sw = document.createElement('label');
+    sw.className = 'color-swatch';
+    sw.style.background = colorVal;
+    const pick = document.createElement('input');
+    pick.type = 'color';
+    pick.value = colorVal;
+    sw.appendChild(pick);
+    row.appendChild(text);
+    row.appendChild(sw);
+    function apply(v) {
+      if (!/^#[0-9a-fA-F]{6}$/.test(v)) return;
+      sw.style.background = v;
+      if (text.value.toLowerCase() !== v.toLowerCase()) text.value = v;
+      if (pick.value.toLowerCase() !== v.toLowerCase()) pick.value = v;
+    }
+    pick.addEventListener('input', () => apply(pick.value));
+    text.addEventListener('input', () => apply(text.value));
+    row.__colorText = text;
+    return row;
+  });
+  body.appendChild(colorWrap.wrap);
+
+  // Description uses the same Quill editor as the show-page so creation
+  // matches every other place we collect rich-text. wysiwyg.js's
+  // MutationObserver picks the [data-quill] node up when the modal mounts.
+  const descHidden = document.createElement('input');
+  descHidden.type = 'hidden';
+  descHidden.id = 'project-description-hidden-' + Date.now();
+  const descEditor = document.createElement('div');
+  descEditor.className = 'wysiwyg-editor';
+  descEditor.setAttribute('data-quill', '');
+  descEditor.dataset.quillTarget = '#' + descHidden.id;
+  descEditor.dataset.placeholder = labels.description;
+  const descHost = document.createElement('div');
+  descHost.className = 'wysiwyg-host';
+  descHost.appendChild(descEditor);
+  const descF = buildField(labels.description, () => {
+    const wrap = document.createElement('div');
+    wrap.appendChild(descHost);
+    wrap.appendChild(descHidden);
+    return wrap;
+  });
+  body.appendChild(descF.wrap);
+
+  UI.modal({
+    title: labels.title,
+    body,
+    actions: [
+      { label: labels.cancel, variant: 'btn-ghost', onClick: c => c() },
+      { label: labels.submit, variant: 'submit', onClick: async (close) => {
+          const name = nameF.input.value.trim();
+          if (!name) { nameF.input.focus(); return; }
+          const payload = {
+            name,
+            color: colorWrap.input.__colorText?.value || colorVal,
+            description: (descHidden.value || '').trim(),
+          };
+          try {
+            const res = await api('/projects', { method: 'POST', body: JSON.stringify(payload) });
+            close();
+            if (res && res.id) location.href = '/projects/' + res.id + '?tab=overview';
+            else location.reload();
+          } catch {}
+        }
+      },
+    ],
+  });
+  setTimeout(() => nameF.input.focus(), 0);
+}
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-action="new-project"]');
+  if (!t) return;
+  e.preventDefault();
+  openProjectModal(t);
+});
+
+// Auto-open the modal when arriving from /dashboard's "New" link (and similar
+// shortcuts elsewhere that set ?new=1). Drops the query-string after opening
+// so a back-nav or reload doesn't keep re-triggering.
+if (new URLSearchParams(location.search).get('new') === '1') {
+  const trigger = document.querySelector('[data-action="new-project"]');
+  if (trigger) {
+    openProjectModal(trigger);
+    const url = new URL(location.href);
+    url.searchParams.delete('new');
+    history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+  }
+}

@@ -17,6 +17,10 @@ const ACTIONS = {
     url: '/admin/compass/cache/bust',
     danger: false,
   },
+  'clear-error-log': {
+    url: '/admin/compass/logs/clear',
+    danger: true,
+  },
 };
 
 async function runAction(btn) {

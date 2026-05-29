@@ -6,8 +6,8 @@ $hours = (int)round($sessions['lifetime_seconds'] / 3600);
 $card = 'background:var(--paper);border:1px solid var(--rule);border-radius:var(--radius);padding:var(--space-8);display:flex;flex-direction:column;gap:var(--space-4);';
 $cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:center;gap:var(--space-3);';
 ?>
-<div style="max-width:960px;margin:0 auto;">
-  <?php include APP_ROOT . '/views/partials/compass-tabs.php'; ?>
+<?php include APP_ROOT . '/views/partials/compass-tabs.php'; ?>
+<div class="brief brief--wide">
 
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--space-6);">
 

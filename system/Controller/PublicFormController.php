@@ -76,6 +76,7 @@ final class PublicFormController extends BaseController
             Response::html($this->view->render('public/form-not-found', [], null));
             return;
         }
+        $this->applyFormLocale($form);
         $fields  = $this->decodeFields($form);
         $contact = $this->resolveContactBlock($form);
         $trap    = $this->timeTrapTokens($form['hash']);
@@ -89,6 +90,21 @@ final class PublicFormController extends BaseController
         ], null));
     }
 
+    /**
+     * Pin the request-scoped locale to whatever the form-author picked. The
+     * visitor's Accept-Language and the admin's user.locale are deliberately
+     * ignored here — the form is meant to be filled in the language the
+     * author chose, not in whatever the visitor's browser happens to prefer.
+     */
+    private function applyFormLocale(array $form): void
+    {
+        $locale = (string)($form['locale'] ?? '');
+        if ($locale !== '' && in_array($locale, available_locales(), true)) {
+            $GLOBALS['__i18n_locale_resolved__'] = $locale;
+            unset($GLOBALS['__i18n_catalog__'], $GLOBALS['__i18n_locale__']);
+        }
+    }
+
     public function submit(Request $req, array $params): void {
         $hash = (string)($params['hash'] ?? '');
         if (!preg_match(self::HASH_RE, $hash)) {
@@ -100,6 +116,7 @@ final class PublicFormController extends BaseController
             Response::html($this->view->render('public/form-not-found', [], null));
             return;
         }
+        $this->applyFormLocale($form);
         // Anti-bot honeypot: a hidden input that real browsers leave blank.
         // Bots that scrape forms tend to fill every field, especially ones
         // named "email"-ish. We return 200 OK without recording anything so

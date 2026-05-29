@@ -225,6 +225,46 @@ if (!window.__otackFlashInit) {
   }
 }
 
+// Mobile-nav drawer toggle. The hamburger in the topbar adds
+// data-mobile-nav-open on .shell, which the CSS transitions into the
+// slide-in sidebar. Clicking the backdrop or any link inside the sidebar
+// closes the drawer.
+function initMobileNav() {
+  const shell  = document.querySelector('[data-shell]');
+  const toggle = document.querySelector('[data-mobile-nav-toggle]');
+  const back   = document.querySelector('[data-mobile-nav-backdrop]');
+  const sidebar = document.querySelector('.sidebar');
+  if (!shell || !toggle) return;
+  function open()  {
+    shell.setAttribute('data-mobile-nav-open', '');
+    if (back) back.hidden = false;
+    toggle.setAttribute('aria-expanded', 'true');
+  }
+  function close() {
+    shell.removeAttribute('data-mobile-nav-open');
+    if (back) back.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+  }
+  toggle.addEventListener('click', () => {
+    shell.hasAttribute('data-mobile-nav-open') ? close() : open();
+  });
+  back?.addEventListener('click', close);
+  document.querySelector('[data-mobile-nav-close]')?.addEventListener('click', close);
+  // Closing on any nav-item click keeps navigation feeling instant.
+  sidebar?.querySelectorAll('a.nav-item, a.brand').forEach(a => {
+    a.addEventListener('click', close);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+}
+if (!window.__otackMobileNavInit) {
+  window.__otackMobileNavInit = true;
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMobileNav);
+  } else {
+    initMobileNav();
+  }
+}
+
 // Auto-submit any form-control marked [data-auto-submit] on change.
 if (!window.__otackAutoSubmitInit) {
   window.__otackAutoSubmitInit = true;

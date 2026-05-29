@@ -137,7 +137,7 @@ foreach ($boardColumns as $c) {
     <script type="module" src="<?= e(asset_url('/assets/js/backlog.js')) ?>"></script>
   <?php endif; ?>
 <?php else: ?>
-  <div class="project-overview" data-project-id="<?= (int)$project['id'] ?>" style="display:grid;grid-template-columns:1fr 280px;gap:32px;align-items:start;">
+  <div class="project-overview" data-project-id="<?= (int)$project['id'] ?>">
     <div>
       <div class="project-overview__header" style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
         <?php if (!empty($canEdit)): ?>

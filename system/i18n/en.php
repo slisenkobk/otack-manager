@@ -45,6 +45,7 @@ return [
 
     // ─── Navigation: sidebar + topbar ────────────────────────────────────────
     'nav.workspace'   => 'Workspace',
+    'nav.menu'        => 'Menu',
     'nav.dashboard'   => 'Dashboard',
     'nav.projects'    => 'Projects',
     'nav.forms'       => 'Forms',
@@ -66,6 +67,7 @@ return [
     // ─── Auth ────────────────────────────────────────────────────────────────
     'auth.sign_in'         => 'Sign in',
     'auth.sign_in_arrow'   => 'Sign in →',
+    'auth.remember_me'     => 'Remember me for 30 days',
     'auth.sign_out'        => 'Sign out',
     'auth.create_account'  => 'Create account',
     'auth.create_account_arrow' => 'Create account →',
@@ -230,6 +232,8 @@ return [
     'forms.rotate'             => 'Rotate',
     'forms.rotate_title'       => 'Generate a new link (the current one will stop working)',
     'forms.basics'             => 'Form basics',
+    'forms.locale_label'       => 'Language',
+    'forms.locale_hint'        => 'The language the visitor sees on the public form.',
     'forms.title_label'        => 'Title (shown to users)',
     'forms.title_placeholder'  => 'Customer enquiry',
     'forms.description_label'  => 'Description (optional, supports formatting)',
@@ -366,7 +370,8 @@ return [
     'profile.section.language' => 'Language',
     'profile.language_label'   => 'Preferred language',
     'profile.language_hint'    => 'Used for everything the app renders. Public forms keep the language of whoever created them.',
-    'profile.section.password' => 'Password',
+    'profile.section.password' => 'Change password',
+    'profile.password_hint'    => 'Leave blank to keep your current password.',
     'profile.change_password'  => 'Change password →',
     'profile.notifications_note' => 'Notifications go to a shared Telegram channel configured by admin.',
     'profile.saved'            => 'Profile saved.',
@@ -446,9 +451,11 @@ return [
     'compass.db.error'       => 'err',
 
     'compass.logs.heading'   => 'data/errors.log',
-    'compass.logs.meta'      => ':size on disk · showing last :n entr:plural',
-    'compass.logs.meta_plural_one' => 'y',
-    'compass.logs.meta_plural_other' => 'ies',
+    'compass.logs.meta'      => ':size on disk · showing last :n',
+    // entries-count noun (singular/plural) is rendered via tn() so the
+    // substitution happens through the real plural pipeline instead of an
+    // ad-hoc :plural placeholder that t() doesn't know how to expand.
+    'compass.logs.entries_n' => ['one' => 'entry', 'other' => 'entries'],
     'compass.logs.filter'    => 'filtered by :level',
     'compass.logs.level'     => 'Level',
     'compass.logs.all_levels' => 'All levels',
@@ -457,6 +464,10 @@ return [
     'compass.logs.level.notice'     => 'Notice',
     'compass.logs.level.deprecated' => 'Deprecated',
     'compass.logs.empty'     => 'No log entries.',
+    'compass.logs.clear'     => 'Clear errors',
+    'compass.logs.clear.confirm' => 'Truncate the error log? The current entries will be lost. New errors are still recorded.',
+    'compass.logs.cleared'   => 'Error log cleared (:size freed)',
+    'compass.back_to_settings' => 'Settings',
 
     // ─── Activity verbs (rendered in activity-row partial) ───────────────────
     'activity.user.registered'    => 'requested an account',

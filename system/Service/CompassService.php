@@ -278,6 +278,22 @@ final class CompassService
         return is_file($this->errorsLogPath) ? (int)(@filesize($this->errorsLogPath) ?: 0) : 0;
     }
 
+    /**
+     * Truncate the errors log. Returns bytes freed (0 if file was empty or missing).
+     * We truncate rather than unlink so PHP's error_log handler keeps writing to
+     * the same path without needing a re-open.
+     *
+     * @return array{bytes:int}
+     */
+    public function clearErrorsLog(): array
+    {
+        $bytes = $this->errorsLogSize();
+        if ($bytes > 0) {
+            @file_put_contents($this->errorsLogPath, '');
+        }
+        return ['bytes' => $bytes];
+    }
+
     // ─── Internals ───────────────────────────────────────────────────────────
 
     /** @return \Generator<string> */

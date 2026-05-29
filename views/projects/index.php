@@ -14,7 +14,13 @@
       <button type="submit" class="kanban-search__submit" aria-label="<?= e(t('common.search')) ?>"><i class="fa-solid fa-arrow-right"></i></button>
     </form>
     <?php if (!empty($canCreateProject)): ?>
-      <a href="/projects/new" class="btn btn--secondary" style="text-decoration:none;"><?= e(t('projects.new_project_short')) ?></a>
+      <button type="button" class="btn btn--secondary" data-action="new-project"
+        data-label-title="<?= e(t('projects.new_project')) ?>"
+        data-label-name="<?= e(t('projects.form.name')) ?>"
+        data-label-description="<?= e(t('projects.form.description')) ?>"
+        data-label-color="<?= e(t('projects.form.color')) ?>"
+        data-label-submit="<?= e(t('projects.form.save')) ?>"
+        data-label-cancel="<?= e(t('common.cancel')) ?>"><?= e(t('projects.new_project_short')) ?></button>
     <?php endif; ?>
   </div>
 </div>
@@ -28,7 +34,7 @@
       <?php elseif (($status ?? 'active') !== 'active'): ?>
         <?= e(t('projects.empty.status', ['label' => project_status_label($status ?? '')])) ?>
       <?php else: ?>
-        <?= t('projects.empty.none', ['link' => '<a href="/projects/new">' . e(t('projects.empty.create_first')) . '</a>']) ?>
+        <?= t('projects.empty.none', ['link' => '<a href="#" data-action="new-project">' . e(t('projects.empty.create_first')) . '</a>']) ?>
       <?php endif; ?>
     </p>
   </div>

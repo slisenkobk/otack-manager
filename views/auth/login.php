@@ -11,7 +11,11 @@
       <label><?= e(t('field.password')) ?></label>
       <input class="input" type="password" name="password" required>
     </div>
-    <button class="submit" type="submit" style="margin-top:22px;width:100%;"><?= e(t('auth.sign_in_arrow')) ?></button>
+    <label class="remember-me" style="margin-top:18px;display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);cursor:pointer;">
+      <input type="checkbox" name="remember" value="1">
+      <?= e(t('auth.remember_me')) ?>
+    </label>
+    <button class="submit" type="submit" style="margin-top:18px;width:100%;"><?= e(t('auth.sign_in_arrow')) ?></button>
   </form>
   <p style="margin-top:18px;font-size:13px;color:var(--ink-2);">
     <?= e(t('auth.new_here')) ?> <a href="/register" style="color:var(--brand);text-decoration:underline;"><?= e(t('auth.create_account')) ?></a>

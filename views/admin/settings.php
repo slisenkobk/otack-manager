@@ -5,59 +5,56 @@ echo isset($_GET['saved']) ? flash_meta(t('settings.saved'), 'success') : '';
 $localeNames = locale_display_names();
 ?>
 
-<div style="max-width:760px;margin:0 auto;">
-
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-6);margin-bottom:var(--space-8);flex-wrap:wrap;">
-    <div class="project-tabs">
-      <a href="/admin/settings?tab=workspace"
-         class="project-tab<?= $currentTab === 'workspace' ? ' project-tab--active' : '' ?>">
-        <i class="fa-solid fa-briefcase" aria-hidden="true" style="margin-right:var(--space-2);"></i>
-        <?= e(t('settings.tab.workspace')) ?>
-      </a>
-      <a href="/admin/settings?tab=contact"
-         class="project-tab<?= $currentTab === 'contact' ? ' project-tab--active' : '' ?>">
-        <i class="fa-solid fa-address-card" aria-hidden="true" style="margin-right:var(--space-2);"></i>
-        <?= e(t('settings.tab.contact')) ?>
-      </a>
-    </div>
-    <a href="/admin/compass" class="btn btn--secondary btn--sm"
-       title="<?= e(t('settings.compass_hint')) ?>"
-       style="text-decoration:none;display:inline-flex;align-items:center;gap:var(--space-2);">
-      <i class="fa-solid fa-compass" aria-hidden="true"></i>
-      <?= e(t('settings.compass_link')) ?>
+<div class="page-head">
+  <div class="project-tabs">
+    <a href="/admin/settings?tab=workspace"
+       class="project-tab<?= $currentTab === 'workspace' ? ' project-tab--active' : '' ?>">
+      <i class="fa-solid fa-briefcase" aria-hidden="true" style="margin-right:var(--space-2);"></i>
+      <?= e(t('settings.tab.workspace')) ?>
+    </a>
+    <a href="/admin/settings?tab=contact"
+       class="project-tab<?= $currentTab === 'contact' ? ' project-tab--active' : '' ?>">
+      <i class="fa-solid fa-address-card" aria-hidden="true" style="margin-right:var(--space-2);"></i>
+      <?= e(t('settings.tab.contact')) ?>
     </a>
   </div>
+  <a href="/admin/compass" class="btn btn--secondary btn--sm page-head__btn"
+     title="<?= e(t('settings.compass_hint')) ?>"
+     style="text-decoration:none;display:inline-flex;align-items:center;gap:var(--space-2);">
+    <i class="fa-solid fa-compass" aria-hidden="true"></i>
+    <?= e(t('settings.compass_link')) ?>
+  </a>
+</div>
 
-  <form method="post" action="/admin/settings" class="brief" style="max-width:none;">
-    <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
-    <input type="hidden" name="_tab" value="<?= e($currentTab) ?>">
+<form method="post" action="/admin/settings" class="brief brief--wide">
+  <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
+  <input type="hidden" name="_tab" value="<?= e($currentTab) ?>">
 
-    <?php if ($currentTab === 'workspace'): ?>
+  <?php if ($currentTab === 'workspace'): ?>
 
-      <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('settings.section.workspace_hint', ['fallback' => 'Otack Manager'])) ?></p>
+    <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 18px;"><?= e(t('settings.section.workspace_hint', ['fallback' => 'Otack Manager'])) ?></p>
 
-      <div class="field-row" style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;">
-        <div class="field">
-          <label><?= e(t('settings.field.app_name')) ?></label>
-          <input class="input" type="text" name="app_name" value="<?= e($values['app_name'] ?? '') ?>" placeholder="Otack Manager" maxlength="60">
-        </div>
-        <div class="field" style="min-width:0;">
-          <label title="<?= e(t('settings.field.brand_color_title')) ?>"><?= e(t('settings.field.brand_color')) ?></label>
-          <?php $currentColor = $values['app_color'] ?? ''; ?>
-          <div class="color-picker" data-color-picker-group>
-            <input type="color"
-                   value="<?= e($currentColor !== '' ? $currentColor : '#c2410c') ?>"
-                   data-color-picker
-                   aria-label="<?= e(t('settings.field.brand_color_aria')) ?>">
-            <input type="hidden" name="app_color" data-color-value value="<?= e($currentColor) ?>">
-            <button type="button" class="btn btn--ghost btn--sm" data-color-reset title="<?= e(t('settings.field.brand_reset')) ?>">
-              <i class="fa-solid fa-rotate-left" aria-hidden="true"></i> <?= e(t('common.reset')) ?>
-            </button>
-          </div>
+    <div class="form-grid form-grid--2">
+      <div class="field">
+        <label><?= e(t('settings.field.app_name')) ?></label>
+        <input class="input" type="text" name="app_name" value="<?= e($values['app_name'] ?? '') ?>" placeholder="Otack Manager" maxlength="60">
+      </div>
+      <div class="field">
+        <label title="<?= e(t('settings.field.brand_color_title')) ?>"><?= e(t('settings.field.brand_color')) ?></label>
+        <?php $currentColor = $values['app_color'] ?? ''; ?>
+        <div class="color-picker" data-color-picker-group>
+          <input type="color"
+                 value="<?= e($currentColor !== '' ? $currentColor : '#c2410c') ?>"
+                 data-color-picker
+                 aria-label="<?= e(t('settings.field.brand_color_aria')) ?>">
+          <input type="hidden" name="app_color" data-color-value value="<?= e($currentColor) ?>">
+          <button type="button" class="btn btn--ghost btn--sm" data-color-reset title="<?= e(t('settings.field.brand_reset')) ?>">
+            <i class="fa-solid fa-rotate-left" aria-hidden="true"></i> <?= e(t('common.reset')) ?>
+          </button>
         </div>
       </div>
 
-      <div class="field" style="margin-top:14px;">
+      <div class="field">
         <label><?= e(t('settings.field.timezone')) ?></label>
         <?php
           $cur = $values['timezone'] ?? 'Europe/Kyiv';
@@ -89,54 +86,66 @@ $localeNames = locale_display_names();
         </div>
       </div>
 
-      <div class="field" style="margin-top:14px;">
+      <div class="field">
         <label><?= e(t('settings.field.default_locale')) ?></label>
         <?php $curLocale = $values['default_locale'] ?? 'en'; ?>
-        <select class="input" name="default_locale">
-          <?php foreach (available_locales() as $code): ?>
-            <option value="<?= e($code) ?>"<?= $code === $curLocale ? ' selected' : '' ?>><?= e($localeNames[$code] ?? $code) ?></option>
-          <?php endforeach; ?>
-        </select>
+        <div class="custom-select" data-custom-select>
+          <button type="button" class="custom-select__btn">
+            <span class="custom-select__label"><?= e($localeNames[$curLocale] ?? $curLocale) ?></span>
+            <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
+          </button>
+          <div class="custom-select__pop" hidden>
+            <div class="custom-select__opts">
+              <?php foreach (available_locales() as $code): ?>
+                <div class="custom-select__opt<?= $code === $curLocale ? ' is-selected' : '' ?>" data-value="<?= e($code) ?>">
+                  <span class="custom-select__opt-label"><?= e($localeNames[$code] ?? $code) ?></span>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <input type="hidden" name="default_locale" value="<?= e($curLocale) ?>">
+        </div>
         <p class="muted" style="font-size:12px;color:var(--ink-3);margin:8px 0 0;"><?= e(t('settings.field.default_locale_hint')) ?></p>
       </div>
+    </div>
 
-    <?php else: /* contact tab */ ?>
+  <?php else: /* contact tab */ ?>
 
-      <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('settings.section.contact_hint')) ?></p>
+    <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 18px;"><?= e(t('settings.section.contact_hint')) ?></p>
 
+    <div class="form-grid form-grid--2">
       <div class="field">
         <label><?= e(t('settings.field.company_name')) ?></label>
         <input class="input" type="text" name="contact_company_name" value="<?= e($values['contact_company_name'] ?? '') ?>">
       </div>
-      <div class="field" style="margin-top:14px;">
+      <div class="field">
         <label><?= e(t('settings.field.contact_email')) ?></label>
         <input class="input" type="email" name="contact_email" value="<?= e($values['contact_email'] ?? '') ?>">
       </div>
-      <div class="field" style="margin-top:14px;">
+      <div class="field">
         <label><?= e(t('settings.field.contact_phone')) ?></label>
         <input class="input" type="tel" name="contact_phone" value="<?= e($values['contact_phone'] ?? '') ?>">
       </div>
-      <div class="field" style="margin-top:14px;">
+      <div class="field">
         <label><?= e(t('settings.field.contact_address')) ?></label>
         <input class="input" type="text" name="contact_address" value="<?= e($values['contact_address'] ?? '') ?>">
       </div>
-      <div class="field" style="margin-top:14px;">
-        <label><?= e(t('settings.field.contact_footer')) ?></label>
-        <div class="wysiwyg-host">
-          <div class="wysiwyg-editor"
-               data-quill
-               data-quill-target="#contact-default-text-hidden"
-               data-placeholder="<?= e(t('settings.field.contact_footer_placeholder')) ?>"><?= $values['contact_default_text'] ?? '' ?></div>
-        </div>
-        <input type="hidden" id="contact-default-text-hidden" name="contact_default_text" value="<?= e($values['contact_default_text'] ?? '') ?>">
-      </div>
-
-    <?php endif; ?>
-
-    <div style="margin-top:22px;display:flex;gap:10px;">
-      <button class="btn btn--primary submit" type="submit"><?= e(t('settings.save_button')) ?></button>
     </div>
-  </form>
+    <div class="field" style="margin-top:14px;">
+      <label><?= e(t('settings.field.contact_footer')) ?></label>
+      <div class="wysiwyg-host">
+        <div class="wysiwyg-editor"
+             data-quill
+             data-quill-target="#contact-default-text-hidden"
+             data-placeholder="<?= e(t('settings.field.contact_footer_placeholder')) ?>"><?= $values['contact_default_text'] ?? '' ?></div>
+      </div>
+      <input type="hidden" id="contact-default-text-hidden" name="contact_default_text" value="<?= e($values['contact_default_text'] ?? '') ?>">
+    </div>
 
-</div>
+  <?php endif; ?>
+
+  <div style="margin-top:22px;display:flex;gap:10px;">
+    <button class="btn btn--primary submit" type="submit"><?= e(t('settings.save_button')) ?></button>
+  </div>
+</form>
 <script type="module" src="<?= e(asset_url('/assets/js/settings.js')) ?>"></script>

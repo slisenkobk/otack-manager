@@ -1,4 +1,4 @@
-import { api, UI } from './ui.js';
+import { api, UI, buildCustomSelect } from './ui.js';
 
 // Search form submits on Enter (native) or via the submit button.
 
@@ -39,32 +39,25 @@ function openUserModal({ title, name = '', email = '', locale = 'en', isEdit = f
 
   let roleF = null;
   if (!isEdit) {
-    roleF = buildField('Role', () => {
-      const s = document.createElement('select');
-      s.className = 'input';
-      for (const [v, l] of [['employee', 'Employee'], ['manager', 'Manager'], ['admin', 'Admin']]) {
-        const o = document.createElement('option');
-        o.value = v; o.textContent = l;
-        s.appendChild(o);
-      }
-      return s;
-    });
+    const roleItems = [
+      { value: 'employee', label: 'Employee' },
+      { value: 'manager',  label: 'Manager'  },
+      { value: 'admin',    label: 'Admin'    },
+    ];
+    const built = buildCustomSelect(roleItems, 'employee');
+    roleF = buildField('Role', () => built.root);
+    roleF.hidden = built.hidden;
     body.appendChild(roleF.wrap);
   }
 
   // Language picker — both on create and edit. Admin sets the locale the
   // user will see; user can still change it themselves later via /profile.
-  const localeF = buildField('Language', () => {
-    const s = document.createElement('select');
-    s.className = 'input';
-    for (const { code, name: displayName } of getLocales()) {
-      const o = document.createElement('option');
-      o.value = code; o.textContent = displayName;
-      if (code === locale) o.selected = true;
-      s.appendChild(o);
-    }
-    return s;
-  });
+  // Uses the same custom-select component as the timezone picker so the
+  // dropdown is visually consistent with the rest of the chrome.
+  const localeItems = getLocales().map(l => ({ value: l.code, label: l.name }));
+  const localeBuilt = buildCustomSelect(localeItems.length ? localeItems : [{ value: locale, label: locale }], locale);
+  const localeF = buildField('Language', () => localeBuilt.root);
+  localeF.hidden = localeBuilt.hidden;
   body.appendChild(localeF.wrap);
 
   UI.modal({
@@ -76,8 +69,8 @@ function openUserModal({ title, name = '', email = '', locale = 'en', isEdit = f
           const payload = { name: nameF.input.value.trim() };
           if (!isEdit) payload.email = emailF.input.value.trim();
           if (passF.input.value) payload.password = passF.input.value;
-          if (roleF) payload.role = roleF.input.value;
-          payload.locale = localeF.input.value;
+          if (roleF && roleF.hidden) payload.role = roleF.hidden.value;
+          payload.locale = localeF.hidden ? localeF.hidden.value : locale;
           try {
             await onSubmit(payload);
             close();

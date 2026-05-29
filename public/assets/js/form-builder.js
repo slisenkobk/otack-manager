@@ -15,6 +15,7 @@ const builder = document.querySelector('[data-form-builder]');
 if (builder) {
   const formId      = builder.dataset.formId ? parseInt(builder.dataset.formId, 10) : null;
   const titleEl     = builder.querySelector('[data-form-title]');
+  const localeHidden = builder.querySelector('[data-form-locale]');
   const descHidden  = builder.querySelector('#form-description-hidden');
   const fieldsList  = builder.querySelector('[data-fields-list]');
   const fieldsHint  = builder.querySelector('[data-fields-hint]');
@@ -23,6 +24,12 @@ if (builder) {
 
   let fields = parseJsonNode('builder-state-fields') || [];
   const footer = parseJsonNode('builder-state-footer') || {};
+  // Sortable instance must be declared before the first renderAll() call —
+  // renderAll references this binding, so leaving it below the call put it
+  // in the temporal dead zone and made the very first render throw, which
+  // in turn killed every later renderAll (including the one fired by
+  // "Add field" that's supposed to scroll the new card into view).
+  let sortable = null;
 
   renderAll();
   applyFooterState();
@@ -38,6 +45,7 @@ if (builder) {
     const btn = e.currentTarget;
     const payload = {
       title: titleEl.value.trim(),
+      locale: localeHidden?.value || 'en',
       description: (descHidden?.value || '').trim(),
       fields: fields.map(cleanField),
       footer: collectFooter(),
@@ -52,8 +60,6 @@ if (builder) {
       if (!formId && res?.id) location.href = '/forms/' + res.id;
     } catch {} finally { btn.disabled = false; }
   });
-
-  let sortable = null;
 
   function renderAll(scrollToIdx = -1) {
     fieldsList.replaceChildren();

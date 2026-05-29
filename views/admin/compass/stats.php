@@ -3,8 +3,8 @@
 $totalRows = 0;
 foreach ($db['tables'] as $t) if ($t['rows'] >= 0) $totalRows += $t['rows'];
 ?>
-<div style="max-width:960px;margin:0 auto;">
-  <?php include APP_ROOT . '/views/partials/compass-tabs.php'; ?>
+<?php include APP_ROOT . '/views/partials/compass-tabs.php'; ?>
+<div class="brief brief--wide">
 
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-8);margin-bottom:var(--space-6);flex-wrap:wrap;">
     <div>

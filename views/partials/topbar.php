@@ -1,4 +1,7 @@
 <header class="topbar">
+  <button type="button" class="topbar__nav-toggle" data-mobile-nav-toggle aria-label="<?= e(t('nav.menu')) ?>">
+    <i class="fa-solid fa-bars" aria-hidden="true"></i>
+  </button>
   <h1 class="topbar__title">
     <?php if (!empty($crumbNum)): ?>
       <span class="topbar__title-num"><?= e($crumbNum) ?></span>

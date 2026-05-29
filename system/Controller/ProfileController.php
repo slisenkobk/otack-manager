@@ -58,8 +58,12 @@ final class ProfileController extends BaseController {
     }
 
     public function update(Request $req, array $params = []): void {
-        $name  = trim($req->post['name']  ?? '');
-        $email = strtolower(trim($req->post['email'] ?? ''));
+        // Single endpoint that backs the unified Profile form: name + email +
+        // locale + optional avatar upload + optional password change. Each
+        // section is opt-in (locale always submitted; avatar/password only
+        // if the user actually filled them) so we can short-circuit cleanly.
+        $name  = trim((string)($req->post['name']  ?? ''));
+        $email = strtolower(trim((string)($req->post['email'] ?? '')));
         if ($name === '') {
             $this->flash('flash_error', t('auth.name_required'));
             Response::redirect('/profile'); return;
@@ -68,6 +72,29 @@ final class ProfileController extends BaseController {
             $this->flash('flash_error', t('field.email'));
             Response::redirect('/profile'); return;
         }
+
+        // Password change is all-or-nothing: empty current_password means
+        // "don't touch the password". Filled current_password requires both
+        // new + confirm to be valid before we update anything.
+        $current = (string)($req->post['current_password'] ?? '');
+        $new     = (string)($req->post['new_password']     ?? '');
+        $confirm = (string)($req->post['confirm_password'] ?? '');
+        $changePw = $current !== '' || $new !== '' || $confirm !== '';
+        if ($changePw) {
+            if (!$this->hasher->verify($current, $this->user['password_hash'])) {
+                $this->flash('flash_error', t('profile.password_wrong'));
+                Response::redirect('/profile'); return;
+            }
+            if (strlen($new) < 8) {
+                $this->flash('flash_error', t('auth.password_too_short'));
+                Response::redirect('/profile'); return;
+            }
+            if ($new !== $confirm) {
+                $this->flash('flash_error', t('profile.password_mismatch'));
+                Response::redirect('/profile'); return;
+            }
+        }
+
         if (strtolower((string)$this->user['email']) !== $email) {
             $taken = $this->users->findByEmail($email);
             if ($taken && (int)$taken['id'] !== (int)$this->user['id']) {
@@ -79,6 +106,39 @@ final class ProfileController extends BaseController {
         if ($name !== (string)$this->user['name']) {
             $this->users->updateName((int)$this->user['id'], $name);
         }
+
+        $locale = (string)($req->post['locale'] ?? '');
+        if (in_array($locale, available_locales(), true) && $locale !== ($this->user['locale'] ?? 'en')) {
+            $this->users->updateLocale((int)$this->user['id'], $locale);
+            i18n_reset_cache();
+        }
+
+        $file = $req->files['avatar'] ?? null;
+        if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+            $uploader = App::make('uploader');
+            $err = $uploader->validate($file);
+            if ($err) { $this->flash('flash_error', $err); Response::redirect('/profile'); return; }
+            if (!$uploader->isImage($file['type'] ?? '')) {
+                $this->flash('flash_error', t('profile.avatar_hint'));
+                Response::redirect('/profile'); return;
+            }
+            try {
+                $stored = $uploader->store($file);
+            } catch (\Throwable $e) {
+                $this->flash('flash_error', $e->getMessage());
+                Response::redirect('/profile'); return;
+            }
+            if (!empty($this->user['avatar'])) {
+                $oldAbs = APP_ROOT . '/public/' . ltrim($this->user['avatar'], '/');
+                if (is_file($oldAbs)) @unlink($oldAbs);
+            }
+            $this->users->updateAvatar((int)$this->user['id'], $stored['filename']);
+        }
+
+        if ($changePw) {
+            $this->users->updatePassword((int)$this->user['id'], $this->hasher->hash($new));
+        }
+
         $this->flash('flash_success', t('profile.saved'));
         Response::redirect('/profile');
     }

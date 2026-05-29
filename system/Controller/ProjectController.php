@@ -62,39 +62,32 @@ final class ProjectController extends BaseController {
         ]));
     }
 
-    public function createForm(Request $req, array $params = []): void {
-        if (!\App\Service\RolePolicy::canCreateProject($this->user)) {
-            Response::forbidden('Employees cannot create projects'); return;
-        }
-        $csrf = $this->csrfToken();
-        $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
-        $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => t('projects.new_project')]);
-        Response::html($this->view->render('layouts/main', [
-            'title' => t('projects.new_project'), 'csrfToken' => $csrf, 'sidebar' => $sidebar, 'topbar' => $topbar,
-            'content' => $this->view->render('projects/form', ['csrfToken' => $csrf, 'project' => null, 'mode' => 'create']),
-        ]));
-    }
-
     public function create(Request $req, array $params = []): void {
         if (!\App\Service\RolePolicy::canCreateProject($this->user)) {
+            if ($this->isJsonRequest($req)) { Response::json(['error' => 'Forbidden'], 403); return; }
             Response::forbidden('Employees cannot create projects'); return;
         }
-        $name        = trim($req->post['name'] ?? '');
-        $description = \App\Service\HtmlSanitizer::clean(trim($req->post['description'] ?? ''));
-        if ($name === '') { Response::redirect('/projects/new'); return; }
+        $isJson = $this->isJsonRequest($req);
+        $data   = $isJson ? (json_decode((string)file_get_contents('php://input'), true) ?: []) : $req->post;
+        $name        = trim((string)($data['name'] ?? ''));
+        $description = \App\Service\HtmlSanitizer::clean(trim((string)($data['description'] ?? '')));
+        if ($name === '') {
+            if ($isJson) { Response::json(['error' => 'Name is required'], 422); return; }
+            Response::redirect('/projects'); return;
+        }
         // ProjectRepository::create already wraps its INSERT in a transaction.
         // We run member add and column seed after, each atomic on its own.
-        $color = $req->post['color'] ?? null;
+        $color = $data['color'] ?? null;
         $id = $this->projects->create($name, $description ?: null, (int)$this->user['id'], $color);
         $this->members->add($id, (int)$this->user['id'], 'owner');
         $this->columns->seedDefaults($id);
-        // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
         App::make('events')->fire('project.created', [
             'project_id' => $id,
             'name'       => $name,
             'actor_name' => $this->user['name'],
             'url'        => \abs_url('/projects/' . $id),
         ]);
+        if ($isJson) { Response::json(['ok' => true, 'id' => $id]); return; }
         Response::redirect('/projects/' . $id . '?tab=overview');
     }
 

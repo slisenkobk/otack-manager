@@ -15,12 +15,13 @@ if (!empty($currentForm)) {
 $currentStatusLabel = $statusLabels[$currentStatus] ?? '';
 ?>
 <div class="page-actions" style="margin-bottom:var(--space-8);justify-content:flex-start;gap:10px;">
-  <form method="get" action="/forms-data" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+  <form method="get" action="/forms-data" class="forms-data-filters">
     <div class="search-field search-field--with-submit" style="margin:0;">
       <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted);font-size:12px;"></i>
       <input class="input input--inline" name="q" placeholder="<?= e(t('forms_data.search_placeholder')) ?>" value="<?= e($query ?? '') ?>">
       <button type="submit" class="search-field__submit" aria-label="<?= e(t('common.search')) ?>"><i class="fa-solid fa-arrow-right"></i></button>
     </div>
+    <div class="forms-data-filters__selects">
     <div class="custom-select custom-select--compact" data-custom-select<?= count($forms) > 6 ? ' data-custom-select-search' : '' ?> style="width:200px;">
       <button type="button" class="custom-select__btn">
         <span class="custom-select__label"><?= e($currentFormTitle !== '' ? $currentFormTitle : t('forms_data.all_forms')) ?></span>
@@ -66,6 +67,7 @@ $currentStatusLabel = $statusLabels[$currentStatus] ?? '';
         </div>
       </div>
       <input type="hidden" name="status" value="<?= e((string)$currentStatus) ?>" data-auto-submit-on-change>
+    </div>
     </div>
   </form>
 </div>

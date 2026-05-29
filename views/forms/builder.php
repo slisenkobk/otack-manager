@@ -6,6 +6,8 @@ $footerJson = $form ? (string)$form['footer_json']
                         'show_address'=>false, 'show_note'=>true,
                         'company_name'=>'', 'email'=>'', 'phone'=>'', 'address'=>'', 'note'=>'',
                       ]);
+$formLocale  = $form['locale'] ?? user_locale();
+$localeNames = locale_display_names();
 ?>
 
 <link rel="stylesheet" href="/assets/vendor/quill/quill.snow.css">
@@ -47,6 +49,25 @@ $footerJson = $form ? (string)$form['footer_json']
       <div class="field">
         <label><?= e(t('forms.title_label')) ?></label>
         <input class="input" type="text" data-form-title value="<?= e($form['title'] ?? '') ?>" placeholder="<?= e(t('forms.title_placeholder')) ?>">
+      </div>
+      <div class="field">
+        <label><?= e(t('forms.locale_label')) ?></label>
+        <div class="custom-select" data-custom-select data-form-locale-wrap>
+          <button type="button" class="custom-select__btn">
+            <span class="custom-select__label"><?= e($localeNames[$formLocale] ?? $formLocale) ?></span>
+            <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
+          </button>
+          <div class="custom-select__pop" hidden>
+            <div class="custom-select__opts">
+              <?php foreach (available_locales() as $code): ?>
+                <div class="custom-select__opt<?= $code === $formLocale ? ' is-selected' : '' ?>" data-value="<?= e($code) ?>">
+                  <span class="custom-select__opt-label"><?= e($localeNames[$code] ?? $code) ?></span>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <input type="hidden" data-form-locale value="<?= e($formLocale) ?>">
+        </div>
       </div>
       <div class="field builder-grid__span">
         <label><?= e(t('forms.description_label')) ?></label>
@@ -96,7 +117,5 @@ $footerJson = $form ? (string)$form['footer_json']
 
 <script type="application/json" id="builder-state-fields"><?= $fieldsJson ?></script>
 <script type="application/json" id="builder-state-footer"><?= $footerJson ?></script>
-<script src="/assets/vendor/quill/quill.min.js"></script>
 <script src="/assets/vendor/sortable.min.js"></script>
-<script type="module" src="<?= e(asset_url('/assets/js/wysiwyg.js')) ?>"></script>
 <script type="module" src="<?= e(asset_url('/assets/js/form-builder.js')) ?>"></script>

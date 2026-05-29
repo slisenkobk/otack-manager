@@ -12,6 +12,9 @@ if ($canFormsSb) {
 }
 ?>
 <aside class="sidebar">
+  <button type="button" class="sidebar__close" data-mobile-nav-close aria-label="<?= e(t('common.close')) ?>">
+    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+  </button>
   <?php [$brandA, $brandB] = app_name_parts(); ?>
   <a class="brand" href="/" aria-label="<?= e(app_name()) ?>">
     <span class="brand__mark" aria-hidden="true">
