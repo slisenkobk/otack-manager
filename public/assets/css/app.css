@@ -508,6 +508,16 @@ body::before {
   border-top: 1px solid var(--rule);
 }
 .sidebar__foot-sub { color: var(--text-2); font-weight: 700; }
+/* Credit links — text colour stays mono/muted, underline carries the cue
+   (we don't want them to read as the brand-coloured nav links). */
+.sidebar__foot-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition: color .15s ease;
+}
+.sidebar__foot-link:hover { color: var(--text); }
 
 /* Active states — both old (.active) and new (.nav-item--active) */
 .nav-item.active,
@@ -581,9 +591,9 @@ body::before {
   z-index: var(--z-dropdown);
   background: var(--topbar-bg);
   backdrop-filter: blur(6px);
-  /* Whisper of a fade-out shadow — just enough to suggest a top layer.
-     Keeps the cream surfaces feeling continuous without a hard line. */
-  box-shadow: 0 4px 8px -10px rgba(26, 22, 18, 0.10);
+  /* Soft fade-out shadow — present but not heavy. Halfway between an
+     invisible whisper and an obvious hairline. */
+  box-shadow: 0 5px 10px -10px rgba(26, 22, 18, 0.14);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1408,12 +1418,12 @@ body::before {
 h1.display {
   font-family: var(--font-sans);
   font-weight: 700;
-  font-size: clamp(40px, 5.5vw, 64px);
+  font-size: clamp(28px, 3.6vw, 44px);
   line-height: var(--lh-tight);
   letter-spacing: var(--ls-tight);
   margin: 0;
   color: var(--text);
-  max-width: 14ch;
+  max-width: 18ch;
 }
 h1.display em {
   font-style: normal;
@@ -1628,7 +1638,11 @@ h1.display em {
 /* ─── §12 Section heads ──────────────────────────────────────── */
 .section-head {
   display: grid;
-  grid-template-columns: auto auto 1fr auto;
+  /* Three slots: title (auto), rule filler (1fr), trailing meta/actions
+     (auto). The previous 4-column layout assumed a leading .num cell which
+     we no longer render — leaving it caused the actions to land in the 1fr
+     column and drift left. */
+  grid-template-columns: auto 1fr auto;
   gap: var(--space-8);
   align-items: baseline;
   margin: var(--space-20) 0 var(--space-10);
@@ -1821,7 +1835,21 @@ h1.display em {
 .overview-panel__attach {
   border-top: 1px dashed var(--rule);
   padding: var(--space-10) var(--space-12) var(--space-12);
-  background: var(--paper-2);
+  background: var(--surface-soft);
+}
+
+/* Generic sub-section inside .overview-panel. Used to fold what used to be
+   separate panels (Comments, Related tasks) into one continuous block,
+   visually divided by the same dashed line .overview-panel__attach uses.
+   Pure base = inherit panel bg (white in light), modifiers tint it. */
+.overview-panel__section {
+  border-top: 1px dashed var(--rule);
+  padding: var(--space-12);
+  background: var(--bg-elevated);
+}
+.overview-panel__section--gray { background: var(--surface-soft); }
+.overview-panel__section--cream {
+  background: color-mix(in srgb, var(--paper) 65%, var(--paper-2));
 }
 .overview-panel__attach-label {
   font-family: var(--font-mono);
@@ -2291,15 +2319,22 @@ h1.display em {
 body.public-form {
   background:
     radial-gradient(circle at 1px 1px, rgba(26,22,18,.06) 1px, transparent 0) 0 0/16px 16px,
-    var(--paper);
+    var(--bg);
   min-height: 100vh;
   font-family: var(--font-sans);
   color: var(--text);
 }
 .pf-shell { max-width: 680px; margin: 56px auto; padding: 0 20px; }
 
+/* Surface tone used by every public-form block. Mixes the page bg with
+   pure paper so blocks sit a notch lighter than the cream backdrop — gives
+   inputs (which stay pure paper) a visible step above the block itself. */
+.public-form {
+  --pf-block-bg: color-mix(in srgb, var(--bg) 40%, var(--paper) 60%);
+}
+
 .pf-header {
-  background: var(--bg-elevated);
+  background: var(--pf-block-bg);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   padding: 32px 36px 28px;
@@ -2320,7 +2355,7 @@ body.public-form {
 .pf-desc p:first-child { margin-top: 0; } .pf-desc p:last-child { margin-bottom: 0; }
 
 .pf-card {
-  background: var(--bg-elevated);
+  background: var(--pf-block-bg);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   padding: 28px 32px 24px;
@@ -2398,7 +2433,7 @@ body.public-form {
 
 /* Contact info — read-only */
 .pf-contact {
-  background: var(--paper-2);
+  background: var(--pf-block-bg);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   padding: 22px 26px;
@@ -2414,7 +2449,18 @@ body.public-form {
 .pf-contact__row dd { margin: 0; font-size: 14px; color: var(--ink-2); line-height: 1.45; }
 .pf-contact__row dd a { color: var(--accent); text-decoration: none; }
 .pf-contact__row dd a:hover { text-decoration: underline; }
-.pf-contact__row--note dd { white-space: pre-wrap; }
+/* Standalone note prose — sits below the contact dl as plain text. */
+.pf-contact__note {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--rule);
+  font-size: 14px;
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+.pf-contact__note:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.pf-contact__note p:first-child { margin-top: 0; }
+.pf-contact__note p:last-child  { margin-bottom: 0; }
 
 .pf-actions { display: flex; justify-content: flex-end; }
 .pf-submit { padding: 12px 26px; font-size: 14px; }
@@ -2596,15 +2642,17 @@ body.public-form {
 .kanban::-webkit-scrollbar-thumb { background: var(--rule-2); border-radius: 3px; }
 .kanban::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
 
-/* Toolbar (filter bar) */
+/* Toolbar (filter bar) — flat white card with a hairline border, matches
+   the rest of the system without competing for attention. */
 .kanban-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: var(--space-8);
-  padding: 15px;
-  background: var(--surface-soft);
-  border-radius: 16px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
   margin-bottom: var(--space-6);
   flex-shrink: 0;
 }
@@ -2822,7 +2870,43 @@ body.public-form {
 }
 .kanban-card__id { display: block; margin-bottom: 4px; }
 .backlog__id { margin-right: 4px; flex-shrink: 0; }
-.task-header__id { font-size: 13px; padding: 4px 10px; background: var(--paper-2); border-radius: var(--radius-sm); flex-shrink: 0; }
+.task-header__id {
+  font-size: 13px;
+  padding: 4px 10px;
+  background: var(--accent-tint);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+/* Inline variant — sits inside the mono breadcrumb line, so it shrinks to
+   match the surrounding 11px uppercase typography. */
+.task-header__id--inline {
+  font-size: 10px;
+  padding: 2px 8px;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+
+/* Breadcrumb line above the task title. Replaces the old "/ Task #N" plain
+   text with project link + accent chip. */
+.task-breadcrumb-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 12px;
+}
+.task-breadcrumb-line__project {
+  color: var(--ink-3);
+  text-decoration: none;
+  transition: color .15s ease;
+}
+.task-breadcrumb-line__project:hover { color: var(--text); }
+.task-breadcrumb-line__sep { color: var(--text-muted); opacity: .6; }
 .kanban-card__title {
   font-size: var(--fz-body);
   font-weight: 600;
@@ -4163,11 +4247,16 @@ a.link-card *,
     0 1px 0 rgba(255,255,255,.6) inset,
     0 1px 2px rgba(26, 22, 18, .04),
     0 8px 20px -8px rgba(26, 22, 18, .08);
-  overflow: hidden;
+  /* No overflow:hidden — would clip dropdown popups (role selector etc.)
+     and cause spurious vertical scroll. Corner rounding is achieved with
+     per-cell radius below. */
 }
 .data-table {
   width: 100%;
-  border-collapse: collapse;
+  /* `separate` so per-cell border-radius actually applies (collapse breaks
+     it). `border-spacing: 0` keeps the grid flush. */
+  border-collapse: separate;
+  border-spacing: 0;
   background: transparent;
 }
 .data-table thead th {
@@ -4183,6 +4272,11 @@ a.link-card *,
   border-bottom: 1px solid var(--rule);
   white-space: nowrap;
 }
+/* Round only the outermost cells so the wrap's radius is preserved. */
+.data-table thead tr:first-child th:first-child { border-top-left-radius: var(--radius-md); }
+.data-table thead tr:first-child th:last-child  { border-top-right-radius: var(--radius-md); }
+.data-table tbody tr:last-child td:first-child { border-bottom-left-radius: var(--radius-md); }
+.data-table tbody tr:last-child td:last-child  { border-bottom-right-radius: var(--radius-md); }
 .data-table tbody td {
   padding: 12px 16px;
   border-bottom: 1px solid var(--rule);
@@ -4221,3 +4315,16 @@ a.link-card *,
   background: var(--accent-tint);
 }
 .activity-row--important .activity-row__icon { color: var(--accent); }
+
+/* Honeypot field — invisible to humans (and screen readers via aria-hidden
+   on the wrapper), but kept in the DOM so naive bots fill it. We pull it
+   off-screen rather than display:none because some bot frameworks skip
+   `display:none` inputs. */
+.pf-honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}

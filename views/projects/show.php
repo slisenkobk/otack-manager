@@ -129,7 +129,7 @@ foreach ($boardColumns as $c) {
     <script type="module" src="/assets/js/backlog.js"></script>
   <?php endif; ?>
 <?php else: ?>
-  <div class="project-overview" data-project-id="<?= (int)$project['id'] ?>" style="display:grid;grid-template-columns:1fr 280px;gap:32px;">
+  <div class="project-overview" data-project-id="<?= (int)$project['id'] ?>" style="display:grid;grid-template-columns:1fr 280px;gap:32px;align-items:start;">
     <div>
       <div class="project-overview__header" style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
         <?php if (!empty($canEdit)): ?>
@@ -181,62 +181,72 @@ foreach ($boardColumns as $c) {
             require APP_ROOT . '/views/partials/attachment-list.php';
           ?>
         </footer>
-      </section>
-      <section class="overview-panel overview-panel--comments">
-        <?php
-          $entityType = 'project';
-          $entityId   = (int)$project['id'];
-          $comments   = $projectComments ?? [];
-          // $canPost is pre-computed in ProjectController::show() and passed as a view variable
-          // $commentAttachments passed from controller
-          require APP_ROOT . '/views/partials/comment-thread.php';
-        ?>
+        <div class="overview-panel__section">
+          <?php
+            $entityType = 'project';
+            $entityId   = (int)$project['id'];
+            $comments   = $projectComments ?? [];
+            // $canPost is pre-computed in ProjectController::show() and passed as a view variable
+            // $commentAttachments passed from controller
+            require APP_ROOT . '/views/partials/comment-thread.php';
+          ?>
+        </div>
       </section>
     </div>
-    <aside>
+    <aside class="project-sidebar"
+           style="border:1px solid var(--rule);padding:18px;background:var(--paper);border-radius:4px;">
+      <h3 style="font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.15em;color:var(--ink-3);margin:0 0 8px;">Details</h3>
+
       <?php if (!empty($canEdit)): ?>
-        <h3 style="font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);">Status</h3>
-        <form method="post" action="/projects/<?= (int)$project['id'] ?>" class="project-status-form" style="margin:12px 0 24px;">
-          <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
-          <?php
-            $statusOpts = project_statuses();
-            $curStatus  = $project['status'] ?? 'active';
-            $curLabel   = $statusOpts[$curStatus] ?? ucfirst($curStatus);
-          ?>
-          <div class="custom-select" data-custom-select>
-            <button type="button" class="custom-select__btn">
-              <span class="custom-select__icon"><span class="status-dot status-dot--<?= e($curStatus) ?>"></span></span>
-              <span class="custom-select__label"><?= e($curLabel) ?></span>
-              <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
-            </button>
-            <div class="custom-select__pop" hidden>
-              <?php foreach ($statusOpts as $sVal => $sLabel): ?>
-                <div class="custom-select__opt<?= $curStatus === $sVal ? ' is-selected' : '' ?>" data-value="<?= e($sVal) ?>">
-                  <span class="custom-select__icon"><span class="status-dot status-dot--<?= e($sVal) ?>"></span></span>
-                  <span class="custom-select__opt-label"><?= e($sLabel) ?></span>
-                </div>
-              <?php endforeach; ?>
+        <div class="field" style="margin-bottom:7px;">
+          <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;">Status</label>
+          <form method="post" action="/projects/<?= (int)$project['id'] ?>" class="project-status-form" style="margin:0;">
+            <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
+            <?php
+              $statusOpts = project_statuses();
+              $curStatus  = $project['status'] ?? 'active';
+              $curLabel   = $statusOpts[$curStatus] ?? ucfirst($curStatus);
+            ?>
+            <div class="custom-select" data-custom-select>
+              <button type="button" class="custom-select__btn">
+                <span class="custom-select__icon"><span class="status-dot status-dot--<?= e($curStatus) ?>"></span></span>
+                <span class="custom-select__label"><?= e($curLabel) ?></span>
+                <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
+              </button>
+              <div class="custom-select__pop" hidden>
+                <?php foreach ($statusOpts as $sVal => $sLabel): ?>
+                  <div class="custom-select__opt<?= $curStatus === $sVal ? ' is-selected' : '' ?>" data-value="<?= e($sVal) ?>">
+                    <span class="custom-select__icon"><span class="status-dot status-dot--<?= e($sVal) ?>"></span></span>
+                    <span class="custom-select__opt-label"><?= e($sLabel) ?></span>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+              <input type="hidden" name="status" value="<?= e($curStatus) ?>" data-auto-submit>
             </div>
-            <input type="hidden" name="status" value="<?= e($curStatus) ?>" data-auto-submit>
-          </div>
-        </form>
+          </form>
+        </div>
       <?php endif; ?>
-      <h3 style="font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);">Members</h3>
-      <div style="margin-top:12px;">
+
+      <div class="field" style="margin-bottom:7px;">
+        <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;">Members</label>
         <?php $projectId = (int)$project['id']; require APP_ROOT . '/views/partials/members.php'; ?>
       </div>
-      <h3 style="font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);margin:24px 0 12px;">Tags</h3>
-      <?php
-        $scope      = 'project';
-        $entityType = 'project';
-        $entityId   = (int)$project['id'];
-        $current    = $projectTags ?? [];
-        $all        = $allProjectTags ?? [];
-        require APP_ROOT . '/views/partials/tag-picker.php';
-      ?>
+
+      <div class="field" style="margin-bottom:7px;">
+        <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;">Tags</label>
+        <?php
+          $scope      = 'project';
+          $entityType = 'project';
+          $entityId   = (int)$project['id'];
+          $current    = $projectTags ?? [];
+          $all        = $allProjectTags ?? [];
+          require APP_ROOT . '/views/partials/tag-picker.php';
+        ?>
+      </div>
+
       <?php if (!empty($canEdit)): ?>
         <button class="btn-danger" type="button" data-action="delete-project"
-                style="margin-top:24px;width:100%;padding:8px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;">
+                style="margin-top:9px;width:100%;padding:8px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;">
           Delete project
         </button>
       <?php endif; ?>

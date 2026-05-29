@@ -27,6 +27,15 @@ $contact = $contact ?? [];
     </header>
 
     <form method="post" action="/f/<?= e($form['hash']) ?>" novalidate>
+      <?php // Anti-bot honeypot — hidden from sighted users + screen readers. ?>
+      <div class="pf-honeypot" aria-hidden="true">
+        <label>Leave this field empty:
+          <input type="text" name="<?= e($honeypot ?? 'email_address') ?>" tabindex="-1" autocomplete="off">
+        </label>
+      </div>
+      <?php // Anti-bot time-trap — signed timestamp, rejected if too fast. ?>
+      <input type="hidden" name="ts"     value="<?= e((string)($trap['ts'] ?? '')) ?>">
+      <input type="hidden" name="ts_sig" value="<?= e((string)($trap['sig'] ?? '')) ?>">
 
       <div class="pf-card">
         <h3 class="pf-card__title">Your answers</h3>
@@ -88,27 +97,36 @@ $contact = $contact ?? [];
         <?php endforeach; ?>
       </div>
 
-      <?php if (!empty($contact)): ?>
+      <?php if (!empty($contact)):
+        // Notes are rendered AFTER the labeled table as plain prose — no
+        // "NOTE" label, since the text speaks for itself and a label would
+        // just add visual chrome.
+        $contactRows = array_values(array_filter($contact, fn($r) => $r['kind'] !== 'note'));
+        $contactNotes = array_values(array_filter($contact, fn($r) => $r['kind'] === 'note'));
+      ?>
         <aside class="pf-contact">
           <h3 class="pf-card__title">Contact info</h3>
-          <dl class="pf-contact__list">
-            <?php foreach ($contact as $row): ?>
-              <div class="pf-contact__row pf-contact__row--<?= e($row['kind']) ?>">
-                <dt><?= e($row['label']) ?></dt>
-                <dd>
-                  <?php if ($row['kind'] === 'email'): ?>
-                    <a href="mailto:<?= e($row['value']) ?>"><?= e($row['value']) ?></a>
-                  <?php elseif ($row['kind'] === 'phone'): ?>
-                    <a href="tel:<?= e(preg_replace('/[^\d+]/', '', $row['value'])) ?>"><?= e($row['value']) ?></a>
-                  <?php elseif ($row['kind'] === 'note'): ?>
-                    <div class="rich-text"><?= $row['value'] /* server-sanitised HTML */ ?></div>
-                  <?php else: ?>
-                    <?= nl2br(e($row['value'])) ?>
-                  <?php endif; ?>
-                </dd>
-              </div>
-            <?php endforeach; ?>
-          </dl>
+          <?php if (!empty($contactRows)): ?>
+            <dl class="pf-contact__list">
+              <?php foreach ($contactRows as $row): ?>
+                <div class="pf-contact__row pf-contact__row--<?= e($row['kind']) ?>">
+                  <dt><?= e($row['label']) ?></dt>
+                  <dd>
+                    <?php if ($row['kind'] === 'email'): ?>
+                      <a href="mailto:<?= e($row['value']) ?>"><?= e($row['value']) ?></a>
+                    <?php elseif ($row['kind'] === 'phone'): ?>
+                      <a href="tel:<?= e(preg_replace('/[^\d+]/', '', $row['value'])) ?>"><?= e($row['value']) ?></a>
+                    <?php else: ?>
+                      <?= nl2br(e($row['value'])) ?>
+                    <?php endif; ?>
+                  </dd>
+                </div>
+              <?php endforeach; ?>
+            </dl>
+          <?php endif; ?>
+          <?php foreach ($contactNotes as $row): ?>
+            <div class="pf-contact__note rich-text"><?= $row['value'] /* server-sanitised HTML */ ?></div>
+          <?php endforeach; ?>
         </aside>
       <?php endif; ?>
 

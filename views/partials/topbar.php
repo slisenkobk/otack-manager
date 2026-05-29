@@ -24,7 +24,7 @@
             <?php endif; ?>
           </div>
           <a class="user-menu__item" href="/profile" role="menuitem">
-            <i class="fa-regular fa-user" aria-hidden="true"></i>
+            <i class="fa-solid fa-user" aria-hidden="true"></i>
             <span>Profile</span>
           </a>
           <?php $themeCurrent = $_COOKIE['theme'] ?? 'auto'; ?>

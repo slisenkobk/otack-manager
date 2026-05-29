@@ -33,6 +33,38 @@ final class PublicFormController extends BaseController
     private const RATE_LIMIT_PER_IP = 5;
     private const RATE_LIMIT_WINDOW = 600;
 
+    /** Honeypot field name — bots fill any input named "email", humans don't see it. */
+    private const HONEYPOT_FIELD = 'email_address';
+
+    /** Anti-bot time-trap: reject submissions that arrive sooner than this. */
+    private const MIN_FILL_SECONDS = 2;
+    /** Stale-form ceiling — replays older than this are rejected too. */
+    private const MAX_FILL_SECONDS = 3600;
+
+    private function timeTrapSecret(): string
+    {
+        // Reuse LOGIN_HASH as a shared HMAC secret — it's already required to
+        // be set in env and stays stable across requests. Falls back to a fixed
+        // string only in test environments that don't set it; that's fine
+        // because the time trap is defence-in-depth, not the primary gate.
+        $s = (string)\App\App::env('LOGIN_HASH', '');
+        return $s !== '' ? $s : 'otack-form-time-trap-fallback';
+    }
+
+    /**
+     * Generate a signed timestamp pair the form embeds as hidden fields.
+     * Signing prevents the bot from replaying or forging "ts" without also
+     * forging a matching sha256 keyed on a server-only secret.
+     *
+     * @return array{ts:int, sig:string}
+     */
+    public function timeTrapTokens(string $formHash): array
+    {
+        $ts  = time();
+        $sig = hash_hmac('sha256', $ts . '|' . $formHash, $this->timeTrapSecret());
+        return ['ts' => $ts, 'sig' => $sig];
+    }
+
     public function show(Request $req, array $params): void {
         $hash = (string)($params['hash'] ?? '');
         if (!preg_match(self::HASH_RE, $hash)) {
@@ -46,7 +78,10 @@ final class PublicFormController extends BaseController
         }
         $fields  = $this->decodeFields($form);
         $contact = $this->resolveContactBlock($form);
+        $trap    = $this->timeTrapTokens($form['hash']);
         Response::html($this->view->render('public/form', [
+            'honeypot'  => self::HONEYPOT_FIELD,
+            'trap'      => $trap,
             'form'    => $form,
             'fields'  => $fields,
             'contact' => $contact,
@@ -65,6 +100,32 @@ final class PublicFormController extends BaseController
             Response::html($this->view->render('public/form-not-found', [], null));
             return;
         }
+        // Anti-bot honeypot: a hidden input that real browsers leave blank.
+        // Bots that scrape forms tend to fill every field, especially ones
+        // named "email"-ish. We return 200 OK without recording anything so
+        // the bot believes it succeeded — no signal back, no retry.
+        $honeypotValue = (string)($req->post[self::HONEYPOT_FIELD] ?? '');
+        if ($honeypotValue !== '') {
+            Response::html($this->view->render('public/form-thanks', ['form' => $form], null));
+            return;
+        }
+
+        // Anti-bot time-trap: signed timestamp embedded at render. A bot that
+        // submits within 2s of GET clearly didn't read the form. Forging the
+        // signature requires the server-side LOGIN_HASH, so simple replay is
+        // a non-starter. Stale ts (>1h) is also rejected to bound replay
+        // windows. Soft-fail: silent 200 (same logic as honeypot).
+        $ts  = (int)($req->post['ts'] ?? 0);
+        $sig = (string)($req->post['ts_sig'] ?? '');
+        $expected = hash_hmac('sha256', $ts . '|' . $form['hash'], $this->timeTrapSecret());
+        $now = time();
+        if ($ts === 0 || !hash_equals($expected, $sig)
+            || ($now - $ts) < self::MIN_FILL_SECONDS
+            || ($now - $ts) > self::MAX_FILL_SECONDS) {
+            Response::html($this->view->render('public/form-thanks', ['form' => $form], null));
+            return;
+        }
+
         // Anti-spam: throttle per IP. Behind a reverse proxy we trust
         // X-Forwarded-For's first hop; otherwise REMOTE_ADDR.
         $remoteIp = $this->resolveRemoteIp();
@@ -101,7 +162,12 @@ final class PublicFormController extends BaseController
 
         if ($errors) {
             $contact = $this->resolveContactBlock($form);
+            // Re-arm honeypot + time-trap on validation error so the user can
+            // resubmit cleanly. Fresh tokens each retry keep the bounds tight.
+            $trap = $this->timeTrapTokens($form['hash']);
             Response::html($this->view->render('public/form', [
+                'honeypot'   => self::HONEYPOT_FIELD,
+                'trap'       => $trap,
                 'form'       => $form,
                 'fields'     => $fields,
                 'contact'    => $contact,

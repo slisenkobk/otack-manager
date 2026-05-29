@@ -69,7 +69,9 @@ if ($canFormsSb) {
   </div>
 
   <div class="sidebar__foot">
-    <?= e(app_name()) ?> Ecosystem<br>
-    <span class="sidebar__foot-sub">By Goup Space</span>
+    <a class="sidebar__foot-link" href="https://otack.eu" target="_blank" rel="noopener noreferrer">Otack Manager</a> Ecosystem<br>
+    <span class="sidebar__foot-sub">
+      By <a class="sidebar__foot-link" href="https://goupspace.eu" target="_blank" rel="noopener noreferrer">Goup Space</a>
+    </span>
   </div>
 </aside>

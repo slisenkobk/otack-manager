@@ -12,22 +12,22 @@
 
 <div style="display:grid;grid-template-columns:1fr 280px;gap:40px;align-items:start;">
   <main>
-    <p class="mono muted" style="font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3);margin:0 0 8px;">
-      <a href="/projects/<?= (int)$project['id'] ?>" style="color:var(--ink-3);text-decoration:none;"><?= e($project['name']) ?></a>
-      / Task #<?= (int)$task['id'] ?>
+    <p class="mono muted task-breadcrumb-line">
+      <a href="/projects/<?= (int)$project['id'] ?>" class="task-breadcrumb-line__project"><?= e($project['name']) ?></a>
+      <span class="task-breadcrumb-line__sep">/</span>
+      <span class="task-header__id task-header__id--inline">TASK-<?= (int)$task['id'] ?></span>
     </p>
 
     <div class="task-header" style="margin:0 0 24px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-        <span class="task-header__id">TASK-<?= (int)$task['id'] ?></span>
-        <?php if (!empty($task['sub_status'])): ?>
+      <?php if (!empty($task['sub_status'])): ?>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
           <span class="sub-status sub-status--<?= e($task['sub_status']) ?>" data-task-sub-status>
             <?= $task['sub_status'] === 'reopened' ? '↻ Reopened' : '↩ Returned' ?>
           </span>
-        <?php else: ?>
-          <span class="sub-status" data-task-sub-status hidden></span>
-        <?php endif; ?>
-      </div>
+        </div>
+      <?php else: ?>
+        <span class="sub-status" data-task-sub-status hidden></span>
+      <?php endif; ?>
       <h1 class="task-title<?= !empty($canEditTask) ? ' is-editable' : '' ?>" <?= !empty($canEditTask) ? 'contenteditable="true"' : '' ?> spellcheck="false"
           style="font-size:24px;font-weight:700;letter-spacing:-0.015em;margin:0;outline:none;border-bottom:1px dashed transparent;padding-bottom:4px;<?= !empty($canEditTask) ? 'cursor:text;' : '' ?>line-height:1.25;"
           data-task-id="<?= (int)$task['id'] ?>"><?= e($task['title']) ?></h1>
@@ -103,52 +103,52 @@
           </details>
         <?php endif; ?>
       </footer>
-    </section>
 
-    <section class="overview-panel overview-panel--links" data-linked-tasks data-task-id="<?= (int)$task['id'] ?>">
-      <header class="overview-panel__head">
-        <h2 class="overview-panel__title">Related tasks</h2>
-        <?php if ($canEdit): ?>
-          <button class="btn-ghost" type="button" data-action="add-link" style="font-size:12px;">
-            <i class="fa-solid fa-plus"></i> Link task
-          </button>
-        <?php endif; ?>
-      </header>
-      <div class="overview-panel__body">
-        <div class="linked-tasks__list" data-linked-list>
-          <?php if (empty($linkedTasks)): ?>
-            <em class="overview-panel__empty" data-linked-empty>No related tasks yet.</em>
-          <?php else: ?>
-            <?php foreach ($linkedTasks as $lt): require APP_ROOT . '/views/partials/linked-task-row.php'; endforeach; ?>
+      <div class="overview-panel__section overview-panel__section--cream overview-panel--links" data-linked-tasks data-task-id="<?= (int)$task['id'] ?>">
+        <header class="overview-panel__head" style="padding:0 0 var(--space-6);">
+          <h2 class="overview-panel__title">Related tasks</h2>
+          <?php if ($canEdit): ?>
+            <button class="btn-ghost" type="button" data-action="add-link" style="font-size:12px;">
+              <i class="fa-solid fa-plus"></i> Link task
+            </button>
+          <?php endif; ?>
+        </header>
+        <div class="overview-panel__body" style="padding:0;">
+          <div class="linked-tasks__list" data-linked-list>
+            <?php if (empty($linkedTasks)): ?>
+              <em class="overview-panel__empty" data-linked-empty>No related tasks yet.</em>
+            <?php else: ?>
+              <?php foreach ($linkedTasks as $lt): require APP_ROOT . '/views/partials/linked-task-row.php'; endforeach; ?>
+            <?php endif; ?>
+          </div>
+          <?php if ($canEdit): ?>
+            <div class="linked-tasks__picker" data-linked-picker hidden>
+              <div class="linked-tasks__search">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" class="input input--inline" data-linked-search placeholder="Search tasks in this project (id or title)…">
+              </div>
+              <div class="linked-tasks__results" data-linked-results></div>
+            </div>
           <?php endif; ?>
         </div>
-        <?php if ($canEdit): ?>
-          <div class="linked-tasks__picker" data-linked-picker hidden>
-            <div class="linked-tasks__search">
-              <i class="fa-solid fa-magnifying-glass"></i>
-              <input type="text" class="input input--inline" data-linked-search placeholder="Search tasks in this project (id or title)…">
-            </div>
-            <div class="linked-tasks__results" data-linked-results></div>
-          </div>
-        <?php endif; ?>
       </div>
-    </section>
 
-    <section class="overview-panel overview-panel--comments">
-      <?php
-        $entityType = 'task';
-        $entityId = (int)$task['id'];
-        $canPost = $canEdit;
-        require APP_ROOT . '/views/partials/comment-thread.php';
-      ?>
+      <div class="overview-panel__section">
+        <?php
+          $entityType = 'task';
+          $entityId = (int)$task['id'];
+          $canPost = $canEdit;
+          require APP_ROOT . '/views/partials/comment-thread.php';
+        ?>
+      </div>
     </section>
   </main>
 
   <aside class="task-sidebar" data-task-id="<?= (int)$task['id'] ?>" data-project-id="<?= (int)$project['id'] ?>"
          style="border:1px solid var(--rule);padding:18px;background:var(--paper);border-radius:4px;">
-    <h3 style="font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.15em;color:var(--ink-3);margin:0 0 16px;">Details</h3>
+    <h3 style="font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.15em;color:var(--ink-3);margin:0 0 8px;">Details</h3>
 
-    <div class="field" style="margin-bottom:14px;">
+    <div class="field" style="margin-bottom:7px;">
       <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;">Status</label>
       <?php
         $currentCol = null;
@@ -172,7 +172,7 @@
       </div>
     </div>
 
-    <div class="field" style="margin-bottom:14px;">
+    <div class="field" style="margin-bottom:7px;">
       <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;">Assignee</label>
       <?php
         $currentAssignee = null;
@@ -207,12 +207,12 @@
       </div>
     </div>
 
-    <div class="field" style="margin-bottom:14px;">
+    <div class="field" style="margin-bottom:7px;">
       <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;">Due date</label>
       <input class="input" type="date" data-field="due_date" value="<?= e($task['due_date'] ?? '') ?>">
     </div>
 
-    <div class="field" style="margin-bottom:14px;">
+    <div class="field" style="margin-bottom:7px;">
       <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;">Priority</label>
       <?php
         $prioOpts = ['none' => 'No priority', 'low' => 'Low', 'medium' => 'Medium', 'high' => 'High', 'urgent' => 'Urgent'];
@@ -236,7 +236,7 @@
       </div>
     </div>
 
-    <div class="field" style="margin-bottom:14px;">
+    <div class="field" style="margin-bottom:7px;">
       <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;">Tags</label>
       <?php
         $scope      = 'task';
@@ -248,21 +248,21 @@
       ?>
     </div>
 
-    <div style="border-top:1px solid var(--rule);padding-top:12px;margin-top:18px;font-size:11px;color:var(--ink-3);">
+    <div style="border-top:1px solid var(--rule);padding-top:6px;margin-top:9px;font-size:11px;color:var(--ink-3);">
       <div>Created by <strong style="color:var(--ink-2);"><?= e($createdBy['name'] ?? 'unknown') ?></strong></div>
       <div style="margin-top:4px;font-family:var(--font-mono);"><?= fmt_datetime($task['created_at']) ?></div>
     </div>
 
     <?php if (!empty($canCreateProject)): ?>
       <button class="btn-ghost" type="button" data-action="promote-to-project"
-              style="margin-top:18px;width:100%;padding:8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+              style="margin-top:9px;width:100%;padding:8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
         <i class="fa-solid fa-up-right-from-square"></i> Promote to project
       </button>
     <?php endif; ?>
 
     <?php if (!empty($canEditTask)): ?>
       <button class="btn-danger" type="button" data-action="delete-task"
-              style="margin-top:10px;width:100%;padding:8px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;">
+              style="margin-top:5px;width:100%;padding:8px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;">
         Delete task
       </button>
     <?php endif; ?>
