@@ -33,7 +33,7 @@ setup:
 	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env"; else echo ".env exists"; fi
 	@if [ ! -d node_modules ]; then npm install; else echo "node_modules exists"; fi
 	@npx playwright install chromium >/dev/null 2>&1 && echo "Playwright chromium ready" || true
-	@mkdir -p data data/sessions data/.schema public/uploads
+	@mkdir -p data data/sessions public/uploads
 	@chmod 700 data/sessions
 
 serve:

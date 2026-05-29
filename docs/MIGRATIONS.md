@@ -49,6 +49,8 @@ php bin/migrate.php            # same; useful in CI / deploy scripts
 
 Exit code 0 on success (including no-op), 1 on any failure. The runner wraps the whole batch in `BEGIN IMMEDIATE` / `COMMIT`, so a mid-batch failure rolls back cleanly — the half-applied state never persists.
 
+**Batch rollback caveat:** if migration N fails, the rollback also reverts migrations 0..N-1 that ran earlier in the same batch. Those will all be retried on the next boot. Write each migration to be safe under repeated re-application — use `CREATE TABLE IF NOT EXISTS`, `PRAGMA table_info` guards before `ALTER`, and `INSERT OR IGNORE` / pre-checks for backfill closures.
+
 Web boot (`public/index.php`) calls `Migrations::run()` on every request, but the runner short-circuits when there's nothing pending, so the overhead is one `SELECT name FROM schema_migrations`.
 
 ## Legacy backfill (one-time)

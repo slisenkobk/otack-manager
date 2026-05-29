@@ -75,6 +75,50 @@ it('SchemaBootstrap.runFile throws when migration does not return a callable', f
     @unlink($badFile);
 });
 
+it('SchemaBootstrap.status lists applied + pending for a mixed dir', function () {
+    $tmp = sys_get_temp_dir() . '/otack-st-' . uniqid() . '.sqlite';
+    $dir = sys_get_temp_dir() . '/otack-st-mig-' . uniqid();
+    mkdir($dir, 0755, true);
+
+    file_put_contents($dir . '/0000_schema_migrations.php', <<<'PHP'
+<?php
+return function (\PDO $pdo) {
+    $pdo->exec('CREATE TABLE IF NOT EXISTS schema_migrations (
+        name TEXT PRIMARY KEY, applied_at TEXT NOT NULL
+    )');
+};
+PHP);
+    file_put_contents($dir . '/20260101_000_alpha.php', <<<'PHP'
+<?php
+return function (\PDO $pdo) { $pdo->exec('CREATE TABLE alpha (id INTEGER)'); };
+PHP);
+    file_put_contents($dir . '/20260102_000_beta.php', <<<'PHP'
+<?php
+return function (\PDO $pdo) { $pdo->exec('CREATE TABLE beta (id INTEGER)'); };
+PHP);
+
+    $pdo  = Connection::open($tmp);
+    $boot = new SchemaBootstrap($pdo);
+
+    // Before any run: every file is pending.
+    $rows = $boot->status($dir);
+    assert_eq(3, count($rows));
+    assert_eq(false, $rows[0]['applied']);
+    assert_eq(false, $rows[1]['applied']);
+    assert_eq(false, $rows[2]['applied']);
+
+    Migrations::run($boot, $dir);
+
+    // After run: every file is applied.
+    $rows = $boot->status($dir);
+    assert_eq(3, count($rows));
+    foreach ($rows as $r) assert_eq(true, $r['applied']);
+
+    @unlink($tmp);
+    foreach (glob($dir . '/*') as $f) @unlink($f);
+    @rmdir($dir);
+});
+
 it('Migrations.run backfills schema_migrations from legacy marker dir', function () {
     $tmp      = sys_get_temp_dir() . '/otack-bf-' . uniqid() . '.sqlite';
     $migDir   = sys_get_temp_dir() . '/otack-bf-mig-' . uniqid();
