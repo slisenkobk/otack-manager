@@ -160,3 +160,25 @@ it('Updater::applyRestoreSwap mirrors snapshot atomically', function () use ($up
 
     `rm -rf "$base"`;
 });
+
+it('Updater::isUnderBackups guards rm -rf to data/backups subtree', function () use ($updater) {
+    $ref = new ReflectionClass($updater);
+    $m = $ref->getMethod('isUnderBackups'); $m->setAccessible(true);
+    assert_true($m->invoke($updater, APP_ROOT . '/data/backups/anything'),
+        'paths under data/backups OK');
+    assert_true(!$m->invoke($updater, APP_ROOT . '/system/Service'),
+        'paths outside data/backups must be rejected');
+    assert_true(!$m->invoke($updater, '/tmp/random-path'),
+        'absolute paths outside APP_ROOT must be rejected');
+});
+
+it('Updater::removeTree deletes a temp directory recursively', function () use ($updater) {
+    $ref = new ReflectionClass($updater);
+    $m = $ref->getMethod('removeTree'); $m->setAccessible(true);
+    $base = sys_get_temp_dir() . '/upd_rmtree_' . uniqid('', true);
+    mkdir($base . '/a/b/c', 0755, true);
+    file_put_contents($base . '/a/b/c/leaf.txt', 'x');
+    file_put_contents($base . '/a/b/sibling.txt', 'y');
+    $m->invoke($updater, $base);
+    assert_true(!is_dir($base), 'temp tree fully removed');
+});

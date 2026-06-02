@@ -22,6 +22,7 @@ final class Updater
 {
     private const DEFAULT_REPO_URL       = 'https://github.com/slisenkobk/otack-manager';
     private const DEFAULT_CHECK_INTERVAL = 3600;
+    private const DEFAULT_BACKUP_KEEP    = 5;
     private const HTTP_TIMEOUT_SECONDS   = 5;
     private const DOWNLOAD_TIMEOUT_SECONDS = 120;
     private const TAG_RE                 = '/^v(\d+\.\d+\.\d+)$/';
@@ -89,6 +90,12 @@ final class Updater
             'available_check_at' => (string)$now,
             'available_notes'    => $this->settings->get('available_notes', ''),
         ]);
+
+        // Opportunistic drift cleanup: catch backups whose artefacts were
+        // removed out-of-band (admin cleared data/backups/ manually, disk
+        // failure, etc) and mark them as pruned so the UI stops offering
+        // restore on them. Cheap — only updates rows that need updating.
+        $this->reconcileBackupDrift();
 
         return [
             'current'    => self::currentVersion(),
@@ -191,7 +198,8 @@ final class Updater
             $duration = (int)round(microtime(true) - $startedAt);
             $this->settings->set('last_update_duration_seconds', (string)$duration);
 
-            // 11. prune — handled by step 6 retention sweep (not in scope here)
+            // 11. prune older backups beyond the retention threshold.
+            $this->pruneBackups();
 
             return [
                 'from' => $current,
@@ -287,6 +295,8 @@ final class Updater
 
             $duration = (int)round(microtime(true) - $startedAt);
 
+            $this->pruneBackups();
+
             return [
                 'from' => $currentVersion,
                 'to'   => $targetVersion,
@@ -302,6 +312,100 @@ final class Updater
                 $e
             );
         }
+    }
+
+    /**
+     * Apply the backup retention policy: keep the N most recent non-pruned
+     * backups (N = UPDATE_BACKUP_KEEP, default 5), remove on-disk
+     * artefacts of the rest, and mark them as pruned. Rows stay in
+     * app_backups so the audit history is preserved.
+     *
+     * Safe to call repeatedly — a no-op if nothing is beyond retention.
+     * Failures are logged but never thrown: pruning is best-effort
+     * housekeeping, not a release-gating step.
+     */
+    public function pruneBackups(): void
+    {
+        $keep = max(0, (int)App::env('UPDATE_BACKUP_KEEP', (string)self::DEFAULT_BACKUP_KEEP));
+        /** @var \App\Repository\AppBackupRepository $backups */
+        $backups = App::make('app_backups');
+        $ids = $backups->idsBeyondRetention($keep);
+        if (!$ids) return;
+
+        foreach ($ids as $id) {
+            $row = $backups->findById($id);
+            if ($row === null) continue;
+            try {
+                if (!empty($row['code_path'])) {
+                    $abs = APP_ROOT . '/' . $row['code_path'];
+                    // Each backup lives under data/backups/{stamp}/, with
+                    // code_path = .../code. Remove the whole parent dir.
+                    $parent = dirname($abs);
+                    if (is_dir($parent) && $this->isUnderBackups($parent)) {
+                        $this->removeTree($parent);
+                    } elseif (is_dir($abs) && $this->isUnderBackups($abs)) {
+                        $this->removeTree($abs);
+                    }
+                } elseif (!empty($row['db_snapshot'])) {
+                    $abs = APP_ROOT . '/' . $row['db_snapshot'];
+                    $parent = dirname($abs);
+                    if (is_dir($parent) && $this->isUnderBackups($parent)) {
+                        $this->removeTree($parent);
+                    }
+                }
+                $backups->markPruned($id);
+            } catch (\Throwable $e) {
+                error_log('[updater:prune] backup ' . $id . ': ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Detect and mark backups whose on-disk artefacts have vanished
+     * (someone wiped data/backups/ manually, the disk lost a file, etc).
+     * Touches only non-pruned rows; safe to call on every check().
+     */
+    private function reconcileBackupDrift(): void
+    {
+        try {
+            /** @var \App\Repository\AppBackupRepository $backups */
+            $backups = App::make('app_backups');
+        } catch (\Throwable $_) {
+            return; // happens during boot before DI is fully wired (tests)
+        }
+        foreach ($backups->listAll() as $row) {
+            if (!empty($row['pruned_at'])) continue;
+            $codeAbs = APP_ROOT . '/' . $row['code_path'];
+            if (is_dir($codeAbs)) continue;
+            $backups->markPruned((int)$row['id']);
+        }
+    }
+
+    /** Sanity-check before rm -rf: must be under APP_ROOT/data/backups. */
+    private function isUnderBackups(string $abs): bool
+    {
+        $root = realpath(APP_ROOT . '/data/backups') ?: (APP_ROOT . '/data/backups');
+        $real = realpath($abs) ?: $abs;
+        $prefix = rtrim($root, '/') . '/';
+        return str_starts_with($real, $prefix);
+    }
+
+    private function removeTree(string $dir): void
+    {
+        if (!is_dir($dir)) return;
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($it as $info) {
+            $path = $info->getPathname();
+            if ($info->isDir()) {
+                @rmdir($path);
+            } else {
+                @unlink($path);
+            }
+        }
+        @rmdir($dir);
     }
 
     // ─── internals: pipeline ───────────────────────────────────────────
