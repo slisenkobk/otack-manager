@@ -52,19 +52,23 @@ final class Connection
      */
     public static function openFromEnv(): \PDO
     {
-        $env = static fn(string $k, ?string $default = null): ?string
-            => (\App\App::env($k, $default) === '' ? null : \App\App::env($k, $default));
+        // App::env() requires a string default — read with '' and treat
+        // empty as "not configured" downstream.
+        $envOrNull = static function (string $k, string $default = ''): ?string {
+            $v = \App\App::env($k, $default);
+            return $v === '' ? null : $v;
+        };
 
-        $dsn = $env('DB_DSN');
+        $dsn = $envOrNull('DB_DSN');
         if ($dsn !== null) {
             return self::open($dsn, [
-                'username'  => $env('DB_USER'),
-                'password'  => $env('DB_PASSWORD'),
-                'charset'   => $env('DB_CHARSET', 'utf8mb4'),
-                'collation' => $env('DB_COLLATION', 'utf8mb4_0900_ai_ci'),
+                'username'  => $envOrNull('DB_USER'),
+                'password'  => $envOrNull('DB_PASSWORD'),
+                'charset'   => $envOrNull('DB_CHARSET',   'utf8mb4')              ?? 'utf8mb4',
+                'collation' => $envOrNull('DB_COLLATION', 'utf8mb4_0900_ai_ci')   ?? 'utf8mb4_0900_ai_ci',
             ]);
         }
-        $path = $env('DB_PATH', 'data/app.sqlite');
+        $path = $envOrNull('DB_PATH', 'data/app.sqlite') ?? 'data/app.sqlite';
         return self::open(APP_ROOT . '/' . $path);
     }
 
