@@ -1,3 +1,16 @@
+<?php
+// Updater badge: shown when the cached "available_version" is newer than
+// the running APP_VERSION. Admin-only, hidden when UPDATE_ENABLED=false.
+$showUpdateBadge = false;
+$updateBadgeVersion = '';
+if (!empty($user['role']) && $user['role'] === 'admin' && \App\Service\Updater::isEnabled()) {
+    $payload = \App\App::make('updater')->cachedPayload();
+    if (!empty($payload['has_update']) && !empty($payload['available'])) {
+        $showUpdateBadge = true;
+        $updateBadgeVersion = (string)$payload['available'];
+    }
+}
+?>
 <header class="topbar">
   <button type="button" class="topbar__nav-toggle" data-mobile-nav-toggle aria-label="<?= e(t('nav.menu')) ?>">
     <i class="fa-solid fa-bars" aria-hidden="true"></i>
@@ -9,6 +22,13 @@
     <span><?= e($crumb ?? t('nav.dashboard')) ?></span>
     <?php if (!empty($crumbExtra)): ?>
       <span class="topbar__title-extra"><?= $crumbExtra ?></span>
+    <?php endif; ?>
+    <?php if ($showUpdateBadge): ?>
+      <a class="update-badge" href="/admin/settings?tab=updates"
+         title="<?= e(t('updates.badge_title')) ?>">
+        <i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i>
+        <?= e(t('updates.badge_label', ['version' => 'v' . $updateBadgeVersion])) ?>
+      </a>
     <?php endif; ?>
   </h1>
   <div class="topbar__rhs">

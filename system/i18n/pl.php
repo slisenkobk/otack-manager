@@ -593,6 +593,21 @@ return [
     'polls.votes_count'              => ':n głosów',
     'common.remove'                  => 'Usuń',
 
+    // ─── Updates / in-app updater ──────────────────────────────────────────
+    'settings.tab.updates'           => 'Aktualizacje',
+    'updates.section.current'        => 'Bieżąca wersja',
+    'updates.section.check'          => 'Sprawdź aktualizacje',
+    'updates.installed_at'           => 'Zainstalowano :when',
+    'updates.last_check'             => 'Ostatnio sprawdzane :when',
+    'updates.last_check_never'       => 'Jeszcze nie sprawdzano',
+    'updates.check_now'              => 'Sprawdź teraz',
+    'updates.available_label'        => 'Dostępna :version',
+    'updates.available_hint'         => 'Historia instalacji jest na panelu poniżej. Przycisk "Zaktualizuj teraz" pojawi się w kolejnym wydaniu tej funkcji.',
+    'updates.up_to_date'             => 'Masz najnowszą wersję.',
+    'updates.no_check_yet'           => 'Kliknij "Sprawdź teraz", aby sprawdzić, czy jest nowsza wersja.',
+    'updates.badge_label'            => 'Dostępna :version',
+    'updates.badge_title'            => 'Dostępna nowsza wersja — otwórz Ustawienia → Aktualizacje',
+
     // ─── Public poll page ───────────────────────────────────────────────────
     'public_poll.stage_contact_title' => 'Zagłosuj w ankiecie',
     'public_poll.stage_contact_hint'  => 'Podaj kontakt, aby kontynuować. Jeden głos na kontakt w tej ankiecie.',

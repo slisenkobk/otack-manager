@@ -46,6 +46,14 @@ final class DashboardController extends BaseController {
         $tasks    = App::make('tasks');
         $activity = App::make('activity');
 
+        // Admin dashboard is the cheapest place to refresh the
+        // updater's cached "available_version". `checkIfStale` is a
+        // no-op when the cache is fresh and silently swallows network
+        // errors, so this never blocks the dashboard.
+        if ($isAdmin && \App\Service\Updater::isEnabled()) {
+            App::make('updater')->checkIfStale();
+        }
+
         $counters = $tasks->dashboardCounters($userId, $isAdmin);
         $trend    = $tasks->dashboardWeekTrend($userId, $isAdmin);
         $stats = [

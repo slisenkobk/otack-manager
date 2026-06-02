@@ -594,6 +594,21 @@ return [
     'polls.votes_count'              => ':n голосів',
     'common.remove'                  => 'Видалити',
 
+    // ─── Updates / in-app updater ──────────────────────────────────────────
+    'settings.tab.updates'           => 'Оновлення',
+    'updates.section.current'        => 'Поточна версія',
+    'updates.section.check'          => 'Перевірка оновлень',
+    'updates.installed_at'           => 'Встановлено :when',
+    'updates.last_check'             => 'Остання перевірка :when',
+    'updates.last_check_never'       => 'Ще не перевіряли',
+    'updates.check_now'              => 'Перевірити',
+    'updates.available_label'        => 'Доступна :version',
+    'updates.available_hint'         => 'Історія встановлень — на панелі нижче. Кнопка "Оновити" зʼявиться у наступному релізі цієї функції.',
+    'updates.up_to_date'             => 'У вас актуальна версія.',
+    'updates.no_check_yet'           => 'Натисніть "Перевірити", щоб дізнатися чи є нова версія.',
+    'updates.badge_label'            => 'Доступна :version',
+    'updates.badge_title'            => 'Доступна новіша версія — відкрийте Налаштування → Оновлення',
+
     // ─── Public poll page ───────────────────────────────────────────────────
     'public_poll.stage_contact_title' => 'Проголосувати',
     'public_poll.stage_contact_hint'  => 'Уведіть контакт, щоб продовжити. Один голос на контакт у цьому голосуванні.',

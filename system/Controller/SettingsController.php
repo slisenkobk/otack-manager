@@ -41,7 +41,19 @@ final class SettingsController extends BaseController
         $values = $this->settings->getMany($keys, $defaults);
 
         $tab = (string)($req->query['tab'] ?? 'workspace');
-        if (!in_array($tab, ['workspace', 'contact'], true)) $tab = 'workspace';
+        $allowedTabs = ['workspace', 'contact'];
+        if (\App\Service\Updater::isEnabled()) $allowedTabs[] = 'updates';
+        if (!in_array($tab, $allowedTabs, true)) $tab = 'workspace';
+
+        // Updates tab needs the cached payload from the updater service.
+        // We read the cache only (no network call here) — the dashboard
+        // is responsible for refreshing the cache on its own cadence.
+        $updates = $tab === 'updates'
+            ? App::make('updater')->cachedPayload()
+            : null;
+        $currentVersionRow = $tab === 'updates'
+            ? App::make('app_versions')->current()
+            : null;
 
         $csrfToken = App::make('csrf')->token();
         $sidebar = $this->view->render('partials/sidebar', [
@@ -56,11 +68,14 @@ final class SettingsController extends BaseController
             'sidebar'   => $sidebar,
             'topbar'    => $topbar,
             'content'   => $this->view->render('admin/settings', [
-                'values'     => $values,
-                'fields'     => self::KEYS,
-                'csrfToken'  => $csrfToken,
-                'timezones'  => $this->timezonesWithOffsets(),
-                'currentTab' => $tab,
+                'values'         => $values,
+                'fields'         => self::KEYS,
+                'csrfToken'      => $csrfToken,
+                'timezones'      => $this->timezonesWithOffsets(),
+                'currentTab'     => $tab,
+                'updatesEnabled' => \App\Service\Updater::isEnabled(),
+                'updates'        => $updates,
+                'currentVersion' => $currentVersionRow,
             ]),
         ]));
     }

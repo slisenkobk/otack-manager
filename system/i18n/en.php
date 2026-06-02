@@ -600,6 +600,21 @@ return [
     'polls.votes_count'              => ':n votes',
     'common.remove'                  => 'Remove',
 
+    // ─── Updates / in-app updater ──────────────────────────────────────────
+    'settings.tab.updates'           => 'Updates',
+    'updates.section.current'        => 'Current version',
+    'updates.section.check'          => 'Check for updates',
+    'updates.installed_at'           => 'Installed on :when',
+    'updates.last_check'             => 'Last checked :when',
+    'updates.last_check_never'       => 'Not checked yet',
+    'updates.check_now'              => 'Check now',
+    'updates.available_label'        => ':version available',
+    'updates.available_hint'         => 'Open the History panel below for the install lineage. The Update Now action arrives in the next release of this feature.',
+    'updates.up_to_date'             => 'You are running the latest version.',
+    'updates.no_check_yet'           => 'Click "Check now" to see whether a newer version is available.',
+    'updates.badge_label'            => ':version available',
+    'updates.badge_title'            => 'A newer version is available — open Settings → Updates',
+
     // ─── Public poll page ───────────────────────────────────────────────────
     'public_poll.stage_contact_title' => 'Vote in this poll',
     'public_poll.stage_contact_hint'  => 'Enter your contact to continue. One vote per contact, per poll.',

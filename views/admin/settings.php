@@ -17,6 +17,13 @@ $localeNames = locale_display_names();
       <i class="fa-solid fa-address-card" aria-hidden="true" style="margin-right:var(--space-2);"></i>
       <?= e(t('settings.tab.contact')) ?>
     </a>
+    <?php if (!empty($updatesEnabled)): ?>
+      <a href="/admin/settings?tab=updates"
+         class="project-tab<?= $currentTab === 'updates' ? ' project-tab--active' : '' ?>">
+        <i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true" style="margin-right:var(--space-2);"></i>
+        <?= e(t('settings.tab.updates')) ?>
+      </a>
+    <?php endif; ?>
   </div>
   <a href="/admin/compass" class="btn btn--secondary btn--sm page-head__btn"
      title="<?= e(t('settings.compass_hint')) ?>"
@@ -144,8 +151,15 @@ $localeNames = locale_display_names();
 
   <?php endif; ?>
 
-  <div style="margin-top:22px;display:flex;gap:10px;">
-    <button class="btn btn--primary submit" type="submit"><?= e(t('settings.save_button')) ?></button>
-  </div>
+  <?php if ($currentTab !== 'updates'): ?>
+    <div style="margin-top:22px;display:flex;gap:10px;">
+      <button class="btn btn--primary submit" type="submit"><?= e(t('settings.save_button')) ?></button>
+    </div>
+  <?php endif; ?>
 </form>
+
+<?php if ($currentTab === 'updates'): ?>
+  <?php require __DIR__ . '/updates-tab.php'; ?>
+<?php endif; ?>
+
 <script type="module" src="<?= e(asset_url('/assets/js/settings.js')) ?>"></script>

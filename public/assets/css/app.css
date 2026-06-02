@@ -4997,6 +4997,55 @@ a.link-card *,
   color: var(--ink-2, #333);
 }
 
+/* ─── In-app updater (docs/UPDATES.md) ────────────────────────────────
+   Topbar badge that links into Settings → Updates, plus the two cards
+   that live inside the Updates tab itself. */
+.update-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e6f4ea;
+  color: #1e6f3a;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: filter 120ms ease;
+}
+.update-badge:hover { filter: brightness(0.95); }
+.update-badge i { font-size: 10px; }
+
+.updates-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 14px;
+}
+.updates-card {
+  background: var(--bg-elevated, #fff);
+  border: 1px solid var(--rule, #e6e2d8);
+  border-radius: var(--radius, 8px);
+  padding: 20px 22px;
+}
+.updates-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-3, #666);
+  margin: 0 0 12px;
+}
+.updates-version {
+  margin-left: 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 14px;
+  color: var(--ink-3, #666);
+}
+
 /* Public poll: radio-option block (one row per choice). */
 .pf-radio {
   display: flex;

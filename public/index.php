@@ -67,6 +67,9 @@ App::singleton('short_links',       fn() => new \App\Repository\ShortLinkReposit
 App::singleton('short_link_visits', fn() => new \App\Repository\ShortLinkVisitRepository(App::make('db')));
 App::singleton('polls',             fn() => new \App\Repository\PollRepository(App::make('db')));
 App::singleton('poll_votes',        fn() => new \App\Repository\PollVoteRepository(App::make('db')));
+App::singleton('app_versions',      fn() => new \App\Repository\AppVersionRepository(App::make('db')));
+App::singleton('app_backups',       fn() => new \App\Repository\AppBackupRepository(App::make('db')));
+App::singleton('updater',           fn() => new \App\Service\Updater(App::make('settings')));
 App::singleton('hasher',  fn() => new \App\Auth\PasswordHasher());
 App::singleton('events',   fn() => new \App\Service\EventBus());
 App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));
@@ -264,6 +267,8 @@ $router->post('/api/tasks/{id}/tags/{tagId}/delete', 'Tag@detachFromTask');
 
 $router->get('/admin/settings', 'Settings@show');
 $router->post('/admin/settings', 'Settings@update');
+
+$router->get('/api/updates/check', 'Updates@check');
 
 $router->get('/admin/compass',                          'Compass@index');
 $router->get('/admin/compass/migrations',               'Compass@migrations');
