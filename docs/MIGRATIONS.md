@@ -1,23 +1,34 @@
 # Migrations
 
-Per-file SQLite migrations live in [`system/Database/migrations/`](../system/Database/migrations/) and are applied automatically on the first HTTP hit (via `public/index.php`) or explicitly via `make migrate` / `php bin/migrate.php`.
+Per-file migrations live in [`system/Database/migrations/`](../system/Database/migrations/) and are applied automatically on the first HTTP hit (via `public/index.php`) or explicitly via `make migrate` / `php bin/migrate.php`. They use the **Schema DSL** ([DATABASE.md §3.2](DATABASE.md)) so the same file runs unchanged on SQLite and MySQL.
 
-Applied migrations are recorded in the `schema_migrations(name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)` table inside the application DB. The runner discovers files by glob, sorts alphabetically, and applies anything whose basename (sans `.php`) is not yet in the table.
+Applied migrations are recorded in the `schema_migrations` table. The runner discovers files by glob, sorts alphabetically, and applies anything whose basename (sans `.php`) is not yet in the table.
 
 ## File format
 
-Each migration file must `return` a `Closure(PDO): void`:
+Each migration file must `return` a `Closure(Schema): void`:
 
 ```php
 <?php
 declare(strict_types=1);
 
-return function (\PDO $pdo) {
-    $pdo->exec("CREATE TABLE foo ( ... )");
+use App\Database\Schema\Blueprint;
+use App\Database\Schema\Schema;
+
+return function (Schema $schema): void {
+    $schema->createTable('foo', function (Blueprint $t) {
+        $t->id();
+        $t->string('name')->unique();
+        $t->timestamp('created_at');
+    });
 };
 ```
 
-No namespacing, no class. The closure runs inside a single `BEGIN IMMEDIATE` transaction shared by the whole batch — concurrent first-hits on production serialise rather than racing.
+No namespacing, no class. The runner wraps the call in a per-file transaction (`BEGIN IMMEDIATE` on SQLite, `START TRANSACTION` on MySQL — DDL is implicit-committed on MySQL, so rollback semantics differ from SQLite; see [DATABASE.md §8](DATABASE.md)).
+
+For genuinely complex migrations (raw `UPDATE` backfills, data transforms) reach for `$schema->execute($sql)` or `$schema->pdo()` — the documented escape hatches.
+
+The runner also still accepts the legacy `function (\PDO $pdo)` shape — the dispatch in `SchemaBootstrap::runFile` inspects the parameter type. The convention test (`tests/unit/test_repo_portability.php`) fails CI if any migration introduces SQLite-only syntax (`PRAGMA table_info`, `datetime('now')`, `AUTOINCREMENT`).
 
 ## Naming convention
 

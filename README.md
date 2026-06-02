@@ -2,7 +2,7 @@
 
 A small, self-hosted PHP project & task manager with kanban, comments, attachments, public forms / polls / short links, and Telegram notifications.
 
-Server-rendered, no SPA, no Composer dependencies, SQLite for storage.
+Server-rendered, no SPA, no Composer dependencies. Runs on SQLite by default, with first-class MySQL 8 support and a self-service migrator.
 
 ## Features
 
@@ -14,13 +14,15 @@ Server-rendered, no SPA, no Composer dependencies, SQLite for storage.
 - **Short links** with click stats (total + unique by hashed IP)
 - **Compass** admin panel — migrations runner, cache clear, DB stats, logs viewer
 - **In-app updates** — one-click upgrade from GitHub releases, automatic code + DB backups, one-click restore (Settings → Updates)
+- **Dual-driver database** — SQLite (zero-config default) or MySQL 8; in-app SQLite → MySQL migrator (Compass → Migrate to MySQL)
 - i18n: English (default), Polish, Ukrainian
 - Mobile-responsive
 - Telegram notifications for events (registrations, task changes, form submissions, …)
 
 ## Requirements
 
-- PHP **8.2+** with the `pdo_sqlite`, `dom`, and `fileinfo` extensions
+- PHP **8.2+** with the `pdo_sqlite` (and/or `pdo_mysql`), `dom`, and `fileinfo` extensions
+- For MySQL deployments: MySQL **8.0+**; the in-app migrator uses `mysqldump` / `mysql` from PATH for snapshots
 - Node.js 18+ (only for running Playwright E2E)
 
 ## Setup
@@ -35,15 +37,29 @@ Open <http://localhost:8000>. The first user to register becomes the admin autom
 
 A default admin can also be seeded via `SEED_DEFAULT_ADMIN_EMAIL` / `SEED_DEFAULT_ADMIN_PASSWORD_HASH` in `.env`.
 
-## Database migrations
+## Database
 
-Per-file migrations in `system/Database/migrations/` apply automatically on the first HTTP hit. To run explicitly:
+Default is **SQLite** at `data/app.sqlite` — zero config; the file is created on first boot.
+
+To run on **MySQL 8** instead, set `DB_DSN` in `.env`:
+
+```
+DB_DSN=mysql:host=127.0.0.1;port=3306;dbname=otack;charset=utf8mb4
+DB_USER=otack
+DB_PASSWORD=…
+```
+
+Already running on SQLite and want to move? Open **Compass → Migrate to MySQL** for the in-app wizard (table-by-table copy, sanity check, then paste the new env vars and reload). The SQLite file is never touched, so rollback is "revert .env". Full design notes in [docs/DATABASE.md](docs/DATABASE.md).
+
+### Migrations
+
+Per-file migrations in `system/Database/migrations/` use a portable Schema DSL (see [docs/DATABASE.md §3.2](docs/DATABASE.md)). They apply automatically on the first HTTP hit, or explicitly:
 
 ```bash
 make migrate           # or: php bin/migrate.php
 ```
 
-Tracked in the `schema_migrations` table. Filenames are permanent once shipped — renaming an applied migration would re-execute it. See [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
+Tracked in the `schema_migrations` table. Filenames are permanent once shipped. See [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
 
 ## Telegram notifications
 
@@ -81,7 +97,8 @@ Disable the feature entirely with `UPDATE_ENABLED=false` in `.env` (useful when 
 ## Tests
 
 ```bash
-make unit              # 119 PHP unit tests, hand-rolled runner, <1s
+make unit              # 140 PHP unit tests, hand-rolled runner, <1s
+make unit-mysql        # same suite against docker mysql:8.0 (CI also runs this)
 make e2e               # 17 Playwright specs (Chromium), serial mode
 ```
 
@@ -105,7 +122,7 @@ Make sure:
 
 ## Stack
 
-PHP 8.2 + SQLite (PDO) + vanilla JS (ES modules) + Quill (WYSIWYG) + SortableJS + Playwright (E2E). No Composer, no bundler, no framework.
+PHP 8.2 + SQLite or MySQL (PDO) + vanilla JS (ES modules) + Quill (WYSIWYG) + SortableJS + Playwright (E2E). No Composer, no bundler, no framework.
 
 ## License
 
