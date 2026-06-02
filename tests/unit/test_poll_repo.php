@@ -69,6 +69,27 @@ it('PollRepository cannot close directly from draft (must go through active)', f
     assert_eq('draft', $repo->findById($id)['status']);
 });
 
+it('PollRepository::listForUser orders by status (active→draft→closed) then date', function () {
+    $repo = new PollRepository(_pollPdo());
+    // Insert with a deliberate creation order; sleep a tick between each so
+    // created_at is strictly increasing in the file system clock.
+    $draftOld = $repo->create('draft-old', null, [], [], 1);
+    usleep(2000);
+    $closed   = $repo->create('closed',    null, [], [], 1);
+    usleep(2000);
+    $active   = $repo->create('active',    null, [], [], 1);
+    usleep(2000);
+    $draftNew = $repo->create('draft-new', null, [], [], 1);
+
+    $repo->activate($active);
+    $repo->activate($closed); $repo->close($closed);
+
+    $rows = $repo->listForUser(1, true);
+    $order = array_map(fn($r) => $r['title'], $rows);
+    // Expected: the single active first, both drafts (newest first), then closed.
+    assert_eq(['active', 'draft-new', 'draft-old', 'closed'], $order);
+});
+
 it('PollRepository::listForUser scopes by ownership + status filter', function () {
     $repo = new PollRepository(_pollPdo());
     $a1 = $repo->create('Q1', null, [], [], 1);

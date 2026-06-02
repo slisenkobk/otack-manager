@@ -216,7 +216,19 @@ final class PollRepository
             $needle = '%' . mb_strtolower($query) . '%';
             $args[] = $needle; $args[] = $needle;
         }
-        $sql = 'SELECT * FROM polls' . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . ' ORDER BY created_at DESC';
+        // Default order: active → draft → closed, then newest within each
+        // bucket. Filtered queries still get the same ORDER BY for free —
+        // when only one status is in the result set the bucket dimension
+        // collapses to a no-op.
+        $sql = 'SELECT * FROM polls'
+             . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
+             . " ORDER BY CASE status"
+             . "             WHEN 'active' THEN 0"
+             . "             WHEN 'draft'  THEN 1"
+             . "             WHEN 'closed' THEN 2"
+             . "             ELSE 3"
+             . "           END,"
+             . "           created_at DESC";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($args);
         return $stmt->fetchAll();
