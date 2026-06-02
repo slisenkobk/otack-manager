@@ -81,3 +81,22 @@ if (showRoot) {
     }
   });
 }
+
+// Project tab on an active/closed poll: PATCH the attached project_id.
+const projectEditor = document.querySelector('[data-poll-project-edit]');
+if (projectEditor) {
+  const id    = projectEditor.dataset.pollId;
+  const input = projectEditor.querySelector('[data-poll-project-input]');
+  const btn   = projectEditor.querySelector('[data-action=save-project]');
+  if (btn && input) btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      const raw = (input.value || '').trim();
+      await api('/polls/' + id + '/project', {
+        method: 'POST',
+        body: JSON.stringify({ project_id: raw ? parseInt(raw, 10) : null }),
+      });
+      UI.toast('Project updated', 'success');
+    } catch {} finally { btn.disabled = false; }
+  });
+}

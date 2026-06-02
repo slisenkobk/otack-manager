@@ -94,7 +94,7 @@ final class PollController extends BaseController
         }
         $tab  = (string)($req->query['tab'] ?? 'stats');
         $page = max(1, (int)($req->query['page'] ?? 1));
-        if (!in_array($tab, ['stats', 'voters'], true)) $tab = 'stats';
+        if (!in_array($tab, ['stats', 'voters', 'project'], true)) $tab = 'stats';
         $this->renderStats($poll, $tab, $page);
     }
 
@@ -195,6 +195,30 @@ final class PollController extends BaseController
         Response::json(['ok' => true]);
     }
 
+    /**
+     * The only field still editable once a poll has been activated — admins
+     * may attach/detach a project (e.g. they forgot to set one before
+     * activating). The poll body, contact gate and choices stay frozen.
+     */
+    public function updateProject(Request $req, array $params): void
+    {
+        $poll = $this->loadOwn($params); if (!$poll) return;
+        if ($poll['status'] === PollRepository::STATUS_DRAFT) {
+            Response::json(['error' => 'Draft polls edit the project via the main builder'], 409);
+            return;
+        }
+        $data = json_decode((string)file_get_contents('php://input'), true) ?: [];
+        $projectId = !empty($data['project_id']) ? (int)$data['project_id'] : null;
+        if ($projectId !== null && !$this->canAttachToProject($projectId)) {
+            Response::json(['error' => 'You cannot attach this poll to that project'], 403);
+            return;
+        }
+        $this->polls->update((int)$poll['id'], ['project_id' => $projectId]);
+        App::make('activity')->log('poll.project_changed', (int)$this->user['id'], $projectId, null,
+            "changed attached project on poll '{$poll['title']}'", ['poll_id' => (int)$poll['id']]);
+        Response::json(['ok' => true, 'project_id' => $projectId]);
+    }
+
     public function close(Request $req, array $params): void
     {
         $poll = $this->loadOwn($params); if (!$poll) return;
@@ -278,14 +302,17 @@ final class PollController extends BaseController
         $labels = $this->choiceLabels($fields);
 
         // Plain-text Markdown body is what TaskRepository stores; rendering happens
-        // in the task view via its own Markdown pipeline.
-        $lines   = ["Poll: **{$poll['title']}**", "Total votes: $total", ''];
+        // in the task view via its own Markdown pipeline. Pipe characters in
+        // labels/titles must be backslash-escaped so they don't break the table
+        // by introducing extra columns.
+        $mdCell = fn(string $s): string => str_replace('|', '\\|', $s);
+        $lines   = ['Poll: **' . $mdCell($poll['title']) . '**', "Total votes: $total", ''];
         $lines[] = '| Choice | Votes | % |';
         $lines[] = '| --- | --- | --- |';
         foreach ($tally as $row) {
             $key   = (string)$row['choice_key'];
             $count = (int)$row['count'];
-            $label = $labels[$key] ?? $key;
+            $label = $mdCell($labels[$key] ?? $key);
             $pct   = $total > 0 ? round($count * 100 / $total, 1) : 0;
             $lines[] = "| $label | $count | {$pct}% |";
         }
@@ -407,7 +434,11 @@ final class PollController extends BaseController
             }
         }
 
-        $project = !empty($poll['project_id']) ? App::make('projects')->findById((int)$poll['project_id']) : null;
+        $project  = !empty($poll['project_id']) ? App::make('projects')->findById((int)$poll['project_id']) : null;
+        $isAdmin  = RolePolicy::isAdmin($this->user);
+        // The project list is only needed for the Project tab; loading it
+        // unconditionally is cheap and lets the tab markup stay simple.
+        $projects = App::make('projects')->listForUser((int)$this->user['id'], $isAdmin);
 
         $csrf    = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', [
@@ -426,6 +457,7 @@ final class PollController extends BaseController
                 'tally'    => $rows,
                 'total'    => $total,
                 'project'  => $project,
+                'projects' => $projects,
                 'tab'      => $tab,
                 'voters'   => $voters,
                 'page'     => $page,

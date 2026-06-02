@@ -2279,9 +2279,13 @@ h1.display em {
 /* Builder takes the whole body-wrap. Body-wrap padding-top is zero'd via
    :has() so the sticky toolbar sits flush against the topbar — otherwise
    the wrap's padding-top leaves a visible gap above the stuck toolbar. */
-.body-wrap:has(.form-builder) { padding-top: 0; }
+.body-wrap:has(.form-builder),
+.body-wrap:has(.poll-builder),
+.body-wrap:has(.poll-show) { padding-top: 0; }
 
-.form-builder { display: flex; flex-direction: column; gap: 18px; }
+.form-builder,
+.poll-builder,
+.poll-show { display: flex; flex-direction: column; gap: 18px; }
 
 .builder-toolbar {
   position: sticky; top: 0; z-index: 30;
@@ -5055,14 +5059,16 @@ a.link-card *,
 }
 .nav-group--collapsible.is-open .nav-group__chevron { transform: rotate(180deg); }
 
-.nav-subgroup {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 200ms ease;
-  overflow: hidden;
+/* Subgroup uses display: none when collapsed — the grid-template-rows
+   animation trick is brittle in some browsers and the toggle visibly
+   didn't track state. A hard show/hide is rock-solid. */
+.nav-subgroup { display: none; }
+.nav-group--collapsible.is-open .nav-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
 }
-.nav-group--collapsible.is-open .nav-subgroup { grid-template-rows: 1fr; }
-.nav-subgroup > * { min-height: 0; }
 /* Indent the nested nav items so the hierarchy reads visually. */
 .nav-subgroup .nav-item { padding-left: 28px; }
 

@@ -52,6 +52,23 @@ foreach (($projects ?? []) as $p) {
     </div>
   </div>
 
+  <?php if ($poll): ?>
+    <section class="builder-panel">
+      <h2 class="builder-panel__title"><?= e(t('polls.public_url')) ?></h2>
+      <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 12px;"><?= e(t('polls.public_url_hint_draft')) ?></p>
+      <div class="public-url-row" data-public-url-row data-poll-id="<?= (int)$poll['id'] ?>">
+        <a class="public-url-row__url" data-public-url href="<?= e(\abs_url('/p/' . $poll['hash'])) ?>" target="_blank" rel="noopener">
+          <i class="fa-solid fa-link"></i>
+          <span data-public-url-text><?= e(\abs_url('/p/' . $poll['hash'])) ?></span>
+        </a>
+        <button type="button" class="btn-secondary" data-action="copy-url"><i class="fa-regular fa-copy"></i> <?= e(t('polls.copy')) ?></button>
+        <button type="button" class="btn-ghost" data-action="rotate-url" title="<?= e(t('polls.rotate_title')) ?>">
+          <i class="fa-solid fa-arrows-rotate"></i> <?= e(t('polls.rotate')) ?>
+        </button>
+      </div>
+    </section>
+  <?php endif; ?>
+
   <section class="builder-panel">
     <h2 class="builder-panel__title"><?= e(t('polls.basics')) ?></h2>
     <div class="builder-grid">
@@ -186,22 +203,6 @@ foreach (($projects ?? []) as $p) {
     </div>
   </section>
 
-  <?php if ($poll): ?>
-    <section class="builder-panel">
-      <h2 class="builder-panel__title"><?= e(t('polls.public_url')) ?></h2>
-      <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 12px;"><?= e(t('polls.public_url_hint_draft')) ?></p>
-      <div class="public-url-row" data-public-url-row data-poll-id="<?= (int)$poll['id'] ?>">
-        <a class="public-url-row__url" data-public-url href="<?= e(\abs_url('/p/' . $poll['hash'])) ?>" target="_blank" rel="noopener">
-          <i class="fa-solid fa-link"></i>
-          <span data-public-url-text><?= e(\abs_url('/p/' . $poll['hash'])) ?></span>
-        </a>
-        <button type="button" class="btn-secondary" data-action="copy-url"><i class="fa-regular fa-copy"></i> <?= e(t('polls.copy')) ?></button>
-        <button type="button" class="btn-ghost" data-action="rotate-url" title="<?= e(t('polls.rotate_title')) ?>">
-          <i class="fa-solid fa-arrows-rotate"></i> <?= e(t('polls.rotate')) ?>
-        </button>
-      </div>
-    </section>
-  <?php endif; ?>
 
 </div>
 
