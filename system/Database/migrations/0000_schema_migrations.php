@@ -8,12 +8,18 @@ declare(strict_types=1);
 //
 // IMPORTANT: this file's name is permanent. The runner identifies it by the
 // literal "0000_schema_migrations" basename and always executes it first.
+//
+// Uses the Schema DSL so it works on SQLite and MySQL. The legacy-marker
+// backfill is logically idempotent (INSERT IGNORE / INSERT OR IGNORE).
 
-return function (\PDO $pdo): void {
-    $pdo->exec('CREATE TABLE IF NOT EXISTS schema_migrations (
-        name TEXT PRIMARY KEY,
-        applied_at TEXT NOT NULL
-    )');
+use App\Database\Schema\Blueprint;
+use App\Database\Schema\Schema;
+
+return function (Schema $schema): void {
+    $schema->createTableIfNotExists('schema_migrations', function (Blueprint $t) {
+        $t->string('name', 200)->primary();
+        $t->timestamp('applied_at');
+    });
 
     $markerDir = \App\Database\SchemaBootstrap::$legacyMarkerDir;
     if ($markerDir === null || $markerDir === '' || !is_dir($markerDir)) return;
@@ -21,9 +27,6 @@ return function (\PDO $pdo): void {
     $markers = glob($markerDir . '/*') ?: [];
     if (!$markers) return;
 
-    // Build key -> migration-filename map from sibling files. We only insert
-    // a backfill row when the legacy key resolves to an actual migration file
-    // in this directory; orphans (renamed/removed migrations) are skipped.
     $keyToName = [];
     foreach (glob(__DIR__ . '/*.php') ?: [] as $mf) {
         $base = basename($mf, '.php');
@@ -33,9 +36,9 @@ return function (\PDO $pdo): void {
     }
     if (!$keyToName) return;
 
-    $insert = $pdo->prepare(
-        'INSERT OR IGNORE INTO schema_migrations (name, applied_at) VALUES (?, ?)'
-    );
+    $pdo = $schema->pdo();
+    $verb = $schema->driverName() === 'mysql' ? 'INSERT IGNORE' : 'INSERT OR IGNORE';
+    $insert = $pdo->prepare("$verb INTO schema_migrations (name, applied_at) VALUES (?, ?)");
     foreach ($markers as $marker) {
         if (!is_file($marker)) continue;
         $base = basename($marker);
@@ -43,9 +46,6 @@ return function (\PDO $pdo): void {
         $key = $m[1];
         if (!isset($keyToName[$key])) continue;
         $mtime = @filemtime($marker) ?: time();
-        $insert->execute([
-            $keyToName[$key],
-            date('Y-m-d H:i:s', $mtime),
-        ]);
+        $insert->execute([$keyToName[$key], date('Y-m-d H:i:s', $mtime)]);
     }
 };

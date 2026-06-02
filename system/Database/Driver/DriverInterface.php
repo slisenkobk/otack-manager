@@ -40,4 +40,21 @@ interface DriverInterface
      * MySQL uses it to set NAMES / collation / sql_mode.
      */
     public function postConnect(\PDO $pdo): void;
+
+    /**
+     * Compile a Blueprint into a list of CREATE TABLE + CREATE INDEX
+     * statements. The list is executed top-to-bottom by Schema; each
+     * element is one stand-alone statement (no semicolons inside).
+     *
+     * @return string[]
+     */
+    public function compileCreateTable(\App\Database\Schema\Blueprint $bp): array;
+
+    /**
+     * Compile a Blueprint that describes changes to an existing table
+     * (column additions + new indexes). Same return shape as above.
+     *
+     * @return string[]
+     */
+    public function compileAlterTable(\App\Database\Schema\Blueprint $bp): array;
 }

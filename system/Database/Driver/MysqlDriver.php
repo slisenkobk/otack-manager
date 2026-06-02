@@ -58,4 +58,102 @@ final class MysqlDriver implements DriverInterface
         // CURRENT_TIMESTAMP and NOW() agree with the PHP-side ISO strings.
         $pdo->exec("SET time_zone = '+00:00'");
     }
+
+    public function compileCreateTable(\App\Database\Schema\Blueprint $bp): array
+    {
+        $defs = [];
+        foreach ($bp->columns as $c) {
+            $defs[] = $this->columnSql($c);
+        }
+        // UNIQUE composite constraints
+        foreach ($bp->indexes as $idx) {
+            if ($idx->unique && count($idx->columns) > 1) {
+                $name = $idx->inferredName($bp->table);
+                $defs[] = "UNIQUE KEY $name (" . implode(', ', $idx->columns) . ')';
+            }
+        }
+        // Foreign keys (MySQL needs the CONSTRAINT clause in the table body)
+        foreach ($bp->foreignKeys as $fk) {
+            $defs[] = $this->foreignKeySql($bp->table, $fk);
+        }
+
+        $head = 'CREATE TABLE' . ($bp->ifNotExists ? ' IF NOT EXISTS' : '') . ' ' . $bp->table;
+        $tail = ' ENGINE=InnoDB DEFAULT CHARSET=' . $this->charset . ' COLLATE=' . $this->collation;
+        $stmts = [$head . " (\n  " . implode(",\n  ", $defs) . "\n)" . $tail];
+
+        foreach ($bp->indexes as $idx) {
+            if ($idx->unique && count($idx->columns) > 1) continue; // already inline
+            $stmts[] = $this->indexSql($bp->table, $idx);
+        }
+
+        return $stmts;
+    }
+
+    public function compileAlterTable(\App\Database\Schema\Blueprint $bp): array
+    {
+        $stmts = [];
+        foreach ($bp->columns as $c) {
+            $stmts[] = 'ALTER TABLE ' . $bp->table . ' ADD COLUMN ' . $this->columnSql($c);
+        }
+        foreach ($bp->indexes as $idx) {
+            $stmts[] = $this->indexSql($bp->table, $idx);
+        }
+        return $stmts;
+    }
+
+    private function columnSql(\App\Database\Schema\Column $c): string
+    {
+        // For string we need the length; everything else is straightforward.
+        $type = match ($c->type) {
+            'id'         => 'BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
+            'integer'    => 'INT',
+            'bigInteger' => 'BIGINT',
+            'string'     => 'VARCHAR(' . ($c->length ?? 255) . ')',
+            'text'       => 'MEDIUMTEXT',
+            'boolean'    => 'TINYINT(1)',
+            'real'       => 'DOUBLE',
+            'decimal'    => 'DECIMAL(' . ($c->precision ?? 10) . ',' . ($c->scale ?? 2) . ')',
+            'json'       => 'JSON',
+            'timestamp'  => 'DATETIME(3)',
+            'date'       => 'DATE',
+            default      => throw new \RuntimeException("Unknown column type: {$c->type}"),
+        };
+        if ($c->type === 'id') return $c->name . ' ' . $type;
+
+        $parts = [$c->name, $type];
+        if (!$c->nullable)  $parts[] = 'NOT NULL';
+        if ($c->hasDefault) $parts[] = 'DEFAULT ' . $this->defaultLiteral($c->default);
+        if ($c->unique)     $parts[] = 'UNIQUE';
+        if ($c->primary)    $parts[] = 'PRIMARY KEY';
+        return implode(' ', $parts);
+    }
+
+    private function foreignKeySql(string $table, \App\Database\Schema\ForeignKey $fk): string
+    {
+        $name = 'fk_' . $table . '_' . $fk->column;
+        $sql = "CONSTRAINT $name FOREIGN KEY ({$fk->column}) "
+             . "REFERENCES {$fk->referencedTable}({$fk->referencedColumn})";
+        if ($fk->onDelete) $sql .= ' ON DELETE ' . $fk->onDelete;
+        if ($fk->onUpdate) $sql .= ' ON UPDATE ' . $fk->onUpdate;
+        return $sql;
+    }
+
+    private function indexSql(string $table, \App\Database\Schema\Index $idx): string
+    {
+        $name = $idx->inferredName($table);
+        $kw = $idx->unique ? 'CREATE UNIQUE INDEX' : 'CREATE INDEX';
+        // MySQL has no "CREATE INDEX IF NOT EXISTS" but supports
+        // ALTER TABLE ... ADD INDEX which errors on dup. Keep simple
+        // CREATE INDEX; migrations are idempotent via the runner's
+        // applied-set check, so re-execution doesn't happen.
+        return "$kw $name ON $table(" . implode(', ', $idx->columns) . ')';
+    }
+
+    private function defaultLiteral(string|int|float|bool|null $v): string
+    {
+        if ($v === null)         return 'NULL';
+        if (is_bool($v))         return $v ? '1' : '0';
+        if (is_int($v) || is_float($v)) return (string)$v;
+        return "'" . str_replace("'", "''", (string)$v) . "'";
+    }
 }

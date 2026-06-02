@@ -61,13 +61,37 @@ final class SchemaBootstrap
         $closure = require $path;
         if (!is_callable($closure)) {
             throw new \RuntimeException(
-                "Migration {$name} must return a Closure(PDO); got " . gettype($closure)
+                "Migration {$name} must return a Closure; got " . gettype($closure)
             );
         }
-        $closure($this->pdo);
+        // Dispatch on the parameter type so both shapes work in lockstep:
+        //   function (\PDO $pdo)              — legacy (pre-DSL migrations)
+        //   function (Schema $schema)         — DSL (step 2 onward)
+        $ref = new \ReflectionFunction(\Closure::fromCallable($closure));
+        $params = $ref->getParameters();
+        $wantSchema = false;
+        if ($params) {
+            $type = $params[0]->getType();
+            if ($type instanceof \ReflectionNamedType
+                && $type->getName() === \App\Database\Schema\Schema::class) {
+                $wantSchema = true;
+            }
+        }
 
+        if ($wantSchema) {
+            $driver = \App\Database\Connection::driverFor($this->pdo)
+                ?? new \App\Database\Driver\SqliteDriver('sqlite::memory:');
+            $closure(new \App\Database\Schema\Schema($this->pdo, $driver));
+        } else {
+            $closure($this->pdo);
+        }
+
+        // The schema_migrations bookkeeping table uses a per-driver upsert.
+        // SQLite: INSERT OR IGNORE. MySQL: INSERT IGNORE.
+        $driverName = \App\Database\Connection::driverFor($this->pdo)?->name() ?? 'sqlite';
+        $verb = $driverName === 'mysql' ? 'INSERT IGNORE' : 'INSERT OR IGNORE';
         $stmt = $this->pdo->prepare(
-            'INSERT OR IGNORE INTO schema_migrations (name, applied_at) VALUES (?, ?)'
+            "$verb INTO schema_migrations (name, applied_at) VALUES (?, ?)"
         );
         $stmt->execute([$name, date('Y-m-d H:i:s')]);
     }

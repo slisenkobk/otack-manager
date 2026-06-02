@@ -56,4 +56,96 @@ final class SqliteDriver implements DriverInterface
         if (!is_dir($dir)) @mkdir($dir, 0755, true);
         return new self('sqlite:' . $path);
     }
+
+    public function compileCreateTable(\App\Database\Schema\Blueprint $bp): array
+    {
+        $colSql = [];
+        foreach ($bp->columns as $c) {
+            $colSql[] = $this->columnSql($c);
+        }
+        // Inline FK + composite UNIQUE constraints (SQLite supports them inline).
+        foreach ($bp->foreignKeys as $fk) {
+            $colSql[] = $this->foreignKeySql($fk);
+        }
+        foreach ($bp->indexes as $idx) {
+            // SQLite inlines UNIQUE only when it's the column-level case;
+            // composite UNIQUEs land here.
+            if ($idx->unique && count($idx->columns) > 1) {
+                $colSql[] = 'UNIQUE(' . implode(', ', $idx->columns) . ')';
+            }
+        }
+
+        $head = 'CREATE TABLE' . ($bp->ifNotExists ? ' IF NOT EXISTS' : '') . ' ' . $bp->table;
+        $stmts = [$head . " (\n  " . implode(",\n  ", $colSql) . "\n)"];
+
+        foreach ($bp->indexes as $idx) {
+            if ($idx->unique && count($idx->columns) > 1) continue; // already inlined
+            $stmts[] = $this->indexSql($bp->table, $idx);
+        }
+
+        return $stmts;
+    }
+
+    public function compileAlterTable(\App\Database\Schema\Blueprint $bp): array
+    {
+        $stmts = [];
+        foreach ($bp->columns as $c) {
+            $stmts[] = 'ALTER TABLE ' . $bp->table . ' ADD COLUMN ' . $this->columnSql($c);
+        }
+        foreach ($bp->indexes as $idx) {
+            $stmts[] = $this->indexSql($bp->table, $idx);
+        }
+        return $stmts;
+    }
+
+    private function columnSql(\App\Database\Schema\Column $c): string
+    {
+        $type = match ($c->type) {
+            'id'         => 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'integer'    => 'INTEGER',
+            'bigInteger' => 'INTEGER',
+            'string'     => 'TEXT',
+            'text'       => 'TEXT',
+            'boolean'    => 'INTEGER',
+            'real'       => 'REAL',
+            'decimal'    => 'TEXT', // SQLite stores as text to preserve precision
+            'json'       => 'TEXT',
+            'timestamp'  => 'TEXT',
+            'date'       => 'TEXT',
+            default      => throw new \RuntimeException("Unknown column type: {$c->type}"),
+        };
+        $parts = [$c->name, $type];
+        if ($c->type !== 'id') {
+            if (!$c->nullable) $parts[] = 'NOT NULL';
+            if ($c->hasDefault) $parts[] = 'DEFAULT ' . $this->defaultLiteral($c->default);
+            if ($c->unique)    $parts[] = 'UNIQUE';
+            if ($c->primary)   $parts[] = 'PRIMARY KEY';
+        }
+        return implode(' ', $parts);
+    }
+
+    private function foreignKeySql(\App\Database\Schema\ForeignKey $fk): string
+    {
+        $sql = "FOREIGN KEY({$fk->column}) REFERENCES {$fk->referencedTable}({$fk->referencedColumn})";
+        if ($fk->onDelete) $sql .= ' ON DELETE ' . $fk->onDelete;
+        if ($fk->onUpdate) $sql .= ' ON UPDATE ' . $fk->onUpdate;
+        return $sql;
+    }
+
+    private function indexSql(string $table, \App\Database\Schema\Index $idx): string
+    {
+        $name = $idx->inferredName($table);
+        $kw = $idx->unique ? 'CREATE UNIQUE INDEX' : 'CREATE INDEX';
+        if ($idx->ifNotExists) $kw .= ' IF NOT EXISTS';
+        return "$kw $name ON $table(" . implode(', ', $idx->columns) . ')';
+    }
+
+    private function defaultLiteral(string|int|float|bool|null $v): string
+    {
+        if ($v === null)         return 'NULL';
+        if (is_bool($v))         return $v ? '1' : '0';
+        if (is_int($v) || is_float($v)) return (string)$v;
+        // Quote the string with single-quote escaping.
+        return "'" . str_replace("'", "''", (string)$v) . "'";
+    }
 }
