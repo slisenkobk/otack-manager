@@ -17,8 +17,7 @@ use App\App;
 use App\Database\{Connection, Migrations, SchemaBootstrap};
 
 try {
-    $dbPath = APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite');
-    $pdo  = Connection::open($dbPath);
+    $pdo  = Connection::openFromEnv();
     SchemaBootstrap::$legacyMarkerDir = APP_ROOT . '/data/.schema';
     $boot = new SchemaBootstrap($pdo);
     $applied = Migrations::run($boot);

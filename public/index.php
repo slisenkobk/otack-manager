@@ -46,7 +46,8 @@ $session = new SessionManager();
 $session->start((int)App::env('SESSION_LIFETIME', '43200'));
 $store = &$session->storage();
 
-App::singleton('db',     fn() => Connection::open(APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite')));
+App::singleton('db',     fn() => Connection::openFromEnv());
+App::singleton('driver', fn() => Connection::driverFor(App::make('db')));
 App::singleton('schema', fn() => new SchemaBootstrap(App::make('db')));
 App::singleton('view',   fn() => new Renderer(APP_ROOT . '/views'));
 SchemaBootstrap::$legacyMarkerDir = APP_ROOT . '/data/.schema';
