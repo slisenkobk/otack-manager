@@ -65,6 +65,8 @@ App::singleton('forms',     fn() => new \App\Repository\FormRepository(App::make
 App::singleton('form_submissions', fn() => new \App\Repository\FormSubmissionRepository(App::make('db')));
 App::singleton('short_links',       fn() => new \App\Repository\ShortLinkRepository(App::make('db')));
 App::singleton('short_link_visits', fn() => new \App\Repository\ShortLinkVisitRepository(App::make('db')));
+App::singleton('polls',             fn() => new \App\Repository\PollRepository(App::make('db')));
+App::singleton('poll_votes',        fn() => new \App\Repository\PollVoteRepository(App::make('db')));
 App::singleton('hasher',  fn() => new \App\Auth\PasswordHasher());
 App::singleton('events',   fn() => new \App\Service\EventBus());
 App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));
@@ -302,6 +304,22 @@ $router->post('/links/{id}/delete', 'Link@delete');
 $router->post('/links/{id}/toggle', 'Link@toggle');
 $router->post('/links/{id}/rotate-slug', 'Link@rotateSlug');
 
+$router->get('/polls', 'Poll@index');
+$router->get('/polls/new', 'Poll@builder');
+$router->post('/polls', 'Poll@save');
+$router->get('/polls/{id}', 'Poll@show');
+$router->post('/polls/{id}', 'Poll@save');
+$router->post('/polls/{id}/delete', 'Poll@delete');
+$router->post('/polls/{id}/copy', 'Poll@copy');
+$router->post('/polls/{id}/rotate-hash', 'Poll@regenerateHash');
+$router->post('/polls/{id}/activate', 'Poll@activate');
+$router->post('/polls/{id}/close', 'Poll@close');
+$router->get('/polls/{id}/voters', 'Poll@voters');
+$router->post('/polls/{id}/create-summary-task', 'Poll@createSummaryTask');
+
+$router->get('/p/{hash}', 'PublicPoll@show');
+$router->post('/p/{hash}', 'PublicPoll@submit');
+
 $router->get('/admin/tags', 'TagAdmin@index');
 $router->post('/api/admin/tags/{id}', 'TagAdmin@update');
 $router->post('/api/admin/tags/{id}/delete', 'TagAdmin@delete');
@@ -347,13 +365,15 @@ if (App::env('APP_DEBUG') === 'true') {
 }
 $publicPosts = ['/login', '/register'];
 // Public form rendering / submission lives under /f/{hash};
-// public short-link redirects live under /s/{slug} (GET only).
+// public short-link redirects live under /s/{slug} (GET only);
+// public poll page (contact → vote → thanks) lives under /p/{hash}.
 $isFormPath = str_starts_with($req->path, '/f/');
 $isShortLinkPath = $req->method === 'GET' && str_starts_with($req->path, '/s/');
-$isPublic = ($req->method === 'GET'  && (in_array($req->path, $publicGets, true)  || $isFormPath || $isShortLinkPath))
-         || ($req->method === 'POST' && (in_array($req->path, $publicPosts, true) || $isFormPath));
+$isPollPath = str_starts_with($req->path, '/p/');
+$isPublic = ($req->method === 'GET'  && (in_array($req->path, $publicGets, true)  || $isFormPath || $isShortLinkPath || $isPollPath))
+         || ($req->method === 'POST' && (in_array($req->path, $publicPosts, true) || $isFormPath || $isPollPath));
 
-if ($req->method === 'POST' && !$isFormPath) {
+if ($req->method === 'POST' && !$isFormPath && !$isPollPath) {
     $token = $req->post['_csrf'] ?? $req->header('x-csrf-token');
     if (!$csrf->verify($token)) { Response::json(['error' => 'CSRF mismatch'], 419); exit; }
 }

@@ -4892,3 +4892,93 @@ a.link-card *,
   opacity: 0;
   pointer-events: none;
 }
+
+/* ─── Polls ────────────────────────────────────────────────────────────────
+   Status badges, option editor rows, stats bars. Designed to reuse existing
+   builder-panel / card primitives — only the poll-specific bits live here. */
+.poll-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--ink-9, #eee);
+  color: var(--ink-2, #333);
+}
+.poll-status--draft  { background: var(--ink-9, #eee); color: var(--ink-2, #555); }
+.poll-status--active { background: #e6f4ea; color: #1e6f3a; }
+.poll-status--closed { background: #fdecea; color: #8a2a22; }
+
+.btn--small {
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.options-list__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.options-list__input { flex: 1; }
+
+.radio-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.radio-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border, #d8d4cc);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  background: var(--paper, #fff);
+}
+.radio-pill input { margin: 0; }
+
+.poll-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.poll-stats__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.poll-stats__label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.poll-stats__count {
+  color: var(--ink-3, #666);
+  font-variant-numeric: tabular-nums;
+}
+.poll-stats__bar {
+  height: 8px;
+  background: var(--ink-9, #efece6);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.poll-stats__bar-fill {
+  height: 100%;
+  background: var(--accent, #8B7C68);
+  transition: width 240ms ease;
+}
+
+.poll-show__description {
+  margin: 0 0 12px;
+  color: var(--ink-2, #333);
+}
