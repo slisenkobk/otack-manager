@@ -4,10 +4,23 @@ Detailed design for the GitHub-driven self-update mechanism: how the
 running instance discovers a newer release, applies it without losing
 user data, records what it did, and lets the admin roll back if needed.
 
-This doc is the spec; it predates code. When implementation lands, keep
-this file in sync — anything in the code that diverges from here is
-either a bug or a deliberate scope change that should be reflected back
-here.
+This doc is the spec. The feature is **shipped** as of 2026-06-02
+(steps 1-7 in §15 all landed across commits on `main`). When new
+behaviour ships, keep this file in sync — anything in the code that
+diverges from here is either a bug or a deliberate scope change that
+should be reflected back here.
+
+**What's live**
+
+| Step | Subject                                                    | Status   |
+|------|------------------------------------------------------------|----------|
+| 1    | `app_versions` / `app_backups` tables, `APP_VERSION` const | shipped  |
+| 2    | `GET /api/updates/check`, topbar badge, Updates tab skel   | shipped  |
+| 3    | History + Backups tables (read-only at first)              | shipped  |
+| 4    | Update pipeline (download/swap/migrate/rollback) + `bin/self-update.php` | shipped  |
+| 5    | Restore pipeline + Restore button                          | shipped  |
+| 6    | Retention sweep + drift reconciliation                     | shipped  |
+| 7    | Docs sync (this section)                                   | in commit|
 
 ---
 
@@ -100,8 +113,7 @@ See §10 step 3 (snapshot) and step 7 (apply) for canonical use.
 
 ## 5. Data model
 
-Two new tables, both small. Migration filename guess:
-`20260615_010_updater.php` (when implementation lands).
+Two new tables, both small. Migration: `20260603_030_updater.php`.
 
 ```sql
 CREATE TABLE app_versions (

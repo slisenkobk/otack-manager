@@ -13,6 +13,7 @@ Server-rendered, no SPA, no Composer dependencies, SQLite for storage.
 - Public **Polls** (contact gate, one-vote-per-contact dedup, stats + voters tabs, post-close summary task)
 - **Short links** with click stats (total + unique by hashed IP)
 - **Compass** admin panel — migrations runner, cache clear, DB stats, logs viewer
+- **In-app updates** — one-click upgrade from GitHub releases, automatic code + DB backups, one-click restore (Settings → Updates)
 - i18n: English (default), Polish, Ukrainian
 - Mobile-responsive
 - Telegram notifications for events (registrations, task changes, form submissions, …)
@@ -56,10 +57,31 @@ Tracked in the `schema_migrations` table. Filenames are permanent once shipped �
 
 Empty token / chat-id disables notifications (logged as `skipped` in `notifications_log`).
 
+## Updating
+
+Admin → Settings → **Updates** tab. Otack Manager checks the GitHub releases of [slisenkobk/otack-manager](https://github.com/slisenkobk/otack-manager) hourly (cadence is `UPDATE_CHECK_INTERVAL`). When a newer semver tag (`vX.Y.Z`) is published, a badge appears next to "Dashboard" and the Updates tab offers a one-click "Update now". The pipeline:
+
+1. Snapshots the current code + DB into `data/backups/{timestamp}/`
+2. Downloads the target tag tarball from GitHub, extracts it
+3. Atomic per-file swap into `APP_ROOT`; files not in the new release move to `removed/`
+4. Runs any new migrations
+5. Records the install in `app_versions` + the backup in `app_backups`
+
+`data/`, `public/uploads/`, `.env` are never touched. On any failure the pipeline rolls back from the snapshot automatically. Every backup is restorable from the Backups table (1-click rollback) until pruned by retention (`UPDATE_BACKUP_KEEP`, default 5).
+
+For shell-level updates when the UI is unreachable:
+
+```bash
+php bin/self-update.php --latest        # check + install if newer
+php bin/self-update.php 1.0.3           # install a specific version
+```
+
+Disable the feature entirely with `UPDATE_ENABLED=false` in `.env` (useful when the appliance is updated via OS package manager). Full design notes in [docs/UPDATES.md](docs/UPDATES.md).
+
 ## Tests
 
 ```bash
-make unit              # 105 PHP unit tests, hand-rolled runner, <1s
+make unit              # 119 PHP unit tests, hand-rolled runner, <1s
 make e2e               # 17 Playwright specs (Chromium), serial mode
 ```
 
