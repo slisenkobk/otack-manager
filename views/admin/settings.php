@@ -54,6 +54,7 @@ $localeNames = locale_display_names();
   </a>
 </div>
 
+<?php if ($currentTab !== 'updates'): ?>
 <form method="post" action="/admin/settings" class="brief brief--wide">
   <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
   <input type="hidden" name="_tab" value="<?= e($currentTab) ?>">
@@ -172,12 +173,11 @@ $localeNames = locale_display_names();
 
   <?php endif; ?>
 
-  <?php if ($currentTab !== 'updates'): ?>
     <div style="margin-top:22px;display:flex;gap:10px;">
       <button class="btn btn--primary submit" type="submit"><?= e(t('settings.save_button')) ?></button>
     </div>
-  <?php endif; ?>
 </form>
+<?php endif; /* form skipped on updates tab */ ?>
 
 <?php if ($currentTab === 'updates'): ?>
   <?php require __DIR__ . '/updates-tab.php'; ?>
