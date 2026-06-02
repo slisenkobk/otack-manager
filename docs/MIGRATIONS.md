@@ -33,6 +33,32 @@ No namespacing, no class. The closure runs inside a single `BEGIN IMMEDIATE` tra
 
 Once a migration file has shipped to a production environment, **never rename it**. The runner identifies applied migrations by filename; renaming it would re-execute the migration on the next deploy, possibly with destructive results.
 
+## ❗ Data preservation rule (NON-NEGOTIABLE)
+
+**Schema migrations must never drop, rename, or narrow a column that contains user data.** Inserts, additive `ALTER TABLE ADD COLUMN`, new tables, and new indexes are fine. The destructive operations below are forbidden in a schema migration:
+
+- `DROP TABLE` on a table that ever held production rows
+- `ALTER TABLE ... DROP COLUMN`
+- `ALTER TABLE ... RENAME COLUMN` on a column that ever held production data
+- `UPDATE` that overwrites a populated field with a default value
+- Type narrowing (`TEXT → INTEGER`, `VARCHAR(255) → VARCHAR(50)`, etc.) where existing values may not fit
+
+The reason: in-app updates (see [UPDATES.md](UPDATES.md)) run migrations against live production data. A column drop irreversibly destroys whatever was in it across every install pulling the update. Even with backup-and-restore on the host side, the data trail (audit logs, third-party links, exports) is broken.
+
+### Workflow for genuinely needing to remove a field
+
+If a column truly needs to go away, split it across **at least two releases**:
+
+1. **Release N — deprecate.** Schema migration stops *writing* to the field at the application layer; the column itself remains in the DB, untouched. Application reads still work for old rows. Mark deprecation in the field's docblock and in this file's "Deprecated columns" section below.
+2. **Release N+1 (or later) — data migration.** A dedicated, idempotent script (lives under `bin/data-migrations/`, NOT in `system/Database/migrations/`) optionally migrates the deprecated field's values to wherever they're now stored. Operators run it explicitly via Compass with a confirmation step; it is **not** auto-applied at boot.
+3. **Release N+2 (only if everyone is on N+1).** A schema migration may then drop the column. Add the migration with a release-notes line explaining what's gone and why.
+
+The rule is conservative on purpose — losing user data via a sneaky one-liner in a migration file is the single most damaging thing this codebase could do to operators.
+
+### Deprecated columns
+
+Track here. None yet.
+
 If you need to change something:
 - **Wrong SQL?** Add a new migration that fixes it.
 - **Wrong filename / key?** Live with it — the wart is permanent.

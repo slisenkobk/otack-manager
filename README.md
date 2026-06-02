@@ -76,7 +76,8 @@ Make sure:
 ## Documentation
 
 - [docs/DESIGN.md](docs/DESIGN.md) — full design system (palette → semantic → component specs); source of truth for UI
-- [docs/MIGRATIONS.md](docs/MIGRATIONS.md) — schema migration format and rules
+- [docs/MIGRATIONS.md](docs/MIGRATIONS.md) — schema migration format, naming rules, **data preservation rule**
+- [docs/UPDATES.md](docs/UPDATES.md) — design of the in-app GitHub-driven updater (versions, backups, restore)
 - [docs/QA-CHECKLIST.md](docs/QA-CHECKLIST.md) — manual QA walkthrough
 
 ## Stack
