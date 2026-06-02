@@ -20,7 +20,7 @@ $localeNames = locale_display_names();
     <?php if (!empty($updatesEnabled)): ?>
       <a href="/admin/settings?tab=updates"
          class="project-tab<?= $currentTab === 'updates' ? ' project-tab--active' : '' ?>">
-        <i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true" style="margin-right:var(--space-2);"></i>
+        <i class="fa-solid fa-cloud-arrow-down" aria-hidden="true" style="margin-right:var(--space-2);"></i>
         <?= e(t('settings.tab.updates')) ?>
       </a>
     <?php endif; ?>
@@ -116,7 +116,7 @@ $localeNames = locale_display_names();
       </div>
     </div>
 
-  <?php else: /* contact tab */ ?>
+  <?php elseif ($currentTab === 'contact'): ?>
 
     <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 18px;"><?= e(t('settings.section.contact_hint')) ?></p>
 

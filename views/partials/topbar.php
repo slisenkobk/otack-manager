@@ -26,7 +26,7 @@ if (!empty($user['role']) && $user['role'] === 'admin' && \App\Service\Updater::
     <?php if ($showUpdateBadge): ?>
       <a class="update-badge" href="/admin/settings?tab=updates"
          title="<?= e(t('updates.badge_title')) ?>">
-        <i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i>
+        <i class="fa-solid fa-cloud-arrow-down" aria-hidden="true"></i>
         <?= e(t('updates.badge_label', ['version' => 'v' . $updateBadgeVersion])) ?>
       </a>
     <?php endif; ?>
