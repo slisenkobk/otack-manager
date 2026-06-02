@@ -141,7 +141,7 @@ it('PollVoteRepository::tallyByChoice groups + orders by count desc', function (
     assert_eq(1,        (int)$tally[1]['count']);
 });
 
-it('PollVoteRepository::listVoters returns newest first, paginated', function () {
+it('PollVoteRepository::listVoters returns newest first, offset-paginated', function () {
     $pdo = _pollPdo();
     $polls = new PollRepository($pdo);
     $votes = new PollVoteRepository($pdo);
@@ -150,13 +150,29 @@ it('PollVoteRepository::listVoters returns newest first, paginated', function ()
     for ($i = 1; $i <= 5; $i++) {
         $votes->record($id, "voter$i@x", "voter$i@x", 'opt_1');
     }
-    $page1 = $votes->listVoters($id, 1, 3);
-    assert_eq(3, count($page1));
+    $batch1 = $votes->listVoters($id, 0, 3);
+    assert_eq(3, count($batch1));
     // newest at top
-    assert_eq('voter5@x', $page1[0]['contact']);
+    assert_eq('voter5@x', $batch1[0]['contact']);
 
-    $page2 = $votes->listVoters($id, 2, 3);
-    assert_eq(2, count($page2));
+    $batch2 = $votes->listVoters($id, 3, 3);
+    assert_eq(2, count($batch2));
+    assert_eq('voter2@x', $batch2[0]['contact']);
+});
+
+it('PollRepository::detachSummaryTask clears the FK for matching polls', function () {
+    $pdo = _pollPdo();
+    $repo = new PollRepository($pdo);
+    $a = $repo->create('A', null, [], [], 1);
+    $b = $repo->create('B', null, [], [], 1);
+    $c = $repo->create('C', null, [], [], 1);
+    $repo->attachSummaryTask($a, 77);
+    $repo->attachSummaryTask($b, 77);
+    $repo->attachSummaryTask($c, 99);   // different task, untouched by the cleanup
+    assert_eq(2, $repo->detachSummaryTask(77));
+    assert_eq(null, $repo->findById($a)['summary_task_id']);
+    assert_eq(null, $repo->findById($b)['summary_task_id']);
+    assert_eq(99,   (int)$repo->findById($c)['summary_task_id']);
 });
 
 it('Deleting a poll cascades its votes', function () {

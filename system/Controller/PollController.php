@@ -92,10 +92,9 @@ final class PollController extends BaseController
             $this->renderEditor($poll);
             return;
         }
-        $tab  = (string)($req->query['tab'] ?? 'stats');
-        $page = max(1, (int)($req->query['page'] ?? 1));
+        $tab = (string)($req->query['tab'] ?? 'stats');
         if (!in_array($tab, ['stats', 'voters', 'project'], true)) $tab = 'stats';
-        $this->renderStats($poll, $tab, $page);
+        $this->renderStats($poll, $tab);
     }
 
     public function save(Request $req, array $params = []): void
@@ -301,22 +300,37 @@ final class PollController extends BaseController
         $fields = json_decode((string)$poll['fields_json'], true) ?: [];
         $labels = $this->choiceLabels($fields);
 
-        // Plain-text Markdown body is what TaskRepository stores; rendering happens
-        // in the task view via its own Markdown pipeline. Pipe characters in
-        // labels/titles must be backslash-escaped so they don't break the table
-        // by introducing extra columns.
-        $mdCell = fn(string $s): string => str_replace('|', '\\|', $s);
-        $lines   = ['Poll: **' . $mdCell($poll['title']) . '**', "Total votes: $total", ''];
-        $lines[] = '| Choice | Votes | % |';
-        $lines[] = '| --- | --- | --- |';
-        foreach ($tally as $row) {
-            $key   = (string)$row['choice_key'];
-            $count = (int)$row['count'];
-            $label = $mdCell($labels[$key] ?? $key);
-            $pct   = $total > 0 ? round($count * 100 / $total, 1) : 0;
-            $lines[] = "| $label | $count | {$pct}% |";
+        // Task descriptions are stored as sanitized HTML and rendered through
+        // LinkPreview::enhance() in views/tasks/show.php (NOT through the
+        // Markdown service). Emit HTML directly using only tags HtmlSanitizer
+        // permits — paragraphs + ul/li + strong — so the result reads cleanly
+        // without a custom CSS pass.
+        $esc = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        // Show all defined options, sorted by votes desc with stable definition
+        // order for ties, so the summary mirrors the Stats tab.
+        $countByKey = [];
+        foreach ($tally as $r) { $countByKey[(string)$r['choice_key']] = (int)$r['count']; }
+        $rows = [];
+        foreach ($this->choiceOptions($fields) as $opt) {
+            $key   = (string)$opt['key'];
+            $count = $countByKey[$key] ?? 0;
+            $rows[] = ['label' => $labels[$key] ?? $key, 'count' => $count];
         }
-        $body = implode("\n", $lines);
+        usort($rows, fn($a, $b) => $b['count'] <=> $a['count']);
+
+        $body  = '<p><strong>Poll:</strong> ' . $esc((string)$poll['title']) . '</p>';
+        $body .= '<p>Total votes: ' . (int)$total . '</p>';
+        if ($rows) {
+            $body .= '<ul>';
+            foreach ($rows as $r) {
+                $pct = $total > 0 ? round($r['count'] * 100 / $total, 1) : 0;
+                $body .= '<li><strong>' . $esc((string)$r['label']) . '</strong> — '
+                       . (int)$r['count'] . ' votes (' . $pct . '%)</li>';
+            }
+            $body .= '</ul>';
+        }
+        $body = \App\Service\HtmlSanitizer::clean($body);
 
         // Same destination rule as form auto-task: leftmost non-backlog column.
         $cols  = App::make('columns')->listForProject($projectId);
@@ -405,7 +419,9 @@ final class PollController extends BaseController
         ]));
     }
 
-    private function renderStats(array $poll, string $tab = 'stats', int $page = 1): void
+    private const VOTERS_PAGE_SIZE = 10;
+
+    private function renderStats(array $poll, string $tab = 'stats'): void
     {
         $pollId = (int)$poll['id'];
         $total  = $this->votes->countTotal($pollId);
@@ -414,24 +430,37 @@ final class PollController extends BaseController
 
         $rows = [];
         $voters = [];
-        $perPage = 50;
+        $perPage = self::VOTERS_PAGE_SIZE;
         if ($tab === 'voters') {
-            $voters = $this->votes->listVoters($pollId, $page, $perPage);
+            // First page is server-rendered; the rest streams in via /api/polls/{id}/voters.
+            $voters = $this->votes->listVoters($pollId, 0, $perPage);
             foreach ($voters as &$v) {
                 $v['choice_label'] = $labels[(string)$v['choice_key']] ?? (string)$v['choice_key'];
             }
             unset($v);
         } else {
+            // Show every option from the poll definition, not only ones that
+            // received votes — empty 0% rows give the admin a full picture.
+            // Iterate the choice field's options for stable order; merge in
+            // counts from tallyByChoice (keyed by choice_key).
             $tally = $this->votes->tallyByChoice($pollId);
-            foreach ($tally as $r) {
-                $key = (string)$r['choice_key'];
+            $countByKey = [];
+            foreach ($tally as $r) { $countByKey[(string)$r['choice_key']] = (int)$r['count']; }
+            foreach ($this->choiceOptions($fields) as $opt) {
+                $key   = (string)$opt['key'];
+                $count = $countByKey[$key] ?? 0;
                 $rows[] = [
                     'key'   => $key,
                     'label' => $labels[$key] ?? $key,
-                    'count' => (int)$r['count'],
-                    'pct'   => $total > 0 ? round((int)$r['count'] * 100 / $total, 1) : 0.0,
+                    'count' => $count,
+                    'pct'   => $total > 0 ? round($count * 100 / $total, 1) : 0.0,
                 ];
             }
+            // Sort by count desc so the leading option is on top, but keep a
+            // stable tiebreaker so 0-vote rows stay in definition order.
+            usort($rows, function ($a, $b) {
+                return $b['count'] <=> $a['count'];
+            });
         }
 
         $project  = !empty($poll['project_id']) ? App::make('projects')->findById((int)$poll['project_id']) : null;
@@ -460,10 +489,33 @@ final class PollController extends BaseController
                 'projects' => $projects,
                 'tab'      => $tab,
                 'voters'   => $voters,
-                'page'     => $page,
                 'perPage'  => $perPage,
             ]),
         ]));
+    }
+
+    /**
+     * JSON endpoint for the Voters tab's lazy-load. Mirrors the dashboard
+     * activity pagination pattern: returns `{items, has_more}` with the next
+     * batch keyed by `?offset=`.
+     */
+    public function votersJson(Request $req, array $params): void
+    {
+        $poll = $this->loadOwn($params); if (!$poll) return;
+        $offset = max(0, (int)($req->query['offset'] ?? 0));
+        $batch = $this->votes->listVoters((int)$poll['id'], $offset, self::VOTERS_PAGE_SIZE + 1);
+        $hasMore = count($batch) > self::VOTERS_PAGE_SIZE;
+        if ($hasMore) array_pop($batch);
+        $labels = $this->choiceLabels(json_decode((string)$poll['fields_json'], true) ?: []);
+        $items = array_map(function ($v) use ($labels) {
+            return [
+                'contact'      => (string)$v['contact'],
+                'choice_key'   => (string)$v['choice_key'],
+                'choice_label' => $labels[(string)$v['choice_key']] ?? (string)$v['choice_key'],
+                'created_at'   => (string)$v['created_at'],
+            ];
+        }, $batch);
+        Response::json(['items' => $items, 'has_more' => $hasMore]);
     }
 
     /**
@@ -556,6 +608,22 @@ final class PollController extends BaseController
             foreach ((array)($f['options'] ?? []) as $opt) {
                 if (is_array($opt) && isset($opt['key'])) {
                     $out[(string)$opt['key']] = (string)($opt['label'] ?? $opt['key']);
+                }
+            }
+            return $out;
+        }
+        return [];
+    }
+
+    /** @return array<int,array{key:string,label:string}> options in definition order */
+    private function choiceOptions(array $fields): array
+    {
+        foreach ($fields as $f) {
+            if (($f['key'] ?? '') !== 'choice') continue;
+            $out = [];
+            foreach ((array)($f['options'] ?? []) as $opt) {
+                if (is_array($opt) && isset($opt['key'])) {
+                    $out[] = ['key' => (string)$opt['key'], 'label' => (string)($opt['label'] ?? $opt['key'])];
                 }
             }
             return $out;

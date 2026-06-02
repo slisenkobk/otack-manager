@@ -316,6 +316,7 @@ $router->post('/polls/{id}/activate', 'Poll@activate');
 $router->post('/polls/{id}/close', 'Poll@close');
 $router->post('/polls/{id}/project', 'Poll@updateProject');
 $router->post('/polls/{id}/create-summary-task', 'Poll@createSummaryTask');
+$router->get('/api/polls/{id}/voters', 'Poll@votersJson');
 
 $router->get('/p/{hash}', 'PublicPoll@show');
 $router->post('/p/{hash}', 'PublicPoll@submit');

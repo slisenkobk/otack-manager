@@ -73,13 +73,13 @@ final class PollVoteRepository
     }
 
     /**
-     * Paginated list for the Voters tab. Newest first. Page size capped at 200.
+     * Offset-paged list for the Voters tab. Newest first.
+     * `limit` is capped at 200 to bound network/render cost.
      */
-    public function listVoters(int $pollId, int $page = 1, int $perPage = 50): array
+    public function listVoters(int $pollId, int $offset = 0, int $limit = 10): array
     {
-        $perPage = max(1, min(200, $perPage));
-        $page    = max(1, $page);
-        $offset  = ($page - 1) * $perPage;
+        $limit  = max(1, min(200, $limit));
+        $offset = max(0, $offset);
         $stmt = $this->pdo->prepare(
             'SELECT id, contact, choice_key, remote_ip, created_at
              FROM poll_votes
@@ -88,8 +88,8 @@ final class PollVoteRepository
              LIMIT ? OFFSET ?'
         );
         $stmt->bindValue(1, $pollId, \PDO::PARAM_INT);
-        $stmt->bindValue(2, $perPage, \PDO::PARAM_INT);
-        $stmt->bindValue(3, $offset,  \PDO::PARAM_INT);
+        $stmt->bindValue(2, $limit,  \PDO::PARAM_INT);
+        $stmt->bindValue(3, $offset, \PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
     }

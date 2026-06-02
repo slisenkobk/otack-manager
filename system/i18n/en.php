@@ -589,6 +589,7 @@ return [
     'polls.voters_col_choice'        => 'Choice',
     'polls.voters_col_when'          => 'When',
     'polls.voters_pager'             => 'Page :page of :total',
+    'polls.voters_load_more'         => 'Load more',
     'polls.project_tab_title'        => 'Project',
     'polls.project_section_hint'     => 'After activation the poll body is frozen — but you can still re-attach (or detach) the project so the summary task lands in the right place.',
     'polls.project_save'             => 'Save project',

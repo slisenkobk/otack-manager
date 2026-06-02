@@ -172,6 +172,21 @@ final class PollRepository
             ->execute([$taskId, $now, $id]);
     }
 
+    /**
+     * Called when a task is deleted: clears any polls that pointed to it so
+     * the "Open summary task" button stops appearing and a fresh summary task
+     * can be created. Returns the number of polls affected.
+     */
+    public function detachSummaryTask(int $taskId): int
+    {
+        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $stmt = $this->pdo->prepare(
+            'UPDATE polls SET summary_task_id = NULL, updated_at = ? WHERE summary_task_id = ?'
+        );
+        $stmt->execute([$now, $taskId]);
+        return $stmt->rowCount();
+    }
+
     public function findById(int $id): ?array
     {
         $stmt = $this->pdo->prepare('SELECT * FROM polls WHERE id = ?');

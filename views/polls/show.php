@@ -5,9 +5,10 @@ $publicUrl = \abs_url('/p/' . $poll['hash']);
 $pollId    = (int)$poll['id'];
 $tab       = $tab ?? 'stats';
 $voters    = $voters ?? [];
-$page      = $page ?? 1;
-$perPage   = $perPage ?? 50;
-$pageCount = max(1, (int)ceil($total / $perPage));
+$perPage   = $perPage ?? 10;
+// "Load more" appears only if the first server-rendered batch likely has
+// continuation; comparing batch count to total avoids a redundant 0-row fetch.
+$hasMore   = count($voters) < (int)$total;
 ?>
 <div class="poll-show" data-poll-show data-poll-id="<?= $pollId ?>" data-poll-status="<?= e($statusKey) ?>">
 
@@ -110,7 +111,7 @@ $pageCount = max(1, (int)ceil($total / $perPage));
       <?php if (!$voters): ?>
         <p class="muted"><?= e(t('polls.voters_empty')) ?></p>
       <?php else: ?>
-        <table class="voters-table">
+        <table class="voters-table" data-voters-table data-poll-id="<?= $pollId ?>">
           <thead>
             <tr>
               <th><?= e(t('polls.voters_col_contact')) ?></th>
@@ -118,7 +119,7 @@ $pageCount = max(1, (int)ceil($total / $perPage));
               <th class="voters-table__when"><?= e(t('polls.voters_col_when')) ?></th>
             </tr>
           </thead>
-          <tbody>
+          <tbody data-voters-tbody>
             <?php foreach ($voters as $v): ?>
               <tr>
                 <td><?= e((string)$v['contact']) ?></td>
@@ -128,17 +129,12 @@ $pageCount = max(1, (int)ceil($total / $perPage));
             <?php endforeach; ?>
           </tbody>
         </table>
-        <?php if ($pageCount > 1): ?>
-          <div class="pager" style="margin-top:12px;display:flex;gap:8px;justify-content:center;align-items:center;">
-            <?php if ($page > 1): ?>
-              <a class="btn-ghost" href="/polls/<?= $pollId ?>?tab=voters&page=<?= $page - 1 ?>"><i class="fa-solid fa-arrow-left"></i></a>
-            <?php endif; ?>
-            <span class="muted" style="font-size:12px;">
-              <?= e(t('polls.voters_pager', ['page' => $page, 'total' => $pageCount])) ?>
-            </span>
-            <?php if ($page < $pageCount): ?>
-              <a class="btn-ghost" href="/polls/<?= $pollId ?>?tab=voters&page=<?= $page + 1 ?>"><i class="fa-solid fa-arrow-right"></i></a>
-            <?php endif; ?>
+        <?php if ($hasMore): ?>
+          <div style="margin-top:12px;display:flex;justify-content:center;">
+            <button type="button" class="btn-secondary load-more-voters"
+                    data-offset="<?= count($voters) ?>">
+              <i class="fa-solid fa-chevron-down"></i> <?= e(t('polls.voters_load_more')) ?>
+            </button>
           </div>
         <?php endif; ?>
       <?php endif; ?>

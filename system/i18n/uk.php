@@ -583,6 +583,7 @@ return [
     'polls.voters_col_choice'        => 'Вибір',
     'polls.voters_col_when'          => 'Коли',
     'polls.voters_pager'             => 'Сторінка :page з :total',
+    'polls.voters_load_more'         => 'Показати більше',
     'polls.project_tab_title'        => 'Проєкт',
     'polls.project_section_hint'     => 'Після активації тіло голосування заморожене — але прив’язку до проєкту ще можна змінити, щоб підсумкове завдання потрапило в правильне місце.',
     'polls.project_save'             => 'Зберегти проєкт',

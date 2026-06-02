@@ -27,6 +27,17 @@ final class TaskLinkRepository {
     }
 
     /**
+     * Wipe every link that touches a task — called when the task itself is
+     * deleted, so the other side's "Linked tasks" panel doesn't keep dangling
+     * pointers. Returns the number of rows removed.
+     */
+    public function deleteForTask(int $taskId): int {
+        $stmt = $this->pdo->prepare('DELETE FROM task_links WHERE task_id = ? OR linked_task_id = ?');
+        $stmt->execute([$taskId, $taskId]);
+        return $stmt->rowCount();
+    }
+
+    /**
      * Returns linked tasks (id, title, column_id, status info) for the given task,
      * scoped to its own project.
      */

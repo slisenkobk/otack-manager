@@ -82,6 +82,52 @@ if (showRoot) {
   });
 }
 
+// Voters tab: lazy-load extra rows via /api/polls/{id}/voters?offset=…
+// Mirrors the dashboard activity pattern: "Load more" button bumps offset,
+// removes itself when has_more is false.
+const votersTable = document.querySelector('[data-voters-table]');
+const loadMoreBtn = document.querySelector('.load-more-voters');
+if (votersTable && loadMoreBtn) {
+  const pollId = votersTable.dataset.pollId;
+  const tbody  = votersTable.querySelector('[data-voters-tbody]');
+  loadMoreBtn.addEventListener('click', async () => {
+    const offset = parseInt(loadMoreBtn.dataset.offset, 10) || 0;
+    loadMoreBtn.disabled = true;
+    try {
+      const res = await api('/api/polls/' + pollId + '/voters?offset=' + offset);
+      if (res.items?.length) {
+        for (const v of res.items) tbody.appendChild(renderVoterRow(v));
+      }
+      loadMoreBtn.dataset.offset = String(offset + (res.items?.length || 0));
+      if (!res.has_more) {
+        loadMoreBtn.parentElement?.remove();
+      } else {
+        loadMoreBtn.disabled = false;
+      }
+    } catch {
+      loadMoreBtn.disabled = false;
+    }
+  });
+}
+
+function renderVoterRow(v) {
+  const tr  = document.createElement('tr');
+  const td1 = document.createElement('td'); td1.textContent = v.contact || '';
+  const td2 = document.createElement('td'); td2.textContent = v.choice_label || v.choice_key || '';
+  const td3 = document.createElement('td'); td3.className = 'voters-table__when';
+  td3.textContent = fmtDateTime(v.created_at);
+  tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+  return tr;
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  // Same locale-aware short form fmt_datetime() emits server-side.
+  return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+}
+
 // Project tab on an active/closed poll: PATCH the attached project_id.
 const projectEditor = document.querySelector('[data-poll-project-edit]');
 if (projectEditor) {

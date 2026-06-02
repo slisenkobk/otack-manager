@@ -79,7 +79,12 @@ final class TaskController extends BaseController {
         }
         $project = $this->projects->findById((int)$task['project_id']);
         $this->tasks->delete($id);
+        // Detach FKs from sibling entities so they don't carry a dangling
+        // pointer (the task page would 404 and "open linked entity" buttons
+        // would mislead).
         App::make('form_submissions')->detachConverted('task', $id);
+        App::make('polls')->detachSummaryTask($id);
+        App::make('task_links')->deleteForTask($id);
         App::make('events')->fire('task.deleted', [
             'task_id'      => $id,
             'title'        => $task['title'],

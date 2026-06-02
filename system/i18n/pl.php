@@ -582,6 +582,7 @@ return [
     'polls.voters_col_choice'        => 'Wybór',
     'polls.voters_col_when'          => 'Kiedy',
     'polls.voters_pager'             => 'Strona :page z :total',
+    'polls.voters_load_more'         => 'Pokaż więcej',
     'polls.project_tab_title'        => 'Projekt',
     'polls.project_section_hint'     => 'Po aktywacji treść ankiety jest zamrożona — ale wciąż możesz zmienić powiązany projekt, aby zadanie z podsumowaniem trafiło w odpowiednie miejsce.',
     'polls.project_save'             => 'Zapisz projekt',
