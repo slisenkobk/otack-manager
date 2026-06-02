@@ -76,6 +76,33 @@ test: unit e2e
 unit:
 	php tests/run.php
 
+# Run the unit suite against MySQL 8.0 in a throwaway docker container.
+# Mirrors the CI matrix (.github/workflows/unit-tests.yml). Requires docker
+# on PATH. Cleans up the container on success or failure.
+unit-mysql:
+	@command -v docker >/dev/null || { echo "docker not on PATH"; exit 1; }
+	@CID=$$(docker run -d --rm \
+		-e MYSQL_ROOT_PASSWORD=rootpw \
+		-e MYSQL_DATABASE=otack_test \
+		-e MYSQL_USER=otack \
+		-e MYSQL_PASSWORD=otack \
+		-p 33060:3306 \
+		mysql:8.0 --default-authentication-plugin=mysql_native_password); \
+	echo "Started MySQL container $$CID — waiting for readiness…"; \
+	for i in $$(seq 1 60); do \
+		docker exec $$CID mysqladmin ping -uotack -potack --silent >/dev/null 2>&1 && break; \
+		sleep 1; \
+	done; \
+	DB_DSN='mysql:host=127.0.0.1;port=33060;dbname=otack_test;charset=utf8mb4' \
+	DB_USER=otack DB_PASSWORD=otack \
+	php bin/migrate.php && \
+	DB_DSN='mysql:host=127.0.0.1;port=33060;dbname=otack_test;charset=utf8mb4' \
+	DB_USER=otack DB_PASSWORD=otack \
+	php tests/run.php; \
+	STATUS=$$?; \
+	docker stop $$CID >/dev/null; \
+	exit $$STATUS
+
 e2e:
 	npx playwright test --config tests/e2e/playwright.config.ts
 

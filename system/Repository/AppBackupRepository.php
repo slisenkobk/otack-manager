@@ -61,9 +61,10 @@ final class AppBackupRepository
     public function idsBeyondRetention(int $keep): array
     {
         $keep = max(0, $keep);
-        // SQLite: LIMIT -1 OFFSET ?; MySQL: LIMIT 2^64-1 OFFSET ?
-        $driver = \App\Database\Connection::driverFor($this->pdo);
-        $allOffset = $driver?->paginationAllOffsetSql() ?? 'LIMIT -1 OFFSET ?';
+        // Driver decides how to phrase the "skip first N, take all" clause.
+        $allOffset = \App\Database\Connection::driverFor($this->pdo)
+            ?->paginationAllOffsetSql()
+            ?? throw new \RuntimeException('AppBackupRepository: no driver bound to PDO');
         $stmt = $this->pdo->prepare(
             'SELECT id FROM app_backups
              WHERE pruned_at IS NULL

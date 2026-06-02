@@ -6,7 +6,9 @@ final class ProjectMemberRepository {
     public function __construct(private \PDO $pdo) {}
 
     public function add(int $projectId, int $userId, string $role = 'member'): void {
-        $verb = \App\Database\Connection::driverFor($this->pdo)?->insertIgnoreVerb() ?? 'INSERT OR IGNORE';
+        $verb = \App\Database\Connection::driverFor($this->pdo)
+            ?->insertIgnoreVerb()
+            ?? throw new \RuntimeException('ProjectMemberRepository: no driver bound to PDO');
         $this->pdo->prepare(
             "$verb INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)"
         )->execute([$projectId, $userId, $role]);

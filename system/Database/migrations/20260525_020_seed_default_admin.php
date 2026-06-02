@@ -16,8 +16,7 @@ return function (Schema $schema): void {
     $stmt = $pdo->prepare('SELECT 1 FROM users WHERE email = ?');
     $stmt->execute([$email]);
     if ($stmt->fetchColumn()) return;
-    // Use a PHP-side ISO timestamp so the SQL is portable across drivers
-    // (SQLite has datetime('now'), MySQL has NOW() — neither is portable).
+    // Use a PHP-side ISO timestamp so the SQL is portable across drivers.
     $now = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
         ->format('Y-m-d H:i:s');
     $pdo->prepare(

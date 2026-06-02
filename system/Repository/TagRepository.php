@@ -28,7 +28,9 @@ final class TagRepository {
     }
 
     public function attachToProject(int $projectId, int $tagId): void {
-        $verb = \App\Database\Connection::driverFor($this->pdo)?->insertIgnoreVerb() ?? 'INSERT OR IGNORE';
+        $verb = \App\Database\Connection::driverFor($this->pdo)
+            ?->insertIgnoreVerb()
+            ?? throw new \RuntimeException('TagRepository: no driver bound to PDO');
         $this->pdo->prepare("$verb INTO project_tag_map (project_id, tag_id) VALUES (?, ?)")
             ->execute([$projectId, $tagId]);
     }
@@ -39,7 +41,9 @@ final class TagRepository {
     }
 
     public function attachToTask(int $taskId, int $tagId): void {
-        $verb = \App\Database\Connection::driverFor($this->pdo)?->insertIgnoreVerb() ?? 'INSERT OR IGNORE';
+        $verb = \App\Database\Connection::driverFor($this->pdo)
+            ?->insertIgnoreVerb()
+            ?? throw new \RuntimeException('TagRepository: no driver bound to PDO');
         $this->pdo->prepare("$verb INTO task_tag_map (task_id, tag_id) VALUES (?, ?)")
             ->execute([$taskId, $tagId]);
     }
