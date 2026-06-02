@@ -508,6 +508,13 @@ body::before {
   border-top: 1px solid var(--rule);
 }
 .sidebar__foot-sub { color: var(--text-2); font-weight: 700; }
+.sidebar__foot-version {
+  display: block;
+  margin-top: 6px;
+  opacity: 0.6;
+  font-size: var(--fz-micro);
+  letter-spacing: var(--ls-mono);
+}
 /* Credit links — text colour stays mono/muted, underline carries the cue
    (we don't want them to read as the brand-coloured nav links). */
 .sidebar__foot-link {

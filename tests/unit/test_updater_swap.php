@@ -172,6 +172,30 @@ it('Updater::isUnderBackups guards rm -rf to data/backups subtree', function () 
         'absolute paths outside APP_ROOT must be rejected');
 });
 
+it('Updater::acquireLock refuses a second concurrent acquisition', function () use ($updater) {
+    $ref = new ReflectionClass($updater);
+    $acq = $ref->getMethod('acquireLock'); $acq->setAccessible(true);
+    $rel = $ref->getMethod('releaseLock'); $rel->setAccessible(true);
+
+    $first = $acq->invoke($updater);
+    assert_true(is_resource($first), 'first acquisition succeeds');
+
+    $threw = false;
+    try {
+        $acq->invoke($updater);
+    } catch (\Throwable $e) {
+        $threw = (strpos($e->getMessage(), 'already in progress') !== false);
+    }
+    assert_true($threw, 'second acquisition must refuse');
+
+    $rel->invoke($updater, $first);
+
+    // After release a fresh acquisition must succeed again.
+    $third = $acq->invoke($updater);
+    assert_true(is_resource($third), 're-acquisition after release succeeds');
+    $rel->invoke($updater, $third);
+});
+
 it('Updater::removeTree deletes a temp directory recursively', function () use ($updater) {
     $ref = new ReflectionClass($updater);
     $m = $ref->getMethod('removeTree'); $m->setAccessible(true);

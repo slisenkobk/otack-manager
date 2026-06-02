@@ -112,5 +112,6 @@ if ($canFormsSb) {
     <span class="sidebar__foot-sub">
       <?= t('nav.ecosystem_by', ['link' => $goupLink]) ?>
     </span>
+    <span class="sidebar__foot-version">v<?= e(\App\Service\Updater::currentVersion()) ?></span>
   </div>
 </aside>

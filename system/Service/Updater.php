@@ -140,6 +140,10 @@ final class Updater
     {
         $this->preloadClasses();
 
+        // Acquire the global updater lock. A second concurrent update() or
+        // restore() will get LOCK_NB refusal here, not a half-applied swap.
+        $lock = $this->acquireLock();
+
         // 1. validate
         $current = self::currentVersion();
         if (!preg_match('/^\d+\.\d+\.\d+$/', $targetVersion)) {
@@ -214,6 +218,8 @@ final class Updater
                 0,
                 $e
             );
+        } finally {
+            $this->releaseLock($lock);
         }
     }
 
@@ -228,6 +234,7 @@ final class Updater
     public function restore(int $backupId, ?int $actorUserId): array
     {
         $this->preloadClasses();
+        $lock = $this->acquireLock();
 
         /** @var \App\Repository\AppBackupRepository $backups */
         $backups = App::make('app_backups');
@@ -269,13 +276,11 @@ final class Updater
             // the admin should be able to re-restore the same backup later.
             $this->applyRestoreSwap($codeSnap, $preRestoreDir . '/removed');
 
-            // Swap DB. SQLite handles "file replaced under us" gracefully
-            // on the next connection open.
+            // Swap DB. The helper also clears stale -wal/-shm sidecars so
+            // SQLite doesn't replay them against the new file content.
             if ($dbSnap !== null) {
                 $live = APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite');
-                if (!@copy($dbSnap, $live)) {
-                    throw new \RuntimeException("Cannot restore DB: copy $dbSnap → $live failed");
-                }
+                $this->restoreDbFromSnapshot($dbSnap, $live);
             }
 
             // Record. Use the version we restored TO (= what the user is
@@ -311,6 +316,8 @@ final class Updater
                 0,
                 $e
             );
+        } finally {
+            $this->releaseLock($lock);
         }
     }
 
@@ -427,6 +434,39 @@ final class Updater
         class_exists(\App\Database\SchemaBootstrap::class);
     }
 
+    /**
+     * Acquire an exclusive non-blocking flock on data/backups/.update.lock.
+     * Throws if a parallel update/restore is already running. The returned
+     * handle MUST be released via releaseLock() in a finally block.
+     *
+     * @return resource
+     */
+    private function acquireLock()
+    {
+        $lockDir = APP_ROOT . '/data/backups';
+        if (!is_dir($lockDir) && !mkdir($lockDir, 0755, true) && !is_dir($lockDir)) {
+            throw new \RuntimeException("Cannot create $lockDir for lock");
+        }
+        $lockPath = $lockDir . '/.update.lock';
+        $fp = @fopen($lockPath, 'c');
+        if ($fp === false) {
+            throw new \RuntimeException('Cannot open updater lock file');
+        }
+        if (!@flock($fp, LOCK_EX | LOCK_NB)) {
+            fclose($fp);
+            throw new \RuntimeException('Another update or restore is already in progress');
+        }
+        return $fp;
+    }
+
+    /** @param resource|false|null $fp */
+    private function releaseLock($fp): void
+    {
+        if (!$fp) return;
+        @flock($fp, LOCK_UN);
+        @fclose($fp);
+    }
+
     private function allocateWorkdir(string $fromVersion, string $toVersion): string
     {
         $stamp = (new \DateTimeImmutable())->format('Ymd_His');
@@ -491,20 +531,66 @@ final class Updater
         if (!is_file($dbPath)) return null;
 
         // Flush WAL to the main file so a plain copy is a consistent snapshot.
+        $checkpointed = false;
         try {
             $pdo = App::make('db');
             $pdo->exec('PRAGMA wal_checkpoint(TRUNCATE)');
+            $checkpointed = true;
         } catch (\Throwable $_) {
-            // Non-fatal — copy() below is still a consistent SQLite snapshot
-            // for non-WAL mode; in WAL mode the worst case is the snapshot
-            // misses the last few un-checkpointed transactions.
+            // TRUNCATE failed (busy read lock or non-WAL DB) — fall through.
+            // We'll still copy WAL/SHM sidecars alongside so SQLite can
+            // replay them after restore.
         }
 
         $dest = $workdir . '/app.sqlite';
         if (!@copy($dbPath, $dest)) {
             throw new \RuntimeException("Cannot snapshot DB: $dbPath → $dest");
         }
+
+        // If TRUNCATE didn't run, copy sidecars too (they may contain
+        // committed-but-uncheckpointed pages). Safe to skip when TRUNCATE
+        // succeeded — that call deletes/truncates the sidecars on success.
+        if (!$checkpointed) {
+            foreach (['-wal', '-shm'] as $suf) {
+                if (is_file($dbPath . $suf)) {
+                    @copy($dbPath . $suf, $dest . $suf);
+                }
+            }
+        }
         return $dest;
+    }
+
+    /**
+     * Replace the live DB with $snapPath (a previously-taken snapshot).
+     * Removes any lingering -wal/-shm beside the live file BEFORE the swap
+     * so SQLite doesn't try to replay them against the new file content;
+     * then restores any sidecars that were captured at snapshot time.
+     */
+    private function restoreDbFromSnapshot(string $snapPath, string $livePath): void
+    {
+        // Close any open PDO so SQLite drops its handle to the WAL.
+        // The next App::make('db') call will reopen against the fresh file.
+        try {
+            $pdo = App::make('db');
+            $pdo->exec('PRAGMA wal_checkpoint(TRUNCATE)');
+        } catch (\Throwable $_) {
+            // best-effort
+        }
+
+        if (!@copy($snapPath, $livePath)) {
+            throw new \RuntimeException("Cannot restore DB: copy $snapPath → $livePath failed");
+        }
+        // Clear stale sidecars that belong to the pre-restore DB.
+        foreach (['-wal', '-shm'] as $suf) {
+            if (is_file($livePath . $suf)) @unlink($livePath . $suf);
+        }
+        // Reinstate sidecars from the snapshot (only present when the
+        // checkpoint failed at snapshot time; usually a no-op).
+        foreach (['-wal', '-shm'] as $suf) {
+            if (is_file($snapPath . $suf)) {
+                @copy($snapPath . $suf, $livePath . $suf);
+            }
+        }
     }
 
     private function downloadTarball(string $owner, string $repo, string $version, string $dest): void
@@ -517,6 +603,10 @@ final class Updater
                 'timeout'       => self::DOWNLOAD_TIMEOUT_SECONDS,
                 'ignore_errors' => true,
                 'follow_location' => 1,
+                // GitHub redirects archive URLs to codeload.github.com via
+                // a single 302. Capping at 5 leaves headroom but bounds
+                // any redirect-loop misconfiguration.
+                'max_redirects' => 5,
                 'header'        => "User-Agent: otack-manager-updater\r\n",
             ],
         ]);
@@ -772,7 +862,11 @@ final class Updater
 
         if (is_file($dbSnapshot)) {
             $live = APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite');
-            @copy($dbSnapshot, $live);
+            try {
+                $this->restoreDbFromSnapshot($dbSnapshot, $live);
+            } catch (\Throwable $_) {
+                // best-effort — partial DB restore is better than none
+            }
         }
     }
 
