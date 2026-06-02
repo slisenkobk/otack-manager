@@ -121,9 +121,15 @@ final class PublicPollController extends BaseController
         if ($this->rateLimited($remoteIp)) { $this->renderRateLimited(); return; }
 
         $contactRaw  = trim((string)($req->post['contact'] ?? ''));
-        $contactNorm = (string)($req->post['contact_normalized'] ?? '');
         $token       = (string)($req->post['contact_token'] ?? '');
         $tokenTs     = (int)($req->post['contact_token_ts'] ?? 0);
+        // Re-derive the normalized contact server-side rather than trusting the
+        // round-tripped value. The token signs whatever normalization stage 1
+        // produced, so we recompute the same way here and verify the token
+        // against it. This eliminates a class of "stage-2 says one thing, the
+        // DB stores another" bugs if normalization rules ever change.
+        $contactKind = (string)($poll['contact_field'] ?? PollRepository::CONTACT_EMAIL);
+        $contactNorm = PollRepository::normalizeContact($contactRaw, $contactKind);
 
         if (!$this->verifyContactToken($poll, $contactNorm, $tokenTs, $token)) {
             // Tampered or expired token → restart at stage 1.

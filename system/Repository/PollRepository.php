@@ -140,27 +140,29 @@ final class PollRepository
     }
 
     /**
-     * State transitions are strictly one-way: draft → active → closed.
-     * Returns true if the transition happened, false if rejected.
+     * State transitions are strictly one-way: draft → active → closed. The
+     * `AND status = ?` predicate folds the precondition into the UPDATE so a
+     * concurrent activate/close can't race past the check; rowCount() tells us
+     * whether the transition actually happened.
      */
     public function activate(int $id): bool
     {
-        $row = $this->findById($id);
-        if (!$row || $row['status'] !== self::STATUS_DRAFT) return false;
         $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
-        $this->pdo->prepare('UPDATE polls SET status = ?, activated_at = ?, updated_at = ? WHERE id = ?')
-            ->execute([self::STATUS_ACTIVE, $now, $now, $id]);
-        return true;
+        $stmt = $this->pdo->prepare(
+            'UPDATE polls SET status = ?, activated_at = ?, updated_at = ? WHERE id = ? AND status = ?'
+        );
+        $stmt->execute([self::STATUS_ACTIVE, $now, $now, $id, self::STATUS_DRAFT]);
+        return $stmt->rowCount() === 1;
     }
 
     public function close(int $id): bool
     {
-        $row = $this->findById($id);
-        if (!$row || $row['status'] !== self::STATUS_ACTIVE) return false;
         $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
-        $this->pdo->prepare('UPDATE polls SET status = ?, closed_at = ?, updated_at = ? WHERE id = ?')
-            ->execute([self::STATUS_CLOSED, $now, $now, $id]);
-        return true;
+        $stmt = $this->pdo->prepare(
+            'UPDATE polls SET status = ?, closed_at = ?, updated_at = ? WHERE id = ? AND status = ?'
+        );
+        $stmt->execute([self::STATUS_CLOSED, $now, $now, $id, self::STATUS_ACTIVE]);
+        return $stmt->rowCount() === 1;
     }
 
     public function attachSummaryTask(int $id, int $taskId): void

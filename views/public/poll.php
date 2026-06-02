@@ -58,8 +58,10 @@ $contactLabel = $contactField === 'phone' ? t('public_poll.phone_label') : t('pu
         </div>
 
       <?php elseif ($stage === 'vote' && $choiceField): ?>
+        <?php // The server re-derives contact_normalized from `contact` server-side;
+              // the token signs that derivation, so it's enough to round-trip the raw
+              // contact + token + ts here. ?>
         <input type="hidden" name="contact"             value="<?= e((string)$contactRaw) ?>">
-        <input type="hidden" name="contact_normalized"  value="<?= e((string)$contactNorm) ?>">
         <input type="hidden" name="contact_token"       value="<?= e((string)$contactToken) ?>">
         <input type="hidden" name="contact_token_ts"    value="<?= e((string)$contactTokenTs) ?>">
         <div class="pf-card">
