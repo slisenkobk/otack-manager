@@ -199,6 +199,21 @@ final class PublicFormController extends BaseController
         // block on the public form is read-only display only.
         $submissionId = $this->subs->create((int)$form['id'], $data, [], $remoteIp !== '' ? $remoteIp : null);
 
+        // Auto-create-task: if the form is attached to a project and the flag
+        // is on, spawn a task in the leftmost non-backlog column. We render
+        // the title template through FormTemplate, then attribute the task to
+        // the form owner so an audit trail exists even though the visitor was
+        // anonymous. Errors here must not break the public-facing submission —
+        // we log and continue so the visitor still sees "thanks".
+        $autoTaskId = null;
+        if (!empty($form['auto_create_task']) && !empty($form['project_id'])) {
+            try {
+                $autoTaskId = $this->autoCreateTaskFromSubmission($form, $data, $submissionId);
+            } catch (\Throwable $e) {
+                error_log('[forms] auto-task create failed: ' . $e->getMessage());
+            }
+        }
+
         // Activity feed: external submissions don't have an actor_id, so we
         // attribute to the form owner (created_by) so admins/managers see it
         // in their scope. The "external" flag in meta keeps downstream code
@@ -208,13 +223,15 @@ final class PublicFormController extends BaseController
             fn($v) => is_array($v) ? implode(',', $v) : (string)$v,
             $data
         ), fn($s) => trim($s) !== '')), 0, 160);
+        $activityMeta = ['form_id' => (int)$form['id'], 'submission_id' => $submissionId, 'external' => true];
+        if ($autoTaskId !== null) $activityMeta['auto_task_id'] = $autoTaskId;
         \App\App::make('activity')->log(
             'form.submitted',
             $ownerId,
             null,
             null,
             'new submission on "' . $form['title'] . '"' . ($preview !== '' ? ' — ' . $preview : ''),
-            ['form_id' => (int)$form['id'], 'submission_id' => $submissionId, 'external' => true]
+            $activityMeta
         );
 
         // Fire the Telegram event with an IMPORTANT marker — these are
@@ -244,6 +261,62 @@ final class PublicFormController extends BaseController
         }
         $ra = $_SERVER['REMOTE_ADDR'] ?? '';
         return filter_var($ra, FILTER_VALIDATE_IP) ? $ra : '';
+    }
+
+    /**
+     * Materialise a task from a public submission, using the form's title
+     * template. Returns the new task id, or null when the project is missing
+     * or has no non-backlog column to drop the task into. We attribute
+     * `created_by` to the form owner so audit trails stay coherent.
+     */
+    private function autoCreateTaskFromSubmission(array $form, array $data, int $submissionId): ?int {
+        $project = \App\App::make('projects')->findById((int)$form['project_id']);
+        if (!$project) return null;
+
+        // Drop into the leftmost non-backlog column. If the project has no
+        // non-backlog columns yet, give up rather than dumping the task into
+        // the backlog — silent backlog landings would surprise the author who
+        // explicitly turned auto-task on. Errors are caught one level up.
+        $cols  = \App\App::make('columns')->listForProject((int)$project['id']);
+        $board = array_values(array_filter($cols, fn($c) => (int)($c['is_backlog'] ?? 0) === 0));
+        usort($board, fn($a, $b) => (int)$a['position'] <=> (int)$b['position']);
+        $todoCol = $board[0] ?? null;
+        if (!$todoCol) return null;
+
+        $title = \App\Service\FormTemplate::renderTaskTitle(
+            (string)($form['task_title_template'] ?? ''),
+            $form,
+            ['id' => $submissionId],
+            $data
+        );
+        if ($title === '') $title = (string)$form['title'] . ' #' . $submissionId;
+
+        $fields = $this->decodeFields($form);
+        $description = \App\Service\HtmlSanitizer::clean(
+            \App\Service\FormTemplate::renderTaskBody($form, $fields, $data, $submissionId)
+        );
+
+        $taskId = \App\App::make('tasks')->create(
+            (int)$project['id'],
+            (int)$todoCol['id'],
+            $title,
+            (int)$form['created_by']
+        );
+        \App\App::make('tasks')->update($taskId, ['description' => $description]);
+
+        // Mark the submission as already converted so admins don't re-promote
+        // it manually. The submission row keeps a pointer to the task.
+        $this->subs->setStatus($submissionId, 'converted_task', $taskId, null);
+
+        \App\App::make('activity')->log(
+            'task.created',
+            (int)$form['created_by'],
+            (int)$project['id'],
+            $taskId,
+            "auto-created task '$title' from form '{$form['title']}' submission #$submissionId",
+            ['form_id' => (int)$form['id'], 'submission_id' => $submissionId, 'auto' => true]
+        );
+        return $taskId;
     }
 
     private function decodeFields(array $form): array {

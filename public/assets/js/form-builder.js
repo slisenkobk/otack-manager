@@ -35,6 +35,7 @@ if (builder) {
   applyFooterState();
   wireStickyToolbar();
   wirePublicUrlRow();
+  wireIntegration();
 
   builder.querySelector('[data-action=add-field]').addEventListener('click', () => {
     fields.push({ key: '', type: 'text', label: '', required: false, options: [] });
@@ -43,12 +44,20 @@ if (builder) {
 
   builder.querySelector('[data-action=save-form]').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
+    const projectVal = builder.querySelector('[data-form-project]')?.value || '';
+    const autoCb = builder.querySelector('[data-auto-create-task]');
+    const tplInput = builder.querySelector('[data-task-title-template]');
+    const successEl = builder.querySelector('[data-success-message]');
     const payload = {
       title: titleEl.value.trim(),
       locale: localeHidden?.value || 'en',
       description: (descHidden?.value || '').trim(),
       fields: fields.map(cleanField),
       footer: collectFooter(),
+      project_id: projectVal ? parseInt(projectVal, 10) : null,
+      auto_create_task: !!(autoCb && autoCb.checked && projectVal),
+      task_title_template: (tplInput?.value || '').trim(),
+      success_message: (successEl?.value || '').trim(),
     };
     if (!payload.title) { UI.toast('Title is required', 'error'); return; }
     if (!payload.fields.length) { UI.toast('Add at least one field', 'error'); return; }
@@ -62,6 +71,13 @@ if (builder) {
   });
 
   function renderAll(scrollToIdx = -1) {
+    // When no explicit scroll target is requested (type change, delete,
+    // drag-drop reorder), preserve the user's scroll position — wiping
+    // fieldsList via replaceChildren() momentarily collapses page height
+    // and the browser clamps scrollY to the new max (often 0).
+    const preserveScroll = scrollToIdx < 0;
+    const savedScrollY = preserveScroll ? window.scrollY : 0;
+
     fieldsList.replaceChildren();
     fields.forEach((f, idx) => fieldsList.appendChild(buildFieldCard(f, idx)));
     if (fieldsHint) fieldsHint.hidden = fields.length > 0;
@@ -81,7 +97,9 @@ if (builder) {
         },
       });
     }
-    if (scrollToIdx >= 0 && fieldsList.children[scrollToIdx]) {
+    if (preserveScroll) {
+      window.scrollTo(0, savedScrollY);
+    } else if (fieldsList.children[scrollToIdx]) {
       const node = fieldsList.children[scrollToIdx];
       requestAnimationFrame(() => {
         node.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -258,6 +276,28 @@ if (builder) {
         UI.toast('New URL generated', 'success');
       } catch {} finally { rotBtn.disabled = false; }
     });
+  }
+
+  function wireIntegration() {
+    const section = builder.querySelector('[data-integration]');
+    if (!section) return;
+    const projectHidden = section.querySelector('[data-form-project]');
+    const autoRow      = section.querySelector('[data-auto-task-row]');
+    const tplRow       = section.querySelector('[data-task-template-row]');
+    const autoCb       = section.querySelector('[data-auto-create-task]');
+    if (!projectHidden) return;
+
+    const refresh = () => {
+      const hasProject = !!(projectHidden.value && projectHidden.value !== '');
+      if (autoRow) autoRow.hidden = !hasProject;
+      if (!hasProject && autoCb) autoCb.checked = false;
+      const showTpl = hasProject && !!(autoCb && autoCb.checked);
+      if (tplRow) tplRow.hidden = !showTpl;
+    };
+
+    projectHidden.addEventListener('change', refresh);
+    if (autoCb) autoCb.addEventListener('change', refresh);
+    refresh();
   }
 
   function wireStickyToolbar() {

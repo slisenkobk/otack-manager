@@ -49,6 +49,9 @@ final class FormController extends BaseController
         $form = $id ? $this->forms->findById($id) : null;
         if ($id && !$form) { Response::notFound(); return; }
 
+        $isAdmin   = RolePolicy::isAdmin($this->user);
+        $projects  = \App\App::make('projects')->listForUser((int)$this->user['id'], $isAdmin);
+
         $csrf = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', [
             'user' => $this->user, 'activeNav' => 'forms', 'csrfToken' => $csrf,
@@ -65,6 +68,7 @@ final class FormController extends BaseController
                 'form'       => $form,
                 'csrfToken'  => $csrf,
                 'fieldTypes' => self::FIELD_TYPES,
+                'projects'   => $projects,
             ]),
         ]));
     }
@@ -84,6 +88,12 @@ final class FormController extends BaseController
         }
         $fields = $this->normaliseFields($data['fields'] ?? []);
         $rawFooter = is_array($data['footer'] ?? null) ? $data['footer'] : [];
+        [$projectId, $autoCreateTask, $taskTpl] = $this->normaliseIntegration($data);
+        // Plain-text override for the public "thanks" page. NULL means "fall
+        // back to the localized default" on the public view, so distinguish
+        // empty-string from "not set" by trimming and storing NULL when blank.
+        $successRaw = trim((string)($data['success_message'] ?? ''));
+        $successMessage = $successRaw === '' ? null : mb_substr($successRaw, 0, 2000);
         // The note field is rendered as raw HTML on the public form (so it can
         // carry formatting from Settings' Quill editor). Run any per-form override
         // through the same allow-list sanitiser to close the stored-XSS gap.
@@ -111,11 +121,15 @@ final class FormController extends BaseController
                 Response::json(['error' => 'Forbidden'], 403); return;
             }
             $this->forms->update($id, [
-                'title'       => $title,
-                'description' => $description,
-                'fields_json' => json_encode($fields, JSON_UNESCAPED_UNICODE),
-                'footer_json' => json_encode($footer, JSON_UNESCAPED_UNICODE),
-                'locale'      => $locale,
+                'title'               => $title,
+                'description'         => $description,
+                'fields_json'         => json_encode($fields, JSON_UNESCAPED_UNICODE),
+                'footer_json'         => json_encode($footer, JSON_UNESCAPED_UNICODE),
+                'locale'              => $locale,
+                'project_id'          => $projectId,
+                'auto_create_task'    => $autoCreateTask ? 1 : 0,
+                'task_title_template' => $taskTpl,
+                'success_message'     => $successMessage,
             ]);
             \App\App::make('activity')->log('form.updated', (int)$this->user['id'], null, null,
                 "updated form '$title'", ['form_id' => $id]);
@@ -126,7 +140,18 @@ final class FormController extends BaseController
             return;
         }
 
-        $id = $this->forms->create($title, $description !== '' ? $description : null, $fields, $footer, (int)$this->user['id'], $locale);
+        $id = $this->forms->create(
+            $title,
+            $description !== '' ? $description : null,
+            $fields,
+            $footer,
+            (int)$this->user['id'],
+            $locale,
+            $projectId,
+            $autoCreateTask,
+            $taskTpl,
+            $successMessage
+        );
         \App\App::make('activity')->log('form.created', (int)$this->user['id'], null, null,
             "created form '$title'", ['form_id' => $id]);
         \App\App::make('events')->fire('form.created', [
@@ -165,6 +190,86 @@ final class FormController extends BaseController
             'form_id' => $id, 'title' => $title, 'actor_name' => $this->user['name'],
         ]);
         Response::json(['ok' => true]);
+    }
+
+    /**
+     * Clone an existing form. Same title (with "(copy)" suffix), same fields,
+     * same footer + integration settings, but a fresh hash so the public URL
+     * is new and the original form's link stays live.
+     */
+    public function copy(Request $req, array $params): void {
+        $id  = (int)$params['id'];
+        $src = $this->forms->findById($id);
+        if (!$src) { Response::json(['error' => 'Not found'], 404); return; }
+        if (!RolePolicy::isAdmin($this->user) && (int)$src['created_by'] !== (int)$this->user['id']) {
+            Response::json(['error' => 'Forbidden'], 403); return;
+        }
+
+        $fields   = json_decode((string)$src['fields_json'], true) ?: [];
+        $footer   = json_decode((string)$src['footer_json'], true) ?: [];
+        $newTitle = mb_substr(trim($src['title']) . ' (copy)', 0, 200);
+
+        // Re-validate the attached project: source may have been attached to a
+        // project the current user can no longer reach; in that case we drop
+        // the link rather than transferring it silently. When the link is
+        // dropped, auto-task settings must be cleared too so the copy doesn't
+        // end up in a contradictory state (auto_create_task=1, project_id=NULL).
+        $projectId = !empty($src['project_id']) ? (int)$src['project_id'] : null;
+        if ($projectId !== null && !$this->canAttachToProject($projectId)) {
+            $projectId = null;
+        }
+        $copyAutoTask = $projectId !== null && !empty($src['auto_create_task']);
+        $copyTaskTpl  = $projectId !== null && !empty($src['task_title_template'])
+            ? (string)$src['task_title_template']
+            : null;
+        $copySuccess  = !empty($src['success_message']) ? (string)$src['success_message'] : null;
+
+        $newId = $this->forms->create(
+            $newTitle,
+            $src['description'] !== '' ? (string)$src['description'] : null,
+            $fields,
+            $footer,
+            (int)$this->user['id'],
+            (string)($src['locale'] ?? 'en'),
+            $projectId,
+            $copyAutoTask,
+            $copyTaskTpl,
+            $copySuccess
+        );
+
+        \App\App::make('activity')->log('form.created', (int)$this->user['id'], null, null,
+            "duplicated form '{$src['title']}' as '$newTitle'",
+            ['form_id' => $newId, 'source_form_id' => $id]);
+        \App\App::make('events')->fire('form.created', [
+            'form_id' => $newId, 'title' => $newTitle, 'actor_name' => $this->user['name'],
+        ]);
+        Response::json(['ok' => true, 'id' => $newId, 'url' => '/forms/' . $newId]);
+    }
+
+    /**
+     * Normalise the project-integration fields. Drops project_id silently if
+     * the user cannot reach the project (manager scope) — the UI shouldn't
+     * offer those choices in the first place but we double-check on save.
+     *
+     * @return array{0:?int,1:bool,2:?string}
+     */
+    private function normaliseIntegration(array $data): array {
+        $projectId = !empty($data['project_id']) ? (int)$data['project_id'] : null;
+        if ($projectId !== null && !$this->canAttachToProject($projectId)) $projectId = null;
+
+        $auto = $projectId !== null && !empty($data['auto_create_task']);
+        $tpl  = trim((string)($data['task_title_template'] ?? ''));
+        $tpl  = $tpl !== '' ? mb_substr($tpl, 0, 500) : null;
+
+        return [$projectId, $auto, $tpl];
+    }
+
+    /** Admin: any project. Manager: only projects they're a member of. */
+    private function canAttachToProject(int $projectId): bool {
+        $project = \App\App::make('projects')->findById($projectId);
+        if (!$project) return false;
+        if (RolePolicy::isAdmin($this->user)) return true;
+        return \App\App::make('members')->isMember($projectId, (int)$this->user['id']);
     }
 
     /**

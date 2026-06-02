@@ -1282,6 +1282,10 @@ body::before {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* Parent uses line-height:1 which clips descenders (g, y, p) inside the
+     overflow box. Give the name span room to render its full glyph height. */
+  line-height: 1.3;
+  padding-bottom: 1px;
 }
 @media (max-width: 600px) {
   .topbar__user-name { display: none; }
@@ -2385,6 +2389,12 @@ h1.display em {
   margin-top: auto;
 }
 .form-card__url-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.form-card__url-copy {
+  flex: none; background: transparent; border: 0; cursor: pointer;
+  color: var(--accent); padding: 2px 4px; border-radius: 4px;
+  font-size: 11px; line-height: 1;
+}
+.form-card__url-copy:hover { background: var(--paper); }
 
 .public-url-row {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;

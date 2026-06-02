@@ -117,4 +117,17 @@ final class FormSubmissionRepository
         foreach ($rows as $r) { $out[$r['status']] = (int)$r['c']; }
         return $out;
     }
+
+    /**
+     * Submissions still awaiting admin attention — everything that hasn't
+     * been explicitly closed via 'done' or 'rejected'. Conversion to a
+     * task/project is a routing action, not a "handled" verdict: the lead
+     * still needs follow-up until the admin marks it done.
+     */
+    public function countUnhandled(): int {
+        $row = $this->pdo->query(
+            "SELECT COUNT(*) AS c FROM form_submissions WHERE status NOT IN ('done', 'rejected')"
+        )->fetch();
+        return (int)($row['c'] ?? 0);
+    }
 }

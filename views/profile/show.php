@@ -67,7 +67,11 @@ $currentLocale = $user['locale'] ?? 'en';
     <div class="form-grid form-grid--3 profile-card__fields">
       <div class="field">
         <label><?= e(t('field.current_password')) ?></label>
-        <input class="input" type="password" name="current_password" autocomplete="current-password">
+        <?php // autocomplete="new-password" everywhere stops Chrome/Safari from
+              // autofilling the stored login password into the current-password
+              // field on this profile page — users open settings and see dots
+              // they did not type, which is alarming. The user types it manually. ?>
+        <input class="input" type="password" name="current_password" autocomplete="new-password">
       </div>
       <div class="field">
         <label><?= e(t('field.new_password')) ?></label>

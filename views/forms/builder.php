@@ -8,6 +8,15 @@ $footerJson = $form ? (string)$form['footer_json']
                       ]);
 $formLocale  = $form['locale'] ?? user_locale();
 $localeNames = locale_display_names();
+
+$attachedProjectId = $form && !empty($form['project_id']) ? (int)$form['project_id'] : 0;
+$autoCreateTask    = $form && !empty($form['auto_create_task']);
+$taskTitleTemplate = $form ? (string)($form['task_title_template'] ?? '') : '';
+$successMessage    = $form ? (string)($form['success_message'] ?? '') : '';
+$attachedProjectName = '';
+foreach (($projects ?? []) as $p) {
+    if ((int)$p['id'] === $attachedProjectId) { $attachedProjectName = (string)$p['name']; break; }
+}
 ?>
 
 <link rel="stylesheet" href="/assets/vendor/quill/quill.snow.css">
@@ -88,6 +97,59 @@ $localeNames = locale_display_names();
     <p class="muted builder-hint" data-fields-hint hidden><?= t('forms.no_fields', ['button' => '<strong>' . e(t('forms.add_field_inline')) . '</strong>']) ?></p>
   </section>
 
+  <section class="builder-panel" data-integration>
+    <h2 class="builder-panel__title"><?= e(t('forms.integration.title')) ?></h2>
+    <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('forms.integration.hint')) ?></p>
+
+    <div class="builder-grid">
+      <div class="field">
+        <label><?= e(t('forms.integration.project_label')) ?></label>
+        <div class="custom-select" data-custom-select data-form-project-wrap>
+          <button type="button" class="custom-select__btn">
+            <span class="custom-select__label">
+              <?= $attachedProjectId ? e($attachedProjectName) : e(t('forms.integration.no_project')) ?>
+            </span>
+            <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
+          </button>
+          <div class="custom-select__pop" hidden>
+            <div class="custom-select__opts">
+              <div class="custom-select__opt<?= $attachedProjectId === 0 ? ' is-selected' : '' ?>" data-value="">
+                <span class="custom-select__opt-label"><?= e(t('forms.integration.no_project')) ?></span>
+              </div>
+              <?php foreach (($projects ?? []) as $p): ?>
+                <div class="custom-select__opt<?= (int)$p['id'] === $attachedProjectId ? ' is-selected' : '' ?>" data-value="<?= (int)$p['id'] ?>">
+                  <span class="custom-select__opt-label"><?= e($p['name']) ?></span>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <input type="hidden" data-form-project value="<?= $attachedProjectId ?: '' ?>">
+        </div>
+      </div>
+
+      <div class="field builder-grid__span" data-auto-task-row<?= $attachedProjectId ? '' : ' hidden' ?>>
+        <label class="contact-row__toggle">
+          <input type="checkbox" data-auto-create-task<?= $autoCreateTask ? ' checked' : '' ?>>
+          <?= e(t('forms.integration.auto_create_task')) ?>
+        </label>
+      </div>
+
+      <div class="field builder-grid__span" data-task-template-row<?= ($attachedProjectId && $autoCreateTask) ? '' : ' hidden' ?>>
+        <label><?= e(t('forms.integration.task_title_label')) ?></label>
+        <input class="input" type="text" data-task-title-template
+               value="<?= e($taskTitleTemplate) ?>"
+               placeholder="<?= e(t('forms.integration.task_title_placeholder')) ?>">
+        <p class="muted" style="font-size:11px;color:var(--ink-3);margin:6px 0 0;">
+          <?= t('forms.integration.task_title_hint', [
+              'formName'    => '<code>{formName}</code>',
+              'submission'  => '<code>{submission.id}</code>',
+              'fieldKey'    => '<code>{field_key}</code>',
+          ]) ?>
+        </p>
+      </div>
+    </div>
+  </section>
+
   <section class="builder-panel">
     <h2 class="builder-panel__title"><?= e(t('forms.contact_block')) ?></h2>
     <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('forms.contact_hint')) ?></p>
@@ -110,6 +172,18 @@ $localeNames = locale_display_names();
           <?php endif; ?>
         </div>
       <?php endforeach; ?>
+    </div>
+  </section>
+
+  <section class="builder-panel">
+    <h2 class="builder-panel__title"><?= e(t('forms.success.section_title')) ?></h2>
+    <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('forms.success.hint')) ?></p>
+    <div class="field">
+      <label><?= e(t('forms.success.label')) ?></label>
+      <textarea class="textarea" rows="3"
+                data-success-message
+                maxlength="2000"
+                placeholder="<?= e(t('public_form.thanks_body')) ?>"><?= e($successMessage) ?></textarea>
     </div>
   </section>
 

@@ -33,11 +33,12 @@
         <div class="form-card__url" data-stop>
           <i class="fa-solid fa-link"></i>
           <span class="form-card__url-text"><?= e($publicUrl) ?></span>
+          <button type="button" class="form-card__url-copy" data-action="copy-link" data-url="<?= e($publicUrl) ?>" data-stop title="<?= e(t('forms.copy_link')) ?>"><i class="fa-regular fa-copy"></i></button>
         </div>
         <div class="card-row">
           <div style="display:flex;gap:6px;">
-            <button type="button" class="btn-ghost" data-action="copy-link" data-url="<?= e($publicUrl) ?>" data-stop title="<?= e(t('forms.copy_link')) ?>"><i class="fa-regular fa-copy"></i></button>
             <a href="<?= e($publicUrl) ?>" target="_blank" rel="noopener" class="btn-ghost" data-stop title="<?= e(t('forms.open_public')) ?>"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+            <button type="button" class="btn-ghost" data-action="duplicate-form" data-stop title="<?= e(t('forms.duplicate_title')) ?>"><i class="fa-regular fa-clone"></i></button>
             <button type="button" class="btn-ghost" data-action="delete-form" data-stop title="<?= e(t('common.delete')) ?>" style="color:var(--accent);"><i class="fa-solid fa-trash"></i></button>
           </div>
           <span class="share-link"><?= e(t('common.edit')) ?> <span class="arr">&#8594;</span></span>

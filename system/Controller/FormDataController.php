@@ -214,16 +214,7 @@ final class FormDataController extends BaseController
         }
         if ($title === '') $title = $form['title'] . ' #' . $sub['id'];
         $title = mb_substr($title, 0, 120);
-
-        $lines = ['<p><em>From form: ' . htmlspecialchars($form['title'], ENT_QUOTES, 'UTF-8') . ' / submission #' . (int)$sub['id'] . '</em></p>'];
-        foreach ($fields as $f) {
-            $v = $data[$f['key']] ?? '';
-            if (is_array($v)) $v = implode(', ', $v);
-            $v = trim((string)$v);
-            if ($v === '') continue;
-            $lines[] = '<p><strong>' . htmlspecialchars($f['label'], ENT_QUOTES, 'UTF-8') . ':</strong><br>'
-                     . nl2br(htmlspecialchars($v, ENT_QUOTES, 'UTF-8')) . '</p>';
-        }
-        return [$title, implode('', $lines)];
+        $body  = \App\Service\FormTemplate::renderTaskBody($form, $fields, $data, (int)$sub['id']);
+        return [$title, $body];
     }
 }

@@ -7,8 +7,9 @@ $canFormsSb  = $isAdminSb || $isManagerSb;
 $projectsCount = \App\App::make('projects')->countAllForUser((int)($user['id'] ?? 0), $isAdminSb, 'under_review');
 $newSubmissionsCount = 0;
 if ($canFormsSb) {
-    $byStatus = \App\App::make('form_submissions')->countByStatus();
-    $newSubmissionsCount = (int)($byStatus['new'] ?? 0);
+    // Conversion to a task/project is just routing — admin still needs to
+    // mark the submission as done or rejected for it to drop off the badge.
+    $newSubmissionsCount = \App\App::make('form_submissions')->countUnhandled();
 }
 ?>
 <aside class="sidebar">

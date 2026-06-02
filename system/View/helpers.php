@@ -79,12 +79,12 @@ function human_bytes(int $bytes): string
 //   5. fallback 'en'
 
 /** @return list<string> */
-function available_locales(): array { return ['en', 'pl']; }
+function available_locales(): array { return ['en', 'pl', 'uk']; }
 
 /** @return array<string, string> code => native display name */
 function locale_display_names(): array
 {
-    return ['en' => 'English', 'pl' => 'Polski'];
+    return ['en' => 'English', 'pl' => 'Polski', 'uk' => 'Українська'];
 }
 
 function user_locale(): string
@@ -235,6 +235,15 @@ function tn(string $key, int $count, array $args = []): string
 function i18n_plural_form(string $locale, int $count): string
 {
     $n = abs($count);
+    // Ukrainian (CLDR): one — n%10=1 and n%100≠11; few — n%10∈{2,3,4} and
+    // n%100∉{12,13,14}; many — everything else. Same shape as Russian.
+    if ($locale === 'uk') {
+        $rem10 = $n % 10;
+        $rem100 = $n % 100;
+        if ($rem10 === 1 && $rem100 !== 11) return 'one';
+        if ($rem10 >= 2 && $rem10 <= 4 && !($rem100 >= 12 && $rem100 <= 14)) return 'few';
+        return 'many';
+    }
     if ($locale === 'pl') {
         if ($n === 1) return 'one';
         $rem10 = $n % 10;

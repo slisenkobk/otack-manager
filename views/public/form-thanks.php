@@ -23,13 +23,26 @@ header('Content-Type: text/html; charset=utf-8');
   .pf-thanks i { font-size: 48px; color: var(--accent); margin-bottom: 18px; }
   .pf-thanks h1 { font-size: 24px; margin: 0 0 10px; font-weight: 700; }
   .pf-thanks p { color: var(--ink-3); line-height: 1.5; margin: 0; }
+  /* When there's no heading, the paragraph IS the message — bump it to
+     heading-weight presence so it reads as the main content, not a caption. */
+  .pf-thanks--solo p { font-size: 22px; line-height: 1.4; color: var(--ink); font-weight: 500; }
 </style>
 </head>
 <body>
-  <div class="pf-thanks">
+<?php
+// A non-empty per-form override replaces the entire body (title + paragraph)
+// so the author can frame the confirmation in their own voice; otherwise we
+// show the localized title + default body.
+$customMessage = isset($form['success_message']) ? trim((string)$form['success_message']) : '';
+?>
+  <div class="pf-thanks<?= $customMessage !== '' ? ' pf-thanks--solo' : '' ?>" data-pf-thanks>
     <i class="fa-solid fa-circle-check"></i>
-    <h1><?= e(t('public_form.thanks_title')) ?></h1>
-    <p><?= e(t('public_form.thanks_body')) ?></p>
+    <?php if ($customMessage !== ''): ?>
+      <p style="white-space:pre-line"><?= e($customMessage) ?></p>
+    <?php else: ?>
+      <h1><?= e(t('public_form.thanks_title')) ?></h1>
+      <p><?= e(t('public_form.thanks_body')) ?></p>
+    <?php endif; ?>
   </div>
 </body>
 </html>

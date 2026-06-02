@@ -27,6 +27,15 @@ document.querySelectorAll('.card[data-form-id]').forEach(card => {
     } catch {}
   });
 
+  const dup = card.querySelector('[data-action=duplicate-form]');
+  if (dup) dup.addEventListener('click', async () => {
+    try {
+      const res = await api('/forms/' + id + '/copy', { method: 'POST' });
+      UI.toast('Form duplicated', 'success');
+      if (res?.url) location.href = res.url;
+    } catch {}
+  });
+
   const copy = card.querySelector('[data-action=copy-link]');
   if (copy) copy.addEventListener('click', async () => {
     try {

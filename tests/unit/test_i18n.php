@@ -3,16 +3,18 @@ declare(strict_types=1);
 
 // Helpers in system/View/helpers.php are loaded via tests/run.php → bootstrap.
 
-it('available_locales lists en and pl', function () {
+it('available_locales lists en, pl and uk', function () {
     $locales = available_locales();
     assert_true(in_array('en', $locales, true));
     assert_true(in_array('pl', $locales, true));
+    assert_true(in_array('uk', $locales, true));
 });
 
 it('locale_display_names is keyed by locale code with native names', function () {
     $names = locale_display_names();
-    assert_eq('English', $names['en']);
-    assert_eq('Polski', $names['pl']);
+    assert_eq('English',     $names['en']);
+    assert_eq('Polski',      $names['pl']);
+    assert_eq('Українська',  $names['uk']);
 });
 
 it('i18n_plural_form en: 1 -> one, anything else -> other', function () {
@@ -64,6 +66,27 @@ it('t() returns translated string from pl catalog', function () {
     assert_eq('Cześć, Bohdan',   t('dashboard.greeting', ['name' => 'Bohdan']));
 });
 
+it('t() returns translated string from uk catalog', function () {
+    $_GET['locale'] = 'uk';
+    $_ENV['APP_DEBUG'] = 'true';
+    i18n_reset_cache();
+    assert_eq('Панель',          t('nav.dashboard'));
+    assert_eq('Зберегти',        t('common.save'));
+    assert_eq('Привіт, Bohdan',  t('dashboard.greeting', ['name' => 'Bohdan']));
+});
+
+it('tn() picks one / few / many correctly in Ukrainian', function () {
+    $_GET['locale'] = 'uk';
+    $_ENV['APP_DEBUG'] = 'true';
+    i18n_reset_cache();
+    assert_eq('1 завдання',  tn('task.count', 1,  ['n' => 1]));
+    assert_eq('2 завдання',  tn('task.count', 2,  ['n' => 2]));
+    assert_eq('5 завдань',   tn('task.count', 5,  ['n' => 5]));
+    assert_eq('11 завдань',  tn('task.count', 11, ['n' => 11]));
+    assert_eq('21 завдання', tn('task.count', 21, ['n' => 21]));
+    assert_eq('22 завдання', tn('task.count', 22, ['n' => 22]));
+});
+
 it('t() returns the key verbatim when missing entirely', function () {
     $_GET['locale'] = 'en';
     $_ENV['APP_DEBUG'] = 'true';
@@ -92,6 +115,26 @@ it('tn() picks one for 1 and other for n in English', function () {
     assert_eq('1 task',  tn('task.count', 1, ['n' => 1]));
     assert_eq('2 tasks', tn('task.count', 2, ['n' => 2]));
     assert_eq('0 tasks', tn('task.count', 0, ['n' => 0]));
+});
+
+it('i18n_plural_form uk: one (n%10=1, n%100≠11) / few / many', function () {
+    // one: 1, 21, 31, 41, 101 — but NOT 11.
+    assert_eq('one',  i18n_plural_form('uk', 1));
+    assert_eq('one',  i18n_plural_form('uk', 21));
+    assert_eq('one',  i18n_plural_form('uk', 101));
+    assert_eq('many', i18n_plural_form('uk', 11));
+    assert_eq('many', i18n_plural_form('uk', 111));
+    // few: 2..4, 22..24 — but NOT 12..14.
+    assert_eq('few',  i18n_plural_form('uk', 2));
+    assert_eq('few',  i18n_plural_form('uk', 4));
+    assert_eq('few',  i18n_plural_form('uk', 23));
+    assert_eq('many', i18n_plural_form('uk', 12));
+    assert_eq('many', i18n_plural_form('uk', 13));
+    assert_eq('many', i18n_plural_form('uk', 14));
+    // many: 0, 5..9, 15..19, etc.
+    assert_eq('many', i18n_plural_form('uk', 0));
+    assert_eq('many', i18n_plural_form('uk', 5));
+    assert_eq('many', i18n_plural_form('uk', 25));
 });
 
 it('tn() picks one / few / many correctly in Polish', function () {

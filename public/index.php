@@ -278,6 +278,7 @@ $router->post('/forms', 'Form@save');
 $router->get('/forms/{id}', 'Form@builder');
 $router->post('/forms/{id}', 'Form@save');
 $router->post('/forms/{id}/delete', 'Form@delete');
+$router->post('/forms/{id}/copy', 'Form@copy');
 $router->post('/forms/{id}/rotate-hash', 'Form@regenerateHash');
 
 $router->get('/forms-data', 'FormData@index');
