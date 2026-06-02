@@ -9,9 +9,12 @@ use App\Http\Response;
 use App\Service\Updater;
 
 /**
- * Step-2 surface: just the manual "Check now" endpoint that the Updates
- * tab and (later) the topbar badge wire through. update / restore
- * actions arrive in steps 4-5 and will live here alongside.
+ * Updates endpoints.
+ *
+ *   GET  /api/updates/check  — manual "Check now" trigger (admin only)
+ *   POST /admin/updates/run  — run the update pipeline (admin only)
+ *
+ * Both refuse to run when UPDATE_ENABLED=false.
  */
 final class UpdatesController extends BaseController
 {
@@ -40,5 +43,50 @@ final class UpdatesController extends BaseController
             return;
         }
         Response::json($payload);
+    }
+
+    /**
+     * POST /admin/updates/run — runs the full update pipeline
+     * synchronously. The request can take 15-60s. On success we redirect
+     * back to the Updates tab with a flash. On failure we redirect with
+     * an error flash (the pipeline has already rolled itself back).
+     *
+     * The target version comes from the live cached payload so the admin
+     * can't be raced into installing a downgrade or a tag they didn't see.
+     */
+    public function run(Request $req, array $params = []): void
+    {
+        /** @var Updater $updater */
+        $updater = App::make('updater');
+
+        // Re-check live so we're acting on the freshest available tag,
+        // not whatever the dashboard cached an hour ago.
+        try {
+            $payload = $updater->check();
+        } catch (\Throwable $e) {
+            Response::redirect('/admin/settings?tab=updates&update_error=' . urlencode($e->getMessage()));
+            return;
+        }
+
+        if (empty($payload['has_update']) || empty($payload['available'])) {
+            Response::redirect('/admin/settings?tab=updates&update_error=up_to_date');
+            return;
+        }
+
+        // Long pipelines need long script time.
+        @set_time_limit(300);
+        @ignore_user_abort(true);
+
+        try {
+            $result = $updater->update((string)$payload['available'], (int)($this->user['id'] ?? 0) ?: null);
+            Response::redirect(
+                '/admin/settings?tab=updates'
+                . '&updated_to=' . urlencode($result['to'])
+                . '&duration=' . (int)$result['duration_seconds']
+            );
+        } catch (\Throwable $e) {
+            error_log('[updater] ' . $e->getMessage());
+            Response::redirect('/admin/settings?tab=updates&update_error=' . urlencode($e->getMessage()));
+        }
     }
 }

@@ -9,6 +9,7 @@
 /data/.schema.test/
 /data/errors.log
 /data.backup-*/
+/data/backups/
 /public/uploads/
 /public/uploads-test/
 /.env

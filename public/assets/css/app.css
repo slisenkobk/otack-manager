@@ -5045,6 +5045,10 @@ a.link-card *,
   font-size: 14px;
   color: var(--ink-3, #666);
 }
+.updates-card--accent {
+  border-color: #c8e6c9;
+  background: #f3faf4;
+}
 
 /* Public poll: radio-option block (one row per choice). */
 .pf-radio {

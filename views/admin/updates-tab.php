@@ -31,7 +31,9 @@ $installedAt = $currentVersion['installed_at'] ?? null;
           <?= e(t('updates.last_check_never')) ?>
         <?php endif; ?>
       </span>
-      <button type="button" class="btn btn--secondary" data-action="check-now">
+      <button type="button" class="btn btn--secondary" data-action="check-now"
+              data-toast-ok="<?= e(t('updates.toast.check_ok')) ?>"
+              data-toast-error="<?= e(t('updates.toast.check_error')) ?>">
         <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
         <?= e(t('updates.check_now')) ?>
       </button>
@@ -54,6 +56,42 @@ $installedAt = $currentVersion['installed_at'] ?? null;
       <?php endif; ?>
     </div>
   </div>
+
+  <?php if ($hasUpdate): ?>
+    <?php
+      $lastDuration = (int)($updates['last_duration_seconds'] ?? 0);
+      $durationHint = $lastDuration > 0
+        ? t('updates.duration_with_previous', ['seconds' => (string)$lastDuration])
+        : t('updates.duration_default');
+    ?>
+    <div class="updates-card updates-card--accent">
+      <h3 class="updates-card__title"><?= e(t('updates.section.update_available')) ?></h3>
+      <p style="margin:0 0 8px;font-size:15px;">
+        <?= e(t('updates.update_intro', [
+          'from' => 'v' . $current,
+          'to'   => 'v' . $available,
+        ])) ?>
+      </p>
+      <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 14px;">
+        <?= e($durationHint) ?>
+      </p>
+      <form method="post" action="/admin/updates/run" data-update-form>
+        <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
+        <button type="button" class="btn btn--primary" data-action="run-update"
+                data-confirm-title="<?= e(t('updates.confirm.title')) ?>"
+                data-confirm-body="<?= e(t('updates.confirm.body', [
+                  'from' => 'v' . $current,
+                  'to'   => 'v' . $available,
+                ])) ?>"
+                data-confirm-label="<?= e(t('updates.confirm.confirm')) ?>"
+                data-cancel-label="<?= e(t('updates.confirm.cancel')) ?>"
+                data-running-label="<?= e(t('updates.running')) ?>">
+          <i class="fa-solid fa-cloud-arrow-down" aria-hidden="true"></i>
+          <?= e(t('updates.update_now', ['version' => 'v' . $available])) ?>
+        </button>
+      </form>
+    </div>
+  <?php endif; ?>
 
   <div class="updates-card">
     <h3 class="updates-card__title"><?= e(t('updates.section.history')) ?></h3>

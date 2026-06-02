@@ -2,6 +2,19 @@
 // Inputs: $values, $fields (SettingsController::KEYS), $csrfToken,
 //         $timezones, $currentTab ∈ {workspace, contact}
 echo isset($_GET['saved']) ? flash_meta(t('settings.saved'), 'success') : '';
+if (isset($_GET['updated_to'])) {
+    $dur = isset($_GET['duration']) ? (int)$_GET['duration'] : 0;
+    echo flash_meta(t('updates.flash.updated', [
+        'version' => 'v' . (string)$_GET['updated_to'],
+        'seconds' => (string)$dur,
+    ]), 'success');
+} elseif (isset($_GET['update_error'])) {
+    $err = (string)$_GET['update_error'];
+    $msg = $err === 'up_to_date'
+        ? t('updates.flash.up_to_date')
+        : t('updates.flash.error', ['error' => $err]);
+    echo flash_meta($msg, 'error');
+}
 $localeNames = locale_display_names();
 ?>
 
