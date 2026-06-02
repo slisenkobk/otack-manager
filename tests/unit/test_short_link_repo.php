@@ -3,11 +3,8 @@ use App\Repository\ShortLinkRepository;
 use App\Repository\ShortLinkVisitRepository;
 
 function _slPdo(): PDO {
-    $pdo = new PDO('sqlite::memory:');
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-    $pdo->exec('PRAGMA foreign_keys = ON');
-    (require dirname(__DIR__, 2) . '/system/Database/migrations/20260602_020_short_links.php')($pdo);
+    $pdo = \App\Database\Connection::open('sqlite::memory:');
+    apply_migration($pdo, dirname(__DIR__, 2) . '/system/Database/migrations/20260602_020_short_links.php');
     return $pdo;
 }
 

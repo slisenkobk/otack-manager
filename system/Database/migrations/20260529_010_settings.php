@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
 
-return function (\PDO $pdo) {
-    $pdo->exec(
-        'CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL DEFAULT ""
-        )'
-    );
+use App\Database\Schema\Blueprint;
+use App\Database\Schema\Schema;
+
+return function (Schema $schema): void {
+    $schema->createTableIfNotExists('settings', function (Blueprint $t) {
+        $t->string('key', 191)->primary();
+        $t->text('value')->default('');
+    });
 };

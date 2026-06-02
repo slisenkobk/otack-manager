@@ -1,11 +1,26 @@
 <?php
 declare(strict_types=1);
 
+use App\Database\Schema\Blueprint;
+use App\Database\Schema\Schema;
+
 // For installations created before form_submissions had remote_ip.
-return function (\PDO $pdo) {
-    $cols = $pdo->query('PRAGMA table_info(form_submissions)')->fetchAll(\PDO::FETCH_ASSOC);
-    if (!$cols) return;
-    foreach ($cols as $c) { if ($c['name'] === 'remote_ip') return; }
-    $pdo->exec('ALTER TABLE form_submissions ADD COLUMN remote_ip TEXT NULL');
-    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_form_submissions_ip_time ON form_submissions(remote_ip, created_at)');
+// Fresh installs already have the column (added in the create migration);
+// the ALTER is wrapped in try/catch so this is a portable no-op there.
+return function (Schema $schema): void {
+    try {
+        $schema->alterTable('form_submissions', function (Blueprint $t) {
+            $t->string('remote_ip', 45)->nullable();
+        });
+    } catch (\Throwable $_) {
+        // Column already present — fresh install path.
+    }
+    try {
+        $schema->execute(
+            'CREATE INDEX idx_form_submissions_ip_time '
+            . 'ON form_submissions(remote_ip, created_at)'
+        );
+    } catch (\Throwable $_) {
+        // Index already present.
+    }
 };

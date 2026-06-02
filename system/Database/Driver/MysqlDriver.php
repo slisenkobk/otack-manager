@@ -72,6 +72,9 @@ final class MysqlDriver implements DriverInterface
                 $defs[] = "UNIQUE KEY $name (" . implode(', ', $idx->columns) . ')';
             }
         }
+        if ($bp->primaryColumns !== null) {
+            $defs[] = 'PRIMARY KEY (' . implode(', ', $bp->primaryColumns) . ')';
+        }
         // Foreign keys (MySQL needs the CONSTRAINT clause in the table body)
         foreach ($bp->foreignKeys as $fk) {
             $defs[] = $this->foreignKeySql($bp->table, $fk);
@@ -122,7 +125,14 @@ final class MysqlDriver implements DriverInterface
 
         $parts = [$c->name, $type];
         if (!$c->nullable)  $parts[] = 'NOT NULL';
-        if ($c->hasDefault) $parts[] = 'DEFAULT ' . $this->defaultLiteral($c->default);
+        if ($c->hasDefault) {
+            // MySQL 8.0.13+ requires DEFAULT (expr) for JSON/TEXT/BLOB.
+            // Wrap unconditionally for those types; everything else takes
+            // the plain literal form.
+            $needsParens = in_array($c->type, ['json', 'text'], true);
+            $lit = $this->defaultLiteral($c->default);
+            $parts[] = 'DEFAULT ' . ($needsParens ? "($lit)" : $lit);
+        }
         if ($c->unique)     $parts[] = 'UNIQUE';
         if ($c->primary)    $parts[] = 'PRIMARY KEY';
         return implode(' ', $parts);

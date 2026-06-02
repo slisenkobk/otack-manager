@@ -45,6 +45,34 @@ function assert_true(bool $cond, string $msg = ''): void
     }
 }
 
+/**
+ * Apply a single migration file to a PDO, dispatching on the closure's
+ * parameter type the same way SchemaBootstrap::runFile does. Test helper:
+ * existing tests pass a PDO; new tests can drop the helper in directly.
+ */
+function apply_migration(PDO $pdo, string $migrationPath): void
+{
+    $closure = require $migrationPath;
+    if (!is_callable($closure)) return;
+    $ref = new ReflectionFunction(Closure::fromCallable($closure));
+    $params = $ref->getParameters();
+    $wantSchema = false;
+    if ($params) {
+        $type = $params[0]->getType();
+        if ($type instanceof ReflectionNamedType
+            && $type->getName() === \App\Database\Schema\Schema::class) {
+            $wantSchema = true;
+        }
+    }
+    if ($wantSchema) {
+        $driver = \App\Database\Connection::driverFor($pdo)
+            ?? new \App\Database\Driver\SqliteDriver('sqlite::memory:');
+        $closure(new \App\Database\Schema\Schema($pdo, $driver));
+    } else {
+        $closure($pdo);
+    }
+}
+
 $dir = $argv[1] ?? __DIR__ . '/unit';
 foreach (glob($dir . '/test_*.php') as $f) {
     echo basename($f) . "\n";

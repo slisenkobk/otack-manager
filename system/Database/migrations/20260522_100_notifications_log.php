@@ -1,13 +1,16 @@
 <?php
 declare(strict_types=1);
 
-return function (\PDO $pdo) {
-    $pdo->query("CREATE TABLE notifications_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        event TEXT NOT NULL,
-        payload TEXT NOT NULL,
-        ok INTEGER NOT NULL,
-        error TEXT,
-        sent_at TEXT NOT NULL
-    )");
+use App\Database\Schema\Blueprint;
+use App\Database\Schema\Schema;
+
+return function (Schema $schema): void {
+    $schema->createTable('notifications_log', function (Blueprint $t) {
+        $t->id();
+        $t->string('event', 64);
+        $t->text('payload');
+        $t->boolean('ok');
+        $t->text('error')->nullable();
+        $t->timestamp('sent_at');
+    });
 };

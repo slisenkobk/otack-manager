@@ -3,14 +3,9 @@ use App\Repository\AppVersionRepository;
 use App\Repository\AppBackupRepository;
 
 function _updPdo(): PDO {
-    $pdo = new PDO('sqlite::memory:');
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-    $pdo->exec('PRAGMA foreign_keys = ON');
-    // The updater migration references the `users` table for a LEFT JOIN
-    // in listRecent — create a minimal shim so the test PDO has it.
+    $pdo = \App\Database\Connection::open('sqlite::memory:');
     $pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)');
-    (require dirname(__DIR__, 2) . '/system/Database/migrations/20260603_030_updater.php')($pdo);
+    apply_migration($pdo, dirname(__DIR__, 2) . '/system/Database/migrations/20260603_030_updater.php');
     return $pdo;
 }
 

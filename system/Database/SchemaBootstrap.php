@@ -17,7 +17,12 @@ final class SchemaBootstrap
 
     public function beginImmediate(): void
     {
-        $this->pdo->exec('BEGIN IMMEDIATE');
+        // SQLite has BEGIN IMMEDIATE (acquires the reserved lock upfront
+        // so concurrent boot races serialise). MySQL has plain START
+        // TRANSACTION (and DDL inside is implicit-committed — caveat
+        // documented in docs/DATABASE.md §8).
+        $driver = \App\Database\Connection::driverFor($this->pdo)?->name() ?? 'sqlite';
+        $this->pdo->exec($driver === 'mysql' ? 'START TRANSACTION' : 'BEGIN IMMEDIATE');
     }
 
     public function commit(): void

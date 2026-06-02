@@ -1,36 +1,31 @@
 <?php
 declare(strict_types=1);
 
-// Short-link proxy with per-visit stats:
-//   short_links        — slug → target_url mapping; admin/manager-owned.
-//   short_link_visits  — one row per /s/{slug} hit. ip_hash is HMAC-derived so
-//                        unique-visitor counts work without storing raw IPs.
-return function (\PDO $pdo) {
-    $pdo->exec(
-        'CREATE TABLE IF NOT EXISTS short_links (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            slug        TEXT NOT NULL UNIQUE,
-            target_url  TEXT NOT NULL,
-            title       TEXT NULL,
-            is_disabled INTEGER NOT NULL DEFAULT 0,
-            created_by  INTEGER NOT NULL,
-            created_at  TEXT NOT NULL,
-            updated_at  TEXT NOT NULL
-        )'
-    );
-    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_short_links_created_by ON short_links(created_by)');
+use App\Database\Schema\Blueprint;
+use App\Database\Schema\Schema;
 
-    $pdo->exec(
-        'CREATE TABLE IF NOT EXISTS short_link_visits (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            short_link_id  INTEGER NOT NULL,
-            ip_hash        TEXT NULL,
-            user_agent     TEXT NULL,
-            referer        TEXT NULL,
-            created_at     TEXT NOT NULL,
-            FOREIGN KEY (short_link_id) REFERENCES short_links(id) ON DELETE CASCADE
-        )'
-    );
-    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_short_link_visits_link_created ON short_link_visits(short_link_id, created_at)');
-    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_short_link_visits_link_hash    ON short_link_visits(short_link_id, ip_hash)');
+return function (Schema $schema): void {
+    $schema->createTableIfNotExists('short_links', function (Blueprint $t) {
+        $t->id();
+        $t->string('slug', 64)->unique();
+        $t->text('target_url');
+        $t->string('title')->nullable();
+        $t->boolean('is_disabled')->default(false);
+        $t->bigInteger('created_by');
+        $t->timestamp('created_at');
+        $t->timestamp('updated_at');
+        $t->index(['created_by'])->name('idx_short_links_created_by');
+    });
+
+    $schema->createTableIfNotExists('short_link_visits', function (Blueprint $t) {
+        $t->id();
+        $t->bigInteger('short_link_id');
+        $t->string('ip_hash', 64)->nullable();
+        $t->string('user_agent', 500)->nullable();
+        $t->string('referer', 500)->nullable();
+        $t->timestamp('created_at');
+        $t->foreign('short_link_id')->references('id')->on('short_links')->onDelete('CASCADE');
+        $t->index(['short_link_id', 'created_at'])->name('idx_short_link_visits_link_created');
+        $t->index(['short_link_id', 'ip_hash'])->name('idx_short_link_visits_link_hash');
+    });
 };

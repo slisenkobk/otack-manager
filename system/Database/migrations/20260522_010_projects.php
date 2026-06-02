@@ -1,15 +1,19 @@
 <?php
 declare(strict_types=1);
 
-return function (\PDO $pdo) {
-    $pdo->query("CREATE TABLE projects (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        slug TEXT UNIQUE NOT NULL,
-        description TEXT,
-        status TEXT NOT NULL DEFAULT 'active',
-        created_by INTEGER NOT NULL REFERENCES users(id),
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-    )");
+use App\Database\Schema\Blueprint;
+use App\Database\Schema\Schema;
+
+return function (Schema $schema): void {
+    $schema->createTable('projects', function (Blueprint $t) {
+        $t->id();
+        $t->string('name');
+        $t->string('slug', 100)->unique();
+        $t->text('description')->nullable();
+        $t->string('status', 20)->default('active');
+        $t->bigInteger('created_by');
+        $t->timestamp('created_at');
+        $t->timestamp('updated_at');
+        $t->foreign('created_by')->references('id')->on('users');
+    });
 };

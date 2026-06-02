@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-return function (\PDO $pdo) {
-    $cols = $pdo->query('PRAGMA table_info(tasks)')->fetchAll(\PDO::FETCH_ASSOC);
-    $has = false;
-    foreach ($cols as $c) { if ($c['name'] === 'priority') { $has = true; break; } }
-    if (!$has) {
-        $pdo->query("ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'none'");
-    }
+use App\Database\Schema\Blueprint;
+use App\Database\Schema\Schema;
+
+return function (Schema $schema): void {
+    $schema->alterTable('tasks', function (Blueprint $t) {
+        $t->string('priority', 16)->default('none');
+    });
 };

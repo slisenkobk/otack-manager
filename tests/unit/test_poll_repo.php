@@ -3,12 +3,9 @@ use App\Repository\PollRepository;
 use App\Repository\PollVoteRepository;
 
 function _pollPdo(): PDO {
-    $pdo = new PDO('sqlite::memory:');
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-    $pdo->exec('PRAGMA foreign_keys = ON');
-    (require dirname(__DIR__, 2) . '/system/Database/migrations/20260603_010_polls.php')($pdo);
-    (require dirname(__DIR__, 2) . '/system/Database/migrations/20260603_020_poll_votes.php')($pdo);
+    $pdo = \App\Database\Connection::open('sqlite::memory:');
+    apply_migration($pdo, dirname(__DIR__, 2) . '/system/Database/migrations/20260603_010_polls.php');
+    apply_migration($pdo, dirname(__DIR__, 2) . '/system/Database/migrations/20260603_020_poll_votes.php');
     return $pdo;
 }
 

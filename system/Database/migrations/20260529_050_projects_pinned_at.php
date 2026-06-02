@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-return function (\PDO $pdo) {
-    $cols = $pdo->query('PRAGMA table_info(projects)')->fetchAll(\PDO::FETCH_ASSOC);
-    $has = false;
-    foreach ($cols as $c) { if ($c['name'] === 'pinned_at') { $has = true; break; } }
-    if (!$has) {
-        $pdo->exec('ALTER TABLE projects ADD COLUMN pinned_at TEXT NULL');
-    }
+use App\Database\Schema\Blueprint;
+use App\Database\Schema\Schema;
+
+return function (Schema $schema): void {
+    $schema->alterTable('projects', function (Blueprint $t) {
+        $t->timestamp('pinned_at')->nullable();
+    });
 };

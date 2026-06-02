@@ -74,6 +74,9 @@ final class SqliteDriver implements DriverInterface
                 $colSql[] = 'UNIQUE(' . implode(', ', $idx->columns) . ')';
             }
         }
+        if ($bp->primaryColumns !== null) {
+            $colSql[] = 'PRIMARY KEY(' . implode(', ', $bp->primaryColumns) . ')';
+        }
 
         $head = 'CREATE TABLE' . ($bp->ifNotExists ? ' IF NOT EXISTS' : '') . ' ' . $bp->table;
         $stmts = [$head . " (\n  " . implode(",\n  ", $colSql) . "\n)"];

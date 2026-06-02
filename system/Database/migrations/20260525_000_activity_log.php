@@ -1,21 +1,28 @@
 <?php
 declare(strict_types=1);
 
-return function (\PDO $pdo) {
-    $pdo->query("CREATE TABLE activity_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        event TEXT NOT NULL,
-        actor_id INTEGER NOT NULL REFERENCES users(id),
-        project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
-        task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
-        summary TEXT NOT NULL,
-        meta TEXT,
-        created_at TEXT NOT NULL
-    )");
-    $pdo->query("CREATE INDEX activity_log_created ON activity_log(created_at DESC)");
-    $pdo->query("CREATE INDEX activity_log_project ON activity_log(project_id, created_at DESC)");
+use App\Database\Schema\Blueprint;
+use App\Database\Schema\Schema;
+
+return function (Schema $schema): void {
+    $schema->createTable('activity_log', function (Blueprint $t) {
+        $t->id();
+        $t->string('event', 64);
+        $t->bigInteger('actor_id');
+        $t->bigInteger('project_id')->nullable();
+        $t->bigInteger('task_id')->nullable();
+        $t->string('summary', 500);
+        $t->text('meta')->nullable();
+        $t->timestamp('created_at');
+        $t->index(['created_at'])->name('activity_log_created');
+        $t->index(['project_id', 'created_at'])->name('activity_log_project');
+        $t->foreign('actor_id')->references('id')->on('users');
+        $t->foreign('project_id')->references('id')->on('projects')->onDelete('CASCADE');
+        $t->foreign('task_id')->references('id')->on('tasks')->onDelete('SET NULL');
+    });
 
     // Backfill from existing comments so the feed has history on day one.
+    $pdo = $schema->pdo();
     $stmt = $pdo->query(
         "SELECT c.id, c.entity_type, c.entity_id, c.user_id, c.body, c.created_at
          FROM comments c ORDER BY c.id"

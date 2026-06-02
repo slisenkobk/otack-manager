@@ -29,10 +29,19 @@ final class Blueprint
     public array $foreignKeys = [];
 
     public bool $ifNotExists = false;
+    /** @var string[]|null Composite PK columns; null means single-col PK lives on a Column. */
+    public ?array $primaryColumns = null;
 
     public function __construct(public readonly string $table) {}
 
     public function ifNotExists(bool $v = true): self { $this->ifNotExists = $v; return $this; }
+
+    /** Declare a composite PRIMARY KEY across multiple columns. */
+    public function primary(array $columns): self
+    {
+        $this->primaryColumns = array_values($columns);
+        return $this;
+    }
 
     // ─── columns ────────────────────────────────────────────────────────
 
