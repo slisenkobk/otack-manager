@@ -54,6 +54,12 @@ final class SettingsController extends BaseController
         $currentVersionRow = $tab === 'updates'
             ? App::make('app_versions')->current()
             : null;
+        $versionHistory = $tab === 'updates'
+            ? App::make('app_versions')->listRecent(20)
+            : [];
+        $backups = $tab === 'updates'
+            ? App::make('app_backups')->listAll()
+            : [];
 
         $csrfToken = App::make('csrf')->token();
         $sidebar = $this->view->render('partials/sidebar', [
@@ -76,6 +82,8 @@ final class SettingsController extends BaseController
                 'updatesEnabled' => \App\Service\Updater::isEnabled(),
                 'updates'        => $updates,
                 'currentVersion' => $currentVersionRow,
+                'versionHistory' => $versionHistory,
+                'backups'        => $backups,
             ]),
         ]));
     }

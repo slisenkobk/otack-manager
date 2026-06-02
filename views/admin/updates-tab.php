@@ -54,6 +54,74 @@ $installedAt = $currentVersion['installed_at'] ?? null;
       <?php endif; ?>
     </div>
   </div>
+
+  <div class="updates-card">
+    <h3 class="updates-card__title"><?= e(t('updates.section.history')) ?></h3>
+    <?php if (!$versionHistory): ?>
+      <p class="muted" style="margin:0;font-size:13px;"><?= e(t('updates.history_empty')) ?></p>
+    <?php else: ?>
+      <table class="voters-table">
+        <thead>
+          <tr>
+            <th><?= e(t('updates.history_col_version')) ?></th>
+            <th><?= e(t('updates.history_col_source')) ?></th>
+            <th><?= e(t('updates.history_col_when')) ?></th>
+            <th><?= e(t('updates.history_col_by')) ?></th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($versionHistory as $v): ?>
+            <tr>
+              <td><span class="updates-version">v<?= e((string)$v['version']) ?></span></td>
+              <td><?= e(t('updates.source.' . (string)$v['source'])) ?></td>
+              <td class="voters-table__when"><?= e(fmt_datetime($v['installed_at'])) ?></td>
+              <td><?= e($v['applied_by_name'] ?? '—') ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php endif; ?>
+  </div>
+
+  <div class="updates-card">
+    <h3 class="updates-card__title"><?= e(t('updates.section.backups')) ?></h3>
+    <?php if (!$backups): ?>
+      <p class="muted" style="margin:0;font-size:13px;"><?= e(t('updates.backups_empty')) ?></p>
+    <?php else: ?>
+      <table class="voters-table">
+        <thead>
+          <tr>
+            <th><?= e(t('updates.backups_col_versions')) ?></th>
+            <th><?= e(t('updates.backups_col_when')) ?></th>
+            <th><?= e(t('updates.backups_col_size')) ?></th>
+            <th><?= e(t('updates.backups_col_kind')) ?></th>
+            <th><?= e(t('updates.backups_col_action')) ?></th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($backups as $b): ?>
+            <?php $isPruned = !empty($b['pruned_at']); ?>
+            <tr<?= $isPruned ? ' style="opacity:0.5;"' : '' ?>>
+              <td>
+                <span class="updates-version">v<?= e((string)$b['version_from']) ?></span>
+                → <span class="updates-version">v<?= e((string)$b['version_to']) ?></span>
+              </td>
+              <td class="voters-table__when"><?= e(fmt_datetime($b['created_at'])) ?></td>
+              <td><?= e(fmt_size((int)$b['size_bytes'])) ?></td>
+              <td><?= e(t('updates.kind.' . (string)$b['kind'])) ?></td>
+              <td>
+                <?php if ($isPruned): ?>
+                  <span class="muted" style="font-size:12px;"><?= e(t('updates.backup_pruned')) ?></span>
+                <?php else: ?>
+                  <span class="muted" style="font-size:12px;"><?= e(t('updates.backup_restore_soon')) ?></span>
+                <?php endif; ?>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php endif; ?>
+  </div>
 </section>
 
 <script type="module" src="<?= e(asset_url('/assets/js/updates-tab.js')) ?>"></script>
