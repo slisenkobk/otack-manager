@@ -1,136 +1,88 @@
-**Default admin:** `admin@task.otack.eu` / `30926565` — http://localhost:8000/login
-
 # Otack Manager
 
-Minimal multi-user PHP project & task manager with kanban, comments, attachments and Telegram notifications.
+A small, self-hosted PHP project & task manager with kanban, comments, attachments, public forms / polls / short links, and Telegram notifications.
 
-## Documentation
+Server-rendered, no SPA, no Composer dependencies, SQLite for storage.
 
-See [DESIGN.md](docs/DESIGN.md) for the full design system specification: token graph, component specs, kanban patterns, and UX rules. The design spec is the source of truth — if code conflicts with it, fix the code.
+## Features
 
-Server-rendered, no SPA, no composer dependencies.
+- Projects + kanban board with drag-drop, backlog, and per-project tags
+- Tasks with Markdown comments, file attachments (image lightbox), links between tasks
+- Roles: **admin**, **manager**, **employee** — scoped permissions across projects
+- Public **Forms** (public URL, anti-bot honeypot + HMAC time-trap, optional auto-create-task)
+- Public **Polls** (contact gate, one-vote-per-contact dedup, stats + voters tabs, post-close summary task)
+- **Short links** with click stats (total + unique by hashed IP)
+- **Compass** admin panel — migrations runner, cache clear, DB stats, logs viewer
+- i18n: English (default), Polish, Ukrainian
+- Mobile-responsive
+- Telegram notifications for events (registrations, task changes, form submissions, …)
 
 ## Requirements
 
-- PHP 8.2+
-- SQLite (bundled with PHP via PDO sqlite extension)
-- (For tests) Node.js 18+ and `@playwright/test`
+- PHP **8.2+** with the `pdo_sqlite`, `dom`, and `fileinfo` extensions
+- Node.js 18+ (only for running Playwright E2E)
 
 ## Setup
 
 ```bash
 cp .env.example .env
-# Edit .env if needed:
-#   APP_URL              public base URL (used for Telegram links)
-#   APP_DEBUG            true to show stack traces; set to false in production
-#   DB_PATH              SQLite file path (default: data/app.sqlite)
-#   UPLOAD_MAX_IMAGE     bytes (default: 5 MB)
-#   UPLOAD_MAX_FILE      bytes (default: 50 MB)
-#   TG_BOT_TOKEN         optional — leave empty to disable notifications
-#   TG_CHAT_ID           optional — leave empty to disable notifications
-
-# Start the dev server
+# Edit .env — at minimum set APP_URL and (optionally) the Telegram bot vars.
 php -S localhost:8000 -t public public/index.php
-
-# Open http://localhost:8000
-# Sign in as the default admin (see top of this README) or register additional users.
-# Default admin is seeded from SEED_DEFAULT_ADMIN_* env vars on first DB bootstrap.
-# Subsequent self-registrations land in /pending until admin approves them at /users.
 ```
+
+Open <http://localhost:8000>. The first user to register becomes the admin automatically. Subsequent self-registrations land in `/pending` until approved at `/users`.
+
+A default admin can also be seeded via `SEED_DEFAULT_ADMIN_EMAIL` / `SEED_DEFAULT_ADMIN_PASSWORD_HASH` in `.env`.
 
 ## Database migrations
 
-Per-file migrations live in `system/Database/migrations/` and apply automatically on first HTTP hit. To run them explicitly:
+Per-file migrations in `system/Database/migrations/` apply automatically on the first HTTP hit. To run explicitly:
 
 ```bash
 make migrate           # or: php bin/migrate.php
 ```
 
-Applied migrations are tracked in the `schema_migrations` table inside the app DB. See [docs/MIGRATIONS.md](docs/MIGRATIONS.md) for the file format, naming convention, and the (one-time) backfill from legacy `data/.schema/` markers.
-
-**Filenames are permanent once shipped** — renaming an applied migration would re-execute it on the next deploy.
+Tracked in the `schema_migrations` table. Filenames are permanent once shipped — renaming an applied migration would re-execute it. See [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
 
 ## Telegram notifications
 
-To enable notifications:
-
-1. Create a bot via `@BotFather` on Telegram, copy the token.
-2. Get your group/channel chat ID (e.g. via `@userinfobot` or `@getidsbot`).
-3. Put them in `.env`:
+1. Create a bot via `@BotFather`, copy the token.
+2. Get your chat/channel ID (`@userinfobot`).
+3. Put both into `.env`:
    ```
-   TG_BOT_TOKEN=123456:ABC-DEF...
+   TG_BOT_TOKEN=123456:ABC-DEF…
    TG_CHAT_ID=-1001234567890
    ```
-4. All future events (registrations, project/task creates, comments, status changes, …) post to that single channel.
 
-If the env vars are empty, notifications are silently skipped (logged with `error='skipped'` in `notifications_log` for auditing).
-
-## Production (Apache)
-
-The included `.htaccess` files handle the routing. Point Apache at the project root; the front controller is at `public/index.php`.
-
-Make sure:
-- `data/` is writable (SQLite + sessions + error log; legacy `data/.schema/` markers, if present, are read once on first boot then ignored)
-- `public/uploads/` is writable (file storage)
-- `.env` and `data/` are NOT web-accessible (blocked by the root `.htaccess`).
+Empty token / chat-id disables notifications (logged as `skipped` in `notifications_log`).
 
 ## Tests
 
 ```bash
-# Unit tests (PHP) — runs ~45 tests in under a second
-php tests/run.php
-
-# E2E tests (Playwright) — runs ~14 browser tests
-npx playwright test --config tests/e2e/playwright.config.ts
+make unit              # 105 PHP unit tests, hand-rolled runner, <1s
+make e2e               # 17 Playwright specs (Chromium), serial mode
 ```
 
-## File structure
+## Production (Apache / nginx)
 
-```
-otack-manager/
-├── public/                  Web root
-│   ├── index.php            Front controller (~150 LOC)
-│   ├── .htaccess            Rewrite + static-file pass-through
-│   ├── assets/
-│   │   ├── css/app.css      Full design system (~1600 LOC)
-│   │   ├── js/              ES modules: ui.js, kanban.js, comments.js, wysiwyg.js …
-│   │   ├── fonts/           Manrope + JetBrains Mono woff2
-│   │   ├── img/             logo.svg (kanban+check icon)
-│   │   └── vendor/          FontAwesome 6 Free, SortableJS, Quill WYSIWYG
-│   └── uploads/             User uploads (YYYY/MM/{uuid}.{ext})
-├── system/
-│   ├── bootstrap.php        Autoloader + .env loader
-│   ├── App.php              Static service container
-│   ├── Auth/                AuthManager, PasswordHasher, SessionManager
-│   ├── Controller/          BaseController + per-resource controllers
-│   ├── Database/            Connection, SchemaBootstrap, Migrations + migrations/*.php
-│   ├── Http/                Request, Response, Csrf, AuthGuard
-│   ├── Repository/          User, Project, Task, Comment, Attachment, Tag, …
-│   ├── Routing/Router.php
-│   ├── Service/             EventBus, FileUploader, Markdown, TelegramNotifier, NotificationLogger
-│   └── View/                Renderer + helpers (e, fmt_date, fmt_size, icon, …)
-├── views/
-│   ├── layouts/             main.php (full shell) and auth.php (centered card)
-│   ├── partials/            sidebar, topbar, modal-root, toast-root,
-│   │                        lightbox-root, members, comment-thread,
-│   │                        attachment-list, tag-picker
-│   ├── auth/                login.php, register.php, pending.php
-│   ├── dashboard/index.php
-│   ├── errors/              403.php, 404.php, 500.php
-│   ├── projects/            index.php, form.php, show.php
-│   ├── tasks/show.php
-│   ├── tags/index.php       Admin tag management
-│   ├── users/index.php
-│   └── profile/show.php
-├── bin/migrate.php          Stand-alone CLI runner for schema migrations
-├── data/                    SQLite + sessions + error log
-├── tests/
-│   ├── run.php              Hand-rolled PHP test runner
-│   ├── unit/                ~45 unit tests
-│   └── e2e/                 Playwright specs + config
-└── docs/superpowers/        Design spec + implementation plan
-```
+Front controller is `public/index.php`. The bundled `.htaccess` files handle routing for Apache; for nginx, route everything that isn't a static file in `public/` to `public/index.php`.
+
+Make sure:
+
+- `data/` is writable (SQLite, sessions, error log)
+- `public/uploads/` is writable
+- `.env` and `data/` are **not** web-accessible
+
+## Documentation
+
+- [docs/DESIGN.md](docs/DESIGN.md) — full design system (palette → semantic → component specs); source of truth for UI
+- [docs/MIGRATIONS.md](docs/MIGRATIONS.md) — schema migration format and rules
+- [docs/QA-CHECKLIST.md](docs/QA-CHECKLIST.md) — manual QA walkthrough
+
+## Stack
+
+PHP 8.2 + SQLite (PDO) + vanilla JS (ES modules) + Quill (WYSIWYG) + SortableJS + Playwright (E2E). No Composer, no bundler, no framework.
 
 ## License
 
-Private project — do not redistribute.
+MIT — see [LICENSE](LICENSE).
