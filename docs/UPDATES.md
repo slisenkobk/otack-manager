@@ -49,7 +49,56 @@ here.
 The v1.0.0 tag is already on origin (`a12243b`); subsequent releases
 follow the same convention.
 
-## 4. Data model
+## 4. Update strategy: full file replacement, not diff
+
+The updater replaces **every shipped file**, not just the ones that
+changed between the current version and the target. The pipeline (§10)
+downloads the entire tag tarball and `rename()`s every staged file over
+its counterpart in `APP_ROOT`. The release manifest is consulted only
+to detect **removals** — files that existed in the old release but no
+longer appear in the new one — which are moved to `{workdir}/removed/`.
+
+### Why full, not diff
+
+| Property                        | Full replacement (chosen)        | Diff-based                                       |
+|---------------------------------|-----------------------------------|--------------------------------------------------|
+| Code complexity                 | low                               | medium-high                                      |
+| Outcome determinism             | exact byte-for-byte match         | depends on hash + apply order                    |
+| I/O at our scale (~few MB code) | milliseconds                      | marginally faster                                |
+| Catches local hand-edits        | yes — overwrites them             | no — would detect and skip (extra logic)         |
+| Manifest needs                  | yes, for deletions only           | yes, for every file                              |
+
+At this project's scale the cost difference is invisible (rename of a
+few hundred small files completes in milliseconds on any modern disk),
+so the simplicity payoff dominates. Eliminating ad-hoc local edits
+during update is also the right default for a self-hosted appliance —
+modifications to `system/` or `views/` aren't a supported workflow, and
+a deterministic post-update state is easier to debug than "depends on
+what you touched".
+
+### When this decision should be revisited
+
+- The codebase grows past ~50 MB and updates feel slow over typical
+  SMB/home connections (currently ~3-5 MB; nowhere close).
+- A plugin mechanism is introduced — plugin directories go into the
+  ignore-list, the core stays under full-replacement.
+- Operators are sanctioned to customise system files between releases.
+  This is a product-direction shift away from "appliance" and would
+  warrant a redesign, not just a strategy tweak.
+
+### What is NOT replaced
+
+The ignore-list lives in `Updater.php`. This doc mirrors it for
+readability; if the two diverge, code wins and this section is wrong.
+See §10 step 3 (snapshot) and step 7 (apply) for canonical use.
+
+- `data/` — SQLite DB, sessions, logs, the updater's own backup directory
+- `public/uploads/` — user-uploaded files
+- `.env`
+- `node_modules/`, `.git/`, `test-results/`
+- Anything matched by `.gitignore` (best-effort, parsed once at startup)
+
+## 5. Data model
 
 Two new tables, both small. Migration filename guess:
 `20260615_010_updater.php` (when implementation lands).
@@ -103,7 +152,7 @@ runtime behaviour:
 
 These are owned by the updater; nothing else writes to them.
 
-## 5. Configuration (env)
+## 6. Configuration (env)
 
 | Variable                | Default                                  | What it does                                                                                                       |
 |-------------------------|------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
@@ -115,9 +164,9 @@ These are owned by the updater; nothing else writes to them.
 All four are optional. The defaults match the most common self-hosted
 shape.
 
-## 6. UI surfaces
+## 7. UI surfaces
 
-### 6.1 Topbar badge (visible everywhere)
+### 7.1 Topbar badge (visible everywhere)
 
 `views/partials/topbar.php` renders a small clickable tag next to the
 crumb when `available_version > APP_VERSION`:
@@ -132,7 +181,7 @@ crumb when `available_version > APP_VERSION`:
 - Hidden when the user is not admin.
 - Hidden when `UPDATE_ENABLED=false`.
 
-### 6.2 Settings → Updates tab
+### 7.2 Settings → Updates tab
 
 New tab in `views/admin/settings.php`, added **after Contact Info** in
 the tab strip. Sections from top to bottom:
@@ -177,12 +226,12 @@ the tab strip. Sections from top to bottom:
 All confirmation modals reuse `UI.confirm` with `danger: true` for the
 destructive ones (restore especially).
 
-### 6.3 i18n
+### 7.3 i18n
 
 Catalog keys land under `updates.*` and `nav.updates_*`. Same lockstep
 rule as polls — add to en/pl/uk in the same commit.
 
-## 7. Code structure
+## 8. Code structure
 
 ```
 system/
@@ -196,7 +245,7 @@ system/
     └── UpdatesController.php        # Settings tab + endpoints
 
 bin/
-└── self-update.php                  # Standalone runner used by Updater (see §9)
+└── self-update.php                  # Standalone runner used by Updater (see §10)
 
 data/backups/                        # Generated; gitignored; created on first update
 ```
@@ -205,19 +254,19 @@ The Compass module already lives in `system/Service/CompassService.php`
 — `Updater.php` mirrors its style (single service, lean public surface,
 delegates DB to a repo).
 
-## 8. Endpoints
+## 9. Endpoints
 
 | Method + path                              | Who      | Purpose                                                       |
 |--------------------------------------------|----------|---------------------------------------------------------------|
 | `GET  /api/updates/check`                  | admin    | Hit GitHub API, refresh cached `available_version`, return JSON `{current, available, has_update, notes, checked_at}` |
-| `POST /admin/updates/run`                  | admin    | Runs the update pipeline (§9). Redirects on completion.       |
-| `POST /admin/updates/restore/{backup_id}`  | admin    | Runs the restore pipeline (§10). Redirects on completion.    |
+| `POST /admin/updates/run`                  | admin    | Runs the update pipeline (§10). Redirects on completion.      |
+| `POST /admin/updates/restore/{backup_id}`  | admin    | Runs the restore pipeline (§11). Redirects on completion.     |
 | `GET  /admin/settings?tab=updates`         | admin    | Renders the tab.                                              |
 
 The two POST endpoints are CSRF-protected (existing rule covers any
 non-public POST).
 
-## 9. Update pipeline
+## 10. Update pipeline
 
 The pipeline is one HTTP request, executed synchronously. Stages:
 
@@ -227,7 +276,8 @@ The pipeline is one HTTP request, executed synchronously. Stages:
 2. **Allocate workdir** — `data/backups/{timestamp}/`. Create
    `code/`, leave room for `app.sqlite` snapshot at sibling path.
 3. **Snapshot code** — copy every file under `APP_ROOT` to
-   `{workdir}/code/`, **excluding**:
+   `{workdir}/code/`, **excluding** (the ignore-list referred to in §4
+   above):
    - `data/`
    - `public/uploads/`
    - `node_modules/`
@@ -246,8 +296,8 @@ The pipeline is one HTTP request, executed synchronously. Stages:
    tar contains a single directory `otack-manager-{ver}/`; that
    directory's contents become the new code root.
 7. **Apply** — atomic-ish swap. For each path in the staging
-   directory (except the ignore-list from §3), `rename()` from
-   `{staging}/{path}` to `{APP_ROOT}/{path}`. `rename()` is atomic
+   directory (except the ignore-list from step 3 above), `rename()`
+   from `{staging}/{path}` to `{APP_ROOT}/{path}`. `rename()` is atomic
    per-file on the same filesystem.
    - Files removed in the new version: tracked via a manifest. Each
      release includes a `MANIFEST` file at the repo root listing every
@@ -259,7 +309,7 @@ The pipeline is one HTTP request, executed synchronously. Stages:
    — but verify the constant matches the requested tag, fail loud if
    not).
 9. **Migrate** — run `php bin/migrate.php` in-process. Failures here
-   roll back to the snapshot (§9.1) and surface the migration error to
+   roll back to the snapshot (§10.1) and surface the migration error to
    the admin.
 10. **Record** — insert `app_versions` (source='update', applied_by) +
     `app_backups` rows. Set `settings.last_update_duration_seconds`.
@@ -270,17 +320,17 @@ The pipeline is one HTTP request, executed synchronously. Stages:
     on the next request (most PHP setups), so the new code is live
     immediately.
 
-### 9.1 Rollback on failure
+### 10.1 Rollback on failure
 
 Any step from 5 onward that fails triggers an automatic rollback:
 
 - Step 5 / 6 / 7 failure → restore from `{workdir}/code/` and
-  `{workdir}/app.sqlite` (§10 logic).
+  `{workdir}/app.sqlite` (§11 logic).
 - Step 9 failure (migrations) → same as above.
 - A backup row is still inserted with a status note so the admin sees
   the attempt and can investigate.
 
-### 9.2 Self-update gotcha
+### 10.2 Self-update gotcha
 
 The PHP process running the update is replacing its own source files.
 Two mitigations:
@@ -300,13 +350,13 @@ controller can `exec()` the standalone runner and exit immediately, and
 the next request runs against the new code. The runner uses only
 PHP-standard-library imports.
 
-## 10. Restore pipeline
+## 11. Restore pipeline
 
 Mirror of update, played backwards.
 
 1. **Validate** — `backup_id` exists, `pruned_at IS NULL`, code/DB
    paths still on disk.
-2. **Snapshot current** — same as §9 steps 3-4, into a new
+2. **Snapshot current** — same as §10 steps 3-4, into a new
    `app_backups` row with source 'restore'. Reason: a botched restore
    should also be recoverable.
 3. **Swap code** — atomic rename from backup snapshot dir back into
@@ -321,10 +371,10 @@ Mirror of update, played backwards.
 A restore does NOT run migrations: the schema is whatever the snapshot
 had, and the code being restored matches it.
 
-## 11. Backup retention
+## 12. Backup retention
 
 - Driver: `UPDATE_BACKUP_KEEP` env (default 5).
-- Sweep timing: at the tail of every successful update (§9 step 11),
+- Sweep timing: at the tail of every successful update (§10 step 11),
   and as a fallback inside `GET /api/updates/check` if the count drifts
   (e.g. someone manually deleted files).
 - Sweep policy: keep the N newest by `created_at`, prune the rest.
@@ -334,7 +384,7 @@ had, and the code being restored matches it.
 - A backup created by a restore is treated identically to one created
   by an update for retention purposes — both are "pre-change" snapshots.
 
-## 12. Migration discipline (refer to MIGRATIONS.md)
+## 13. Migration discipline (refer to MIGRATIONS.md)
 
 The updater runs whatever migrations a new release brings, on live
 production data. The "Data preservation rule" in
@@ -347,20 +397,20 @@ load-bearing.
 In one sentence: **a release that ships a migration which drops or
 overwrites a user-data column is a release that should never be cut.**
 
-## 13. Failure modes worth designing for
+## 14. Failure modes worth designing for
 
 | Failure                                | Detect                                                       | Recover                                                              |
 |----------------------------------------|--------------------------------------------------------------|----------------------------------------------------------------------|
 | GitHub API rate-limited                | HTTP 403 with `X-RateLimit-Remaining: 0`                     | Show "rate-limited, try again in N min" in the badge tooltip         |
 | GitHub returns 404 for repo            | HTTP 404                                                     | Show "configured repo not found" in settings; disable update button  |
 | Tag exists but tarball doesn't yet     | HTTP 404 on tarball download                                 | Surface clearly: "release tag found but archive not yet published"   |
-| Disk full mid-extract                  | `tar` non-zero exit, fwrite returns false                    | Abort, rollback (§9.1), keep workdir for admin inspection            |
+| Disk full mid-extract                  | `tar` non-zero exit, fwrite returns false                    | Abort, rollback (§10.1), keep workdir for admin inspection           |
 | `rename()` cross-device                | EXDEV from PHP                                               | Fall back to copy+unlink; log a warning so this can be investigated  |
-| Migration fails partway                | Migration throws                                             | Rollback (§9.1) — DB snapshot guarantees consistency                 |
+| Migration fails partway                | Migration throws                                             | Rollback (§10.1) — DB snapshot guarantees consistency                |
 | Backup directory missing on restore    | `is_dir()` false                                             | 410 Gone, mark `pruned_at` if not already, tell admin                |
 | Self-update breaks current request     | uncatchable (process dies)                                   | Next request runs new code; if THAT fails, admin uses `bin/self-update.php --restore <id>` from shell |
 
-## 14. Implementation sequencing
+## 15. Implementation sequencing
 
 Suggested commits, one per layer, with self-verify before commit:
 
@@ -381,7 +431,7 @@ Suggested commits, one per layer, with self-verify before commit:
    - History table, Backups table (read-only at this stage).
    - i18n keys 2/3.
 
-4. **Update pipeline (steps 1-11 from §9).**
+4. **Update pipeline (steps 1-11 from §10).**
    - `Updater::update($targetVersion, $actorUserId)`.
    - `bin/self-update.php` belt-and-braces runner.
    - Manifest tracking.
@@ -397,7 +447,7 @@ Suggested commits, one per layer, with self-verify before commit:
 
 6. **Retention + edge-case polish.**
    - Backup pruning sweep.
-   - All §13 failure modes with at least toast/log surfacing.
+   - All §14 failure modes with at least toast/log surfacing.
    - i18n keys 3/3.
 
 7. **Docs sync.**
@@ -408,7 +458,7 @@ Each step is independently shippable. Step 1-3 alone deliver value (the
 admin can see when there's a new version) even before steps 4-5 are
 written.
 
-## 15. Open questions
+## 16. Open questions
 
 - **Release notes source.** GitHub releases (`/releases/latest`) carry
   a body separate from the tag. v1 plan above uses release body if a
