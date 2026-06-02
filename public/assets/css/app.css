@@ -4982,3 +4982,19 @@ a.link-card *,
   margin: 0 0 12px;
   color: var(--ink-2, #333);
 }
+
+/* Public poll: radio-option block (one row per choice). */
+.pf-radio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule, #d8d4cc);
+  border-radius: 8px;
+  margin: 0 0 8px;
+  cursor: pointer;
+  background: var(--bg-elevated, #fff);
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.pf-radio:hover { border-color: var(--accent, #8B7C68); }
+.pf-radio input[type=radio] { margin: 0; accent-color: var(--accent, #8B7C68); }
