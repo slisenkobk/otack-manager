@@ -38,9 +38,10 @@ final class DbMigrator
                 \PDO::ATTR_TIMEOUT => 5,
             ]);
             $version = (string)$pdo->query('SELECT VERSION()')->fetchColumn();
-            // Reject MySQL < 8.0 (docs/DATABASE.md §13).
-            if (version_compare($version, '8.0.0', '<')) {
-                return ['ok' => false, 'error' => "MySQL $version found — 8.0+ required"];
+            // Reject MySQL < 8.0.13 (we rely on DEFAULT (expr) for JSON/TEXT
+            // which only landed in 8.0.13). docs/DATABASE.md §13.
+            if (version_compare($version, '8.0.13', '<')) {
+                return ['ok' => false, 'error' => "MySQL $version found — 8.0.13+ required"];
             }
             // Reject non-empty databases (we expect to migrate INTO a fresh DB).
             $count = (int)$pdo->query(
@@ -130,42 +131,47 @@ final class DbMigrator
         // 3. Disable FK checks
         $target->exec('SET FOREIGN_KEY_CHECKS = 0');
 
-        // 4. Copy tables
-        $tableNames = $source->query($sourceDriver->listTablesSql())->fetchAll(\PDO::FETCH_COLUMN) ?: [];
-        $tableNames = array_values(array_filter($tableNames, fn($n) => $n !== 'schema_migrations'));
+        try {
+            // 4. Copy tables
+            $tableNames = $source->query($sourceDriver->listTablesSql())->fetchAll(\PDO::FETCH_COLUMN) ?: [];
+            $tableNames = array_values(array_filter($tableNames, fn($n) => $n !== 'schema_migrations'));
 
-        $report = [];
-        foreach ($tableNames as $table) {
-            $sourceRows = (int)$source->query('SELECT COUNT(*) FROM ' . $this->q($table))->fetchColumn();
-            if ($sourceRows > 0) {
-                $this->copyTable($source, $target, $table);
+            $report = [];
+            foreach ($tableNames as $table) {
+                $sourceRows = (int)$source->query('SELECT COUNT(*) FROM ' . $this->q($table))->fetchColumn();
+                if ($sourceRows > 0) {
+                    $this->copyTable($source, $target, $table);
+                }
+                $report[] = [
+                    'name'        => $table,
+                    'source_rows' => $sourceRows,
+                    'target_rows' => (int)$target->query('SELECT COUNT(*) FROM ' . $this->q($table))->fetchColumn(),
+                ];
             }
-            $report[] = [
-                'name'        => $table,
-                'source_rows' => $sourceRows,
-                'target_rows' => (int)$target->query('SELECT COUNT(*) FROM ' . $this->q($table))->fetchColumn(),
-            ];
-        }
 
-        // 5. Reset AUTO_INCREMENT on tables with an id column.
-        foreach ($report as $row) {
-            $this->resetAutoIncrement($target, $row['name']);
-        }
-
-        // 6. Re-enable FK checks
-        $target->exec('SET FOREIGN_KEY_CHECKS = 1');
-
-        // 7. Sanity check
-        foreach ($report as $row) {
-            if ($row['source_rows'] !== $row['target_rows']) {
-                throw new \RuntimeException(
-                    "Row-count mismatch on {$row['name']}: "
-                    . "source={$row['source_rows']} target={$row['target_rows']}"
-                );
+            // 5. Reset AUTO_INCREMENT on tables with an id column.
+            foreach ($report as $row) {
+                $this->resetAutoIncrement($target, $row['name']);
             }
-        }
 
-        return ['tables' => $report];
+            // 7. Sanity check (numbered per docs; runs before the finally re-enables).
+            foreach ($report as $row) {
+                if ($row['source_rows'] !== $row['target_rows']) {
+                    throw new \RuntimeException(
+                        "Row-count mismatch on {$row['name']}: "
+                        . "source={$row['source_rows']} target={$row['target_rows']}"
+                    );
+                }
+            }
+
+            return ['tables' => $report];
+        } finally {
+            // 6. Re-enable FK checks no matter what — a failure mid-copy
+            // must not leak the disabled state to anything sharing this
+            // connection (PHP-FPM closes per-request, but CLI / long-running
+            // workers would notice).
+            try { $target->exec('SET FOREIGN_KEY_CHECKS = 1'); } catch (\Throwable $_) {}
+        }
     }
 
     /**
@@ -185,8 +191,8 @@ final class DbMigrator
                 return ['ok' => false, 'message' => "Current driver is {$driver?->name()}, expected mysql — did you reload after editing .env?"];
             }
             $users = (int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
-            $tables = (int)$pdo->query($driver->listTablesSql())->fetchAll();
-            return ['ok' => true, 'message' => "Connected to MySQL — $users users visible"];
+            $tables = count($pdo->query($driver->listTablesSql())->fetchAll());
+            return ['ok' => true, 'message' => "Connected to MySQL — $users users, $tables tables visible"];
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => $e->getMessage()];
         }

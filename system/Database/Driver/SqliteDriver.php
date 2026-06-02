@@ -113,8 +113,13 @@ final class SqliteDriver implements DriverInterface
     public function snapshotFor(\PDO $pdo): \App\Database\Snapshot\SnapshotInterface
     {
         // Strip the leading 'sqlite:' to recover the file path.
-        $path = preg_replace('/^sqlite:/', '', $this->dsn);
-        return new \App\Database\Snapshot\SqliteSnapshot($pdo, (string)$path);
+        $path = (string)preg_replace('/^sqlite:/', '', $this->dsn);
+        if ($path === ':memory:' || $path === '') {
+            throw new \RuntimeException(
+                'Cannot snapshot an in-memory SQLite database (DSN: ' . $this->dsn . ')'
+            );
+        }
+        return new \App\Database\Snapshot\SqliteSnapshot($pdo, $path);
     }
 
     private function columnSql(\App\Database\Schema\Column $c): string

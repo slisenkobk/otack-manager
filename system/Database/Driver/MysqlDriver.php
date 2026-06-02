@@ -121,12 +121,17 @@ final class MysqlDriver implements DriverInterface
     public function snapshotFor(\PDO $pdo): \App\Database\Snapshot\SnapshotInterface
     {
         $parsed = $this->parseDsn();
+        // Unix-socket DSNs must NOT silently fall back to --host=127.0.0.1
+        // for mysqldump — many setups bind one but not the other and the
+        // dump would fail with a confusing "can't connect" message.
+        $socket = $parsed['unix_socket'] ?? null;
         return new \App\Database\Snapshot\MysqlSnapshot([
-            'host'     => $parsed['host'] ?? '127.0.0.1',
+            'host'     => $socket === null ? ($parsed['host'] ?? '127.0.0.1') : null,
             'port'     => (int)($parsed['port'] ?? 3306),
             'db'       => $parsed['dbname'] ?? '',
             'user'     => $this->username,
             'password' => $this->password,
+            'socket'   => $socket,
         ]);
     }
 
@@ -156,7 +161,12 @@ final class MysqlDriver implements DriverInterface
             'real'       => 'DOUBLE',
             'decimal'    => 'DECIMAL(' . ($c->precision ?? 10) . ',' . ($c->scale ?? 2) . ')',
             'json'       => 'JSON',
-            'timestamp'  => 'DATETIME(3)',
+            // Repositories write ISO8601 with a trailing `Z` (UTC marker)
+            // which MySQL DATETIME does not accept. Storing as VARCHAR(32)
+            // keeps SQLite/MySQL round-trip identical and lets the app
+            // continue doing date math in PHP. Trades native DATETIME
+            // indexing for portability — fine at our scale.
+            'timestamp'  => 'VARCHAR(32)',
             'date'       => 'DATE',
             default      => throw new \RuntimeException("Unknown column type: {$c->type}"),
         };

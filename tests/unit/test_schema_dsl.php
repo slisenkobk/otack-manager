@@ -40,7 +40,9 @@ it('MySQL CREATE TABLE: id maps to BIGINT UNSIGNED + InnoDB/utf8mb4', function (
     assert_true(strpos($sql, 'CREATE TABLE users') === 0);
     assert_true(strpos($sql, 'id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY') !== false);
     assert_true(strpos($sql, 'email VARCHAR(320) NOT NULL UNIQUE') !== false);
-    assert_true(strpos($sql, 'created_at DATETIME(3) NOT NULL') !== false);
+    // timestamp → VARCHAR(32) on MySQL (matches SQLite TEXT shape so the
+    // ISO8601 strings the repos write round-trip identically).
+    assert_true(strpos($sql, 'created_at VARCHAR(32) NOT NULL') !== false);
     assert_true(strpos($sql, 'ENGINE=InnoDB') !== false);
     assert_true(strpos($sql, 'utf8mb4') !== false);
 });

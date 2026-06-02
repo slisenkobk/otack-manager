@@ -81,8 +81,42 @@ it('MysqlDriver username/password pass through; charset has a sane default', fun
     assert_eq('mysql', $d->name());
     assert_eq('u', $d->username());
     assert_eq('p', $d->password());
-    // Default charset is utf8mb4 (defaulted in the constructor).
-    // We can't inspect a private prop directly, but postConnect would
-    // emit SET NAMES 'utf8mb4' — exercised in integration when MySQL is wired up.
-    assert_true(true);
+});
+
+it('SqliteDriver::snapshotFor refuses :memory: with a clear error', function () {
+    $d = new SqliteDriver('sqlite::memory:');
+    $pdo = Connection::open('sqlite::memory:');
+    $threw = false;
+    try {
+        $d->snapshotFor($pdo);
+    } catch (\RuntimeException $e) {
+        $threw = strpos($e->getMessage(), ':memory:') !== false;
+    }
+    assert_true($threw, 'in-memory DSN must produce a friendly error');
+});
+
+it('MysqlDriver::snapshotFor honours unix_socket DSNs', function () {
+    $d = new MysqlDriver('mysql:unix_socket=/var/run/mysqld/mysqld.sock;dbname=otack', 'u', 'p');
+    $pdo = Connection::open('sqlite::memory:'); // any PDO, we only inspect the adapter
+    $snap = $d->snapshotFor($pdo);
+    // The adapter is constructed with a socket key and no host; we
+    // can't run mysqldump here but we can confirm the wiring by
+    // peeking at the conn array via reflection.
+    $ref = new ReflectionClass($snap);
+    $prop = $ref->getProperty('conn'); $prop->setAccessible(true);
+    $conn = $prop->getValue($snap);
+    assert_eq('/var/run/mysqld/mysqld.sock', $conn['socket']);
+    assert_eq(null, $conn['host'], 'host must be null when socket is set, so mysqldump uses --socket=');
+});
+
+it('Driver portability surface: insertIgnoreVerb / paginationAllOffsetSql / listTablesSql', function () {
+    $s = new SqliteDriver('sqlite::memory:');
+    assert_eq('INSERT OR IGNORE', $s->insertIgnoreVerb());
+    assert_eq('LIMIT -1 OFFSET ?', $s->paginationAllOffsetSql());
+    assert_true(strpos($s->listTablesSql(), 'sqlite_master') !== false);
+
+    $m = new MysqlDriver('mysql:host=x;dbname=y', null, null);
+    assert_eq('INSERT IGNORE', $m->insertIgnoreVerb());
+    assert_true(strpos($m->paginationAllOffsetSql(), '18446744073709551615') !== false);
+    assert_true(strpos($m->listTablesSql(), 'information_schema') !== false);
 });

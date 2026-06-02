@@ -193,20 +193,33 @@ final class CompassService
     public function dbStats(): array
     {
         $driver = \App\Database\Connection::driverFor($this->pdo);
+        $driverName = $driver?->name() ?? 'sqlite';
         $listSql = $driver?->listTablesSql()
             ?? "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name";
         $tableNames = $this->pdo->query($listSql)->fetchAll(\PDO::FETCH_COLUMN) ?: [];
         $tables = [];
         foreach ($tableNames as $name) {
             try {
-                $rows = (int)$this->pdo->query('SELECT COUNT(*) FROM "' . str_replace('"', '""', $name) . '"')->fetchColumn();
+                // MySQL's default sql_mode treats "name" as a string literal,
+                // not an identifier — must use backticks. SQLite accepts
+                // either. Use backticks unconditionally.
+                $rows = (int)$this->pdo->query(
+                    'SELECT COUNT(*) FROM `' . str_replace('`', '``', $name) . '`'
+                )->fetchColumn();
             } catch (\PDOException $_) {
                 $rows = -1;
             }
             $tables[] = ['name' => $name, 'rows' => $rows];
         }
-        $dbPath = APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite');
-        $size = @filesize($dbPath);
+        // On MySQL there's no single "DB file"; surface the connection
+        // string instead so the UI shows something meaningful.
+        if ($driverName === 'mysql') {
+            $dbPath = $driver->dsn();
+            $size = 0;
+        } else {
+            $dbPath = APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite');
+            $size = @filesize($dbPath);
+        }
 
         $lastMigration = null;
         try {
