@@ -16,6 +16,10 @@ final class Response {
     }
 
     public static function redirect(string $url, int $status = 303): void {
+        // Strip CR/LF so a poisoned URL (e.g. one stored in DB with embedded
+        // newlines) can't smuggle additional response headers via the
+        // Location: line. Defence in depth — callers should also validate.
+        $url = str_replace(["\r", "\n"], '', $url);
         http_response_code($status);
         header('Location: ' . $url);
     }

@@ -67,4 +67,9 @@ final class RolePolicy
     public static function canManageSettings(array $user): bool {
         return self::isAdmin($user);
     }
+
+    /** Short-link CRUD — same scope as Forms (admin + manager). */
+    public static function canManageLinks(array $user): bool {
+        return self::isAdmin($user) || self::isManager($user);
+    }
 }

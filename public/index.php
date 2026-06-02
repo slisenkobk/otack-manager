@@ -63,6 +63,8 @@ App::singleton('task_links', fn() => new \App\Repository\TaskLinkRepository(App:
 App::singleton('settings',  fn() => new \App\Repository\SettingsRepository(App::make('db')));
 App::singleton('forms',     fn() => new \App\Repository\FormRepository(App::make('db')));
 App::singleton('form_submissions', fn() => new \App\Repository\FormSubmissionRepository(App::make('db')));
+App::singleton('short_links',       fn() => new \App\Repository\ShortLinkRepository(App::make('db')));
+App::singleton('short_link_visits', fn() => new \App\Repository\ShortLinkVisitRepository(App::make('db')));
 App::singleton('hasher',  fn() => new \App\Auth\PasswordHasher());
 App::singleton('events',   fn() => new \App\Service\EventBus());
 App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));
@@ -290,6 +292,16 @@ $router->post('/api/forms-data/{id}/delete', 'FormData@delete');
 $router->get('/f/{hash}', 'PublicForm@show');
 $router->post('/f/{hash}', 'PublicForm@submit');
 
+$router->get('/s/{slug}', 'PublicLink@redirect');
+
+$router->get('/links', 'Link@index');
+$router->post('/links', 'Link@create');
+$router->get('/links/{id}', 'Link@show');
+$router->post('/links/{id}', 'Link@update');
+$router->post('/links/{id}/delete', 'Link@delete');
+$router->post('/links/{id}/toggle', 'Link@toggle');
+$router->post('/links/{id}/rotate-slug', 'Link@rotateSlug');
+
 $router->get('/admin/tags', 'TagAdmin@index');
 $router->post('/api/admin/tags/{id}', 'TagAdmin@update');
 $router->post('/api/admin/tags/{id}/delete', 'TagAdmin@delete');
@@ -334,9 +346,11 @@ if (App::env('APP_DEBUG') === 'true') {
     $publicGets[] = '/ui-sandbox';
 }
 $publicPosts = ['/login', '/register'];
-// Public form rendering / submission lives under /f/{hash}
+// Public form rendering / submission lives under /f/{hash};
+// public short-link redirects live under /s/{slug} (GET only).
 $isFormPath = str_starts_with($req->path, '/f/');
-$isPublic = ($req->method === 'GET'  && (in_array($req->path, $publicGets, true)  || $isFormPath))
+$isShortLinkPath = $req->method === 'GET' && str_starts_with($req->path, '/s/');
+$isPublic = ($req->method === 'GET'  && (in_array($req->path, $publicGets, true)  || $isFormPath || $isShortLinkPath))
          || ($req->method === 'POST' && (in_array($req->path, $publicPosts, true) || $isFormPath));
 
 if ($req->method === 'POST' && !$isFormPath) {
