@@ -57,6 +57,11 @@ if ($canFormsSb) {
         <span><?= e(t('nav.links')) ?></span>
         <span></span>
       </a>
+      <a class="nav-item<?= ($activeNav ?? '') === 'polls' ? ' nav-item--active' : '' ?>" href="/polls">
+        <span class="nav-item__marker"><i class="fa-solid fa-square-poll-vertical"></i></span>
+        <span><?= e(t('nav.polls')) ?></span>
+        <span></span>
+      </a>
     <?php endif; ?>
     <?php if ($isAdminSb): ?>
       <a class="nav-item<?= ($activeNav ?? '') === 'users' ? ' nav-item--active' : '' ?>" href="/users">
