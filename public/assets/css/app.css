@@ -4915,6 +4915,16 @@ a.link-card *,
 .poll-status--active { background: #e6f4ea; color: #1e6f3a; }
 .poll-status--closed { background: #fdecea; color: #8a2a22; }
 
+/* Dim closed-poll cards so the list visually separates "still running" from
+   "done"; hovering brings full opacity back so admins can still interact
+   confidently. :has() carries this from the inner status badge — no PHP
+   change required. */
+.card[data-poll-id]:has(.poll-status--closed) {
+  opacity: 0.55;
+  transition: opacity 150ms ease;
+}
+.card[data-poll-id]:has(.poll-status--closed):hover { opacity: 1; }
+
 .btn--small {
   padding: 4px 10px;
   font-size: 12px;
