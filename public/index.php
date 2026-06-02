@@ -71,6 +71,7 @@ App::singleton('poll_votes',        fn() => new \App\Repository\PollVoteReposito
 App::singleton('app_versions',      fn() => new \App\Repository\AppVersionRepository(App::make('db')));
 App::singleton('app_backups',       fn() => new \App\Repository\AppBackupRepository(App::make('db')));
 App::singleton('updater',           fn() => new \App\Service\Updater(App::make('settings')));
+App::singleton('db_migrator',       fn() => new \App\Service\DbMigrator());
 App::singleton('hasher',  fn() => new \App\Auth\PasswordHasher());
 App::singleton('events',   fn() => new \App\Service\EventBus());
 App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));
@@ -283,6 +284,10 @@ $router->post('/admin/compass/cache/bust',              'Compass@bustAssetCache'
 $router->get('/admin/compass/db-stats',                 'Compass@stats');
 $router->get('/admin/compass/logs',                     'Compass@logs');
 $router->post('/admin/compass/logs/clear',              'Compass@clearErrorLog');
+$router->get('/admin/compass/db-migrate',               'Compass@dbMigrate');
+$router->post('/admin/compass/db-migrate/test',         'Compass@dbMigrateTest');
+$router->post('/admin/compass/db-migrate/start',        'Compass@dbMigrateStart');
+$router->get('/admin/compass/db-migrate/verify',        'Compass@dbMigrateVerify');
 
 $router->get('/forms', 'Form@index');
 $router->get('/forms/new', 'Form@builder');

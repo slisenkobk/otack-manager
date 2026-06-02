@@ -68,12 +68,96 @@ final class CompassController extends BaseController
     {
         $level = (string)($req->query['level'] ?? '');
         $this->renderTab('logs', t('compass.tab.logs'), [
-            // Hard cap: the log can grow unbounded; we never want to render the
-            // whole thing. Newest entries first.
             'entries'  => $this->compass->tailErrorsLog(50, $level !== '' ? $level : null),
             'logSize'  => $this->compass->errorsLogSize(),
             'level'    => $level,
         ]);
+    }
+
+    /**
+     * Migrate to MySQL wizard. The current driver determines what the
+     * page shows: on SQLite we render the form; on MySQL we render a
+     * "you're already on MySQL" notice.
+     */
+    public function dbMigrate(Request $req, array $params = []): void
+    {
+        $currentDriver = \App\Database\Connection::driverFor(App::make('db'))?->name() ?? 'sqlite';
+        $plan = null;
+        if ($currentDriver === 'sqlite') {
+            try {
+                $plan = App::make('db_migrator')->plan(App::make('db'));
+            } catch (\Throwable $_) { /* surface as null */ }
+        }
+        $this->renderTab('db-migrate', t('compass.tab.db_migrate'), [
+            'currentDriver' => $currentDriver,
+            'plan'          => $plan,
+        ]);
+    }
+
+    /**
+     * POST /admin/compass/db-migrate/test — opens a transient PDO to the
+     * configured MySQL target, runs SELECT VERSION() + emptiness check.
+     */
+    public function dbMigrateTest(Request $req, array $params = []): void
+    {
+        $config = $this->collectMysqlConfig($req);
+        $res = App::make('db_migrator')->testConnection($config);
+        Response::json($res);
+    }
+
+    /**
+     * POST /admin/compass/db-migrate/start — kick off the migration.
+     * Synchronous: the request returns when the copy finishes.
+     */
+    public function dbMigrateStart(Request $req, array $params = []): void
+    {
+        $currentDriver = \App\Database\Connection::driverFor(App::make('db'))?->name();
+        if ($currentDriver !== 'sqlite') {
+            Response::json(['ok' => false, 'error' => 'Migration only runs from a SQLite source'], 400);
+            return;
+        }
+        $config = $this->collectMysqlConfig($req);
+        try {
+            $report = App::make('db_migrator')->migrate(App::make('db'), $config);
+        } catch (\Throwable $e) {
+            error_log('[db_migrator] ' . $e->getMessage());
+            Response::json(['ok' => false, 'error' => $e->getMessage()], 500);
+            return;
+        }
+        $envLines = sprintf(
+            "DB_DSN=mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4\nDB_USER=%s\nDB_PASSWORD=%s",
+            $config['host'], $config['port'], $config['db'],
+            $config['user'], $config['password']
+        );
+        $this->auditAndNotify(
+            'compass.db_migrate.run',
+            'Migrated ' . count($report['tables']) . ' tables to MySQL',
+            $report,
+            'SQLite → MySQL migration complete'
+        );
+        Response::json(['ok' => true, 'report' => $report, 'env' => $envLines]);
+    }
+
+    /**
+     * GET /admin/compass/db-migrate/verify — called after the operator
+     * edits .env. Reopens the connection from env and reports whether
+     * the new MySQL is reachable + populated.
+     */
+    public function dbMigrateVerify(Request $req, array $params = []): void
+    {
+        Response::json(App::make('db_migrator')->verifyEnv());
+    }
+
+    /** @return array{host:string,port:int,db:string,user:string,password:string} */
+    private function collectMysqlConfig(Request $req): array
+    {
+        return [
+            'host'     => trim((string)($req->post['host']     ?? '127.0.0.1')),
+            'port'     => (int)($req->post['port']             ?? 3306),
+            'db'       => trim((string)($req->post['db']       ?? '')),
+            'user'     => trim((string)($req->post['user']     ?? '')),
+            'password' => (string)($req->post['password']      ?? ''),
+        ];
     }
 
     // ─── POST actions ────────────────────────────────────────────────────────

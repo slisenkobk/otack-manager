@@ -1,10 +1,11 @@
 <?php
-// Inputs: $currentTab ∈ {migrations, cache, stats, logs}
+// Inputs: $currentTab ∈ {migrations, cache, stats, logs, db-migrate}
 $tabs = [
     'migrations' => ['label' => t('compass.tab.migrations'), 'href' => '/admin/compass/migrations', 'icon' => 'fa-database'],
     'cache'      => ['label' => t('compass.tab.cache'),      'href' => '/admin/compass/cache',      'icon' => 'fa-broom'],
     'stats'      => ['label' => t('compass.tab.stats'),      'href' => '/admin/compass/db-stats',   'icon' => 'fa-chart-simple'],
     'logs'       => ['label' => t('compass.tab.logs'),       'href' => '/admin/compass/logs',       'icon' => 'fa-file-lines'],
+    'db-migrate' => ['label' => t('compass.tab.db_migrate'), 'href' => '/admin/compass/db-migrate', 'icon' => 'fa-right-left'],
 ];
 ?>
 <div class="page-head">
