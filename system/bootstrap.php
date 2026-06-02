@@ -22,3 +22,4 @@ spl_autoload_register(function (string $class): void {
 
 require APP_ROOT . '/system/App.php';
 require APP_ROOT . '/system/View/helpers.php';
+require APP_ROOT . '/system/version.php';
