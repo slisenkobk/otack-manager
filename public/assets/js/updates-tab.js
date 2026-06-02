@@ -26,23 +26,35 @@ if (root) {
   const runBtn = root.querySelector('[data-action=run-update]');
   const form   = root.querySelector('[data-update-form]');
   if (runBtn && form) {
-    runBtn.addEventListener('click', async () => {
-      const ok = await UI.confirm(
-        runBtn.dataset.confirmBody || 'Run the update now? Your data will not be touched.',
-        {
-          title: runBtn.dataset.confirmTitle || 'Confirm update',
-          confirmLabel: runBtn.dataset.confirmLabel || 'Update now',
-          cancelLabel:  runBtn.dataset.cancelLabel  || 'Cancel',
-        }
-      );
-      if (!ok) return;
-      runBtn.disabled = true;
-      runBtn.replaceChildren();
-      const spinner = document.createElement('i');
-      spinner.className = 'fa-solid fa-spinner fa-spin';
-      spinner.setAttribute('aria-hidden', 'true');
-      runBtn.append(spinner, ' ' + (runBtn.dataset.runningLabel || 'Updating…'));
-      form.submit();
-    });
+    wireConfirmedSubmit(runBtn, form, { danger: false });
   }
+
+  // Restore buttons live in the Backups table — there may be many.
+  // Each one sits inside its own form; binding is per-button.
+  root.querySelectorAll('[data-action=run-restore]').forEach(btn => {
+    const f = btn.closest('form[data-restore-form]');
+    if (f) wireConfirmedSubmit(btn, f, { danger: true });
+  });
+}
+
+function wireConfirmedSubmit(btn, form, { danger }) {
+  btn.addEventListener('click', async () => {
+    const ok = await UI.confirm(
+      btn.dataset.confirmBody || 'Are you sure?',
+      {
+        title: btn.dataset.confirmTitle || 'Confirm',
+        confirmLabel: btn.dataset.confirmLabel || 'Confirm',
+        cancelLabel:  btn.dataset.cancelLabel  || 'Cancel',
+        danger,
+      }
+    );
+    if (!ok) return;
+    btn.disabled = true;
+    btn.replaceChildren();
+    const spinner = document.createElement('i');
+    spinner.className = 'fa-solid fa-spinner fa-spin';
+    spinner.setAttribute('aria-hidden', 'true');
+    btn.append(spinner, ' ' + (btn.dataset.runningLabel || 'Working…'));
+    form.submit();
+  });
 }

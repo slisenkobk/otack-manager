@@ -14,6 +14,14 @@ if (isset($_GET['updated_to'])) {
         ? t('updates.flash.up_to_date')
         : t('updates.flash.error', ['error' => $err]);
     echo flash_meta($msg, 'error');
+} elseif (isset($_GET['restored_to'])) {
+    $dur = isset($_GET['duration']) ? (int)$_GET['duration'] : 0;
+    echo flash_meta(t('updates.flash.restored', [
+        'version' => 'v' . (string)$_GET['restored_to'],
+        'seconds' => (string)$dur,
+    ]), 'success');
+} elseif (isset($_GET['restore_error'])) {
+    echo flash_meta(t('updates.flash.restore_error', ['error' => (string)$_GET['restore_error']]), 'error');
 }
 $localeNames = locale_display_names();
 ?>

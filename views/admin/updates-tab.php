@@ -151,7 +151,24 @@ $installedAt = $currentVersion['installed_at'] ?? null;
                 <?php if ($isPruned): ?>
                   <span class="muted" style="font-size:12px;"><?= e(t('updates.backup_pruned')) ?></span>
                 <?php else: ?>
-                  <span class="muted" style="font-size:12px;"><?= e(t('updates.backup_restore_soon')) ?></span>
+                  <form method="post"
+                        action="/admin/updates/restore/<?= (int)$b['id'] ?>"
+                        data-restore-form
+                        style="display:inline;">
+                    <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
+                    <button type="button" class="btn btn--ghost btn--sm" data-action="run-restore"
+                            data-confirm-title="<?= e(t('updates.restore.confirm_title')) ?>"
+                            data-confirm-body="<?= e(t('updates.restore.confirm_body', [
+                              'from' => 'v' . (string)$b['version_to'],
+                              'to'   => 'v' . (string)$b['version_from'],
+                            ])) ?>"
+                            data-confirm-label="<?= e(t('updates.restore.confirm_label')) ?>"
+                            data-cancel-label="<?= e(t('updates.confirm.cancel')) ?>"
+                            data-running-label="<?= e(t('updates.restore.running')) ?>">
+                      <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                      <?= e(t('updates.restore.button')) ?>
+                    </button>
+                  </form>
                 <?php endif; ?>
               </td>
             </tr>

@@ -209,6 +209,101 @@ final class Updater
         }
     }
 
+    /**
+     * Restore code + DB from a previously-recorded backup
+     * (docs/UPDATES.md §11). Inserts a fresh pre-restore backup so a
+     * botched restore is itself recoverable. Does NOT run migrations —
+     * the schema is whatever the snapshot had, and the code matches it.
+     *
+     * @return array{from:string,to:string,duration_seconds:int,backup_id:int}
+     */
+    public function restore(int $backupId, ?int $actorUserId): array
+    {
+        $this->preloadClasses();
+
+        /** @var \App\Repository\AppBackupRepository $backups */
+        $backups = App::make('app_backups');
+        /** @var \App\Repository\AppVersionRepository $versions */
+        $versions = App::make('app_versions');
+
+        $backup = $backups->findById($backupId);
+        if ($backup === null) {
+            throw new \RuntimeException("Backup #$backupId not found");
+        }
+        if (!empty($backup['pruned_at'])) {
+            throw new \RuntimeException("Backup #$backupId has been pruned — artefacts are no longer on disk");
+        }
+
+        $codeSnap = APP_ROOT . '/' . $backup['code_path'];
+        if (!is_dir($codeSnap)) {
+            throw new \RuntimeException("Backup code path missing on disk: {$backup['code_path']}");
+        }
+        $dbSnap = isset($backup['db_snapshot']) && $backup['db_snapshot'] !== null
+            ? APP_ROOT . '/' . $backup['db_snapshot']
+            : null;
+        if ($dbSnap !== null && !is_file($dbSnap)) {
+            throw new \RuntimeException("Backup DB snapshot missing on disk: {$backup['db_snapshot']}");
+        }
+
+        $currentVersion = self::currentVersion();
+        $targetVersion  = (string)$backup['version_from'];
+        $startedAt = microtime(true);
+
+        // Pre-restore safety snapshot, into its own workdir.
+        $preRestoreDir = $this->allocateWorkdir($currentVersion, $targetVersion);
+
+        try {
+            $this->snapshotCode($preRestoreDir . '/code');
+            $preRestoreDb = $this->snapshotDb($preRestoreDir);
+
+            // Swap code from the original snapshot back into APP_ROOT.
+            // We COPY (not rename) so the source snapshot stays usable —
+            // the admin should be able to re-restore the same backup later.
+            $this->applyRestoreSwap($codeSnap, $preRestoreDir . '/removed');
+
+            // Swap DB. SQLite handles "file replaced under us" gracefully
+            // on the next connection open.
+            if ($dbSnap !== null) {
+                $live = APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite');
+                if (!@copy($dbSnap, $live)) {
+                    throw new \RuntimeException("Cannot restore DB: copy $dbSnap → $live failed");
+                }
+            }
+
+            // Record. Use the version we restored TO (= what the user is
+            // running now after the swap completes).
+            $versions->log($targetVersion, \App\Repository\AppVersionRepository::SOURCE_RESTORE, $actorUserId, null);
+            $size    = $this->dirSizeBytes($preRestoreDir);
+            $relCode = $this->toRelative($preRestoreDir . '/code');
+            $relDb   = $preRestoreDb !== null ? $this->toRelative($preRestoreDb) : null;
+            $newBackupId = $backups->create(
+                $currentVersion,
+                $targetVersion,
+                $relCode,
+                $relDb,
+                $size,
+                \App\Repository\AppBackupRepository::KIND_AUTO
+            );
+
+            $duration = (int)round(microtime(true) - $startedAt);
+
+            return [
+                'from' => $currentVersion,
+                'to'   => $targetVersion,
+                'duration_seconds' => $duration,
+                'backup_id' => $newBackupId,
+            ];
+        } catch (\Throwable $e) {
+            // Roll back the restore using the pre-restore snapshot we just took.
+            $this->rollback($preRestoreDir);
+            throw new \RuntimeException(
+                'Restore failed and was rolled back: ' . $e->getMessage(),
+                0,
+                $e
+            );
+        }
+    }
+
     // ─── internals: pipeline ───────────────────────────────────────────
 
     /**
@@ -412,6 +507,60 @@ final class Updater
                     throw new \RuntimeException("Cannot swap file into place: $rel");
                 }
                 @unlink($src);
+            }
+        }
+    }
+
+    /**
+     * Restore swap variant of applySwap: source is a long-lived snapshot
+     * directory (not a one-shot staging dir), so we COPY files back into
+     * APP_ROOT rather than rename them out of the snapshot. Same manifest
+     * + ignore-list semantics — anything in APP_ROOT not in the snapshot
+     * gets stashed to $removedDir.
+     */
+    private function applyRestoreSwap(string $codeSnap, string $removedDir): void
+    {
+        // Manifest of "what should exist after restore" = the snapshot tree.
+        $manifest = [];
+        foreach ($this->walkFilesRelative($codeSnap) as $rel) {
+            $manifest[$rel] = true;
+        }
+
+        if (!mkdir($removedDir, 0755, true)) {
+            throw new \RuntimeException("Cannot create removed/ dir: $removedDir");
+        }
+
+        // (a) Move APP_ROOT files that aren't in the manifest (and aren't
+        //     ignored) into removed/, so a re-rollback can restore them.
+        foreach ($this->walkFilesRelative(APP_ROOT) as $rel) {
+            if ($this->isIgnored($rel)) continue;
+            if (isset($manifest[$rel])) continue;
+            $src = APP_ROOT . '/' . $rel;
+            $dst = $removedDir . '/' . $rel;
+            $parent = dirname($dst);
+            if (!is_dir($parent)) mkdir($parent, 0755, true);
+            if (!@rename($src, $dst) && !@copy($src, $dst)) {
+                throw new \RuntimeException("Cannot stash removed file: $rel");
+            }
+            @unlink($src);
+        }
+
+        // (b) Copy snapshot files back into APP_ROOT. Use copy-to-tmp +
+        //     rename for per-file atomic replacement.
+        foreach ($manifest as $rel => $_) {
+            $src = $codeSnap . '/' . $rel;
+            $dst = APP_ROOT . '/' . $rel;
+            $parent = dirname($dst);
+            if (!is_dir($parent) && !mkdir($parent, 0755, true)) {
+                throw new \RuntimeException("Cannot create $parent");
+            }
+            $tmp = $dst . '.tmp.' . bin2hex(random_bytes(4));
+            if (!@copy($src, $tmp)) {
+                throw new \RuntimeException("Cannot copy snapshot file: $rel");
+            }
+            if (!@rename($tmp, $dst)) {
+                @unlink($tmp);
+                throw new \RuntimeException("Cannot install restored: $rel");
             }
         }
     }

@@ -270,6 +270,7 @@ $router->post('/admin/settings', 'Settings@update');
 
 $router->get('/api/updates/check', 'Updates@check');
 $router->post('/admin/updates/run', 'Updates@run');
+$router->post('/admin/updates/restore/{id}', 'Updates@restore');
 
 $router->get('/admin/compass',                          'Compass@index');
 $router->get('/admin/compass/migrations',               'Compass@migrations');

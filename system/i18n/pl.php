@@ -642,6 +642,13 @@ return [
     'updates.kind.manual'            => 'Ręczna',
     'updates.backup_pruned'          => 'usunięta (pliki nie istnieją)',
     'updates.backup_restore_soon'    => 'odtwarzanie w kolejnym wydaniu',
+    'updates.restore.button'         => 'Przywróć',
+    'updates.restore.running'        => 'Przywracanie…',
+    'updates.restore.confirm_title'  => 'Przywróć z kopii zapasowej',
+    'updates.restore.confirm_body'   => 'Przywrócić kod aplikacji ORAZ bazę danych z :from do :to? Wszystko, co zmieniło się w bazie od momentu utworzenia kopii (zadania, komentarze, zgłoszenia formularzy), ZOSTANIE UTRACONE. Snapshot przed przywróceniem jest tworzony automatycznie.',
+    'updates.restore.confirm_label'  => 'Tak, przywróć',
+    'updates.flash.restored'         => 'Przywrócono do :version w :seconds sek.',
+    'updates.flash.restore_error'    => 'Przywracanie nie powiodło się: :error',
 
     // ─── Public poll page ───────────────────────────────────────────────────
     'public_poll.stage_contact_title' => 'Zagłosuj w ankiecie',

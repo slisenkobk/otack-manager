@@ -643,6 +643,13 @@ return [
     'updates.kind.manual'            => 'Ручна',
     'updates.backup_pruned'          => 'видалена (файлів немає)',
     'updates.backup_restore_soon'    => 'відновлення у наступному релізі',
+    'updates.restore.button'         => 'Відновити',
+    'updates.restore.running'        => 'Відновлюємо…',
+    'updates.restore.confirm_title'  => 'Відновити з бекапу',
+    'updates.restore.confirm_body'   => 'Відкотити код програми ТА базу даних з :from до :to? Усе, що змінилось у базі від моменту створення бекапу (задачі, коментарі, відправки форм), БУДЕ ВТРАЧЕНО. Знімок перед відновленням створиться автоматично.',
+    'updates.restore.confirm_label'  => 'Так, відновити',
+    'updates.flash.restored'         => 'Відновлено до :version за :seconds сек.',
+    'updates.flash.restore_error'    => 'Відновлення не вдалось: :error',
 
     // ─── Public poll page ───────────────────────────────────────────────────
     'public_poll.stage_contact_title' => 'Проголосувати',

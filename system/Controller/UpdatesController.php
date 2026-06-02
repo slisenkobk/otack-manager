@@ -89,4 +89,35 @@ final class UpdatesController extends BaseController
             Response::redirect('/admin/settings?tab=updates&update_error=' . urlencode($e->getMessage()));
         }
     }
+
+    /**
+     * POST /admin/updates/restore/{id} — runs the restore pipeline
+     * synchronously. Like run(), it can take 15-60s. On success the
+     * admin lands back on the Updates tab with a restore flash.
+     */
+    public function restore(\App\Http\Request $req, array $params = []): void
+    {
+        $backupId = (int)($params['id'] ?? 0);
+        if ($backupId <= 0) {
+            Response::redirect('/admin/settings?tab=updates&restore_error=' . urlencode('Missing backup id'));
+            return;
+        }
+
+        @set_time_limit(300);
+        @ignore_user_abort(true);
+
+        /** @var Updater $updater */
+        $updater = App::make('updater');
+        try {
+            $result = $updater->restore($backupId, (int)($this->user['id'] ?? 0) ?: null);
+            Response::redirect(
+                '/admin/settings?tab=updates'
+                . '&restored_to=' . urlencode($result['to'])
+                . '&duration=' . (int)$result['duration_seconds']
+            );
+        } catch (\Throwable $e) {
+            error_log('[updater:restore] ' . $e->getMessage());
+            Response::redirect('/admin/settings?tab=updates&restore_error=' . urlencode($e->getMessage()));
+        }
+    }
 }

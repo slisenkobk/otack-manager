@@ -649,6 +649,13 @@ return [
     'updates.kind.manual'            => 'Manual',
     'updates.backup_pruned'          => 'pruned (artefacts removed)',
     'updates.backup_restore_soon'    => 'restore available in a future release',
+    'updates.restore.button'         => 'Restore',
+    'updates.restore.running'        => 'Restoring…',
+    'updates.restore.confirm_title'  => 'Restore from backup',
+    'updates.restore.confirm_body'   => 'Roll back the app code AND database from :from to :to? Anything that has changed in the database since the backup was taken (tasks, comments, form submissions) will be LOST. A pre-restore snapshot is taken automatically so you can still roll forward.',
+    'updates.restore.confirm_label'  => 'Yes, restore',
+    'updates.flash.restored'         => 'Restored to :version in :seconds seconds.',
+    'updates.flash.restore_error'    => 'Restore failed: :error',
 
     // ─── Public poll page ───────────────────────────────────────────────────
     'public_poll.stage_contact_title' => 'Vote in this poll',
