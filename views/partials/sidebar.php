@@ -51,7 +51,7 @@ if ($canFormsSb) {
       <div class="nav-group nav-group--collapsible<?= $integrationsIsOpen ? ' is-open' : '' ?>"
            data-nav-group="integrations">
         <button type="button" class="nav-group__toggle" aria-expanded="<?= $integrationsIsOpen ? 'true' : 'false' ?>">
-          <span class="nav-item__marker"><i class="fa-solid fa-plug"></i></span>
+          <span class="nav-item__marker"><i class="fa-solid fa-diagram-project"></i></span>
           <span class="nav-group__toggle-label"><?= e(t('nav.integrations')) ?></span>
           <span class="nav-group__toggle-meta">
             <?php if ($newSubmissionsCount > 0): ?>
