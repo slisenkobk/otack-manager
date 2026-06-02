@@ -92,7 +92,10 @@ final class PollController extends BaseController
             $this->renderEditor($poll);
             return;
         }
-        $this->renderStats($poll);
+        $tab  = (string)($req->query['tab'] ?? 'stats');
+        $page = max(1, (int)($req->query['page'] ?? 1));
+        if (!in_array($tab, ['stats', 'voters'], true)) $tab = 'stats';
+        $this->renderStats($poll, $tab, $page);
     }
 
     public function save(Request $req, array $params = []): void
@@ -252,20 +255,6 @@ final class PollController extends BaseController
         Response::json(['ok' => true, 'hash' => $hash, 'url' => \abs_url('/p/' . $hash)]);
     }
 
-    public function voters(Request $req, array $params): void
-    {
-        $poll = $this->loadOwn($params, false); if (!$poll) return;
-        // Empty for drafts (no votes yet) but the endpoint must still respond.
-        $page = max(1, (int)($req->query['page'] ?? 1));
-        $rows = $this->votes->listVoters((int)$poll['id'], $page, 50);
-        Response::json([
-            'ok'     => true,
-            'voters' => $rows,
-            'page'   => $page,
-            'total'  => $this->votes->countTotal((int)$poll['id']),
-        ]);
-    }
-
     public function createSummaryTask(Request $req, array $params): void
     {
         $poll = $this->loadOwn($params); if (!$poll) return;
@@ -389,23 +378,33 @@ final class PollController extends BaseController
         ]));
     }
 
-    private function renderStats(array $poll): void
+    private function renderStats(array $poll, string $tab = 'stats', int $page = 1): void
     {
-        $tally  = $this->votes->tallyByChoice((int)$poll['id']);
-        $total  = $this->votes->countTotal((int)$poll['id']);
+        $pollId = (int)$poll['id'];
+        $total  = $this->votes->countTotal($pollId);
         $fields = json_decode((string)$poll['fields_json'], true) ?: [];
         $labels = $this->choiceLabels($fields);
 
-        // Hydrate tally rows with labels + percentages for the template.
         $rows = [];
-        foreach ($tally as $r) {
-            $key = (string)$r['choice_key'];
-            $rows[] = [
-                'key'   => $key,
-                'label' => $labels[$key] ?? $key,
-                'count' => (int)$r['count'],
-                'pct'   => $total > 0 ? round((int)$r['count'] * 100 / $total, 1) : 0.0,
-            ];
+        $voters = [];
+        $perPage = 50;
+        if ($tab === 'voters') {
+            $voters = $this->votes->listVoters($pollId, $page, $perPage);
+            foreach ($voters as &$v) {
+                $v['choice_label'] = $labels[(string)$v['choice_key']] ?? (string)$v['choice_key'];
+            }
+            unset($v);
+        } else {
+            $tally = $this->votes->tallyByChoice($pollId);
+            foreach ($tally as $r) {
+                $key = (string)$r['choice_key'];
+                $rows[] = [
+                    'key'   => $key,
+                    'label' => $labels[$key] ?? $key,
+                    'count' => (int)$r['count'],
+                    'pct'   => $total > 0 ? round((int)$r['count'] * 100 / $total, 1) : 0.0,
+                ];
+            }
         }
 
         $project = !empty($poll['project_id']) ? App::make('projects')->findById((int)$poll['project_id']) : null;
@@ -423,10 +422,14 @@ final class PollController extends BaseController
             'sidebar'   => $sidebar,
             'topbar'    => $topbar,
             'content'   => $this->view->render('polls/show', [
-                'poll'    => $poll,
-                'tally'   => $rows,
-                'total'   => $total,
-                'project' => $project,
+                'poll'     => $poll,
+                'tally'    => $rows,
+                'total'    => $total,
+                'project'  => $project,
+                'tab'      => $tab,
+                'voters'   => $voters,
+                'page'     => $page,
+                'perPage'  => $perPage,
             ]),
         ]));
     }

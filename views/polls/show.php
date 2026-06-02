@@ -1,10 +1,15 @@
 <?php
-// Active / closed poll detail. Step 4 expands this with proper tabs (stats + voters);
-// for now it surfaces the basics: status, vote tally, lifecycle controls.
+// Active / closed poll detail with [Statistics | Voters] tabs.
 $statusKey = (string)$poll['status'];
 $publicUrl = \abs_url('/p/' . $poll['hash']);
+$pollId    = (int)$poll['id'];
+$tab       = $tab ?? 'stats';
+$voters    = $voters ?? [];
+$page      = $page ?? 1;
+$perPage   = $perPage ?? 50;
+$pageCount = max(1, (int)ceil($total / $perPage));
 ?>
-<div class="poll-show" data-poll-show data-poll-id="<?= (int)$poll['id'] ?>" data-poll-status="<?= e($statusKey) ?>">
+<div class="poll-show" data-poll-show data-poll-id="<?= $pollId ?>" data-poll-status="<?= e($statusKey) ?>">
 
   <div class="builder-toolbar">
     <div class="builder-toolbar__left">
@@ -41,26 +46,70 @@ $publicUrl = \abs_url('/p/' . $poll['hash']);
     </div>
   </section>
 
-  <section class="builder-panel">
-    <h2 class="builder-panel__title"><?= e(t('polls.stats_title')) ?></h2>
-    <?php if (!$tally): ?>
-      <p class="muted"><?= e(t('polls.stats_empty')) ?></p>
-    <?php else: ?>
-      <div class="poll-stats">
-        <?php foreach ($tally as $row): ?>
-          <div class="poll-stats__row">
-            <div class="poll-stats__label">
-              <span><?= e($row['label']) ?></span>
-              <span class="poll-stats__count"><?= (int)$row['count'] ?> · <?= e($row['pct']) ?>%</span>
+  <div class="project-tabs" style="margin-bottom:var(--space-6, 16px);">
+    <a class="project-tab<?= $tab === 'stats'  ? ' project-tab--active' : '' ?>" href="/polls/<?= $pollId ?>?tab=stats"><?= e(t('polls.stats_title')) ?></a>
+    <a class="project-tab<?= $tab === 'voters' ? ' project-tab--active' : '' ?>" href="/polls/<?= $pollId ?>?tab=voters"><?= e(t('polls.voters_title')) ?> · <?= (int)$total ?></a>
+  </div>
+
+  <?php if ($tab === 'stats'): ?>
+    <section class="builder-panel">
+      <?php if (!$tally): ?>
+        <p class="muted"><?= e(t('polls.stats_empty')) ?></p>
+      <?php else: ?>
+        <div class="poll-stats">
+          <?php foreach ($tally as $row): ?>
+            <div class="poll-stats__row">
+              <div class="poll-stats__label">
+                <span><?= e($row['label']) ?></span>
+                <span class="poll-stats__count"><?= (int)$row['count'] ?> · <?= e($row['pct']) ?>%</span>
+              </div>
+              <div class="poll-stats__bar">
+                <div class="poll-stats__bar-fill" style="width: <?= e(min(100, max(0, (float)$row['pct']))) ?>%"></div>
+              </div>
             </div>
-            <div class="poll-stats__bar">
-              <div class="poll-stats__bar-fill" style="width: <?= e(min(100, max(0, (float)$row['pct']))) ?>%"></div>
-            </div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+    </section>
+  <?php else: ?>
+    <section class="builder-panel">
+      <?php if (!$voters): ?>
+        <p class="muted"><?= e(t('polls.voters_empty')) ?></p>
+      <?php else: ?>
+        <table class="voters-table">
+          <thead>
+            <tr>
+              <th><?= e(t('polls.voters_col_contact')) ?></th>
+              <th><?= e(t('polls.voters_col_choice')) ?></th>
+              <th class="voters-table__when"><?= e(t('polls.voters_col_when')) ?></th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($voters as $v): ?>
+              <tr>
+                <td><?= e((string)$v['contact']) ?></td>
+                <td><?= e((string)($v['choice_label'] ?? $v['choice_key'])) ?></td>
+                <td class="voters-table__when"><?= e(fmt_datetime($v['created_at'])) ?></td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+        <?php if ($pageCount > 1): ?>
+          <div class="pager" style="margin-top:12px;display:flex;gap:8px;justify-content:center;align-items:center;">
+            <?php if ($page > 1): ?>
+              <a class="btn-ghost" href="/polls/<?= $pollId ?>?tab=voters&page=<?= $page - 1 ?>"><i class="fa-solid fa-arrow-left"></i></a>
+            <?php endif; ?>
+            <span class="muted" style="font-size:12px;">
+              <?= e(t('polls.voters_pager', ['page' => $page, 'total' => $pageCount])) ?>
+            </span>
+            <?php if ($page < $pageCount): ?>
+              <a class="btn-ghost" href="/polls/<?= $pollId ?>?tab=voters&page=<?= $page + 1 ?>"><i class="fa-solid fa-arrow-right"></i></a>
+            <?php endif; ?>
           </div>
-        <?php endforeach; ?>
-      </div>
-    <?php endif; ?>
-  </section>
+        <?php endif; ?>
+      <?php endif; ?>
+    </section>
+  <?php endif; ?>
 
 </div>
 

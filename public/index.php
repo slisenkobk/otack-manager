@@ -314,7 +314,6 @@ $router->post('/polls/{id}/copy', 'Poll@copy');
 $router->post('/polls/{id}/rotate-hash', 'Poll@regenerateHash');
 $router->post('/polls/{id}/activate', 'Poll@activate');
 $router->post('/polls/{id}/close', 'Poll@close');
-$router->get('/polls/{id}/voters', 'Poll@voters');
 $router->post('/polls/{id}/create-summary-task', 'Poll@createSummaryTask');
 
 $router->get('/p/{hash}', 'PublicPoll@show');
