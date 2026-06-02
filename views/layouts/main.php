@@ -45,5 +45,6 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 <script type="module" src="<?= e(asset_url('/assets/js/theme.js')) ?>"></script>
 <script type="module" src="<?= e(asset_url('/assets/js/ui.js')) ?>"></script>
 <script type="module" src="<?= e(asset_url('/assets/js/wysiwyg.js')) ?>"></script>
+<script type="module" src="<?= e(asset_url('/assets/js/sidebar-groups.js')) ?>"></script>
 </body>
 </html>

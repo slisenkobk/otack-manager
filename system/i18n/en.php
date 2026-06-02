@@ -530,6 +530,7 @@ return [
     'activity.compass.action'     => 'ran a Compass action',
 
     // ─── Polls ─────────────────────────────────────────────────────────────
+    'nav.integrations'                => 'Integrations',
     'nav.polls'                       => 'Polls',
     'polls.new_poll'                  => 'New poll',
     'polls.all_polls_link'            => 'All polls',

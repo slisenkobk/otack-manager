@@ -523,6 +523,7 @@ return [
     'activity.compass.action'     => 'wykonał(a) akcję Compass',
 
     // ─── Polls ─────────────────────────────────────────────────────────────
+    'nav.integrations'                => 'Integracje',
     'nav.polls'                       => 'Ankiety',
     'polls.new_poll'                  => 'Nowa ankieta',
     'polls.all_polls_link'            => 'Wszystkie ankiety',

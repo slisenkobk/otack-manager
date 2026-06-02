@@ -5022,3 +5022,50 @@ a.link-card *,
 @media (max-width: 560px) {
   .voters-table__when { display: none; }
 }
+
+/* ─── Sidebar: collapsible groups (Integrations) ─────────────────────────
+   The group lives inside .nav-group so it inherits the existing label/padding;
+   the toggle row uses .nav-item visuals but with a chevron + rollup badge. */
+.nav-group--collapsible { padding-top: 0; }
+.nav-group__toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  border-radius: var(--radius-sm, 6px);
+}
+.nav-group__toggle:hover { background: var(--bg-hover, rgba(0,0,0,0.04)); }
+.nav-group__toggle-label { flex: 1; }
+.nav-group__toggle-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.nav-group__chevron {
+  transition: transform 180ms ease;
+  font-size: 11px;
+  color: var(--ink-3, #888);
+}
+.nav-group--collapsible.is-open .nav-group__chevron { transform: rotate(180deg); }
+
+.nav-subgroup {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease;
+  overflow: hidden;
+}
+.nav-group--collapsible.is-open .nav-subgroup { grid-template-rows: 1fr; }
+.nav-subgroup > * { min-height: 0; }
+/* Indent the nested nav items so the hierarchy reads visually. */
+.nav-subgroup .nav-item { padding-left: 28px; }
+
+/* The rollup badge (e.g. unread forms-data count) hides when the group is
+   open because the child item shows its own badge in the natural position. */
+.nav-group--collapsible.is-open .nav-group__rollup-count { display: none; }

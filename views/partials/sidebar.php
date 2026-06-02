@@ -41,27 +41,48 @@ if ($canFormsSb) {
       <span><?= e(t('nav.projects')) ?></span>
       <span class="nav-item__count"><?= (int)$projectsCount ?></span>
     </a>
-    <?php if ($canFormsSb): ?>
-      <a class="nav-item<?= ($activeNav ?? '') === 'forms' ? ' nav-item--active' : '' ?>" href="/forms">
-        <span class="nav-item__marker"><i class="fa-solid fa-clipboard-list"></i></span>
-        <span><?= e(t('nav.forms')) ?></span>
-        <span></span>
-      </a>
-      <a class="nav-item<?= ($activeNav ?? '') === 'forms-data' ? ' nav-item--active' : '' ?>" href="/forms-data">
-        <span class="nav-item__marker"><i class="fa-solid fa-inbox"></i></span>
-        <span><?= e(t('nav.forms_data')) ?></span>
-        <span class="nav-item__count<?= $newSubmissionsCount > 0 ? ' nav-item__count--accent' : '' ?>"><?= $newSubmissionsCount ?></span>
-      </a>
-      <a class="nav-item<?= ($activeNav ?? '') === 'links' ? ' nav-item--active' : '' ?>" href="/links">
-        <span class="nav-item__marker"><i class="fa-solid fa-link"></i></span>
-        <span><?= e(t('nav.links')) ?></span>
-        <span></span>
-      </a>
-      <a class="nav-item<?= ($activeNav ?? '') === 'polls' ? ' nav-item--active' : '' ?>" href="/polls">
-        <span class="nav-item__marker"><i class="fa-solid fa-square-poll-vertical"></i></span>
-        <span><?= e(t('nav.polls')) ?></span>
-        <span></span>
-      </a>
+    <?php if ($canFormsSb):
+      // Integrations submenu wraps forms/forms-data/polls/links. Auto-open when
+      // the active page lives inside the group; otherwise honor the localStorage
+      // flag (the JS flips an attribute on the wrapper at load time).
+      $integrationsActiveNavs = ['forms', 'forms-data', 'polls', 'links'];
+      $integrationsIsOpen = in_array(($activeNav ?? ''), $integrationsActiveNavs, true);
+    ?>
+      <div class="nav-group nav-group--collapsible<?= $integrationsIsOpen ? ' is-open' : '' ?>"
+           data-nav-group="integrations">
+        <button type="button" class="nav-group__toggle" aria-expanded="<?= $integrationsIsOpen ? 'true' : 'false' ?>">
+          <span class="nav-item__marker"><i class="fa-solid fa-plug"></i></span>
+          <span class="nav-group__toggle-label"><?= e(t('nav.integrations')) ?></span>
+          <span class="nav-group__toggle-meta">
+            <?php if ($newSubmissionsCount > 0): ?>
+              <span class="nav-item__count nav-item__count--accent nav-group__rollup-count"><?= $newSubmissionsCount ?></span>
+            <?php endif; ?>
+            <i class="fa-solid fa-chevron-down nav-group__chevron"></i>
+          </span>
+        </button>
+        <div class="nav-subgroup">
+          <a class="nav-item<?= ($activeNav ?? '') === 'forms' ? ' nav-item--active' : '' ?>" href="/forms">
+            <span class="nav-item__marker"><i class="fa-solid fa-clipboard-list"></i></span>
+            <span><?= e(t('nav.forms')) ?></span>
+            <span></span>
+          </a>
+          <a class="nav-item<?= ($activeNav ?? '') === 'forms-data' ? ' nav-item--active' : '' ?>" href="/forms-data">
+            <span class="nav-item__marker"><i class="fa-solid fa-inbox"></i></span>
+            <span><?= e(t('nav.forms_data')) ?></span>
+            <span class="nav-item__count<?= $newSubmissionsCount > 0 ? ' nav-item__count--accent' : '' ?>"><?= $newSubmissionsCount ?></span>
+          </a>
+          <a class="nav-item<?= ($activeNav ?? '') === 'polls' ? ' nav-item--active' : '' ?>" href="/polls">
+            <span class="nav-item__marker"><i class="fa-solid fa-square-poll-vertical"></i></span>
+            <span><?= e(t('nav.polls')) ?></span>
+            <span></span>
+          </a>
+          <a class="nav-item<?= ($activeNav ?? '') === 'links' ? ' nav-item--active' : '' ?>" href="/links">
+            <span class="nav-item__marker"><i class="fa-solid fa-link"></i></span>
+            <span><?= e(t('nav.links')) ?></span>
+            <span></span>
+          </a>
+        </div>
+      </div>
     <?php endif; ?>
     <?php if ($isAdminSb): ?>
       <a class="nav-item<?= ($activeNav ?? '') === 'users' ? ' nav-item--active' : '' ?>" href="/users">
