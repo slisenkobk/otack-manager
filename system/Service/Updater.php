@@ -276,11 +276,10 @@ final class Updater
             // the admin should be able to re-restore the same backup later.
             $this->applyRestoreSwap($codeSnap, $preRestoreDir . '/removed');
 
-            // Swap DB. The helper also clears stale -wal/-shm sidecars so
-            // SQLite doesn't replay them against the new file content.
+            // Swap DB. The helper delegates to the driver's snapshot
+            // adapter (SQLite: cp+sidecar housekeeping; MySQL: mysql restore).
             if ($dbSnap !== null) {
-                $live = APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite');
-                $this->restoreDbFromSnapshot($dbSnap, $live);
+                $this->restoreDbFromSnapshot($dbSnap);
             }
 
             // Record. Use the version we restored TO (= what the user is
@@ -525,72 +524,41 @@ final class Updater
         }
     }
 
+    /**
+     * Take a snapshot of the live DB into $workdir and return the
+     * relative path the backup adapter wrote. Dispatches on the driver:
+     * SQLite does a file copy, MySQL pipes through mysqldump+gzip.
+     */
     private function snapshotDb(string $workdir): ?string
     {
-        $dbPath = APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite');
-        if (!is_file($dbPath)) return null;
-
-        // Flush WAL to the main file so a plain copy is a consistent snapshot.
-        $checkpointed = false;
         try {
             $pdo = App::make('db');
-            $pdo->exec('PRAGMA wal_checkpoint(TRUNCATE)');
-            $checkpointed = true;
-        } catch (\Throwable $_) {
-            // TRUNCATE failed (busy read lock or non-WAL DB) — fall through.
-            // We'll still copy WAL/SHM sidecars alongside so SQLite can
-            // replay them after restore.
+            $driver = \App\Database\Connection::driverFor($pdo);
+            if ($driver === null) return null;
+            $snap = $driver->snapshotFor($pdo);
+        } catch (\Throwable $e) {
+            // Driver not available (very early boot / tests) — silent skip.
+            return null;
         }
-
-        $dest = $workdir . '/app.sqlite';
-        if (!@copy($dbPath, $dest)) {
-            throw new \RuntimeException("Cannot snapshot DB: $dbPath → $dest");
-        }
-
-        // If TRUNCATE didn't run, copy sidecars too (they may contain
-        // committed-but-uncheckpointed pages). Safe to skip when TRUNCATE
-        // succeeded — that call deletes/truncates the sidecars on success.
-        if (!$checkpointed) {
-            foreach (['-wal', '-shm'] as $suf) {
-                if (is_file($dbPath . $suf)) {
-                    @copy($dbPath . $suf, $dest . $suf);
-                }
-            }
-        }
+        $dest = $workdir . '/db.' . $snap->fileExtension();
+        $snap->backupTo($dest);
         return $dest;
     }
 
     /**
-     * Replace the live DB with $snapPath (a previously-taken snapshot).
-     * Removes any lingering -wal/-shm beside the live file BEFORE the swap
-     * so SQLite doesn't try to replay them against the new file content;
-     * then restores any sidecars that were captured at snapshot time.
+     * Replace the live DB with the contents of a previously-taken
+     * snapshot. Delegates the work to the driver's snapshot adapter so
+     * sidecar handling (SQLite -wal/-shm) and dialect specifics
+     * (MySQL mysql binary) live in one place per driver.
      */
-    private function restoreDbFromSnapshot(string $snapPath, string $livePath): void
+    private function restoreDbFromSnapshot(string $snapPath): void
     {
-        // Close any open PDO so SQLite drops its handle to the WAL.
-        // The next App::make('db') call will reopen against the fresh file.
-        try {
-            $pdo = App::make('db');
-            $pdo->exec('PRAGMA wal_checkpoint(TRUNCATE)');
-        } catch (\Throwable $_) {
-            // best-effort
+        $pdo = App::make('db');
+        $driver = \App\Database\Connection::driverFor($pdo);
+        if ($driver === null) {
+            throw new \RuntimeException('No DB driver bound — cannot restore');
         }
-
-        if (!@copy($snapPath, $livePath)) {
-            throw new \RuntimeException("Cannot restore DB: copy $snapPath → $livePath failed");
-        }
-        // Clear stale sidecars that belong to the pre-restore DB.
-        foreach (['-wal', '-shm'] as $suf) {
-            if (is_file($livePath . $suf)) @unlink($livePath . $suf);
-        }
-        // Reinstate sidecars from the snapshot (only present when the
-        // checkpoint failed at snapshot time; usually a no-op).
-        foreach (['-wal', '-shm'] as $suf) {
-            if (is_file($snapPath . $suf)) {
-                @copy($snapPath . $suf, $livePath . $suf);
-            }
-        }
+        $driver->snapshotFor($pdo)->restoreFrom($snapPath);
     }
 
     private function downloadTarball(string $owner, string $repo, string $version, string $dest): void
@@ -838,7 +806,16 @@ final class Updater
     private function rollback(string $workdir): void
     {
         $codeSnapshot = $workdir . '/code';
-        $dbSnapshot   = $workdir . '/app.sqlite';
+        // snapshotDb writes to `$workdir/db.{ext}` — try whatever
+        // extension matches an actual file (sqlite vs sql.gz).
+        $dbSnapshot = null;
+        foreach (glob($workdir . '/db.*') ?: [] as $candidate) {
+            if (is_file($candidate)) { $dbSnapshot = $candidate; break; }
+        }
+        // Backwards-compat: pre-step-4 backups landed at app.sqlite.
+        if ($dbSnapshot === null && is_file($workdir . '/app.sqlite')) {
+            $dbSnapshot = $workdir . '/app.sqlite';
+        }
 
         if (is_dir($codeSnapshot)) {
             try {
@@ -860,10 +837,9 @@ final class Updater
             }
         }
 
-        if (is_file($dbSnapshot)) {
-            $live = APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite');
+        if ($dbSnapshot !== null && is_file($dbSnapshot)) {
             try {
-                $this->restoreDbFromSnapshot($dbSnapshot, $live);
+                $this->restoreDbFromSnapshot($dbSnapshot);
             } catch (\Throwable $_) {
                 // best-effort — partial DB restore is better than none
             }

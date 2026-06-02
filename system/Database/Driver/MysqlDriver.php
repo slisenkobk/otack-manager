@@ -104,6 +104,45 @@ final class MysqlDriver implements DriverInterface
         return $stmts;
     }
 
+    public function insertIgnoreVerb(): string { return 'INSERT IGNORE'; }
+    public function paginationAllOffsetSql(): string
+    {
+        // MySQL requires a literal limit operand when OFFSET is present.
+        // 2^64-1 is the documented "no upper bound" sentinel.
+        return 'LIMIT 18446744073709551615 OFFSET ?';
+    }
+    public function listTablesSql(): string
+    {
+        return "SELECT TABLE_NAME AS name "
+             . "FROM information_schema.tables "
+             . "WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME";
+    }
+
+    public function snapshotFor(\PDO $pdo): \App\Database\Snapshot\SnapshotInterface
+    {
+        $parsed = $this->parseDsn();
+        return new \App\Database\Snapshot\MysqlSnapshot([
+            'host'     => $parsed['host'] ?? '127.0.0.1',
+            'port'     => (int)($parsed['port'] ?? 3306),
+            'db'       => $parsed['dbname'] ?? '',
+            'user'     => $this->username,
+            'password' => $this->password,
+        ]);
+    }
+
+    /** @return array<string,string> name/value pairs parsed out of `key=val;…` */
+    private function parseDsn(): array
+    {
+        $body = (string)preg_replace('/^mysql:/', '', $this->dsn);
+        $out = [];
+        foreach (explode(';', $body) as $pair) {
+            if (!str_contains($pair, '=')) continue;
+            [$k, $v] = explode('=', $pair, 2);
+            $out[trim($k)] = trim($v);
+        }
+        return $out;
+    }
+
     private function columnSql(\App\Database\Schema\Column $c): string
     {
         // For string we need the length; everything else is straightforward.

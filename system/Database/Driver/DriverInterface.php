@@ -57,4 +57,31 @@ interface DriverInterface
      * @return string[]
      */
     public function compileAlterTable(\App\Database\Schema\Blueprint $bp): array;
+
+    /**
+     * Verb for "insert, but if it conflicts with a UNIQUE/PK row do
+     * nothing rather than error". 'INSERT OR IGNORE' on SQLite,
+     * 'INSERT IGNORE' on MySQL. Callers stitch the rest of the SQL.
+     */
+    public function insertIgnoreVerb(): string;
+
+    /**
+     * SQL fragment for "take every row from offset N onward". SQLite
+     * needs `LIMIT -1 OFFSET ?`; MySQL needs a huge sentinel because it
+     * requires a literal LIMIT operand when OFFSET is present.
+     */
+    public function paginationAllOffsetSql(): string;
+
+    /**
+     * SQL that returns user-owned table names (no system tables) as a
+     * single-column result. Used by Compass to render table stats.
+     */
+    public function listTablesSql(): string;
+
+    /**
+     * Build the snapshot/restore adapter for the current DB. Updater
+     * uses this to dispatch on the dialect: SQLite gets a file copy,
+     * MySQL gets a mysqldump pipeline.
+     */
+    public function snapshotFor(\PDO $pdo): \App\Database\Snapshot\SnapshotInterface;
 }

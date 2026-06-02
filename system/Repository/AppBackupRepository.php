@@ -61,11 +61,14 @@ final class AppBackupRepository
     public function idsBeyondRetention(int $keep): array
     {
         $keep = max(0, $keep);
+        // SQLite: LIMIT -1 OFFSET ?; MySQL: LIMIT 2^64-1 OFFSET ?
+        $driver = \App\Database\Connection::driverFor($this->pdo);
+        $allOffset = $driver?->paginationAllOffsetSql() ?? 'LIMIT -1 OFFSET ?';
         $stmt = $this->pdo->prepare(
             'SELECT id FROM app_backups
              WHERE pruned_at IS NULL
              ORDER BY created_at DESC, id DESC
-             LIMIT -1 OFFSET ?'
+             ' . $allOffset
         );
         $stmt->bindValue(1, $keep, \PDO::PARAM_INT);
         $stmt->execute();

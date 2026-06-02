@@ -192,9 +192,10 @@ final class CompassService
      */
     public function dbStats(): array
     {
-        $tableNames = $this->pdo
-            ->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
-            ->fetchAll(\PDO::FETCH_COLUMN) ?: [];
+        $driver = \App\Database\Connection::driverFor($this->pdo);
+        $listSql = $driver?->listTablesSql()
+            ?? "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name";
+        $tableNames = $this->pdo->query($listSql)->fetchAll(\PDO::FETCH_COLUMN) ?: [];
         $tables = [];
         foreach ($tableNames as $name) {
             try {

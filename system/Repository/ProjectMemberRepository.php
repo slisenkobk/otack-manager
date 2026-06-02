@@ -6,8 +6,9 @@ final class ProjectMemberRepository {
     public function __construct(private \PDO $pdo) {}
 
     public function add(int $projectId, int $userId, string $role = 'member'): void {
+        $verb = \App\Database\Connection::driverFor($this->pdo)?->insertIgnoreVerb() ?? 'INSERT OR IGNORE';
         $this->pdo->prepare(
-            'INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)'
+            "$verb INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)"
         )->execute([$projectId, $userId, $role]);
     }
 

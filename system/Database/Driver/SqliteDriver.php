@@ -101,6 +101,22 @@ final class SqliteDriver implements DriverInterface
         return $stmts;
     }
 
+    public function insertIgnoreVerb(): string { return 'INSERT OR IGNORE'; }
+    public function paginationAllOffsetSql(): string { return 'LIMIT -1 OFFSET ?'; }
+    public function listTablesSql(): string
+    {
+        return "SELECT name FROM sqlite_master "
+             . "WHERE type='table' AND name NOT LIKE 'sqlite_%' "
+             . "ORDER BY name";
+    }
+
+    public function snapshotFor(\PDO $pdo): \App\Database\Snapshot\SnapshotInterface
+    {
+        // Strip the leading 'sqlite:' to recover the file path.
+        $path = preg_replace('/^sqlite:/', '', $this->dsn);
+        return new \App\Database\Snapshot\SqliteSnapshot($pdo, (string)$path);
+    }
+
     private function columnSql(\App\Database\Schema\Column $c): string
     {
         $type = match ($c->type) {
