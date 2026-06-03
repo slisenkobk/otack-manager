@@ -40,3 +40,12 @@ it('api_tokens cascades on user delete', function () {
     $remaining = (int)$pdo->query('SELECT COUNT(*) FROM api_tokens')->fetchColumn();
     assert_eq(0, $remaining, 'tokens should be deleted with user');
 });
+
+it('api_rate_limits table has expected columns', function () {
+    $pdo = \App\Database\Connection::open('sqlite::memory:');
+    apply_migration($pdo, dirname(__DIR__, 2) . '/system/Database/migrations/20260603_050_api_rate_limits.php');
+    $cols = array_column($pdo->query("PRAGMA table_info('api_rate_limits')")->fetchAll(PDO::FETCH_ASSOC), 'name');
+    foreach (['token_id','window_start','count'] as $c) {
+        assert_true(in_array($c, $cols, true), "missing $c");
+    }
+});
