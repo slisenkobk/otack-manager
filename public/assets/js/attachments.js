@@ -13,8 +13,12 @@ document.querySelectorAll('.attachments-section').forEach(section => {
   grid.querySelectorAll('.attach-item').forEach(attachItem);
 
   function attachItem(item) {
-    const lb = item.querySelector('[data-action=lightbox]');
-    if (lb) lb.addEventListener('click', e => { e.preventDefault(); openLightbox(item); });
+    // Both the top "View" action button and the thumbnail <a> wrapper carry
+    // data-action="lightbox" — wire each one or the obvious thumbnail click
+    // becomes a dead href="#" navigating to the page top.
+    item.querySelectorAll('[data-action=lightbox]').forEach(lb => {
+      lb.addEventListener('click', e => { e.preventDefault(); openLightbox(item); });
+    });
 
     const del = item.querySelector('[data-action=delete-attachment]');
     if (del) del.addEventListener('click', async e => {

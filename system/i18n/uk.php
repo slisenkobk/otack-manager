@@ -11,6 +11,7 @@ return [
     'common.save'        => 'Зберегти',
     'common.cancel'      => 'Скасувати',
     'common.delete'      => 'Видалити',
+    'common.reply'       => 'Відповісти',
     'common.edit'        => 'Редагувати',
     'common.create'      => 'Створити',
     'common.submit'      => 'Надіслати',

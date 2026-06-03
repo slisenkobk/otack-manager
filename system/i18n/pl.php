@@ -10,6 +10,7 @@ return [
     'common.save'        => 'Zapisz',
     'common.cancel'      => 'Anuluj',
     'common.delete'      => 'Usuń',
+    'common.reply'       => 'Odpowiedz',
     'common.edit'        => 'Edytuj',
     'common.create'      => 'Utwórz',
     'common.submit'      => 'Wyślij',
