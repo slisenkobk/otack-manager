@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
+import { createProject } from './helpers/projects';
 const ROOT = path.resolve(__dirname, '../..');
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(() => {
@@ -16,12 +17,8 @@ test('open task page, change column, reload board', async ({ page }) => {
   await page.fill('input[name=password]', 'password123');
   await page.click('button.submit[type=submit]');
 
-  await page.goto('/projects/new');
-  await page.fill('input[name=name]', 'Task Page Test');
-  await page.click('button.submit[type=submit]');
-  // capture project URL
-  const projectUrl = page.url();
-  const projectId = projectUrl.match(/\/projects\/(\d+)/)[1];
+  const projectId = await createProject(page, 'Task Page Test', { gotoBoard: true });
+  const projectUrl = '/projects/' + projectId;
 
   // Add a task via fold pattern
   const firstCol = page.locator('.kanban-col').first();
@@ -38,10 +35,16 @@ test('open task page, change column, reload board', async ({ page }) => {
   await page.goto('/tasks/' + taskId);
   await expect(page.locator('.task-title')).toHaveText('Task one');
 
-  // Change column to "Done"
-  await page.locator('[data-field=column_id]').selectOption({ label: 'Done' });
+  // Change column to "Done". The column control is no longer a <select>;
+  // it's a custom-select widget: click the button to open the popup, then
+  // click the Done option. JS writes the hidden input and POSTs to the API.
+  const colSelect = page.locator('.custom-select').filter({
+    has: page.locator('[data-field=column_id]'),
+  }).first();
+  await colSelect.locator('.custom-select__btn').click();
+  await colSelect.locator('.custom-select__opt', { hasText: 'Done' }).click();
   // wait briefly for AJAX
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(500);
 
   // Go back to project board
   await page.goto(projectUrl);

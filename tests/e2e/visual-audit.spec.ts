@@ -42,19 +42,26 @@ async function loginAs(page: Page, email: string, password: string) {
 }
 
 async function createProject(page: Page, name: string, description: string = '') {
-  await page.goto('/projects/new');
-  await page.fill('input[name=name]', name);
+  // /projects/new is gone — project creation is now a UI.modal() opened from
+  // the [data-action="new-project"] trigger on the /projects index. The
+  // modal posts JSON and navigates to /projects/{id}?tab=overview.
+  await page.goto('/projects');
+  await page.click('[data-action="new-project"]');
+  const modal = page.locator('.modal').last();
+  await modal.waitFor({ state: 'visible' });
+  await modal.locator('input.input').first().fill(name);
   if (description) {
     try {
       await page.waitForSelector('.ql-editor', { timeout: 3000 }).catch(() => {});
-      const ed = page.locator('.ql-editor').first();
+      const ed = modal.locator('.ql-editor').first();
       if (await ed.count()) { await ed.fill(description); await page.waitForTimeout(150); }
     } catch {}
   }
-  await page.locator('button.submit[type=submit], button.submit').first().click();
-  await expect(page).toHaveURL(/\/projects\/\d+$/);
-  const url = page.url();
-  const m = url.match(/\/projects\/(\d+)/);
+  await Promise.all([
+    page.waitForURL(/\/projects\/\d+/),
+    modal.locator('button.submit').click(),
+  ]);
+  const m = page.url().match(/\/projects\/(\d+)/);
   return m ? parseInt(m[1]) : 1;
 }
 
@@ -142,12 +149,13 @@ test('04-dashboard-empty.png', async ({ page }) => {
   await ss(page, '04-dashboard-empty.png');
 
   // ── Bucket 1: topbar avatar on right, no PRO badge ──
-  const avatar = page.locator('.topbar__avatar, .topbar .avatar').first();
+  // Avatar markup is `.user-avatar` (rendered by user_avatar_html).
+  const avatar = page.locator('.topbar .user-avatar').first();
   await expect(avatar).toBeVisible();
 
   // Avatar should be in topbar__rhs
-  const rhs = page.locator('.topbar__rhs, .topbar .rhs').first();
-  const avatarInRhs = rhs.locator('.topbar__avatar, .avatar').first();
+  const rhs = page.locator('.topbar__rhs').first();
+  const avatarInRhs = rhs.locator('.user-avatar').first();
   await expect(avatarInRhs).toBeVisible();
 
   // No PRO badge (check computed style of ::after pseudo or check avatar has no text "PRO")
@@ -232,17 +240,21 @@ test('05-06-07 setup: create projects and tasks', async ({ page }) => {
 // ── Project pages ──────────────────────────────────────────────
 
 test('08-project-new.png', async ({ page }) => {
+  // The standalone /projects/new page was replaced by a UI.modal() flow;
+  // this screenshot now captures the modal as it appears over /projects.
   await loginAs(page, 'alice@u.com', 'password123');
-  await page.goto('/projects/new');
+  await page.goto('/projects');
+  await page.click('[data-action="new-project"]');
+  const modal = page.locator('.modal').last();
+  await modal.waitFor({ state: 'visible' });
   await ss(page, '08-project-new.png');
 
-  // Check form inputs have visible borders
-  const nameInput = page.locator('[name=name]');
+  // Check the modal's name input has a visible border at rest.
+  const nameInput = modal.locator('input.input').first();
   const borderColor = await nameInput.evaluate((el) => {
     return getComputedStyle(el).borderColor;
   });
   console.log('name input border-color:', borderColor);
-  // Should not be transparent
   expect(borderColor).not.toBe('rgba(0, 0, 0, 0)');
   expect(borderColor).not.toBe('transparent');
 });
@@ -726,20 +738,18 @@ test('B7: highlight pulse animation on ?highlight=N', async ({ page }) => {
   console.log('Card #1 has is-highlight class:', hasHighlightClass);
 });
 
-test('B8: quill renders on project edit page', async ({ page }) => {
+test('B8: quill renders in new-project modal', async ({ page }) => {
   await loginAs(page, 'alice@u.com', 'password123');
-  // /projects/new uses plain textarea per spec
-  await page.goto('/projects/new');
-  await page.waitForLoadState('networkidle');
-  const plainDesc = page.locator('[name=description]').first();
-  const plainDescVisible = await plainDesc.isVisible().catch(() => false);
-  console.log('Plain textarea on /projects/new:', plainDescVisible);
+  // /projects/new was replaced by the new-project modal which mounts a
+  // [data-quill] node that wysiwyg.js picks up.
+  await page.goto('/projects');
+  await page.click('[data-action="new-project"]');
+  const modal = page.locator('.modal').last();
+  await modal.waitFor({ state: 'visible' });
+  // The modal contains a [data-quill] node for the description editor.
+  await expect(modal.locator('[data-quill]')).toHaveCount(1);
 
-  // Check edit page for Quill (if it exists)
-  // Navigate to project 1 edit if there's an edit link
-  const editLink = page.locator('a[href*="/projects/1/edit"], a[href*="edit"]').first();
-  // Don't navigate — just verify CSS presence
-  const cssContent = fs.readFileSync(path.join(ROOT, 'public/assets/css/app.css'), 'utf8');
+  // The Quill vendor CSS must ship with the app.
   const hasQuillCSS = fs.existsSync(path.join(ROOT, 'public/assets/vendor/quill/quill.snow.css'));
   console.log('Quill CSS vendor file present:', hasQuillCSS);
   expect(hasQuillCSS).toBe(true);

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
+import { createProject } from './helpers/projects';
 
 const ROOT = path.resolve(__dirname, '../..');
 
@@ -20,14 +21,9 @@ test('upload a small PNG and see it as thumbnail', async ({ page }) => {
   await page.click('button.submit[type=submit]');
   await expect(page).toHaveURL('/');
 
-  // Create a project
-  await page.goto('/projects/new');
-  await page.fill('input[name=name]', 'Att Test');
-  await page.click('button.submit[type=submit]');
-  await expect(page).toHaveURL(/\/projects\/\d+$/);
-
-  // Navigate to Overview tab
-  await page.click('a:has-text("Overview")');
+  // Create a project — modal flow lands us on ?tab=overview already.
+  await createProject(page, 'Att Test');
+  await expect(page).toHaveURL(/\/projects\/\d+\?tab=overview$/);
 
   // Create a tiny 1×1 PNG in the data dir
   const tinyPng = Buffer.from(

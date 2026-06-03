@@ -29,10 +29,13 @@ test('admin can approve a pending user', async ({ browser }) => {
   await user.click('button.submit[type=submit]');
   await expect(user).toHaveURL('/pending');
 
-  // Admin visits /users, approves Bob
+  // Admin visits /users, approves Bob. The users page is now a table with
+  // <tr data-user-id="…"> rows; each pending row carries a button with
+  // data-action="approve". After clicking, the JS reloads the page.
   await admin.goto('/users');
-  await expect(admin.locator('.corner-tag').first()).toBeVisible();
-  await admin.locator('article:has-text("Bob") button:has-text("Approve")').click();
+  const bobRow = admin.locator('tr', { hasText: 'Bob' }).first();
+  await expect(bobRow).toBeVisible();
+  await bobRow.locator('button[data-action="approve"]').click();
   // Wait for the page reload triggered by the script
   await admin.waitForLoadState('networkidle');
 
