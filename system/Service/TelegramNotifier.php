@@ -2,7 +2,7 @@
 declare(strict_types=1);
 namespace App\Service;
 
-final class TelegramNotifier {
+class TelegramNotifier {
     public function __construct(private string $token, private string $chatId) {}
 
     /**
