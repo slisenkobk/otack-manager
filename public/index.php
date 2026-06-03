@@ -77,6 +77,7 @@ App::singleton('events',   fn() => new \App\Service\EventBus());
 App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));
 App::singleton('notif_log', fn() => new \App\Repository\NotificationLogRepository(App::make('db')));
 App::singleton('activity', fn() => new \App\Repository\ActivityLogRepository(App::make('db')));
+App::singleton('api_tokens', fn() => new \App\Repository\ApiTokenRepository(App::make('db')));
 App::singleton('compass', fn() => new \App\Service\CompassService(
     App::make('db'),
     App::make('schema'),
@@ -344,6 +345,37 @@ $router->post('/api/columns/{id}/delete', 'Column@delete');
 $router->post('/api/projects/{id}/columns/reorder', 'Column@reorder');
 
 $req   = Request::fromGlobals();
+
+// ─── /api/v1/* hand-off ──────────────────────────────────────────────────────
+// All API requests bypass the web Router. Bearer-auth, JSON-only, no CSRF.
+if (str_starts_with($req->path, '/api/v1/')) {
+    $services = [
+        'projects'         => App::make('projects'),
+        'members'          => App::make('members'),
+        'columns'          => App::make('columns'),
+        'tasks'            => App::make('tasks'),
+        'task_links'       => App::make('task_links'),
+        'comments'         => App::make('comments'),
+        'attachments'      => App::make('attachments'),
+        'tags'             => App::make('tags'),
+        'forms'            => App::make('forms'),
+        'form_submissions' => App::make('form_submissions'),
+        'polls'            => App::make('polls'),
+        'poll_votes'       => App::make('poll_votes'),
+        'uploader'         => App::make('uploader'),
+        'users'            => App::make('users'),
+    ];
+    $kernel = new \App\Api\V1\ApiKernel(
+        new \App\Api\V1\TokenAuthenticator(App::make('api_tokens'), App::make('users')),
+        new \App\Api\V1\RateLimiter(App::make('db'), max: 60, windowSeconds: 60),
+        App::make('api_tokens'),
+        App::make('activity'),
+        App::make('db'),
+        $services,
+    );
+    $kernel->handle($req);
+    exit;
+}
 
 // ─── Public landing + login hash gate ────────────────────────────────────────
 $hasSession = (App::make('session')->store['user_id'] ?? null) !== null;
