@@ -57,7 +57,7 @@ final class TaskController extends BaseController {
             Response::json(['error' => 'Project not found'], 404); return;
         }
         $this->assertMember($projectId);
-        $data = json_decode(file_get_contents('php://input'), true) ?: $req->post;
+        $data = $req->jsonBody($req->post);
         $columnId = (int)($data['column_id'] ?? 0);
         $title = trim($data['title'] ?? '');
         if (!$columnId || $title === '') {
@@ -195,7 +195,7 @@ final class TaskController extends BaseController {
         $task = $this->tasks->findById($taskId);
         if (!$task) { Response::json(['error' => 'Not found'], 404); return; }
         $this->assertMember((int)$task['project_id']);
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
         $columnId = (int)($data['column_id'] ?? 0);
         $position = (float)($data['position'] ?? 0);
         if (!$columnId) { Response::json(['error' => 'column_id required'], 422); return; }
@@ -482,7 +482,7 @@ final class TaskController extends BaseController {
         $projectId = (int)$task['project_id'];
         $this->assertMember($projectId);
 
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
         $other = (int)($data['linked_task_id'] ?? 0);
         if ($other <= 0 || $other === $id) { Response::json(['error' => 'Invalid task'], 422); return; }
         $otherTask = $this->tasks->findById($other);
@@ -560,7 +560,7 @@ final class TaskController extends BaseController {
         $task = $this->tasks->findById($id);
         if (!$task) { Response::json(['error' => 'Not found'], 404); return; }
         $this->assertMember((int)$task['project_id']);
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
 
         // Title/description are "structural" edits — restricted to the author,
         // project manager (owner), or admin. Status / assignee / due / priority

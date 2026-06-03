@@ -70,7 +70,7 @@ final class CommentController extends BaseController
 
     public function create(Request $req, array $params = []): void
     {
-        $data       = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data       = $req->jsonBody([]);
         $entityType = $data['entity_type'] ?? '';
         $entityId   = (int)($data['entity_id'] ?? 0);
         $body       = trim($data['body'] ?? '');

@@ -98,7 +98,7 @@ final class LinkController extends BaseController
 
     public function create(Request $req, array $params = []): void
     {
-        $data = json_decode((string)file_get_contents('php://input'), true) ?: [];
+        $data = $req->jsonBody([]);
         $target = trim((string)($data['target_url'] ?? ''));
         $title  = trim((string)($data['title'] ?? ''));
         if (!ShortLinkRepository::isAllowedUrl($target)) {
@@ -119,7 +119,7 @@ final class LinkController extends BaseController
         if (!$link) { Response::json(['error' => 'Not found'], 404); return; }
         if (!$this->canManage($link)) { Response::json(['error' => 'Forbidden'], 403); return; }
 
-        $data = json_decode((string)file_get_contents('php://input'), true) ?: [];
+        $data = $req->jsonBody([]);
         $patch = [];
         if (array_key_exists('target_url', $data)) {
             $target = trim((string)$data['target_url']);

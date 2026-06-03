@@ -85,7 +85,7 @@ final class FormController extends BaseController
     }
 
     public function save(Request $req, array $params = []): void {
-        $data = json_decode((string)file_get_contents('php://input'), true) ?: [];
+        $data = $req->jsonBody([]);
         $title = trim((string)($data['title'] ?? ''));
         if ($title === '') { Response::json(['error' => 'Title required'], 422); return; }
         // Description is Quill HTML — sanitise via the same pipeline used for

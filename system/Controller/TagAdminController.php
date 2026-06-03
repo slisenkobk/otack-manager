@@ -57,7 +57,7 @@ final class TagAdminController extends BaseController {
 
     public function update(Request $req, array $params): void {
         $id   = (int)$params['id'];
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
         $tag  = $this->tags->findById($id);
         if (!$tag) { Response::json(['error' => 'Not found'], 404); return; }
         $fields = [];

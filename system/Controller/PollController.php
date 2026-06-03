@@ -112,7 +112,7 @@ final class PollController extends BaseController
 
     public function save(Request $req, array $params = []): void
     {
-        $data = json_decode((string)file_get_contents('php://input'), true) ?: [];
+        $data = $req->jsonBody([]);
         $title = trim((string)($data['title'] ?? ''));
         if ($title === '') { Response::json(['error' => 'Title required'], 422); return; }
 
@@ -219,7 +219,7 @@ final class PollController extends BaseController
             Response::json(['error' => 'Draft polls edit the project via the main builder'], 409);
             return;
         }
-        $data = json_decode((string)file_get_contents('php://input'), true) ?: [];
+        $data = $req->jsonBody([]);
         $projectId = !empty($data['project_id']) ? (int)$data['project_id'] : null;
         if ($projectId !== null && !$this->canAttachToProject($projectId)) {
             Response::json(['error' => 'You cannot attach this poll to that project'], 403);

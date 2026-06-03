@@ -30,7 +30,7 @@ final class ColumnController extends BaseController {
     }
 
     public function create(Request $req, array $params = []): void {
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
         $projectId = (int)($data['project_id'] ?? 0);
         $name = trim((string)($data['name'] ?? ''));
         $color = (string)($data['color'] ?? '#8B7C68');
@@ -52,7 +52,7 @@ final class ColumnController extends BaseController {
         $col = $stmt->fetch();
         if (!$col) { Response::json(['error' => 'Not found'], 404); return; }
         $this->assertMember((int)$col['project_id']);
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
         $fields = [];
         if (isset($data['name'])) $fields['name'] = trim((string)$data['name']);
         if (isset($data['color'])) $fields['color'] = (string)$data['color'];
@@ -68,7 +68,7 @@ final class ColumnController extends BaseController {
         $col = $stmt->fetch();
         if (!$col) { Response::json(['error' => 'Not found'], 404); return; }
         $this->assertMember((int)$col['project_id']);
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
         $moveTo = isset($data['move_to']) && $data['move_to'] !== '' ? (int)$data['move_to'] : null;
 
         $t = $this->db->prepare('SELECT COUNT(*) AS c FROM tasks WHERE column_id = ?');
@@ -91,7 +91,7 @@ final class ColumnController extends BaseController {
             Response::json(['error' => 'Not found'], 404); return;
         }
         $this->assertMember($projectId);
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
         $orderedIds = array_values(array_map('intval', $data['ids'] ?? []));
         if (!$orderedIds) {
             Response::json(['error' => 'ids[] required'], 422); return;

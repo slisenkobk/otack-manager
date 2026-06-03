@@ -88,7 +88,7 @@ final class ProjectController extends BaseController {
             Response::forbidden('Employees cannot create projects'); return;
         }
         $isJson = $this->isJsonRequest($req);
-        $data   = $isJson ? (json_decode((string)file_get_contents('php://input'), true) ?: []) : $req->post;
+        $data   = $isJson ? $req->jsonBody([]) : $req->post;
         $name        = trim((string)($data['name'] ?? ''));
         $description = \App\Service\HtmlSanitizer::clean(trim((string)($data['description'] ?? '')));
         if ($name === '') {
@@ -215,7 +215,7 @@ final class ProjectController extends BaseController {
             Response::forbidden(); return;
         }
         $isJson = $this->isJsonRequest($req);
-        $data   = $isJson ? (json_decode((string)file_get_contents('php://input'), true) ?: []) : $req->post;
+        $data   = $isJson ? $req->jsonBody([]) : $req->post;
         $fields = [];
         if (isset($data['name'])) {
             $name = trim((string)$data['name']);
@@ -316,7 +316,7 @@ final class ProjectController extends BaseController {
         $isOwnerOrAdmin = $this->user['role'] === 'admin' || $this->members->isOwner($projectId, (int)$this->user['id']);
         if (!$isOwnerOrAdmin) { Response::json(['error' => 'Forbidden'], 403); return; }
 
-        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $data = $req->jsonBody([]);
         $userId = (int)($data['user_id'] ?? 0);
         if (!$userId) { Response::json(['error' => 'user_id required'], 422); return; }
         $u = $this->users->findById($userId);

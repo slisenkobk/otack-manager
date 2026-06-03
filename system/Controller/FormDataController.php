@@ -111,7 +111,7 @@ final class FormDataController extends BaseController
         $id = (int)$params['id'];
         $sub = $this->subs->findById($id);
         if (!$sub) { Response::json(['error' => 'Not found'], 404); return; }
-        $data = json_decode((string)file_get_contents('php://input'), true) ?: [];
+        $data = $req->jsonBody([]);
         $status = (string)($data['status'] ?? '');
         if (!in_array($status, ['new', 'in_progress', 'rejected', 'done'], true)) {
             Response::json(['error' => 'Invalid status'], 422); return;
@@ -143,7 +143,7 @@ final class FormDataController extends BaseController
         $form = $this->forms->findById((int)$sub['form_id']);
         if (!$form) { Response::json(['error' => 'Form gone'], 404); return; }
 
-        $payload = json_decode((string)file_get_contents('php://input'), true) ?: [];
+        $payload = $req->jsonBody([]);
         $type    = (string)($payload['type'] ?? '');
 
         $fields = json_decode((string)$form['fields_json'], true) ?: [];

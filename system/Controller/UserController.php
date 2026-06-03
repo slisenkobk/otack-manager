@@ -146,7 +146,7 @@ final class UserController extends BaseController {
     }
 
     public function setRole(Request $req, array $params): void {
-        $data = json_decode(file_get_contents('php://input'), true) ?? $req->post;
+        $data = $req->jsonBody($req->post);
         $role = $data['role'] ?? '';
         if (!in_array($role, ['admin', 'manager', 'employee'], true)) {
             Response::json(['error' => 'Invalid role'], 422); return;
@@ -160,7 +160,7 @@ final class UserController extends BaseController {
     }
 
     public function create(Request $req, array $params = []): void {
-        $data  = json_decode(file_get_contents('php://input'), true) ?? $req->post;
+        $data  = $req->jsonBody($req->post);
         $name  = trim((string)($data['name'] ?? ''));
         $email = trim((string)($data['email'] ?? ''));
         $pass  = (string)($data['password'] ?? '');
@@ -192,7 +192,7 @@ final class UserController extends BaseController {
         $id   = (int)$params['id'];
         $u    = $this->users->findById($id);
         if (!$u) { Response::json(['error' => 'Not found'], 404); return; }
-        $data = json_decode(file_get_contents('php://input'), true) ?? $req->post;
+        $data = $req->jsonBody($req->post);
         $name = isset($data['name']) ? trim((string)$data['name']) : null;
         $pass = isset($data['password']) ? (string)$data['password'] : '';
         if ($name !== null && $name !== '' && $name !== $u['name']) {

@@ -30,7 +30,7 @@ final class TagController extends BaseController {
     }
 
     public function create(Request $req, array $params = []): void {
-        $data  = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data  = $req->jsonBody([]);
         $scope = $data['scope'] ?? '';
         $name  = trim((string)($data['name'] ?? ''));
         if (!in_array($scope, ['project', 'task'], true) || $name === '') {
@@ -45,7 +45,7 @@ final class TagController extends BaseController {
         $projectId = (int)$params['id'];
         if (!$this->projects->findById($projectId)) { Response::json(['error' => 'Not found'], 404); return; }
         $this->assertProjectMember($projectId);
-        $data  = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data  = $req->jsonBody([]);
         $tagId = (int)($data['tag_id'] ?? 0);
         if (!$tagId) { Response::json(['error' => 'tag_id required'], 422); return; }
         $this->tags->attachToProject($projectId, $tagId);
@@ -66,7 +66,7 @@ final class TagController extends BaseController {
         $task   = $this->tasksRepo->findById($taskId);
         if (!$task) { Response::json(['error' => 'Not found'], 404); return; }
         $this->assertProjectMember((int)$task['project_id']);
-        $data  = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data  = $req->jsonBody([]);
         $tagId = (int)($data['tag_id'] ?? 0);
         if (!$tagId) { Response::json(['error' => 'tag_id required'], 422); return; }
         $this->tags->attachToTask($taskId, $tagId);
