@@ -11,7 +11,13 @@ done - #8 - Создать функционал Шорт линки, суть т
 
 #9 - Необходимо провести рефакторинг и чистоту кода для упаковки продукта, с документацией в папке docs (для разработчиков), с отдельными мд файлами на каждую важную сущность
 
-  #9.1 - Чек-лист по итогам аудита кода (2026-06-02):
+  #9.2 - **Полный аудит 2026-06-03 + план исправлений: [docs/superpowers/specs/2026-06-03-todo-9-audit-and-cleanup-plan.md](docs/superpowers/specs/2026-06-03-todo-9-audit-and-cleanup-plan.md)**
+  73 находки в 3-х параллельных ревью (backend/frontend/tests-docs-ops), сгруппировано в 3 волны:
+  - **9.1a (must-fix, ~3 дня):** security holes (S-1/S-2/S-4), a11y (V-1/V-2), packaging breakage (O-1/O-2), CI gaps, JS i18n + silent catches, SECURITY/DEPLOYMENT docs
+  - **9.1b (should-fix, ~5 дней):** architecture cleanup (split index.php, controller DI sweep, RolePolicy matrix, JS module split, CSS layered, full test fill-in, Quill lazy-load)
+  - **9.1c (nice-to-have, ~2 дня):** continuous polish backlog
+
+  #9.1 - Чек-лист по итогам аудита кода (2026-06-02) — superseded by #9.2 above (статус каждого пункта зафиксирован в новом spec'е: fixed/still-applies/expanded):
 
   Архитектура / структурный долг:
     - Constructor injection в контроллерах: убрать App::make() из тел методов, передавать зависимости через __construct (~20 контроллеров, см. ProjectController:43-80, TaskController:47-61)
