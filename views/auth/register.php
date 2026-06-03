@@ -4,16 +4,16 @@
   <form method="post" action="/register">
     <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
     <div class="field">
-      <label><?= e(t('field.name')) ?></label>
-      <input class="input" type="text" name="name" required autofocus>
+      <label for="f-name"><?= e(t('field.name')) ?></label>
+      <input id="f-name" class="input" type="text" name="name" required autofocus>
     </div>
     <div class="field" style="margin-top:14px;">
-      <label><?= e(t('field.email')) ?></label>
-      <input class="input" type="email" name="email" required>
+      <label for="f-email"><?= e(t('field.email')) ?></label>
+      <input id="f-email" class="input" type="email" name="email" required>
     </div>
     <div class="field" style="margin-top:14px;">
-      <label><?= e(t('field.password_min8')) ?></label>
-      <input class="input" type="password" name="password" minlength="8" required>
+      <label for="f-password"><?= e(t('field.password_min8')) ?></label>
+      <input id="f-password" class="input" type="password" name="password" minlength="8" required>
     </div>
     <button class="submit" type="submit" style="margin-top:22px;width:100%;"><?= e(t('auth.create_account_arrow')) ?></button>
   </form>

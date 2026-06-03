@@ -208,8 +208,8 @@
     </div>
 
     <div class="field" style="margin-bottom:7px;">
-      <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;"><?= e(t('tasks.due_date')) ?></label>
-      <input class="input" type="date" data-field="due_date" value="<?= e($task['due_date'] ?? '') ?>">
+      <label for="f-task-due-date" style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;"><?= e(t('tasks.due_date')) ?></label>
+      <input id="f-task-due-date" class="input" type="date" data-field="due_date" value="<?= e($task['due_date'] ?? '') ?>">
     </div>
 
     <div class="field" style="margin-bottom:7px;">

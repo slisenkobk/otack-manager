@@ -7,11 +7,11 @@ $initialColor = $project['color'] ?? $palette[array_rand($palette)];
 <form method="post" action="/projects/<?= (int)$project['id'] ?>" class="brief" style="max-width:none;">
   <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
   <div class="field">
-    <label><?= e(t('projects.form.name')) ?></label>
-    <input class="input" type="text" name="name" required autofocus value="<?= e($project['name']) ?>">
+    <label for="f-project-name"><?= e(t('projects.form.name')) ?></label>
+    <input id="f-project-name" class="input" type="text" name="name" required autofocus value="<?= e($project['name']) ?>">
   </div>
   <div class="field" style="margin-top:14px;">
-    <label><?= e(t('projects.form.color')) ?></label>
+    <label for="project-color-text"><?= e(t('projects.form.color')) ?></label>
     <div class="color-picker-row">
       <input type="text" class="input" name="color" id="project-color-text" value="<?= e($initialColor) ?>" maxlength="7">
       <label class="color-swatch" style="background: <?= e($initialColor) ?>;">

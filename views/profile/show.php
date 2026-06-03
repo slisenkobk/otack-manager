@@ -30,12 +30,12 @@ $currentLocale = $user['locale'] ?? 'en';
 
       <div class="form-grid form-grid--2 profile-card__fields">
         <div class="field">
-          <label><?= e(t('field.display_name')) ?></label>
-          <input class="input" type="text" name="name" value="<?= e($user['name']) ?>" required>
+          <label for="f-profile-name"><?= e(t('field.display_name')) ?></label>
+          <input id="f-profile-name" class="input" type="text" name="name" value="<?= e($user['name']) ?>" required>
         </div>
         <div class="field">
-          <label><?= e(t('field.email')) ?></label>
-          <input class="input" type="email" name="email" value="<?= e($user['email']) ?>" required>
+          <label for="f-profile-email"><?= e(t('field.email')) ?></label>
+          <input id="f-profile-email" class="input" type="email" name="email" value="<?= e($user['email']) ?>" required>
         </div>
         <div class="field form-grid__span">
           <label><?= e(t('profile.language_label')) ?></label>
@@ -66,20 +66,20 @@ $currentLocale = $user['locale'] ?? 'en';
     <p class="muted profile-card__hint"><?= e(t('profile.password_hint')) ?></p>
     <div class="form-grid form-grid--3 profile-card__fields">
       <div class="field">
-        <label><?= e(t('field.current_password')) ?></label>
+        <label for="f-current-password"><?= e(t('field.current_password')) ?></label>
         <?php // autocomplete="new-password" everywhere stops Chrome/Safari from
               // autofilling the stored login password into the current-password
               // field on this profile page — users open settings and see dots
               // they did not type, which is alarming. The user types it manually. ?>
-        <input class="input" type="password" name="current_password" autocomplete="new-password">
+        <input id="f-current-password" class="input" type="password" name="current_password" autocomplete="new-password">
       </div>
       <div class="field">
-        <label><?= e(t('field.new_password')) ?></label>
-        <input class="input" type="password" name="new_password" minlength="8" autocomplete="new-password">
+        <label for="f-new-password"><?= e(t('field.new_password')) ?></label>
+        <input id="f-new-password" class="input" type="password" name="new_password" minlength="8" autocomplete="new-password">
       </div>
       <div class="field">
-        <label><?= e(t('field.confirm_password')) ?></label>
-        <input class="input" type="password" name="confirm_password" minlength="8" autocomplete="new-password">
+        <label for="f-confirm-password"><?= e(t('field.confirm_password')) ?></label>
+        <input id="f-confirm-password" class="input" type="password" name="confirm_password" minlength="8" autocomplete="new-password">
       </div>
     </div>
   </section>

@@ -35,12 +35,12 @@ $isDisabled = (int)$link['is_disabled'] === 1;
     <h2 class="builder-panel__title"><?= e(t('links.basics')) ?></h2>
     <div class="builder-grid">
       <div class="field builder-grid__span">
-        <label><?= e(t('links.field.target_url')) ?></label>
-        <input class="input" type="url" data-link-target value="<?= e($link['target_url']) ?>" placeholder="https://example.com/landing">
+        <label for="f-link-target"><?= e(t('links.field.target_url')) ?></label>
+        <input id="f-link-target" class="input" type="url" data-link-target value="<?= e($link['target_url']) ?>" placeholder="https://example.com/landing">
       </div>
       <div class="field builder-grid__span">
-        <label><?= e(t('links.field.title')) ?></label>
-        <input class="input" type="text" data-link-title value="<?= e($link['title'] ?? '') ?>" placeholder="<?= e(t('links.field.title_placeholder')) ?>" maxlength="200">
+        <label for="f-link-title"><?= e(t('links.field.title')) ?></label>
+        <input id="f-link-title" class="input" type="text" data-link-title value="<?= e($link['title'] ?? '') ?>" placeholder="<?= e(t('links.field.title_placeholder')) ?>" maxlength="200">
       </div>
     </div>
   </section>
