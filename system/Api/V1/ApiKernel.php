@@ -94,7 +94,7 @@ final class ApiKernel
             }
 
             // Public schema endpoint — no auth, no rate limit.
-            if ($req->method === 'GET' && $req->path === '/api/v1/openapi.yaml') {
+            if (($req->method === 'GET' || $req->method === 'HEAD') && $req->path === '/api/v1/openapi.yaml') {
                 $this->serveOpenApi();
                 return;
             }
