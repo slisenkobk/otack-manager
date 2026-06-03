@@ -6,14 +6,21 @@ final class ApiTokenRepository
 {
     public function __construct(private \PDO $pdo) {}
 
-    /** Generate a fresh plaintext token: 'otk_' + 40 base62 chars = 44 chars total. */
+    /**
+     * Generate a fresh plaintext token: 'otk_' + 40 base62 chars = 44 chars total.
+     *
+     * Uses random_int() per character (not random_bytes()+modulo) to avoid the
+     * modulo bias inherent in `byte % 62` — 256 isn't divisible by 62, so the
+     * first four base62 chars (A-D) would otherwise have ~5/256 probability vs
+     * ~4/256 for the rest. random_int() draws from the CSPRNG with rejection
+     * sampling, yielding a uniform distribution over [0, 61].
+     */
     public static function generate(): string
     {
         $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        $bytes = random_bytes(40);
         $out = '';
-        foreach (str_split($bytes) as $b) {
-            $out .= $alphabet[ord($b) % 62];
+        for ($i = 0; $i < 40; $i++) {
+            $out .= $alphabet[random_int(0, 61)];
         }
         return 'otk_' . $out;
     }
