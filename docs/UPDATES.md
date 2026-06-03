@@ -418,6 +418,7 @@ overwrites a user-data column is a release that should never be cut.**
 | Tag exists but tarball doesn't yet     | HTTP 404 on tarball download                                 | Surface clearly: "release tag found but archive not yet published"   |
 | Disk full mid-extract                  | `tar` non-zero exit, fwrite returns false                    | Abort, rollback (§10.1), keep workdir for admin inspection           |
 | `rename()` cross-device                | EXDEV from PHP                                               | Fall back to copy+unlink; log a warning so this can be investigated  |
+| Cleanup `unlink`/`rmdir`/rollback `rename` fails | filesystem permissions, race, dangling locks       | Logged to `data/errors.log` via `Log::warn('updater.cleanup', …)`; never bubbled to the response. Investigate orphan files under `data/backups/{id}/` (S-9) |
 | Migration fails partway                | Migration throws                                             | Rollback (§10.1) — DB snapshot guarantees consistency                |
 | Backup directory missing on restore    | `is_dir()` false                                             | 410 Gone, mark `pruned_at` if not already, tell admin                |
 | Self-update breaks current request     | uncatchable (process dies)                                   | Next request runs new code; if THAT fails, admin uses `bin/self-update.php --restore <id>` from shell |
