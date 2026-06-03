@@ -271,13 +271,7 @@ final class PublicPollController extends BaseController
 
     private function resolveRemoteIp(): string
     {
-        $xff = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
-        if ($xff !== '') {
-            $first = trim((string)strtok($xff, ','));
-            if ($first !== '' && filter_var($first, FILTER_VALIDATE_IP)) return $first;
-        }
-        $ra = $_SERVER['REMOTE_ADDR'] ?? '';
-        return filter_var($ra, FILTER_VALIDATE_IP) ? (string)$ra : '';
+        return Request::clientIp();
     }
 
     /**

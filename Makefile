@@ -1,4 +1,4 @@
-.PHONY: help setup serve dev test unit api e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package migrate
+.PHONY: help setup serve dev test unit api e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package package-check migrate
 
 PORT ?= 8000
 SERVER_PID := /tmp/otack-server.pid
@@ -146,20 +146,48 @@ clean: fresh
 package:
 	@rm -f /tmp/otack-tasks-deploy.tar.gz
 	@tar --exclude='./.git' \
+	     --exclude='./.github' \
+	     --exclude='./.gitignore' \
 	     --exclude='./node_modules' \
 	     --exclude='./tests' \
 	     --exclude='./test-results' \
 	     --exclude='./.playwright' \
 	     --exclude='./.env' \
-	     --exclude='./data/app.sqlite' \
-	     --exclude='./data/app.test.sqlite' \
-	     --exclude='./data/.schema' \
-	     --exclude='./data/.schema.test' \
+	     --exclude='./data.backup-*' \
+	     --exclude='./data/app.sqlite*' \
+	     --exclude='./data/app.test.sqlite*' \
+	     --exclude='./data/app.api-test.sqlite*' \
+	     --exclude='./data/.schema*' \
 	     --exclude='./data/sessions' \
 	     --exclude='./data/errors.log' \
+	     --exclude='./data/backups' \
 	     --exclude='./public/uploads' \
 	     --exclude='./public/uploads-test' \
+	     --exclude='./docs/superpowers' \
+	     --exclude='./docs/PLAN-next-session.md' \
+	     --exclude='./docs/NEXT-SESSION-PROMPT.md' \
+	     --exclude='./package.json' \
+	     --exclude='./package-lock.json' \
+	     --exclude='./playwright.config.ts' \
 	     --exclude='./.DS_Store' \
 	     --exclude='./Makefile' \
 	     -czf /tmp/otack-tasks-deploy.tar.gz .
 	@echo "Built /tmp/otack-tasks-deploy.tar.gz ($$(du -h /tmp/otack-tasks-deploy.tar.gz | cut -f1))"
+
+# Sanity-check the tarball produced by `make package`. Lists a sample of paths
+# and largest entries, then fails if any forbidden path (dev tooling, test DBs,
+# internal docs, secrets) slipped through the exclude list.
+package-check: package
+	@echo "→ Tarball contents (top 30 paths):"
+	@tar tzf /tmp/otack-tasks-deploy.tar.gz | sort | head -30
+	@echo ""
+	@echo "→ Top 5 largest paths:"
+	@tar tzvf /tmp/otack-tasks-deploy.tar.gz | sort -k 3 -nr | head -5
+	@echo ""
+	@echo "→ Checking for forbidden paths..."
+	@if tar tzf /tmp/otack-tasks-deploy.tar.gz | grep -E '(^|/)(\.git(/|$$)|test-results(/|$$)|node_modules(/|$$)|superpowers(/|$$)|PLAN-next-session\.md|NEXT-SESSION-PROMPT\.md|package(-lock)?\.json|playwright\.config\.ts|app\.sqlite|data\.backup-|backups(/|$$)|\.env$$)' >/dev/null; then \
+		echo "  ✗ FORBIDDEN content found in tarball:"; \
+		tar tzf /tmp/otack-tasks-deploy.tar.gz | grep -E '(^|/)(\.git(/|$$)|test-results(/|$$)|node_modules(/|$$)|superpowers(/|$$)|PLAN-next-session\.md|NEXT-SESSION-PROMPT\.md|package(-lock)?\.json|playwright\.config\.ts|app\.sqlite|data\.backup-|backups(/|$$)|\.env$$)'; \
+		exit 1; \
+	fi
+	@echo "  ✓ No forbidden paths."

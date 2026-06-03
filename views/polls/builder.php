@@ -73,8 +73,8 @@ foreach (($projects ?? []) as $p) {
     <h2 class="builder-panel__title"><?= e(t('polls.basics')) ?></h2>
     <div class="builder-grid">
       <div class="field">
-        <label><?= e(t('polls.title_label')) ?></label>
-        <input class="input" type="text" data-poll-title value="<?= e($poll['title'] ?? '') ?>" placeholder="<?= e(t('polls.title_placeholder')) ?>">
+        <label for="f-poll-title"><?= e(t('polls.title_label')) ?></label>
+        <input id="f-poll-title" class="input" type="text" data-poll-title value="<?= e($poll['title'] ?? '') ?>" placeholder="<?= e(t('polls.title_placeholder')) ?>">
       </div>
       <div class="field">
         <label><?= e(t('polls.locale_label')) ?></label>
@@ -126,8 +126,8 @@ foreach (($projects ?? []) as $p) {
         </div>
       </div>
       <div class="field">
-        <label><?= e(t('polls.contact_label_label')) ?></label>
-        <input class="input" type="text" data-contact-label value="<?= e($contactLabel) ?>" placeholder="<?= e(t('polls.contact_label_placeholder')) ?>">
+        <label for="f-poll-contact-label"><?= e(t('polls.contact_label_label')) ?></label>
+        <input id="f-poll-contact-label" class="input" type="text" data-contact-label value="<?= e($contactLabel) ?>" placeholder="<?= e(t('polls.contact_label_placeholder')) ?>">
       </div>
     </div>
   </section>
@@ -136,8 +136,8 @@ foreach (($projects ?? []) as $p) {
     <h2 class="builder-panel__title"><?= e(t('polls.choice_section')) ?></h2>
     <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('polls.choice_section_hint')) ?></p>
     <div class="field">
-      <label><?= e(t('polls.choice_label_label')) ?></label>
-      <input class="input" type="text" data-choice-label value="<?= e($choiceLabel) ?>" placeholder="<?= e(t('polls.choice_label_placeholder')) ?>">
+      <label for="f-poll-choice-label"><?= e(t('polls.choice_label_label')) ?></label>
+      <input id="f-poll-choice-label" class="input" type="text" data-choice-label value="<?= e($choiceLabel) ?>" placeholder="<?= e(t('polls.choice_label_placeholder')) ?>">
     </div>
     <div class="field">
       <label><?= e(t('polls.choice_options_label')) ?></label>
@@ -195,8 +195,8 @@ foreach (($projects ?? []) as $p) {
     <h2 class="builder-panel__title"><?= e(t('polls.success.section_title')) ?></h2>
     <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('polls.success.hint')) ?></p>
     <div class="field">
-      <label><?= e(t('polls.success.label')) ?></label>
-      <textarea class="textarea" rows="3"
+      <label for="f-poll-success-message"><?= e(t('polls.success.label')) ?></label>
+      <textarea id="f-poll-success-message" class="textarea" rows="3"
                 data-success-message
                 maxlength="2000"
                 placeholder="<?= e(t('polls.thanks_body_default')) ?>"><?= e($successMessage) ?></textarea>

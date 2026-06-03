@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent, t } from './utils.js';
 
 document.querySelectorAll('.attachments-section').forEach(section => {
   const entityType = section.dataset.entityType;
@@ -25,12 +26,12 @@ document.querySelectorAll('.attachments-section').forEach(section => {
       e.preventDefault();
       e.stopPropagation();
       const id = item.dataset.attachmentId;
-      if (!await UI.confirm('Delete this attachment?', { danger: true, confirmLabel: 'Delete' })) return;
+      if (!await UI.confirm(t('js.confirm.delete_attachment'), { danger: true, confirmLabel: 'Delete' })) return;
       try {
         await api('/api/attachments/' + id + '/delete', { method: 'POST' });
         item.remove();
-        UI.toast('Attachment removed', 'success');
-      } catch {}
+        UI.toast(t('js.toast.attachment_removed'), 'success');
+      } catch (e) { logSilent(e, 'attachments.delete'); }
     });
 
     // Click anywhere on the card triggers the primary action (lightbox / open / download),

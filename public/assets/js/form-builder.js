@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent, t } from './utils.js';
 
 const FIELD_TYPES = [
   { value: 'text',     label: 'Text (single line)' },
@@ -59,15 +60,15 @@ if (builder) {
       task_title_template: (tplInput?.value || '').trim(),
       success_message: (successEl?.value || '').trim(),
     };
-    if (!payload.title) { UI.toast('Title is required', 'error'); return; }
-    if (!payload.fields.length) { UI.toast('Add at least one field', 'error'); return; }
+    if (!payload.title) { UI.toast(t('js.toast.title_required'), 'error'); return; }
+    if (!payload.fields.length) { UI.toast(t('js.toast.add_one_field'), 'error'); return; }
     btn.disabled = true;
     try {
       const url = formId ? '/forms/' + formId : '/forms';
       const res = await api(url, { method: 'POST', body: JSON.stringify(payload) });
-      UI.toast('Form saved', 'success');
+      UI.toast(t('js.toast.form_saved'), 'success');
       if (!formId && res?.id) location.href = '/forms/' + res.id;
-    } catch {} finally { btn.disabled = false; }
+    } catch (e) { logSilent(e, 'form-builder.save'); } finally { btn.disabled = false; }
   });
 
   function renderAll(scrollToIdx = -1) {
@@ -257,12 +258,12 @@ if (builder) {
     const rotBtn  = row.querySelector('[data-action=rotate-url]');
 
     if (copyBtn) copyBtn.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(urlText.textContent.trim()); UI.toast('Link copied', 'success'); }
-      catch { UI.toast('Copy failed', 'error'); }
+      try { await navigator.clipboard.writeText(urlText.textContent.trim()); UI.toast(t('js.toast.link_copied'), 'success'); }
+      catch { UI.toast(t('js.toast.copy_failed'), 'error'); }
     });
 
     if (rotBtn) rotBtn.addEventListener('click', async () => {
-      if (!await UI.confirm('Rotate the public link? The current URL will stop working immediately.', { danger: true, confirmLabel: 'Rotate link' })) return;
+      if (!await UI.confirm(t('js.confirm.rotate_public_link'), { danger: true, confirmLabel: 'Rotate link' })) return;
       rotBtn.disabled = true;
       try {
         const res = await api('/forms/' + id + '/rotate-hash', { method: 'POST' });
@@ -273,8 +274,8 @@ if (builder) {
           const toolbarOpen = document.querySelector('[data-builder-toolbar] a[href*="/f/"]');
           if (toolbarOpen) toolbarOpen.href = res.url;
         }
-        UI.toast('New URL generated', 'success');
-      } catch {} finally { rotBtn.disabled = false; }
+        UI.toast(t('js.toast.new_url_generated'), 'success');
+      } catch (e) { logSilent(e, 'form-builder.rotateHash'); } finally { rotBtn.disabled = false; }
     });
   }
 

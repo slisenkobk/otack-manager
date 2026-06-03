@@ -1,4 +1,5 @@
 import { UI } from './ui.js';
+import { t } from './utils.js';
 
 // Avatar file picker — sits inside the unified profile form. Show the
 // chosen file name so the user knows the click registered; the actual
@@ -25,6 +26,6 @@ fileInput?.addEventListener('change', () => {
 const removeBtn = document.querySelector('[data-remove-avatar]');
 const removeForm = document.querySelector('[data-remove-avatar-form]');
 removeBtn?.addEventListener('click', async () => {
-  if (!await UI.confirm('Remove your avatar?', { danger: true, confirmLabel: 'Remove' })) return;
+  if (!await UI.confirm(t('js.confirm.remove_avatar'), { danger: true, confirmLabel: 'Remove' })) return;
   removeForm?.submit();
 });

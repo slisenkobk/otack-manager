@@ -82,6 +82,10 @@ final class AuthController extends BaseController {
         // success — drop the resolved-locale cache so the post-login page picks
         // up the new user's locale instead of the Accept-Language fallback.
         i18n_reset_cache();
+        // Defeat session fixation: rotate the session id after privilege change.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
+        }
         $this->csrf->regenerate();
         Response::redirect('/');
     }
@@ -138,6 +142,10 @@ final class AuthController extends BaseController {
             $s = &$this->session();
             $s['user_id'] = (int)$id;
             i18n_reset_cache();
+            // Defeat session fixation: rotate the session id after privilege change.
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_regenerate_id(true);
+            }
             $this->csrf->regenerate();
             Response::redirect('/'); return;
         }

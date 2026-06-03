@@ -1,3 +1,5 @@
+import { logSilent } from './utils.js';
+
 const ROOT_MODAL = () => document.getElementById('modal-root');
 const ROOT_TOAST = () => document.getElementById('toast-root');
 const ROOT_LIGHT = () => document.getElementById('lightbox-root');
@@ -98,6 +100,7 @@ export const UI = {
   toast(message, type = 'info') {
     const node = document.createElement('div');
     node.className = 'toast toast--' + type;
+    if (type === 'error') node.setAttribute('role', 'alert');
     node.textContent = message;
     ROOT_TOAST().appendChild(node);
     const remove = () => node.remove();
@@ -143,7 +146,7 @@ export async function api(url, opts = {}) {
   }
   const res = await fetch(url, { ...opts, headers });
   let data = null;
-  try { data = await res.json(); } catch {}
+  try { data = await res.json(); } catch (e) { logSilent(e, 'api.parseJson'); }
   if (!res.ok) {
     UI.toast(data?.error || ('HTTP ' + res.status), 'error');
     throw new Error(data?.error || ('HTTP ' + res.status));

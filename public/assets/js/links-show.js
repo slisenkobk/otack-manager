@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent, t } from './utils.js';
 
 const root = document.querySelector('[data-link-edit]');
 if (root) {
@@ -12,26 +13,26 @@ if (root) {
     const btn = e.currentTarget;
     const payload = { target_url: target.value.trim(), title: title.value.trim() };
     if (!/^https?:\/\//i.test(payload.target_url)) {
-      UI.toast('URL must start with http:// or https://', 'error');
+      UI.toast(t('js.toast.url_must_start_with_http'), 'error');
       target.focus();
       return;
     }
     btn.disabled = true;
     try {
       await api('/links/' + id, { method: 'POST', body: JSON.stringify(payload) });
-      UI.toast('Link saved', 'success');
-    } catch {} finally { btn.disabled = false; }
+      UI.toast(t('js.toast.link_saved'), 'success');
+    } catch (e) { logSilent(e, 'links-show.save'); } finally { btn.disabled = false; }
   });
 
   const copyBtn = root.querySelector('[data-action=copy-url]');
   if (copyBtn) copyBtn.addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(urlText.textContent.trim()); UI.toast('Link copied', 'success'); }
-    catch { UI.toast('Copy failed', 'error'); }
+    try { await navigator.clipboard.writeText(urlText.textContent.trim()); UI.toast(t('js.toast.link_copied'), 'success'); }
+    catch { UI.toast(t('js.toast.copy_failed'), 'error'); }
   });
 
   const rotateBtn = root.querySelector('[data-action=rotate-url]');
   if (rotateBtn) rotateBtn.addEventListener('click', async () => {
-    if (!await UI.confirm('Rotate the slug? The current /s/… URL will stop working immediately.', { danger: true, confirmLabel: 'Rotate' })) return;
+    if (!await UI.confirm(t('js.confirm.rotate_slug'), { danger: true, confirmLabel: 'Rotate' })) return;
     rotateBtn.disabled = true;
     try {
       const res = await api('/links/' + id + '/rotate-slug', { method: 'POST' });
@@ -39,8 +40,8 @@ if (root) {
         urlText.textContent = res.url;
         if (urlLink) urlLink.href = res.url;
       }
-      UI.toast('New URL generated', 'success');
-    } catch {} finally { rotateBtn.disabled = false; }
+      UI.toast(t('js.toast.new_url_generated'), 'success');
+    } catch (e) { logSilent(e, 'links-show.rotateSlug'); } finally { rotateBtn.disabled = false; }
   });
 
   const toggleBtn = root.querySelector('[data-action=toggle-link]');
@@ -49,16 +50,16 @@ if (root) {
       const res = await api('/links/' + id + '/toggle', { method: 'POST' });
       UI.toast(res.is_disabled ? 'Link disabled' : 'Link enabled', 'success');
       setTimeout(() => location.reload(), 300);
-    } catch {}
+    } catch (e) { logSilent(e, 'links-show.toggle'); }
   });
 
   const delBtn = root.querySelector('[data-action=delete-link]');
   if (delBtn) delBtn.addEventListener('click', async () => {
-    if (!await UI.confirm('Delete this short link? Visit history will be erased too.', { danger: true, confirmLabel: 'Delete' })) return;
+    if (!await UI.confirm(t('js.confirm.delete_short_link'), { danger: true, confirmLabel: 'Delete' })) return;
     try {
       await api('/links/' + id + '/delete', { method: 'POST' });
-      UI.toast('Link deleted', 'success');
+      UI.toast(t('js.toast.link_deleted'), 'success');
       location.href = '/links';
-    } catch {}
+    } catch (e) { logSilent(e, 'links-show.delete'); }
   });
 }

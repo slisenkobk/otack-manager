@@ -250,17 +250,11 @@ final class PublicFormController extends BaseController
     }
 
     /**
-     * Best-effort visitor IP. Honours X-Forwarded-For first hop only.
-     * Returns '' if nothing usable is in the request.
+     * Best-effort visitor IP. Delegates to Request::clientIp() which respects
+     * TRUSTED_PROXIES — XFF is ignored unless REMOTE_ADDR is in the allowlist.
      */
     private function resolveRemoteIp(): string {
-        $xff = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
-        if ($xff !== '') {
-            $first = trim(strtok($xff, ','));
-            if ($first !== '' && filter_var($first, FILTER_VALIDATE_IP)) return $first;
-        }
-        $ra = $_SERVER['REMOTE_ADDR'] ?? '';
-        return filter_var($ra, FILTER_VALIDATE_IP) ? $ra : '';
+        return \App\Http\Request::clientIp();
     }
 
     /**

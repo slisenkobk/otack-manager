@@ -13,7 +13,7 @@ done - #8 - Создать функционал Шорт линки, суть т
 
   #9.2 - **Полный аудит 2026-06-03 + план исправлений: [docs/superpowers/specs/2026-06-03-todo-9-audit-and-cleanup-plan.md](docs/superpowers/specs/2026-06-03-todo-9-audit-and-cleanup-plan.md)**
   73 находки в 3-х параллельных ревью (backend/frontend/tests-docs-ops), сгруппировано в 3 волны:
-  - **9.1a (must-fix, ~3 дня):** security holes (S-1/S-2/S-4), a11y (V-1/V-2), packaging breakage (O-1/O-2), CI gaps, JS i18n + silent catches, SECURITY/DEPLOYMENT docs
+  - done - **9.1a (must-fix, ~3 дня):** security holes (S-1/S-2/S-4), a11y (V-1/V-2), packaging breakage (O-1/O-2), CI gaps, JS i18n + silent catches, SECURITY/DEPLOYMENT docs — done, tag v1.2.0 (see docs/superpowers/follow-ups/wave-9-1a.md for known pre-existing e2e flakes left for later)
   - **9.1b (should-fix, ~5 дней):** architecture cleanup (split index.php, controller DI sweep, RolePolicy matrix, JS module split, CSS layered, full test fill-in, Quill lazy-load)
   - **9.1c (nice-to-have, ~2 дня):** continuous polish backlog
 

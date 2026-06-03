@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent, t } from './utils.js';
 
 function avatarBg(userId) {
   // Mirrors PHP helper user_color(): hsl((id*47) % 360, 55%, 48%)
@@ -216,7 +217,7 @@ document.querySelectorAll('.comment-thread').forEach(thread => {
     const del = article.querySelector('[data-action="delete-comment"]');
     if (del) {
       del.addEventListener('click', async () => {
-        if (!await UI.confirm('Delete this comment?', { danger: true, confirmLabel: 'Delete' })) return;
+        if (!await UI.confirm(t('js.confirm.delete_comment'), { danger: true, confirmLabel: 'Delete' })) return;
         try {
           await api('/api/comments/' + article.dataset.commentId + '/delete', { method: 'POST' });
           const group = article.closest('.comment-group');
@@ -225,8 +226,8 @@ document.querySelectorAll('.comment-thread').forEach(thread => {
           } else {
             article.remove();
           }
-          UI.toast('Comment deleted', 'success');
-        } catch {}
+          UI.toast(t('js.toast.comment_deleted'), 'success');
+        } catch (e) { logSilent(e, 'comments.delete'); }
       });
     }
     const reply = article.querySelector('[data-action="reply"]');

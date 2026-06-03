@@ -62,13 +62,7 @@ final class PublicLinkController extends BaseController
 
     private function resolveRemoteIp(): string
     {
-        $xff = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
-        if ($xff !== '') {
-            $first = trim(strtok($xff, ','));
-            if ($first !== '' && filter_var($first, FILTER_VALIDATE_IP)) return $first;
-        }
-        $ra = $_SERVER['REMOTE_ADDR'] ?? '';
-        return filter_var($ra, FILTER_VALIDATE_IP) ? $ra : '';
+        return Request::clientIp();
     }
 
     private function renderNotFound(): void

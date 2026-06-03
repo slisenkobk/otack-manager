@@ -120,3 +120,69 @@ Manual smoke test before each release. Tick each item.
 - [ ] Wrong/missing CSRF token → 419
 - [ ] All UI confirms are custom `UI.confirm` modals — no native `alert/confirm/prompt`
 - [ ] Image uploads served with `Content-Disposition: inline`; other files forced to `attachment` via `public/uploads/.htaccess`
+
+## Forms (public)
+
+- [ ] Admin creates a form via Integrations → Forms → builder with at least 2 fields and saves
+- [ ] Public form URL (`/f/{hash}`) loads with the right locale
+- [ ] Submitting without the honeypot field set → 200 + thanks page; submission row appears in `/forms-data`
+- [ ] Submitting with the honeypot filled → silent 200 (no submission recorded)
+- [ ] Submitting within the HMAC time-trap window (too fast or expired) → rejected
+- [ ] When the form has "auto-create task" enabled and a target project, a new task is created in that project's first non-backlog column
+- [ ] Admin opens `/forms-data` → submissions visible with field values and timestamp
+- [ ] Deleting a form deletes its submissions
+- [ ] `/admin/settings → Brand` change reflects in the public form footer tag
+
+## Polls (public)
+
+- [ ] Admin creates a poll via Integrations → Polls with at least 2 options and saves as draft
+- [ ] Draft poll page in admin shows the Builder tab; Voters tab disabled
+- [ ] Activating the poll locks editing and shows the Statistics tab as primary
+- [ ] Public poll URL (`/p/{hash}`) requires contact field before voting
+- [ ] Submitting same contact twice → second attempt rejected (one-vote-per-contact dedup)
+- [ ] After closing the poll, the "Create task with results" action drops a summary task in the linked project
+- [ ] Voters tab shows the contact values + chosen option for each vote
+- [ ] Reactivating a closed poll is blocked (no time-travel)
+
+## Short links
+
+- [ ] Admin creates a short link via Integrations → Links with an allowed scheme (https://, http://, mailto:)
+- [ ] Disallowed scheme (`javascript:`, `data:`) → 422
+- [ ] Public `/s/{hash}` redirects to the target URL with HTTP 302
+- [ ] Stats page shows total clicks + unique visitors (by hashed IP)
+- [ ] Disabling the link → public URL returns 410
+- [ ] Copy-to-clipboard button on the link row reports success toast
+- [ ] When behind a trusted proxy, the XFF first-hop is the IP recorded for unique-visitor counting; otherwise REMOTE_ADDR
+
+## Updates (in-app updater)
+
+- [ ] Dashboard topbar shows the version pill matching `system/version.php`
+- [ ] Settings → Updates tab lists the current version and recent backups
+- [ ] When a newer GitHub release exists, "Update now" button appears and triggers the pipeline
+- [ ] Update pipeline snapshots `data/backups/{timestamp}/code` and `…/db` before swapping files
+- [ ] After update, schema migrations apply automatically (`schema_migrations` reflects them)
+- [ ] One-click Restore from the Backups table rolls back code + DB
+- [ ] `UPDATE_BACKUP_KEEP` retention prunes older snapshots when exceeded
+- [ ] `UPDATE_ENABLED=false` hides the Updates UI and disables the check entirely
+
+## MySQL migration (Compass → Migrate to MySQL)
+
+- [ ] Default SQLite install — Compass shows "Migrate to MySQL" entry
+- [ ] Test-connection succeeds with valid DSN/user/pass; clear error on bad creds
+- [ ] Plan step lists every table with row counts source→target = 0
+- [ ] Sync step copies in batches and reports per-table progress
+- [ ] After completion, AUTO_INCREMENT is reset to MAX(id)+1 per table
+- [ ] Sanity check compares counts source vs target — must match
+- [ ] Operator pastes new env vars into `.env`, reloads, hits `/admin/compass/verify`
+- [ ] SQLite file untouched on disk — rollback path is "revert .env"
+
+## External API
+
+- [ ] `/profile/tokens` lists active tokens, masked to prefix only
+- [ ] Creating a new token shows the full secret ONCE; refreshing the page hides it
+- [ ] `curl -H "Authorization: Bearer otk_…" /api/v1/me` returns the owner user JSON
+- [ ] Revoking a token returns 401 on the next request that uses it
+- [ ] Rate limit: 61st request within 60 s returns 429
+- [ ] `last_used_at` updates on each successful request
+- [ ] An activity_log entry is recorded for each token write (per `docs/API.md`)
+- [ ] OpenAPI spec at `docs/openapi.yaml` validates against the live route set (the convention test guards this)

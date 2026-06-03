@@ -56,8 +56,8 @@ foreach (($projects ?? []) as $p) {
     <h2 class="builder-panel__title"><?= e(t('forms.basics')) ?></h2>
     <div class="builder-grid">
       <div class="field">
-        <label><?= e(t('forms.title_label')) ?></label>
-        <input class="input" type="text" data-form-title value="<?= e($form['title'] ?? '') ?>" placeholder="<?= e(t('forms.title_placeholder')) ?>">
+        <label for="f-form-title"><?= e(t('forms.title_label')) ?></label>
+        <input id="f-form-title" class="input" type="text" data-form-title value="<?= e($form['title'] ?? '') ?>" placeholder="<?= e(t('forms.title_placeholder')) ?>">
       </div>
       <div class="field">
         <label><?= e(t('forms.locale_label')) ?></label>
@@ -135,8 +135,8 @@ foreach (($projects ?? []) as $p) {
       </div>
 
       <div class="field builder-grid__span" data-task-template-row<?= ($attachedProjectId && $autoCreateTask) ? '' : ' hidden' ?>>
-        <label><?= e(t('forms.integration.task_title_label')) ?></label>
-        <input class="input" type="text" data-task-title-template
+        <label for="f-task-title-template"><?= e(t('forms.integration.task_title_label')) ?></label>
+        <input id="f-task-title-template" class="input" type="text" data-task-title-template
                value="<?= e($taskTitleTemplate) ?>"
                placeholder="<?= e(t('forms.integration.task_title_placeholder')) ?>">
         <p class="muted" style="font-size:11px;color:var(--ink-3);margin:6px 0 0;">
@@ -179,8 +179,8 @@ foreach (($projects ?? []) as $p) {
     <h2 class="builder-panel__title"><?= e(t('forms.success.section_title')) ?></h2>
     <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('forms.success.hint')) ?></p>
     <div class="field">
-      <label><?= e(t('forms.success.label')) ?></label>
-      <textarea class="textarea" rows="3"
+      <label for="f-success-message"><?= e(t('forms.success.label')) ?></label>
+      <textarea id="f-success-message" class="textarea" rows="3"
                 data-success-message
                 maxlength="2000"
                 placeholder="<?= e(t('public_form.thanks_body')) ?>"><?= e($successMessage) ?></textarea>

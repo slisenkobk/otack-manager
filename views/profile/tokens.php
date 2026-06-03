@@ -40,13 +40,13 @@ function _token_epoch_fmt(?int $ts): string {
     <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
     <div class="form-grid form-grid--2">
       <div class="field">
-        <label><?= e(t('api_tokens.col_name')) ?></label>
-        <input class="input" type="text" name="name" required
+        <label for="f-token-name"><?= e(t('api_tokens.col_name')) ?></label>
+        <input id="f-token-name" class="input" type="text" name="name" required
                placeholder="<?= e(t('api_tokens.placeholder_name')) ?>">
       </div>
       <div class="field">
-        <label><?= e(t('api_tokens.col_expires')) ?></label>
-        <input class="input" type="text" name="expires_at"
+        <label for="f-token-expires"><?= e(t('api_tokens.col_expires')) ?></label>
+        <input id="f-token-expires" class="input" type="text" name="expires_at"
                placeholder="<?= e(t('api_tokens.placeholder_expires')) ?>">
       </div>
     </div>

@@ -1,1 +1,1 @@
-<div id="toast-root" class="toast-root" aria-live="polite"></div>
+<div id="toast-root" class="toast-root" role="status" aria-live="polite" aria-atomic="true"></div>

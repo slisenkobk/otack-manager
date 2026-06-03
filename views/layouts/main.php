@@ -43,6 +43,18 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 <?php require APP_ROOT . '/views/partials/lightbox-root.php'; ?>
 <script src="/assets/vendor/quill/quill.min.js" defer></script>
 <script type="module" src="<?= e(asset_url('/assets/js/theme.js')) ?>"></script>
+<?php
+  // JS i18n channel: emit only the js.* slice of the current catalog onto
+  // window.__t so client modules call t('js.toast.saved') instead of
+  // hard-coding EN literals. JSON_HEX_* flags neutralise any `</script>`,
+  // `&`, quote, or apostrophe inside a translation so it can't break out
+  // of the inline script tag.
+  $__jsLocale = [];
+  foreach (i18n_catalog() as $__k => $__v) {
+      if (is_string($__v) && str_starts_with($__k, 'js.')) $__jsLocale[$__k] = $__v;
+  }
+?>
+<script>window.__t = <?= json_encode($__jsLocale, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
 <script type="module" src="<?= e(asset_url('/assets/js/ui.js')) ?>"></script>
 <script type="module" src="<?= e(asset_url('/assets/js/wysiwyg.js')) ?>"></script>
 <script type="module" src="<?= e(asset_url('/assets/js/sidebar-groups.js')) ?>"></script>

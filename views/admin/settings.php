@@ -65,8 +65,8 @@ $localeNames = locale_display_names();
 
     <div class="form-grid form-grid--2">
       <div class="field">
-        <label><?= e(t('settings.field.app_name')) ?></label>
-        <input class="input" type="text" name="app_name" value="<?= e($values['app_name'] ?? '') ?>" placeholder="Otack Manager" maxlength="60">
+        <label for="f-app-name"><?= e(t('settings.field.app_name')) ?></label>
+        <input id="f-app-name" class="input" type="text" name="app_name" value="<?= e($values['app_name'] ?? '') ?>" placeholder="Otack Manager" maxlength="60">
       </div>
       <div class="field">
         <label title="<?= e(t('settings.field.brand_color_title')) ?>"><?= e(t('settings.field.brand_color')) ?></label>
@@ -144,20 +144,20 @@ $localeNames = locale_display_names();
 
     <div class="form-grid form-grid--2">
       <div class="field">
-        <label><?= e(t('settings.field.company_name')) ?></label>
-        <input class="input" type="text" name="contact_company_name" value="<?= e($values['contact_company_name'] ?? '') ?>">
+        <label for="f-contact-company-name"><?= e(t('settings.field.company_name')) ?></label>
+        <input id="f-contact-company-name" class="input" type="text" name="contact_company_name" value="<?= e($values['contact_company_name'] ?? '') ?>">
       </div>
       <div class="field">
-        <label><?= e(t('settings.field.contact_email')) ?></label>
-        <input class="input" type="email" name="contact_email" value="<?= e($values['contact_email'] ?? '') ?>">
+        <label for="f-contact-email"><?= e(t('settings.field.contact_email')) ?></label>
+        <input id="f-contact-email" class="input" type="email" name="contact_email" value="<?= e($values['contact_email'] ?? '') ?>">
       </div>
       <div class="field">
-        <label><?= e(t('settings.field.contact_phone')) ?></label>
-        <input class="input" type="tel" name="contact_phone" value="<?= e($values['contact_phone'] ?? '') ?>">
+        <label for="f-contact-phone"><?= e(t('settings.field.contact_phone')) ?></label>
+        <input id="f-contact-phone" class="input" type="tel" name="contact_phone" value="<?= e($values['contact_phone'] ?? '') ?>">
       </div>
       <div class="field">
-        <label><?= e(t('settings.field.contact_address')) ?></label>
-        <input class="input" type="text" name="contact_address" value="<?= e($values['contact_address'] ?? '') ?>">
+        <label for="f-contact-address"><?= e(t('settings.field.contact_address')) ?></label>
+        <input id="f-contact-address" class="input" type="text" name="contact_address" value="<?= e($values['contact_address'] ?? '') ?>">
       </div>
     </div>
     <div class="field" style="margin-top:14px;">

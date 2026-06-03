@@ -4,12 +4,12 @@
   <form method="post" action="/login">
     <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
     <div class="field">
-      <label><?= e(t('field.email')) ?></label>
-      <input class="input" type="email" name="email" required autofocus>
+      <label for="f-email"><?= e(t('field.email')) ?></label>
+      <input id="f-email" class="input" type="email" name="email" required autofocus>
     </div>
     <div class="field" style="margin-top:14px;">
-      <label><?= e(t('field.password')) ?></label>
-      <input class="input" type="password" name="password" required>
+      <label for="f-password"><?= e(t('field.password')) ?></label>
+      <input id="f-password" class="input" type="password" name="password" required>
     </div>
     <label class="remember-me" style="margin-top:18px;display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);cursor:pointer;">
       <input type="checkbox" name="remember" value="1">

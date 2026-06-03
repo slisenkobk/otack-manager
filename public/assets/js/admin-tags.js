@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { t } from './utils.js';
 
 // Tag search form submits on Enter (native) or via the submit button.
 
@@ -22,7 +23,7 @@ document.querySelectorAll('.card[data-tag-id]').forEach(card => {
         body: JSON.stringify({ name: newName }),
       });
       nameEl.dataset.original = newName;
-      UI.toast('Tag renamed', 'success');
+      UI.toast(t('js.toast.tag_renamed'), 'success');
     } catch {
       nameEl.textContent = original;
     }
@@ -45,7 +46,7 @@ document.querySelectorAll('.card[data-tag-id]').forEach(card => {
         body: JSON.stringify({ color: newColor }),
       });
       if (swatch) swatch.style.background = newColor;
-      UI.toast('Color updated', 'success');
+      UI.toast(t('js.toast.color_updated'), 'success');
     } catch {
       // error shown by api()
     }
@@ -58,7 +59,7 @@ document.querySelectorAll('.card[data-tag-id]').forEach(card => {
     try {
       await api('/api/admin/tags/' + tagId + '/delete', { method: 'POST' });
       card.remove();
-      UI.toast('Tag deleted', 'success');
+      UI.toast(t('js.toast.tag_deleted'), 'success');
     } catch {
       // error shown by api()
     }

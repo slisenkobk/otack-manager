@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent, t } from './utils.js';
 
 const builder = document.querySelector('[data-poll-builder]');
 if (builder) {
@@ -22,7 +23,7 @@ if (builder) {
     if (!rmBtn) return;
     const rows = optionsList.querySelectorAll('[data-option-row]');
     if (rows.length <= 2) {
-      UI.toast('A poll needs at least two options', 'error');
+      UI.toast(t('js.toast.poll_two_options'), 'error');
       return;
     }
     rmBtn.closest('[data-option-row]').remove();
@@ -42,9 +43,9 @@ if (builder) {
       project_id:    projectHidden?.value ? parseInt(projectHidden.value, 10) : null,
       success_message: (successEl?.value || '').trim(),
     };
-    if (!payload.title) { UI.toast('Title is required', 'error'); titleEl.focus(); return; }
+    if (!payload.title) { UI.toast(t('js.toast.title_required'), 'error'); titleEl.focus(); return; }
     if (countValidOptions(fields) < 2) {
-      UI.toast('A poll needs at least two non-empty options', 'error');
+      UI.toast(t('js.toast.poll_two_nonempty'), 'error');
       return;
     }
 
@@ -52,9 +53,9 @@ if (builder) {
     try {
       const url = pollId ? '/polls/' + pollId : '/polls';
       const res = await api(url, { method: 'POST', body: JSON.stringify(payload) });
-      UI.toast('Poll saved', 'success');
+      UI.toast(t('js.toast.poll_saved'), 'success');
       if (!pollId && res?.id) location.href = '/polls/' + res.id;
-    } catch {} finally { btn.disabled = false; }
+    } catch (e) { logSilent(e, 'poll-builder.save'); } finally { btn.disabled = false; }
   });
 
   // Activate (draft → active). Once active, the page reloads to show stats.
@@ -65,9 +66,9 @@ if (builder) {
     activateBtn.disabled = true;
     try {
       await api('/polls/' + pollId + '/activate', { method: 'POST' });
-      UI.toast('Poll activated', 'success');
+      UI.toast(t('js.toast.poll_activated'), 'success');
       location.reload();
-    } catch {} finally { activateBtn.disabled = false; }
+    } catch (e) { logSilent(e, 'poll-builder.activate'); } finally { activateBtn.disabled = false; }
   });
 
   // Public URL row (only present for already-saved polls).
@@ -78,11 +79,11 @@ if (builder) {
     const copyBtn = urlRow.querySelector('[data-action=copy-url]');
     const rotBtn  = urlRow.querySelector('[data-action=rotate-url]');
     if (copyBtn) copyBtn.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(urlText.textContent.trim()); UI.toast('Link copied', 'success'); }
-      catch { UI.toast('Copy failed', 'error'); }
+      try { await navigator.clipboard.writeText(urlText.textContent.trim()); UI.toast(t('js.toast.link_copied'), 'success'); }
+      catch { UI.toast(t('js.toast.copy_failed'), 'error'); }
     });
     if (rotBtn) rotBtn.addEventListener('click', async () => {
-      if (!await UI.confirm('Rotate the public link? The current URL will stop working immediately.', { danger: true, confirmLabel: 'Rotate link' })) return;
+      if (!await UI.confirm(t('js.confirm.rotate_public_link'), { danger: true, confirmLabel: 'Rotate link' })) return;
       rotBtn.disabled = true;
       try {
         const res = await api('/polls/' + pollId + '/rotate-hash', { method: 'POST' });
@@ -90,8 +91,8 @@ if (builder) {
           urlText.textContent = res.url;
           urlLink.href = res.url;
         }
-        UI.toast('New URL generated', 'success');
-      } catch {} finally { rotBtn.disabled = false; }
+        UI.toast(t('js.toast.new_url_generated'), 'success');
+      } catch (e) { logSilent(e, 'poll-builder.rotateHash'); } finally { rotBtn.disabled = false; }
     });
   }
 

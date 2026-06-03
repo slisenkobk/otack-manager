@@ -28,3 +28,17 @@ test('second user goes pending', async ({ page }) => {
   await page.click('button.submit[type=submit]');
   await expect(page).toHaveURL('/pending');
 });
+
+test('session id rotates after login (session-fixation defence)', async ({ page, context }) => {
+  // Use a fresh browser context so we have a pre-auth session cookie to compare against.
+  // The admin account was created by the first test in this serial suite.
+  await page.goto('/login');
+  const before = (await context.cookies()).find(c => c.name === 'OTACK_TASKS')?.value;
+  await page.fill('input[name=email]', 'admin@example.com');
+  await page.fill('input[name=password]', 'password123');
+  await page.click('button.submit[type=submit]');
+  await expect(page).toHaveURL('/');
+  const after = (await context.cookies()).find(c => c.name === 'OTACK_TASKS')?.value;
+  expect(after).toBeTruthy();
+  expect(after).not.toBe(before);
+});

@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent, t } from './utils.js';
 
 const overview = document.querySelector('.project-overview');
 if (overview) {
@@ -42,8 +43,8 @@ if (overview) {
       replaceRenderedWith(html);
       editor.style.display = 'none';
       rendered.style.display = 'block';
-      UI.toast('Description saved', 'success');
-    } catch {}
+      UI.toast(t('js.toast.description_saved'), 'success');
+    } catch (e) { logSilent(e, 'project-page.saveDescription'); }
   });
 
   const titleEl = overview.querySelector('.project-title[contenteditable]');
@@ -60,7 +61,7 @@ if (overview) {
         });
         lastTitle = res.project?.name || name;
         titleEl.textContent = lastTitle;
-        UI.toast('Project name saved', 'success');
+        UI.toast(t('js.toast.project_name_saved'), 'success');
       } catch {
         titleEl.textContent = lastTitle;
       }
@@ -84,17 +85,17 @@ if (overview) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ color: colorInput.value }),
         });
-        UI.toast('Color saved', 'success');
-      } catch {}
+        UI.toast(t('js.toast.color_saved'), 'success');
+      } catch (e) { logSilent(e, 'project-page.saveColor'); }
     });
   }
 
   overview.querySelector('[data-action=delete-project]')?.addEventListener('click', async () => {
-    if (!await UI.confirm('Delete this project permanently? All tasks, comments and attachments will be lost.',
+    if (!await UI.confirm(t('js.confirm.delete_project'),
                           { danger: true, confirmLabel: 'Delete' })) return;
     try {
       await api('/projects/' + projectId + '/delete', { method: 'POST' });
       location.href = '/projects';
-    } catch {}
+    } catch (e) { logSilent(e, 'project-page.delete'); }
   });
 }

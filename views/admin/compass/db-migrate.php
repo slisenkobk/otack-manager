@@ -53,24 +53,24 @@
     <form data-form="connect" class="form-grid form-grid--2" style="margin:0;">
       <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
       <div class="field">
-        <label><?= e(t('compass.db_migrate.field_host')) ?></label>
-        <input class="input" type="text" name="host" value="127.0.0.1" autocomplete="off">
+        <label for="f-db-host"><?= e(t('compass.db_migrate.field_host')) ?></label>
+        <input id="f-db-host" class="input" type="text" name="host" value="127.0.0.1" autocomplete="off">
       </div>
       <div class="field">
-        <label><?= e(t('compass.db_migrate.field_port')) ?></label>
-        <input class="input" type="number" name="port" value="3306">
+        <label for="f-db-port"><?= e(t('compass.db_migrate.field_port')) ?></label>
+        <input id="f-db-port" class="input" type="number" name="port" value="3306">
       </div>
       <div class="field">
-        <label><?= e(t('compass.db_migrate.field_db')) ?></label>
-        <input class="input" type="text" name="db" placeholder="otack" autocomplete="off">
+        <label for="f-db-name"><?= e(t('compass.db_migrate.field_db')) ?></label>
+        <input id="f-db-name" class="input" type="text" name="db" placeholder="otack" autocomplete="off">
       </div>
       <div class="field">
-        <label><?= e(t('compass.db_migrate.field_user')) ?></label>
-        <input class="input" type="text" name="user" autocomplete="off">
+        <label for="f-db-user"><?= e(t('compass.db_migrate.field_user')) ?></label>
+        <input id="f-db-user" class="input" type="text" name="user" autocomplete="off">
       </div>
       <div class="field" style="grid-column:1/-1;">
-        <label><?= e(t('compass.db_migrate.field_password')) ?></label>
-        <input class="input" type="password" name="password" autocomplete="new-password">
+        <label for="f-db-password"><?= e(t('compass.db_migrate.field_password')) ?></label>
+        <input id="f-db-password" class="input" type="password" name="password" autocomplete="new-password">
       </div>
     </form>
 

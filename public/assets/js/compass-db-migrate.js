@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent, t } from './utils.js';
 
 // SQLite → MySQL migration wizard. Three actions:
 //   1. Test connection — validates the form against the target MySQL.
@@ -46,7 +47,7 @@ if (root && root.dataset.currentDriver === 'sqlite') {
         runBtn.disabled = true;
       }
     } catch (e) {
-      UI.toast('Test failed', 'error');
+      UI.toast(t('js.toast.test_failed'), 'error');
     } finally {
       testBtn.disabled = false;
     }
@@ -83,9 +84,9 @@ if (root && root.dataset.currentDriver === 'sqlite') {
       }
       envBlock.textContent = data.env || '';
       runResult.style.display = '';
-      UI.toast('Migration complete — paste the new env vars and reload', 'success');
+      UI.toast(t('js.toast.migration_complete'), 'success');
     } catch (e) {
-      UI.toast('Migration failed', 'error');
+      UI.toast(t('js.toast.migration_failed'), 'error');
     }
   });
 
@@ -96,6 +97,6 @@ if (root && root.dataset.currentDriver === 'sqlite') {
       const data = await api('/admin/compass/db-migrate/verify');
       verifyResult.textContent = data.message || '';
       verifyResult.style.color = data.ok ? '#1e6f3a' : '#b00020';
-    } catch {} finally { verifyBtn.disabled = false; }
+    } catch (e) { logSilent(e, 'compass.dbMigrate.verify'); } finally { verifyBtn.disabled = false; }
   });
 }
