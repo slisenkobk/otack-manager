@@ -163,9 +163,7 @@ package:
 	     --exclude='./data/backups' \
 	     --exclude='./public/uploads' \
 	     --exclude='./public/uploads-test' \
-	     --exclude='./docs/superpowers' \
-	     --exclude='./docs/PLAN-next-session.md' \
-	     --exclude='./docs/NEXT-SESSION-PROMPT.md' \
+	     --exclude='./.dev-notes' \
 	     --exclude='./package.json' \
 	     --exclude='./package-lock.json' \
 	     --exclude='./playwright.config.ts' \
@@ -185,9 +183,9 @@ package-check: package
 	@tar tzvf /tmp/otack-tasks-deploy.tar.gz | sort -k 3 -nr | head -5
 	@echo ""
 	@echo "→ Checking for forbidden paths..."
-	@if tar tzf /tmp/otack-tasks-deploy.tar.gz | grep -E '(^|/)(\.git(/|$$)|test-results(/|$$)|node_modules(/|$$)|superpowers(/|$$)|PLAN-next-session\.md|NEXT-SESSION-PROMPT\.md|package(-lock)?\.json|playwright\.config\.ts|app\.sqlite|data\.backup-|backups(/|$$)|\.env$$)' >/dev/null; then \
+	@if tar tzf /tmp/otack-tasks-deploy.tar.gz | grep -E '(^|/)(\.git(/|$$)|\.dev-notes(/|$$)|test-results(/|$$)|node_modules(/|$$)|package(-lock)?\.json|playwright\.config\.ts|app\.sqlite|data\.backup-|backups(/|$$)|\.env$$)' >/dev/null; then \
 		echo "  ✗ FORBIDDEN content found in tarball:"; \
-		tar tzf /tmp/otack-tasks-deploy.tar.gz | grep -E '(^|/)(\.git(/|$$)|test-results(/|$$)|node_modules(/|$$)|superpowers(/|$$)|PLAN-next-session\.md|NEXT-SESSION-PROMPT\.md|package(-lock)?\.json|playwright\.config\.ts|app\.sqlite|data\.backup-|backups(/|$$)|\.env$$)'; \
+		tar tzf /tmp/otack-tasks-deploy.tar.gz | grep -E '(^|/)(\.git(/|$$)|\.dev-notes(/|$$)|test-results(/|$$)|node_modules(/|$$)|package(-lock)?\.json|playwright\.config\.ts|app\.sqlite|data\.backup-|backups(/|$$)|\.env$$)'; \
 		exit 1; \
 	fi
 	@echo "  ✓ No forbidden paths."
