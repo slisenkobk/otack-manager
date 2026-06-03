@@ -17,3 +17,6 @@
 /.playwright/
 /test-results/
 .DS_Store
+/data/app.api-test.sqlite
+/data/app.api-test.sqlite-wal
+/data/app.api-test.sqlite-shm

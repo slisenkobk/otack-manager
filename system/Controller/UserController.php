@@ -17,6 +17,73 @@ final class UserController extends BaseController {
         $this->users = App::make('users');
     }
 
+    private function &session(): array {
+        $obj = App::make('session');
+        return $obj->store;
+    }
+
+    private function flash(string $key, string $value): void {
+        $s = &$this->session();
+        $s[$key] = $value;
+    }
+
+    private function consumeFlash(string $key): ?string {
+        $s = &$this->session();
+        $v = $s[$key] ?? null;
+        unset($s[$key]);
+        return $v;
+    }
+
+    public function show(Request $req, array $params): void {
+        $id   = (int)($params['id'] ?? 0);
+        $user = $this->users->findById($id);
+        if (!$user) { Response::notFound(); return; }
+
+        $csrfToken = $this->csrfToken();
+        $apiTokens = App::make('api_tokens')->listForUser($id);
+
+        $sidebar = $this->view->render('partials/sidebar', [
+            'user' => $this->user, 'activeNav' => 'users', 'csrfToken' => $csrfToken,
+        ]);
+        $topbar = $this->view->render('partials/topbar', [
+            'user' => $this->user, 'crumb' => $user['name'],
+        ]);
+        Response::html($this->view->render('layouts/main', [
+            'title'     => $user['name'],
+            'csrfToken' => $csrfToken,
+            'sidebar'   => $sidebar,
+            'topbar'    => $topbar,
+            'content'   => $this->view->render('users/show', [
+                'user'      => $user,
+                'apiTokens' => $apiTokens,
+                'csrfToken' => $csrfToken,
+                'success'   => $this->consumeFlash('flash_success'),
+                'error'     => $this->consumeFlash('flash_error'),
+            ]),
+        ]));
+    }
+
+    public function revokeToken(Request $req, array $params): void {
+        $userId  = (int)($params['id'] ?? 0);
+        $tokenId = (int)($params['tid'] ?? 0);
+        $repo = App::make('api_tokens');
+        $row  = $repo->findById($tokenId);
+        // Silent no-op on missing / cross-user IDs — admins shouldn't be able
+        // to probe token ids that don't belong to this user.
+        if ($row && (int)$row['user_id'] === $userId) {
+            $repo->revoke($tokenId);
+            $this->flash('flash_success', t('api_tokens.revoked'));
+        }
+        Response::redirect('/users/' . $userId);
+    }
+
+    public function revokeAllTokens(Request $req, array $params): void {
+        $userId = (int)($params['id'] ?? 0);
+        App::make('api_tokens')->revokeAllForUser($userId);
+        $this->flash('flash_success', t('api_tokens.all_revoked'));
+        Response::redirect('/users/' . $userId);
+    }
+
     public function index(Request $req, array $params = []): void {
         $page    = max(1, (int)($req->query['page'] ?? 1));
         $query   = trim((string)($req->query['q'] ?? ''));

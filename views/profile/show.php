@@ -90,6 +90,16 @@ $currentLocale = $user['locale'] ?? 'en';
   </div>
 </form>
 
+<section class="brief brief--wide profile-card">
+  <h2 class="profile-card__title"><?= e(t('api_tokens.title')) ?></h2>
+  <p class="muted profile-card__hint"><?= e(t('api_tokens.profile_link_hint')) ?></p>
+  <p style="margin-top:var(--space-6);">
+    <a class="btn btn--secondary" href="/profile/tokens">
+      <i class="fa-solid fa-key"></i> <?= e(t('api_tokens.manage')) ?>
+    </a>
+  </p>
+</section>
+
 <?php if (!empty($user['avatar'])): ?>
 <form method="post" action="/profile/avatar/delete" data-remove-avatar-form hidden>
   <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">

@@ -1,4 +1,4 @@
-.PHONY: help setup serve dev test unit e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package migrate
+.PHONY: help setup serve dev test unit api e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package migrate
 
 PORT ?= 8000
 SERVER_PID := /tmp/otack-server.pid
@@ -71,10 +71,13 @@ logs:
 migrate:
 	php bin/migrate.php
 
-test: unit e2e
+test: unit api e2e
 
 unit:
 	php tests/run.php
+
+api:
+	php tests/api/run.php
 
 # Run the unit suite against MySQL 8.0 in a throwaway docker container.
 # Mirrors the CI matrix (.github/workflows/unit-tests.yml). Requires docker
@@ -104,10 +107,10 @@ unit-mysql:
 	exit $$STATUS
 
 e2e:
-	npx playwright test --config tests/e2e/playwright.config.ts
+	npx playwright test
 
 e2e-ui:
-	npx playwright test --config tests/e2e/playwright.config.ts --ui
+	npx playwright test --ui
 
 # Password gate — fires once per `make` invocation; cached because the target
 # is phony but make tracks "already built" within a single run.

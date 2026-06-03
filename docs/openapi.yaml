@@ -1,0 +1,1472 @@
+openapi: 3.1.0
+info:
+  title: Otack Manager API
+  version: 1.0.0
+  description: |
+    Third-party REST API for Otack Manager. Mirrors manager + employee
+    capabilities of the web UI. Authenticate with a Bearer API token
+    issued in /profile/tokens.
+
+    See docs/API.md for an integration walkthrough.
+servers:
+  - url: '{base_url}/api/v1'
+    variables:
+      base_url:
+        default: http://localhost:8000
+        description: Otack instance base URL (no trailing slash)
+
+security:
+  - BearerToken: []
+
+tags:
+  - name: Meta
+    description: Health, identity, schema
+  - name: Projects
+    description: Project CRUD, pin state, membership
+  - name: Columns
+    description: Project board columns + reorder
+  - name: Tasks
+    description: Task CRUD, move, link, promote
+  - name: Comments
+    description: Comments on tasks and projects
+  - name: Tags
+    description: Global catalogue + project/task attachments
+  - name: Attachments
+    description: Multipart file uploads on tasks/projects
+  - name: Forms
+    description: Read-only forms + submissions surface
+  - name: Polls
+    description: Read-only polls + stats + voters
+
+components:
+  securitySchemes:
+    BearerToken:
+      type: http
+      scheme: bearer
+      bearerFormat: otk_*
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          example: validation_failed
+        message:
+          type: string
+          example: title is required
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            title: required
+    Me:
+      type: object
+      required: [id, name, email, role, locale]
+      properties:
+        id: { type: integer, example: 7 }
+        name: { type: string, example: Ada Lovelace }
+        email: { type: string, format: email, example: ada@example.com }
+        role:
+          type: string
+          enum: [admin, manager, employee]
+        locale: { type: string, example: en }
+    Ping:
+      type: object
+      required: [ok, user_id]
+      properties:
+        ok: { type: boolean, example: true }
+        user_id: { type: integer, example: 7 }
+    Project:
+      type: object
+      required: [id, name, status, pinned]
+      properties:
+        id: { type: integer, example: 42 }
+        name: { type: string, example: Website Redesign }
+        slug: { type: [string, 'null'], example: website-redesign }
+        color: { type: [string, 'null'], example: '#8B7C68' }
+        status:
+          type: string
+          enum: [active, archived]
+          default: active
+        pinned: { type: boolean }
+        created_at:
+          type: [string, 'null']
+          format: date-time
+          example: '2026-06-01T12:00:00Z'
+        updated_at:
+          type: [string, 'null']
+          format: date-time
+    ProjectDetail:
+      allOf:
+        - $ref: '#/components/schemas/Project'
+        - type: object
+          properties:
+            columns:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  position: { type: integer }
+            members:
+              type: array
+              items:
+                type: object
+                properties:
+                  user_id: { type: integer }
+                  name: { type: [string, 'null'] }
+                  role: { type: [string, 'null'] }
+    Column:
+      type: object
+      required: [id, project_id, name, position, is_done, is_backlog]
+      properties:
+        id: { type: integer }
+        project_id: { type: integer }
+        name: { type: string, example: To Do }
+        color: { type: [string, 'null'] }
+        position: { type: integer }
+        is_done: { type: boolean }
+        is_backlog: { type: boolean }
+    TaskListItem:
+      type: object
+      required: [id, project_id, column_id, title, position, priority]
+      properties:
+        id: { type: integer }
+        project_id: { type: integer }
+        column_id: { type: integer }
+        title: { type: string }
+        position: { type: number, format: float }
+        priority:
+          type: string
+          enum: [none, low, medium, high, urgent]
+        assignee_id: { type: [integer, 'null'] }
+        due_date: { type: [string, 'null'], example: '2026-06-15' }
+        sub_status: { type: [string, 'null'] }
+        created_at: { type: [string, 'null'] }
+        updated_at: { type: [string, 'null'] }
+    Task:
+      allOf:
+        - $ref: '#/components/schemas/TaskListItem'
+        - type: object
+          required: [comments_count, attachments_count, tags, links]
+          properties:
+            description: { type: [string, 'null'] }
+            created_by: { type: [integer, 'null'] }
+            comments_count: { type: integer }
+            attachments_count: { type: integer }
+            tags:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  color: { type: [string, 'null'] }
+            links:
+              type: array
+              items: { type: integer }
+              description: IDs of the other side of each link
+    Comment:
+      type: object
+      required: [id, entity_type, entity_id, user_id, body]
+      properties:
+        id: { type: integer }
+        entity_type:
+          type: string
+          enum: [task, project]
+        entity_id: { type: integer }
+        user_id: { type: integer }
+        body: { type: string, description: Raw Markdown }
+        parent_id: { type: [integer, 'null'] }
+        created_at: { type: [string, 'null'] }
+        author_name: { type: [string, 'null'] }
+    Tag:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        color: { type: [string, 'null'] }
+        scope:
+          type: [string, 'null']
+          enum: [project, task, null]
+    Attachment:
+      type: object
+      required: [id, entity_type, entity_id, filename, path, original_name, mime, size, is_image, uploaded_by]
+      properties:
+        id: { type: integer }
+        entity_type:
+          type: string
+          enum: [task, project]
+        entity_id: { type: integer }
+        filename: { type: string, example: uploads/2026/06/abc.png }
+        path: { type: string, description: Web-relative path (always leading slash), example: /uploads/2026/06/abc.png }
+        original_name: { type: string }
+        mime: { type: string, example: image/png }
+        size: { type: integer }
+        is_image: { type: boolean }
+        uploaded_by: { type: integer }
+        created_at: { type: [string, 'null'] }
+    Form:
+      type: object
+      required: [id, hash, title, status, locale, created_by]
+      properties:
+        id: { type: integer }
+        hash: { type: string }
+        title: { type: string }
+        description: { type: [string, 'null'] }
+        status: { type: string, default: published }
+        locale: { type: string, example: en }
+        project_id: { type: [integer, 'null'] }
+        created_by: { type: integer }
+        created_at: { type: [string, 'null'] }
+        updated_at: { type: [string, 'null'] }
+    FormDetail:
+      allOf:
+        - $ref: '#/components/schemas/Form'
+        - type: object
+          properties:
+            fields:
+              type: array
+              items: { type: object, additionalProperties: true }
+            footer:
+              type: object
+              additionalProperties: true
+            auto_create_task: { type: boolean }
+            task_title_template: { type: [string, 'null'] }
+            success_message: { type: [string, 'null'] }
+    SubmissionListItem:
+      type: object
+      required: [id, form_id, status]
+      properties:
+        id: { type: integer }
+        form_id: { type: integer }
+        status: { type: string, example: new }
+        created_at: { type: [string, 'null'] }
+        updated_at: { type: [string, 'null'] }
+        form_title: { type: [string, 'null'] }
+    Submission:
+      type: object
+      required: [id, form_id, status, answers, footer]
+      properties:
+        id: { type: integer }
+        form_id: { type: integer }
+        status: { type: string }
+        answers:
+          type: object
+          additionalProperties: true
+        footer:
+          type: object
+          additionalProperties: true
+        remote_ip: { type: [string, 'null'] }
+        converted_task_id: { type: [integer, 'null'] }
+        converted_project_id: { type: [integer, 'null'] }
+        created_at: { type: [string, 'null'] }
+        updated_at: { type: [string, 'null'] }
+        form:
+          type: object
+          properties:
+            id: { type: integer }
+            title: { type: string }
+            fields:
+              type: array
+              items: { type: object, additionalProperties: true }
+    Poll:
+      type: object
+      required: [id, hash, title, status, locale, created_by]
+      properties:
+        id: { type: integer }
+        hash: { type: string }
+        title: { type: string }
+        description: { type: [string, 'null'] }
+        status:
+          type: string
+          enum: [draft, active, closed]
+        locale: { type: string, example: en }
+        project_id: { type: [integer, 'null'] }
+        created_by: { type: integer }
+        created_at: { type: [string, 'null'] }
+        updated_at: { type: [string, 'null'] }
+        vote_count: { type: integer, description: Only present on list view }
+    PollDetail:
+      allOf:
+        - $ref: '#/components/schemas/Poll'
+        - type: object
+          properties:
+            fields:
+              type: array
+              items: { type: object, additionalProperties: true }
+            footer:
+              type: object
+              additionalProperties: true
+            contact_field:
+              type: string
+              example: email
+            success_message: { type: [string, 'null'] }
+            activated_at: { type: [string, 'null'] }
+            closed_at: { type: [string, 'null'] }
+            summary_task_id: { type: [integer, 'null'] }
+            stats:
+              type: object
+              properties:
+                total: { type: integer }
+                options:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      key: { type: string }
+                      label: { type: string }
+                      count: { type: integer }
+                      pct: { type: number, format: float }
+    Voter:
+      type: object
+      required: [id, contact, choice_key, choice_label]
+      properties:
+        id: { type: integer }
+        contact: { type: string }
+        choice_key: { type: string }
+        choice_label: { type: string }
+        remote_ip: { type: [string, 'null'] }
+        created_at: { type: [string, 'null'] }
+    PaginatedProjects:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Project' }
+        next_cursor: { type: [integer, 'null'] }
+    PaginatedTasks:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/TaskListItem' }
+        next_cursor: { type: [integer, 'null'] }
+    PaginatedComments:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Comment' }
+        next_cursor: { type: [integer, 'null'] }
+    PaginatedSubmissions:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SubmissionListItem' }
+        next_cursor: { type: [integer, 'null'] }
+    PaginatedVoters:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Voter' }
+        next_cursor: { type: [integer, 'null'] }
+  parameters:
+    AfterCursor:
+      name: after
+      in: query
+      description: Cursor — return items with id greater than this value
+      required: false
+      schema: { type: integer, minimum: 0 }
+    Limit:
+      name: limit
+      in: query
+      description: Max items per page (1-100)
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+    PathId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+  responses:
+    Unauthorized:
+      description: Missing or invalid API token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: unauthorized, message: Missing or invalid API token }
+    Forbidden:
+      description: Authenticated but not allowed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: forbidden, message: Action not permitted }
+    NotFound:
+      description: Resource not found (or hidden from caller)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: not_found, message: Not found }
+    ValidationFailed:
+      description: Validation error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error: validation_failed
+            message: title is required
+            fields: { title: required }
+    Conflict:
+      description: Conflict (e.g. column not empty)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    RateLimited:
+      description: Too many requests
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Seconds until next allowed request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: rate_limited, message: Too many requests }
+    NoContent:
+      description: Success, no body
+
+paths:
+  /ping:
+    get:
+      tags: [Meta]
+      summary: Health check that also confirms token works
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ping' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /openapi.yaml:
+    get:
+      tags: [Meta]
+      summary: This OpenAPI document (public, unauthenticated)
+      security: []
+      responses:
+        '200':
+          description: The schema
+          content:
+            application/yaml:
+              schema: { type: string }
+        '404':
+          description: Schema not yet deployed
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /me:
+    get:
+      tags: [Meta]
+      summary: Current authenticated user
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /projects:
+    get:
+      tags: [Projects]
+      summary: List projects visible to the caller (cursor-paginated)
+      parameters:
+        - $ref: '#/components/parameters/AfterCursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedProjects' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    post:
+      tags: [Projects]
+      summary: Create a project (caller becomes owner)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                description: { type: string }
+                color: { type: string }
+            example: { name: Website Redesign, color: '#8B7C68' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /projects/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Projects]
+      summary: Fetch a project with columns + members
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    patch:
+      tags: [Projects]
+      summary: Update mutable project fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                color: { type: string }
+                description: { type: string }
+                status: { type: string }
+            example: { status: archived }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    delete:
+      tags: [Projects]
+      summary: Delete a project (admin only)
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /projects/{id}/pin:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    post:
+      tags: [Projects]
+      summary: Pin or unpin a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pinned: { type: boolean }
+            example: { pinned: true }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  pinned: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /projects/{id}/members:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    post:
+      tags: [Projects]
+      summary: Add a user as project member
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id: { type: integer }
+            example: { user_id: 12 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  project_id: { type: integer }
+                  user_id: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /projects/{id}/members/{user_id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+      - name: user_id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    delete:
+      tags: [Projects]
+      summary: Remove a project member
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /projects/{id}/columns:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Columns]
+      summary: List a project's columns
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Column' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    post:
+      tags: [Columns]
+      summary: Add a column to a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                position: { type: integer }
+            example: { name: In Review, position: 2 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Column' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /projects/{id}/columns/reorder:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    post:
+      tags: [Columns]
+      summary: Reorder columns within a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order]
+              properties:
+                order:
+                  type: array
+                  items: { type: integer }
+            example: { order: [5, 7, 3, 9] }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Column' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /columns/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    patch:
+      tags: [Columns]
+      summary: Update a column (name, position, color)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                position: { type: integer }
+                color: { type: string }
+            example: { name: Doing }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Column' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    delete:
+      tags: [Columns]
+      summary: Delete a column (409 if not empty unless force=true)
+      parameters:
+        - name: force
+          in: query
+          required: false
+          schema: { type: string, enum: ['true'] }
+          description: Pass force=true to delete column AND all tasks in it
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /tasks/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Tasks]
+      summary: Fetch a single task with tags + links + counts
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    patch:
+      tags: [Tasks]
+      summary: Update mutable task fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: [string, 'null'] }
+                column_id: { type: integer }
+                assignee_id: { type: [integer, 'null'] }
+                due_date: { type: [string, 'null'], example: '2026-06-15' }
+                priority:
+                  type: string
+                  enum: [none, low, medium, high, urgent]
+                sub_status: { type: [string, 'null'] }
+            example: { priority: high, assignee_id: 12 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    delete:
+      tags: [Tasks]
+      summary: Delete a task
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /projects/{id}/tasks:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Tasks]
+      summary: List tasks in a project (filterable, cursor-paginated)
+      parameters:
+        - $ref: '#/components/parameters/AfterCursor'
+        - $ref: '#/components/parameters/Limit'
+        - { name: column_id,   in: query, schema: { type: integer } }
+        - { name: assignee_id, in: query, schema: { type: integer } }
+        - { name: tag_id,      in: query, schema: { type: integer } }
+        - { name: status,      in: query, schema: { type: string } }
+        - { name: priority,    in: query, schema: { type: string, enum: [none, low, medium, high, urgent] } }
+        - { name: search,      in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedTasks' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    post:
+      tags: [Tasks]
+      summary: Create a task in a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                column_id: { type: integer, description: Defaults to first non-backlog column }
+                assignee_id: { type: integer }
+                priority:
+                  type: string
+                  enum: [none, low, medium, high, urgent]
+                sub_status: { type: string }
+                tag_ids:
+                  type: array
+                  items: { type: integer }
+            example: { title: Draft homepage copy, priority: medium, tag_ids: [3, 7] }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /tasks/{id}/move:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    post:
+      tags: [Tasks]
+      summary: Move a task to a column at a position
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [column_id]
+              properties:
+                column_id: { type: integer }
+                position: { type: number, format: float }
+            example: { column_id: 9, position: 1024 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /tasks/{id}/promote-to-project:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    post:
+      tags: [Tasks]
+      summary: Promote a task into a brand-new project (admin/manager)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [project_id, url]
+                properties:
+                  project_id: { type: integer }
+                  url: { type: string, example: /projects/42?tab=overview }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /tasks/{id}/links:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    post:
+      tags: [Tasks]
+      summary: Link two tasks together
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [other_id]
+              properties:
+                other_id: { type: integer }
+            example: { other_id: 87 }
+      responses:
+        '201':
+          description: Created (or already linked)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id: { type: integer }
+                  other_id: { type: integer }
+                  created: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /tasks/{id}/links/{other_id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+      - name: other_id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    delete:
+      tags: [Tasks]
+      summary: Unlink a pair of tasks
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /tasks/{id}/comments:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Comments]
+      summary: List comments on a task
+      parameters:
+        - $ref: '#/components/parameters/AfterCursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedComments' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /projects/{id}/comments:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Comments]
+      summary: List comments on a project
+      parameters:
+        - $ref: '#/components/parameters/AfterCursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedComments' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /comments:
+    post:
+      tags: [Comments]
+      summary: Add a comment to a task or project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [entity, entity_id, body]
+              properties:
+                entity:
+                  type: string
+                  enum: [task, project]
+                entity_id: { type: integer }
+                body: { type: string, description: Markdown }
+                parent_id: { type: integer, description: Optional parent comment id }
+            example:
+              entity: task
+              entity_id: 42
+              body: Looks good to me!
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Comment' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /comments/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    delete:
+      tags: [Comments]
+      summary: Delete a comment (author or admin)
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /tags:
+    get:
+      tags: [Tags]
+      summary: List the global tag catalogue (admin only)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Tag' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    post:
+      tags: [Tags]
+      summary: Create a global tag (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                color: { type: string, default: '#8B7C68' }
+                scope:
+                  type: string
+                  enum: [project, task]
+                  default: task
+            example: { name: bug, color: '#C0392B', scope: task }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tag' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /projects/{id}/tags:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Tags]
+      summary: List tags attached to a project
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Tag' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    post:
+      tags: [Tags]
+      summary: Attach an existing tag to a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tag_id]
+              properties:
+                tag_id: { type: integer }
+            example: { tag_id: 5 }
+      responses:
+        '201':
+          description: Attached
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  project_id: { type: integer }
+                  tag_id: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /projects/{id}/tags/{tag_id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+      - name: tag_id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    delete:
+      tags: [Tags]
+      summary: Detach a tag from a project
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /tasks/{id}/tags:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    post:
+      tags: [Tags]
+      summary: Attach an existing tag to a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tag_id]
+              properties:
+                tag_id: { type: integer }
+            example: { tag_id: 5 }
+      responses:
+        '201':
+          description: Attached
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id: { type: integer }
+                  tag_id: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /tasks/{id}/tags/{tag_id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+      - name: tag_id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    delete:
+      tags: [Tags]
+      summary: Detach a tag from a task
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /tasks/{id}/attachments:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Attachments]
+      summary: List attachments on a task
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Attachment' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /projects/{id}/attachments:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Attachments]
+      summary: List attachments on a project
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Attachment' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /attachments:
+    post:
+      tags: [Attachments]
+      summary: Upload a file (multipart/form-data — the only multipart endpoint)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [entity, entity_id, file]
+              properties:
+                entity:
+                  type: string
+                  enum: [task, project]
+                entity_id: { type: integer }
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Attachment' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /attachments/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    delete:
+      tags: [Attachments]
+      summary: Delete an attachment (uploader or admin)
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /forms:
+    get:
+      tags: [Forms]
+      summary: List forms (admin sees all, manager sees own)
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Text search across title/description
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Form' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /forms/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Forms]
+      summary: Fetch a form with fields + footer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FormDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /forms/{id}/submissions:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Forms]
+      summary: List submissions for a form (cursor pagination by id DESC)
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: after
+          in: query
+          description: Return submissions with id less than this cursor (id DESC pagination)
+          schema: { type: integer, minimum: 0 }
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedSubmissions' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /submissions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Forms]
+      summary: Fetch a single submission with parsed answers
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Submission' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /polls:
+    get:
+      tags: [Polls]
+      summary: List polls (admin sees all, manager sees own)
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [draft, active, closed] }
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Poll' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /polls/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Polls]
+      summary: Fetch a poll with full stats per option
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PollDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /polls/{id}/voters:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Polls]
+      summary: List voters of a poll (cursor-paginated by id, newest first)
+      parameters:
+        - $ref: '#/components/parameters/AfterCursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedVoters' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }

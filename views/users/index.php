@@ -81,6 +81,9 @@ $localeNames = locale_display_names();
                   <i class="fa-solid fa-check"></i> <?= e(t('users.action.approve')) ?>
                 </button>
               <?php endif; ?>
+              <a class="btn-secondary" href="/users/<?= (int)$u['id'] ?>" title="<?= e(t('users.action.view')) ?>">
+                <i class="fa-solid fa-eye"></i>
+              </a>
               <button class="btn-secondary" data-action="edit-user" type="button" title="<?= e(t('users.action.edit')) ?>">
                 <i class="fa-solid fa-pen"></i>
               </button>

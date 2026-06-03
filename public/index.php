@@ -77,6 +77,7 @@ App::singleton('events',   fn() => new \App\Service\EventBus());
 App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));
 App::singleton('notif_log', fn() => new \App\Repository\NotificationLogRepository(App::make('db')));
 App::singleton('activity', fn() => new \App\Repository\ActivityLogRepository(App::make('db')));
+App::singleton('api_tokens', fn() => new \App\Repository\ApiTokenRepository(App::make('db')));
 App::singleton('compass', fn() => new \App\Service\CompassService(
     App::make('db'),
     App::make('schema'),
@@ -219,11 +220,14 @@ $router->post('/logout',  'Auth@logout');
 
 $router->get('/users', 'User@index');
 $router->post('/users', 'User@create');
+$router->get('/users/{id}', 'User@show');
 $router->post('/users/{id}', 'User@update');
 $router->post('/users/{id}/approve', 'User@approve');
 $router->post('/users/{id}/block', 'User@block');
 $router->post('/users/{id}/role', 'User@setRole');
 $router->post('/users/{id}/delete', 'User@delete');
+$router->post('/users/{id}/tokens/{tid}/revoke', 'User@revokeToken');
+$router->post('/users/{id}/tokens/revoke-all', 'User@revokeAllTokens');
 
 $router->get('/profile', 'Profile@show');
 $router->post('/profile', 'Profile@update');
@@ -231,6 +235,9 @@ $router->post('/profile/password', 'Profile@updatePassword');
 $router->post('/profile/avatar', 'Profile@updateAvatar');
 $router->post('/profile/avatar/delete', 'Profile@removeAvatar');
 $router->post('/profile/locale', 'Profile@updateLocale');
+$router->get('/profile/tokens', 'Profile@tokens');
+$router->post('/profile/tokens', 'Profile@tokensCreate');
+$router->post('/profile/tokens/{id}/revoke', 'Profile@tokensRevoke');
 
 $router->get('/projects', 'Project@index');
 $router->post('/projects', 'Project@create');
@@ -344,6 +351,37 @@ $router->post('/api/columns/{id}/delete', 'Column@delete');
 $router->post('/api/projects/{id}/columns/reorder', 'Column@reorder');
 
 $req   = Request::fromGlobals();
+
+// ─── /api/v1/* hand-off ──────────────────────────────────────────────────────
+// All API requests bypass the web Router. Bearer-auth, JSON-only, no CSRF.
+if (str_starts_with($req->path, '/api/v1/')) {
+    $services = [
+        'projects'         => App::make('projects'),
+        'members'          => App::make('members'),
+        'columns'          => App::make('columns'),
+        'tasks'            => App::make('tasks'),
+        'task_links'       => App::make('task_links'),
+        'comments'         => App::make('comments'),
+        'attachments'      => App::make('attachments'),
+        'tags'             => App::make('tags'),
+        'forms'            => App::make('forms'),
+        'form_submissions' => App::make('form_submissions'),
+        'polls'            => App::make('polls'),
+        'poll_votes'       => App::make('poll_votes'),
+        'uploader'         => App::make('uploader'),
+        'users'            => App::make('users'),
+    ];
+    $kernel = new \App\Api\V1\ApiKernel(
+        new \App\Api\V1\TokenAuthenticator(App::make('api_tokens'), App::make('users')),
+        new \App\Api\V1\RateLimiter(App::make('db'), max: 60, windowSeconds: 60),
+        App::make('api_tokens'),
+        App::make('activity'),
+        App::make('db'),
+        $services,
+    );
+    $kernel->handle($req);
+    exit;
+}
 
 // ─── Public landing + login hash gate ────────────────────────────────────────
 $hasSession = (App::make('session')->store['user_id'] ?? null) !== null;
