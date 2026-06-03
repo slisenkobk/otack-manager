@@ -1,0 +1,1206 @@
+/* ═══════════════════════════════════════════════════════════════
+   utilities.css — Utilities + responsive + V4 hybrid + late additions (load 8 of 8)
+   §12 tags/chips, §13 top pills, §15 utilities, §17 empty state,
+   page-load reveal animation, responsive media queries, V4 hybrid
+   overrides, polls, sidebar collapsible groups, API tokens panel.
+   MUST load last — cascade-tail.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── §12 Tags & chips ───────────────────────────────────────── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+  background: var(--paper-2);
+  color: var(--text-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-full);
+  font: 500 var(--fz-small)/1.2 var(--font-sans);
+  cursor: pointer;
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease),
+              border-color var(--duration) var(--ease);
+}
+.chip:hover { background: var(--paper); border-color: var(--ink-3); }
+.chip--active { background: var(--ink); color: var(--text-on-dark); border-color: var(--ink); }
+.chip--active:hover { background: var(--ink-2); color: var(--text-on-dark); border-color: var(--ink-2); }
+.chip--accent { background: var(--accent-tint); color: var(--accent); border-color: var(--accent); }
+
+/* Tag chip */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-4) 2px var(--space-3);
+  background: var(--tag-bg, var(--paper-3));
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-size: var(--fz-micro);
+  letter-spacing: var(--ls-mono);
+  color: var(--tag, var(--text-2));
+  text-transform: uppercase;
+}
+.tag .x {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  line-height: 1;
+  transition: color var(--duration) var(--ease);
+}
+.tag .x:hover { color: var(--danger); }
+
+/* Tag picker dropdown */
+.tag-picker {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.tag-picker .dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 180px;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-pop);
+  z-index: var(--z-dropdown);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.tag-picker .dropdown .tag-opt {
+  display: block;
+  padding: var(--space-4) var(--space-6);
+  font-family: var(--font-mono);
+  font-size: var(--fz-micro);
+  letter-spacing: var(--ls-mono);
+  text-transform: uppercase;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background var(--duration) var(--ease);
+  border-bottom: 1px solid var(--rule);
+}
+.tag-picker .dropdown .tag-opt:last-child { border-bottom: none; }
+.tag-picker .dropdown .tag-opt:hover { background: var(--paper); color: var(--text); }
+
+/* ─── §13 Top pills (legacy) ─────────────────────────────────── */
+.top-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--rule-2);
+  background: var(--paper);
+  border-radius: var(--radius-full);
+  color: var(--text-2);
+  font-size: var(--fz-micro);
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+  font-family: var(--font-mono);
+  letter-spacing: var(--ls-mono);
+  text-transform: uppercase;
+}
+.top-pill:hover { border-color: var(--ink-2); color: var(--text); }
+.top-pill .count {
+  background: var(--accent);
+  color: var(--paper);
+  border-radius: var(--radius-full);
+  font-size: var(--fz-micro);
+  padding: 1px 6px;
+  font-weight: 700;
+}
+
+/* ─── §15 Utilities ──────────────────────────────────────────── */
+.muted { color: var(--text-muted); }
+.u-muted { color: var(--text-muted); }
+
+.mono { font-family: var(--font-mono); letter-spacing: var(--ls-mono); }
+.u-mono { font-family: var(--font-mono); letter-spacing: var(--ls-mono); }
+
+.row { display: flex; align-items: center; }
+.col { display: flex; flex-direction: column; }
+
+.gap-2  { gap: 2px; }
+.gap-4  { gap: 4px; }
+.gap-6  { gap: 6px; }
+.gap-8  { gap: 8px; }
+.gap-12 { gap: 12px; }
+.u-gap-4  { gap: var(--space-2); }
+.u-gap-8  { gap: var(--space-4); }
+
+.mt-8  { margin-top: var(--space-4); }
+.mt-16 { margin-top: var(--space-8); }
+.mt-24 { margin-top: var(--space-12); }
+.mt-32 { margin-top: var(--space-16); }
+.u-mt-8  { margin-top: var(--space-4); }
+
+.hidden  { display: none !important; }
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ─── §17 Empty state ────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: var(--space-24) var(--space-16);
+  text-align: center;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fz-xs);
+  letter-spacing: var(--ls-mono-strong);
+  text-transform: uppercase;
+}
+
+/* ─── Page-load reveal ───────────────────────────────────────── */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hero, .section-head, .cards-row, .stats-grid, .empty-state, .activity-list { animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.hero { animation-delay: 0.05s; }
+.stats-grid { animation-delay: 0.10s; }
+.section-head { animation-delay: 0.18s; }
+.cards-row, .empty-state, .activity-list { animation-delay: 0.22s; }
+/* Stagger individual stat cards inside the grid */
+.stats-grid .stat-card { animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.stats-grid .stat-card:nth-child(1) { animation-delay: 0.10s; }
+.stats-grid .stat-card:nth-child(2) { animation-delay: 0.16s; }
+.stats-grid .stat-card:nth-child(3) { animation-delay: 0.22s; }
+.stats-grid .stat-card:nth-child(4) { animation-delay: 0.28s; }
+
+/* ─── Responsive ─────────────────────────────────────────────── */
+
+/* Hamburger toggle in the topbar — hidden on desktop, shown ≤960 px. */
+.topbar__nav-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 16px;
+  color: var(--text);
+  cursor: pointer;
+  margin-right: var(--space-4);
+  align-items: center;
+  justify-content: center;
+}
+.topbar__nav-toggle:hover { border-color: var(--ink-3); background: var(--paper-2); }
+
+/* Sidebar close button — desktop-hidden; the mobile media query gives it
+   real positioning + visibility once it lives inside the open drawer. */
+.sidebar__close { display: none; }
+
+/* Forms-data filter row (search + Form / Status selects). Desktop keeps
+   everything on one line; the mobile block stacks search above and puts
+   the two selects in a 2-column row. */
+.forms-data-filters {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.forms-data-filters__selects {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* Backdrop overlay that appears behind the slide-in sidebar. Click-through
+   is intentional — JS toggles `hidden` to close the drawer. */
+.mobile-nav-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.32);
+  z-index: calc(var(--z-sticky) - 1);
+  animation: fade-in 0.18s ease;
+}
+
+@media (max-width: 960px) {
+  .shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    /* Drop the 6 px breathing strip used by the desktop curved-corner — on
+       mobile the sidebar is a fixed drawer, not a side column, so there's
+       no curve to cap. */
+    padding-top: 0;
+    /* Prevent the off-screen drawer from creating a phantom horizontal
+       scrollbar when it sits at translateX(-100%). */
+    overflow-x: hidden;
+  }
+  .topbar__nav-toggle { display: inline-flex; }
+
+  /* Sidebar becomes a slide-in drawer from the left. It's off-screen by
+     default; the [data-mobile-nav-open] state on .shell brings it in. The
+     z-index sits above the topbar so the drawer covers it (and over the
+     backdrop). */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: min(300px, 86vw);
+    height: 100vh;
+    padding: var(--space-6) var(--space-8) var(--space-10);
+    border-right: 1px solid var(--rule);
+    border-bottom: 0;
+    background: var(--bg-elevated);
+    /* No shadow in the closed state — translateX(-100%) puts the box
+       off-screen but its drop shadow still bleeds onto the right edge,
+       creating the "ghost stripe" effect on the left of the viewport. */
+    box-shadow: none;
+    transform: translateX(-100%);
+    transition: transform 0.22s var(--ease), box-shadow 0.22s var(--ease);
+    z-index: calc(var(--z-modal) + 1);
+    overflow-y: auto;
+    /* Brand row has a negative horizontal margin (pulls the logo into the
+       desktop sidebar's padding) which on a narrow drawer pushes content
+       past the right edge and turns the drawer into a horizontal-scroll
+       trap. Clip it so the drawer never scrolls sideways. */
+    overflow-x: hidden;
+  }
+  .shell[data-mobile-nav-open] .sidebar {
+    transform: translateX(0);
+    box-shadow: var(--shadow-modal);
+  }
+  .shell:not([data-mobile-nav-open]) .mobile-nav-backdrop {
+    display: none;
+  }
+  .mobile-nav-backdrop { z-index: var(--z-modal); }
+  .sidebar__foot { font-size: 11px; opacity: 0.7; }
+
+  /* Close button shown only inside the open drawer. Hidden at desktop via
+     `display: none` on the base rule above, made visible only on mobile via
+     the .shell[data-mobile-nav-open] state. */
+  .sidebar__close {
+    position: absolute;
+    top: var(--space-4);
+    right: var(--space-4);
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid var(--rule);
+    background: transparent;
+    color: var(--text-2);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    font-size: 16px;
+  }
+  .sidebar__close:hover { color: var(--accent); border-color: var(--ink-3); background: var(--paper-2); }
+
+  /* Main column reclaims the full viewport width once the sidebar is fixed. */
+  .main {
+    height: 100vh;
+    border-top-left-radius: 0;
+  }
+
+  .topbar {
+    padding: var(--space-4) var(--space-6);
+    gap: var(--space-3);
+  }
+  .topbar__title { font-size: 18px; min-width: 0; }
+  .topbar__title > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Drop the user's name on phones — the avatar still identifies them and
+     the popover shows the full name + email. */
+  .topbar__user-name { display: none; }
+
+  .body-wrap { padding: var(--space-6) var(--space-6) var(--space-16); }
+
+  .cards-row { grid-template-columns: 1fr; }
+
+  .form-grid--2, .form-grid--3 { grid-template-columns: 1fr; }
+
+  .attach-grid { grid-template-columns: repeat(2, 1fr); }
+  .attach-img { width: 100%; }
+
+  .kanban { overflow-x: auto; height: calc(100vh - 240px); }
+  .kanban-col { flex: 0 0 280px; }
+}
+
+/* Project overview tab — main column + 280px sidebar on desktop. Moved
+   from an inline style so we can collapse to a single column on phones. */
+.project-overview {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: var(--space-12);
+  align-items: start;
+}
+/* Task detail page — same shape: main column + 280px sidebar. */
+.task-detail {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: var(--space-12);
+  align-items: start;
+}
+
+/* ─── Submission detail (/forms-data/{id}) ───────────────────────
+   Two continuous white cards side-by-side. Sections inside a card are
+   separated by a hairline rule rather than a gap between cards. */
+.submission-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--space-8);
+  align-items: start;
+}
+.submission-card { padding: 0; overflow: hidden; }
+.submission-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: var(--space-8) var(--space-10);
+  border-bottom: 1px solid var(--rule);
+}
+.submission-card__title { font-size: 20px; font-weight: 600; margin: 0; }
+.submission-card__sub   { color: var(--ink-3); font-size: 13px; margin: var(--space-2) 0 0; }
+.submission-card__meta  {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-mono-strong);
+  white-space: nowrap;
+  align-self: flex-start;
+}
+.submission-card__section {
+  padding: var(--space-8) var(--space-10);
+}
+.submission-card__section + .submission-card__section {
+  border-top: 1px solid var(--rule);
+}
+.submission-card__section-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-mono-strong);
+  color: var(--ink-3);
+  margin: 0 0 var(--space-5);
+}
+.submission-card__hint { font-size: 11px; color: var(--ink-3); margin: var(--space-4) 0 0; }
+.submission-card__section--danger { background: transparent; }
+.submission-card__cta { width: 100%; }
+.submission-card__delete {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  font-size: 12px;
+  letter-spacing: var(--ls-mono);
+  text-transform: uppercase;
+}
+
+.submission-aside { padding: 0; overflow: hidden; }
+
+.submission-answers { margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-5); }
+.submission-answers__row { display: flex; flex-direction: column; gap: var(--space-1); }
+.submission-answers__label {
+  font-size: 11px;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-mono);
+}
+.submission-answers__value {
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.submission-answers__value--empty { color: var(--ink-3); font-style: italic; }
+
+/* ─── Tags admin — compact chip cards ────────────────────────────
+   Tags render as small inline cards that wrap to the next row instead
+   of stretching to fill the container. Each chip auto-sizes around its
+   content; the row uses flex-wrap with a gap so they tile neatly. */
+.tag-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.tag-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-5);
+  min-height: auto;
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-elevated);
+  cursor: default;
+}
+.tag-chip:hover { transform: none; }
+.tag-chip__name {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 28px;
+  outline: none;
+  border-bottom: 1px dashed transparent;
+  cursor: text;
+  white-space: nowrap;
+  /* Match the 28 px height of the swatch + delete button so contenteditable
+     doesn't shift the baseline when the user hovers or clicks. */
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+}
+.tag-chip__name:focus { border-bottom-color: var(--accent); }
+.tag-chip__swatch {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 6px;
+}
+.tag-chip__usage {
+  font-size: 11px;
+  color: var(--ink-3);
+  letter-spacing: var(--ls-mono);
+  white-space: nowrap;
+  /* Same trick as the name — match the 28 px row height so all four
+     elements (swatch, name, usage, delete) sit on the same vertical
+     centre line. */
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+}
+.tag-chip__delete {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  /* Override .btn-danger's min-height: 36px — otherwise the delete button
+     pushes the chip's content box taller than the swatch / name height
+     and the swatch ends up visually nearer the top edge. */
+  min-height: 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+.tag-chip__delete i { font-size: 12px; }
+
+/* Phone-tight (≤600 px) — collapse / re-flow the components added by the
+   recent settings + profile + page-head work. */
+@media (max-width: 600px) {
+  /* page-head: tabs row + side button. Stack the button under the tabs and
+     let the tabs scroll horizontally if they overflow. */
+  .page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+  .page-head .project-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: thin;
+    padding-bottom: 2px;
+  }
+  .page-head__btn {
+    align-self: flex-start;
+    margin-bottom: 0;
+  }
+
+  /* Profile card: avatar over fields, with the upload button next to the
+     avatar instead of below. */
+  .profile-card { padding: var(--space-6) var(--space-6); }
+  .profile-card__body--personal { gap: var(--space-5); }
+  .profile-avatar { flex-direction: row; align-items: center; }
+  .profile-avatar__controls { align-items: flex-start; }
+  .profile-avatar__hint { text-align: left; }
+
+  /* Brief & settings cards — drop the desktop padding so content gets more
+     of the small viewport. */
+  .brief, .brief--wide { padding: var(--space-6) var(--space-6); }
+  .profile-form { gap: var(--space-4); }
+  .profile-form__actions { flex-direction: column; align-items: stretch; }
+
+  /* Page actions row (search + new-X button on list pages): stack so the
+     search input gets full width. */
+  .page-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+  .page-actions > * { width: 100%; }
+  .search-field, .kanban-search { width: 100%; }
+
+  /* Data table — let the table scroll horizontally instead of squashing
+     columns. The wrap is already there; we just need to mark it scrollable. */
+  .data-table-wrap { overflow-x: auto; }
+  .data-table { min-width: 600px; }
+
+  /* Form builder: 2-col basics → 1 col, action toolbar stacks too. */
+  .builder-grid { grid-template-columns: 1fr; }
+  .builder-toolbar { flex-wrap: wrap; gap: var(--space-3); }
+  .builder-toolbar__right { width: 100%; }
+
+  /* Project overview & task detail & submission detail: collapse the
+     details sidebar under the main column. */
+  .project-overview,
+  .task-detail,
+  .submission-detail { grid-template-columns: 1fr; gap: var(--space-6); }
+
+  /* Submission card sections — tighten the padding so the content uses the
+     small viewport better and the head meta wraps cleanly. */
+  .submission-card__head { flex-direction: column; gap: var(--space-3); padding: var(--space-6); }
+  .submission-card__section { padding: var(--space-6); }
+
+  /* "Add X" CTA buttons on list/board pages — keep them visible (no full
+     hide) but compact: icon + minimal label. The narrowest pages can drop
+     the text entirely via a `.btn-add` modifier. */
+  .btn--add-mobile-icon { font-size: 0; padding: 6px 10px; }
+  .btn--add-mobile-icon i { font-size: 14px; }
+  .btn--add-mobile-icon::after { content: none; }
+
+  /* "Open Compass" link in /admin/settings page-head — keep only the icon. */
+  .page-head__btn { font-size: 0 !important; padding: 6px 10px !important; }
+  .page-head__btn i { font-size: 14px; margin: 0 !important; }
+
+  /* Forms-data filters: place the two custom-selects (Form / Status)
+     side-by-side as a 2-column grid below the search input. */
+  .forms-data-filters {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+  .forms-data-filters .search-field { width: 100%; }
+  .forms-data-filters__selects {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
+  .forms-data-filters__selects > .custom-select { width: auto !important; min-width: 0; }
+
+  /* Form builder toolbar on mobile: drop the "All forms" link entirely and
+     stretch the three action buttons (Add field / Open public / Save) into
+     a 3-column grid that fills the viewport width. Icons stay; labels are
+     hidden via font-size: 0. */
+  .builder-toolbar__left { display: none; }
+  .builder-toolbar__right {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+    width: 100%;
+  }
+  .builder-toolbar__right .btn-secondary,
+  .builder-toolbar__right .btn--primary {
+    font-size: 0;
+    padding: 12px 0;
+    width: 100%;
+    justify-content: center;
+  }
+  .builder-toolbar__right .btn-secondary i,
+  .builder-toolbar__right .btn--primary i { font-size: 16px; margin: 0 !important; }
+
+  /* Kanban toolbar — search + filters must scroll horizontally inside the
+     toolbar rather than overflow the card edge. */
+  .kanban-toolbar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: thin;
+  }
+  .kanban-toolbar > * { flex-shrink: 0; }
+  .kanban-search { min-width: 200px; }
+
+  /* page-actions row already stacks vertically at this breakpoint — make
+     the inner search-field expand to full width as a default. */
+  .page-actions { gap: var(--space-3); }
+  /* …unless the row is marked --inline (e.g. submission detail back-link +
+     status badge): keep it as a single horizontal row, with the badge on
+     the right edge. */
+  .page-actions--inline {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .page-actions--inline > * { width: auto; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   §V4 — Hybrid baked in (locked 2026-05-29)
+   - Page bg = paper-2, elevated surfaces = paper (handled in §1 Layer B)
+   - Stat-cards: semantic colors per [data-metric]
+   - Cards: ambient resting shadow + hover lift
+   - Section heads: marker dot for .num
+   - Corner tag: muted by default, brand on card hover
+   - .spark: optional 7-day mini-bar series (markup-driven, no JS)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* — Cards: subtle resting shadow + lighter corner-tag — */
+.card {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.6) inset,
+    0 1px 2px rgba(26, 22, 18, .04),
+    0 8px 20px -8px rgba(26, 22, 18, .08);
+}
+.card:hover {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.6) inset,
+    0 2px 4px rgba(26, 22, 18, .05),
+    0 16px 28px -12px rgba(26, 22, 18, .14);
+}
+/* Corner-tag fades into paper; only colors up when the card is hovered.
+   Pinned cards keep accent (handled by .card.is-pinned earlier in the file). */
+.card .corner-tag,
+.card__tag {
+  background: var(--paper-3);
+  color: var(--ink-2);
+}
+.card:hover .corner-tag,
+.card:hover .card__tag {
+  background: var(--accent);
+  color: var(--text-on-dark);
+}
+.card.is-pinned .corner-tag { background: var(--accent); color: var(--text-on-dark); }
+
+/* — Section head .num becomes a marker dot — */
+.section-head .num {
+  display: inline-grid;
+  place-items: center;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--rule);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-2);
+  letter-spacing: 0;
+}
+
+/* — Stat cards: semantic per data-metric, retain lift — */
+.stat-card {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.6) inset,
+    0 1px 2px rgba(26, 22, 18, .04),
+    0 8px 20px -8px rgba(26, 22, 18, .08);
+  background: var(--bg-elevated);
+  min-height: 130px;
+}
+.stat-card[data-metric] { position: relative; }
+.stat-card[data-metric]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: .08;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.stat-card[data-metric] > * { position: relative; z-index: 1; }
+.stat-card[data-metric="open"]        { color: var(--blue); }
+.stat-card[data-metric="closed"]      { color: var(--green); }
+.stat-card[data-metric="week-open"]   { color: var(--accent); }
+.stat-card[data-metric="week-closed"] { color: var(--yellow); }
+/* Value stays as text color, not metric tint */
+.stat-card[data-metric] .stat-card__value,
+.stat-card--accent .stat-card__value,
+.stat-card--green  .stat-card__value { color: var(--text); }
+
+/* — Sparkline (optional, used when 7-day series is available) — */
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 26px;
+  margin-top: 8px;
+  position: relative;
+  z-index: 1;
+}
+.spark > span {
+  flex: 1;
+  background: currentColor;
+  opacity: .35;
+  border-radius: 2px 2px 0 0;
+  min-width: 4px;
+}
+
+/* — Theme toggle in user-menu dropdown — */
+.user-menu__theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-5);
+  margin: var(--space-3) 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.user-menu__theme-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.theme-toggle {
+  display: inline-flex;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-full);
+  padding: 2px;
+  gap: 2px;
+}
+.theme-toggle__btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+  font-size: 11px;
+  transition: background .15s ease, color .15s ease;
+}
+.theme-toggle__btn:hover { color: var(--text); }
+.theme-toggle__btn.is-active {
+  background: var(--bg-elevated);
+  color: var(--accent);
+  box-shadow: 0 1px 2px rgba(26, 22, 18, .12);
+}
+
+/* — Brand color picker (settings page) — */
+.color-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.color-picker input[type="color"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 44px;
+  height: 36px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  padding: 2px;
+}
+.color-picker input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.color-picker input[type="color"]::-webkit-color-swatch { border: 0; border-radius: var(--radius-xs); }
+
+/* — Unified toolbar controls — keep heights consistent across pages — */
+
+/* Alias: .search-field is the semantic name (kanban-search predates this).
+   Keeping both selectors ensures legacy markup keeps working without churn. */
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-5);
+  background: var(--bg-elevated);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius);
+  min-width: 220px;
+  min-height: 36px;
+}
+.search-field input {
+  border: 0;
+  padding: var(--space-3) 0;
+  min-width: 0;
+  background: transparent;
+  flex: 1;
+  font: 400 var(--fz-body)/1.4 var(--font-sans);
+  color: var(--text);
+}
+.search-field input:focus { outline: none; }
+.search-field input::placeholder { color: var(--text-muted); }
+.search-field--with-submit { padding-right: 2px; }
+.search-field__submit {
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  width: 26px; height: 26px;
+  display: inline-grid; place-items: center;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 11px;
+  transition: background var(--duration) var(--ease);
+}
+.search-field__submit:hover { background: var(--accent); }
+.search-field:focus-within { border-color: var(--ink-3); }
+
+/* Compact custom-select for filter toolbars — matches .search-field height. */
+.custom-select--compact { margin-top: 0; }
+.custom-select--compact .custom-select__btn {
+  padding: 0 var(--space-5);
+  border-radius: var(--radius);
+  font-size: var(--fz-small);
+  min-height: 36px;
+  background: var(--bg-elevated);
+}
+.custom-select--compact .custom-select__chevron { font-size: 10px; }
+
+/* — Data table — used for /users and other admin catalogs.
+   Wrapped in .data-table-wrap so the card-style shell (paper bg, hairline
+   border, soft shadow) sits cleanly on cream while the table itself stays
+   light on rules. */
+.data-table-wrap {
+  background: var(--bg-elevated);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.6) inset,
+    0 1px 2px rgba(26, 22, 18, .04),
+    0 8px 20px -8px rgba(26, 22, 18, .08);
+  /* No overflow:hidden — would clip dropdown popups (role selector etc.)
+     and cause spurious vertical scroll. Corner rounding is achieved with
+     per-cell radius below. */
+}
+.data-table {
+  width: 100%;
+  /* `separate` so per-cell border-radius actually applies (collapse breaks
+     it). `border-spacing: 0` keeps the grid flush. */
+  border-collapse: separate;
+  border-spacing: 0;
+  background: transparent;
+}
+.data-table thead th {
+  padding: 12px 16px;
+  background: var(--surface-soft);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: left;
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+/* Round only the outermost cells so the wrap's radius is preserved. */
+.data-table thead tr:first-child th:first-child { border-top-left-radius: var(--radius-md); }
+.data-table thead tr:first-child th:last-child  { border-top-right-radius: var(--radius-md); }
+.data-table tbody tr:last-child td:first-child { border-bottom-left-radius: var(--radius-md); }
+.data-table tbody tr:last-child td:last-child  { border-bottom-right-radius: var(--radius-md); }
+.data-table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--text);
+  font-size: 14px;
+  vertical-align: middle;
+}
+.data-table tbody tr:last-child td { border-bottom: 0; }
+.data-table tbody tr { transition: background .12s ease; }
+.data-table tbody tr:hover { background: color-mix(in srgb, var(--accent-tint) 35%, transparent); }
+.data-table__cell--actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.data-table__cell--user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+}
+.data-table__name { font-weight: 600; font-size: 14px; }
+.data-table__sub  { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+.data-table__meta-time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: var(--ls-mono);
+  white-space: nowrap;
+}
+
+/* Important activity row — form submissions and similar customer touchpoints.
+   Thin accent rail on the left + brand-tinted background draws the eye
+   without making the whole row scream. */
+.activity-row--important {
+  border-left: 3px solid var(--accent);
+  background: var(--accent-tint);
+}
+.activity-row--important .activity-row__icon { color: var(--accent); }
+
+/* Honeypot field — invisible to humans (and screen readers via aria-hidden
+   on the wrapper), but kept in the DOM so naive bots fill it. We pull it
+   off-screen rather than display:none because some bot frameworks skip
+   `display:none` inputs. */
+.pf-honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ─── Polls ────────────────────────────────────────────────────────────────
+   Status badges, option editor rows, stats bars. Designed to reuse existing
+   builder-panel / card primitives — only the poll-specific bits live here. */
+.poll-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--ink-9, #eee);
+  color: var(--ink-2, #333);
+}
+.poll-status--draft  { background: var(--ink-9, #eee); color: var(--ink-2, #555); }
+.poll-status--active { background: #e6f4ea; color: #1e6f3a; }
+.poll-status--closed { background: #fdecea; color: #8a2a22; }
+
+/* Dim closed-poll cards so the list visually separates "still running" from
+   "done"; hovering brings full opacity back so admins can still interact
+   confidently. :has() carries this from the inner status badge — no PHP
+   change required. */
+.card[data-poll-id]:has(.poll-status--closed) {
+  opacity: 0.55;
+  transition: opacity 150ms ease;
+}
+.card[data-poll-id]:has(.poll-status--closed):hover { opacity: 1; }
+
+.btn--small {
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.options-list__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.options-list__input { flex: 1; }
+
+.radio-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.radio-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border, #d8d4cc);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  background: var(--paper, #fff);
+}
+.radio-pill input { margin: 0; }
+
+.poll-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.poll-stats__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.poll-stats__label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.poll-stats__count {
+  color: var(--ink-3, #666);
+  font-variant-numeric: tabular-nums;
+}
+.poll-stats__bar {
+  height: 8px;
+  background: var(--ink-9, #efece6);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.poll-stats__bar-fill {
+  height: 100%;
+  background: var(--accent, #8B7C68);
+  transition: width 240ms ease;
+}
+
+.poll-show__description {
+  margin: 0 0 12px;
+  color: var(--ink-2, #333);
+}
+
+/* ─── In-app updater (docs/UPDATES.md) ────────────────────────────────
+   Topbar badge that links into Settings → Updates, plus the two cards
+   that live inside the Updates tab itself. */
+.update-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e6f4ea;
+  color: #1e6f3a;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: filter 120ms ease;
+}
+.update-badge:hover { filter: brightness(0.95); }
+.update-badge i { font-size: 10px; }
+
+.updates-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 14px;
+}
+.updates-card {
+  background: var(--bg-elevated, #fff);
+  border: 1px solid var(--rule, #e6e2d8);
+  border-radius: var(--radius, 8px);
+  padding: 20px 22px;
+}
+.updates-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-3, #666);
+  margin: 0 0 12px;
+}
+.updates-version {
+  margin-left: 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 14px;
+  color: var(--ink-3, #666);
+}
+.updates-card--accent {
+  border-color: #c8e6c9;
+  background: #f3faf4;
+}
+
+/* Public poll: radio-option block (one row per choice). */
+.pf-radio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule, #d8d4cc);
+  border-radius: 8px;
+  margin: 0 0 8px;
+  cursor: pointer;
+  background: var(--bg-elevated, #fff);
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.pf-radio:hover { border-color: var(--accent, #8B7C68); }
+.pf-radio input[type=radio] { margin: 0; accent-color: var(--accent, #8B7C68); }
+
+.voters-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.voters-table th,
+.voters-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rule, #e6e2d8);
+  text-align: left;
+  vertical-align: middle;
+}
+.voters-table th {
+  font-weight: 600;
+  color: var(--ink-3, #666);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.voters-table__when { color: var(--ink-3, #666); white-space: nowrap; }
+@media (max-width: 560px) {
+  .voters-table__when { display: none; }
+}
+
+/* ─── Sidebar: collapsible groups (Integrations) ─────────────────────────
+   The group lives inside .nav-group so it inherits the existing label/padding;
+   the toggle row uses .nav-item visuals but with a chevron + rollup badge. */
+.nav-group--collapsible { padding-top: 0; }
+.nav-group__toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  border-radius: var(--radius-sm, 6px);
+}
+.nav-group__toggle:hover { background: var(--bg-hover, rgba(0,0,0,0.04)); }
+.nav-group__toggle-label { flex: 1; }
+.nav-group__toggle-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.nav-group__chevron {
+  transition: transform 180ms ease;
+  font-size: 11px;
+  color: var(--ink-3, #888);
+}
+.nav-group--collapsible.is-open .nav-group__chevron { transform: rotate(180deg); }
+
+/* Subgroup uses display: none when collapsed — the grid-template-rows
+   animation trick is brittle in some browsers and the toggle visibly
+   didn't track state. A hard show/hide is rock-solid. */
+.nav-subgroup { display: none; }
+.nav-group--collapsible.is-open .nav-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+/* Indent the nested nav items so the hierarchy reads visually. */
+.nav-subgroup .nav-item { padding-left: 28px; }
+
+/* The rollup badge (e.g. unread forms-data count) hides when the group is
+   open because the child item shows its own badge in the natural position. */
+.nav-group--collapsible.is-open .nav-group__rollup-count { display: none; }
+
+/* ─── API tokens panel ─────────────────────────────────────────────────
+   `pre.copyable` flashes briefly when clicked to copy. Reveal block
+   only appears once after token creation (server side flash). */
+pre.copyable {
+  cursor: copy;
+  user-select: all;
+  font-family: var(--mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 13px;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius, 6px);
+  padding: 12px 14px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+pre.copyable:hover { background: var(--paper-3); border-color: var(--rule-2); }
+pre.copyable.copyable--flash {
+  background: var(--brand-3, #FCE4D6);
+  border-color: var(--brand, #C2410C);
+}
+.api-tokens-reveal {
+  border-color: var(--brand, #C2410C);
+  background: linear-gradient(0deg, var(--paper-2), var(--paper-2)) padding-box;
+}
+.api-tokens-reveal__code { margin-top: var(--space-6); }

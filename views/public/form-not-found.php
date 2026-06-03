@@ -7,7 +7,14 @@ http_response_code(404);
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e(app_name()) ?> - Form not found</title>
-<link rel="stylesheet" href="/assets/css/app.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/layout.css">
+<link rel="stylesheet" href="/assets/css/forms.css">
+<link rel="stylesheet" href="/assets/css/kanban.css">
+<link rel="stylesheet" href="/assets/css/cards-panels.css">
+<link rel="stylesheet" href="/assets/css/modal-toast.css">
+<link rel="stylesheet" href="/assets/css/utilities.css">
 <style>
   body { background: var(--paper); min-height: 100vh; display: grid; place-items: center; padding: 40px; }
   .pf-404 { max-width: 480px; text-align: center; color: var(--ink-3); }

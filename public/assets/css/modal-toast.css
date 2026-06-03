@@ -1,0 +1,349 @@
+/* ═══════════════════════════════════════════════════════════════
+   modal-toast.css — Modal + toast + lightbox + comments + attachments (load 7 of 8)
+   §11 modal/toast/lightbox, §16 comments, §17 attachments.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── §16 Comments ───────────────────────────────────────────── */
+.comment-thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.comment-thread__title {
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--ink-3);
+  margin: 0 0 var(--space-4);
+}
+.comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.comment-group { display: flex; flex-direction: column; gap: 4px; position: relative; }
+/* Tree trunk — drawn on the group so it can start at the parent avatar's bottom edge.
+   Height is set via --tree-end (computed in JS from the last reply's avatar centre). */
+.comment-group::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  /* parent avatar bottom ~ y=29 (4px padding + 1px margin + 24px avatar); start with a small gap. */
+  top: 33px;
+  width: 2px;
+  background: var(--rule);
+  height: var(--tree-end, 0);
+  pointer-events: none;
+}
+.comment {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  padding: 4px 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.comment__avatar { margin-top: 1px; }
+.comment__main { min-width: 0; }
+.comment-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-bottom: 0;
+  line-height: 1.25;
+}
+.comment-meta__name { font-weight: 600; color: var(--ink-2); }
+.comment-reply-btn { margin-left: auto; }
+.comment-meta__time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: color-mix(in srgb, var(--ink-3) 65%, transparent);
+  letter-spacing: var(--ls-mono);
+}
+/* When Reply is absent (no canPost), still push time to the right */
+.comment-meta:not(:has(.comment-reply-btn)) .comment-meta__time { margin-left: auto; }
+.comment-body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+  margin-top: 1px;
+}
+.comment-body p:first-child { margin-top: 0; }
+.comment-body p:last-child { margin-bottom: 0; }
+.comment-reply-btn {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--ink-3);
+  font-size: 11px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  opacity: .55;
+  transition: opacity .12s ease, color .12s ease;
+}
+.comment:hover .comment-reply-btn,
+.comment:focus-within .comment-reply-btn { opacity: 1; }
+.comment-reply-btn:hover { color: var(--accent, var(--ink-2)); }
+.comment-reply-btn i { font-size: 10px; }
+.comment-replies {
+  margin-left: 0;
+  padding-left: 40px;
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.comment-replies[hidden] { display: none; }
+.comment--reply { padding: 4px 0; position: relative; }
+/* Horizontal connector from the vertical trunk into each reply's avatar */
+.comment--reply::before {
+  content: "";
+  position: absolute;
+  left: -28px;
+  top: 17px;
+  width: 28px;
+  height: 0;
+  border-top: 2px solid var(--rule);
+}
+.comment-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: var(--space-4);
+}
+.comment-composer__row { display: flex; justify-content: space-between; align-items: center; }
+.comment-composer__attach { cursor: pointer; font-size: 12px; }
+.comment-pending-attachments { display: flex; flex-wrap: wrap; gap: 6px; }
+.comment-composer--reply {
+  margin: 6px 0 4px;
+  padding: 8px;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+.comment-composer--reply textarea { min-height: 60px; }
+.comment-composer--reply .comment-composer__row { margin-top: 4px; }
+
+/* ─── §17 Attachments ────────────────────────────────────────── */
+.attach-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 120px);
+  gap: var(--space-4);
+}
+.attach-img {
+  width: 120px; height: 90px;
+  object-fit: cover;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+}
+.attach-img:hover { border-color: var(--ink-2); transform: scale(1.02); }
+.attach-file {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-6);
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  position: relative;
+}
+.attach-file .fname {
+  font-family: var(--font-mono);
+  font-size: var(--fz-micro);
+  letter-spacing: 0.06em;
+  color: var(--text);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.attach-file .fsize {
+  font-family: var(--font-mono);
+  font-size: var(--fz-micro);
+  color: var(--text-muted);
+}
+.attach-file .fdel {
+  position: absolute;
+  top: var(--space-2); right: var(--space-2);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px;
+  border-radius: var(--radius-xs);
+  transition: color var(--duration) var(--ease);
+}
+.attach-file .fdel:hover { color: var(--danger); }
+
+/* ─── §11 Modal ──────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: rgba(26, 22, 18, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12);
+  animation: fade-in var(--duration) var(--ease);
+}
+.modal {
+  background: var(--bg-elevated);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  max-width: 600px;
+  width: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  animation: pop-in var(--duration-slow) var(--ease);
+}
+.modal--lg { max-width: 920px; max-height: 90vh; }
+
+.modal-head,
+.modal__head {
+  padding: var(--space-8) var(--space-10) var(--space-6);
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+.modal-head .title,
+.modal-head > h2,
+.modal__head .title,
+.modal__head > h2 { font-family: var(--font-sans); font-weight: 700; font-size: 17px; letter-spacing: -0.01em; color: var(--text); flex: 1; margin: 0; }
+.modal-close { margin-left: auto; }
+
+.modal-body,
+.modal__body { padding: var(--space-8) var(--space-10); overflow-y: auto; max-height: 60vh; }
+
+.modal-actions,
+.modal__actions {
+  padding: var(--space-6) var(--space-10) var(--space-8);
+  border-top: 1px solid var(--rule);
+  display: flex;
+  gap: var(--space-4);
+  justify-content: flex-end;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: var(--space-2);
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  transition: color var(--duration) var(--ease);
+}
+.modal-close:hover { color: var(--text); }
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(8px) scale(0.98); }
+                    to   { opacity: 1; transform: translateY(0) scale(1); } }
+
+/* ─── §11 Toasts ─────────────────────────────────────────────── */
+.toast-root {
+  position: fixed;
+  bottom: var(--space-8);
+  right: var(--space-8);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  padding: var(--space-5) var(--space-8);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--fz-small);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  animation: slide-in var(--duration-slow) var(--ease);
+  font-family: var(--font-mono);
+  letter-spacing: var(--ls-mono);
+}
+.toast--success { border-left-color: var(--success); }
+.toast--warning { border-left-color: var(--warning); }
+.toast--error   { border-left-color: var(--danger); }
+.toast--info    { border-left-color: var(--info); }
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── §11 Lightbox ───────────────────────────────────────────── */
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 22, 18, 0.92);
+  z-index: var(--z-lightbox);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lightbox-img {
+  max-width: 90vw;
+  max-height: 88vh;
+  object-fit: contain;
+  border: 1px solid var(--rule);
+  box-shadow: 0 24px 80px -16px #000;
+}
+.lb-close {
+  position: fixed;
+  top: 20px; right: 24px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,.27);
+  color: var(--paper);
+  font-size: 18px;
+  width: 36px; height: 36px;
+  display: grid; place-items: center;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--duration) var(--ease);
+}
+.lb-close:hover { background: var(--paper); color: var(--ink); border-color: var(--paper); }
+.lb-prev,
+.lb-next {
+  position: fixed;
+  top: 50%; transform: translateY(-50%);
+  background: rgba(26, 22, 18, 0.8);
+  border: 1px solid rgba(255,255,255,.14);
+  color: var(--paper);
+  font-size: 20px;
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--duration) var(--ease);
+}
+.lb-prev { left: 24px; }
+.lb-next { right: 24px; }
+.lb-prev:hover, .lb-next:hover { background: var(--ink); border-color: rgba(255,255,255,.27); }
+

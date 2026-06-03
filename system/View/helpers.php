@@ -487,7 +487,7 @@ function csp_nonce(): string
 /**
  * Inline <style> that re-bases the brand palette (and its dark-theme pair)
  * onto the user-chosen color from settings. Empty when no override is set
- * — letting the design-system defaults from app.css apply unchanged.
+ * — letting the design-system defaults from tokens.css apply unchanged.
  * Renders nothing-safe HTML so it can sit directly in <head>.
  */
 function app_brand_style_tag(): string

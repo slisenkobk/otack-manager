@@ -676,7 +676,7 @@ test('B5: tag chips use 10-hue color system', async ({ page }) => {
   }
 
   // Check that the CSS has 10 semantic colors
-  const cssContent = fs.readFileSync(path.join(ROOT, 'public/assets/css/app.css'), 'utf8');
+  const cssContent = fs.readFileSync(path.join(ROOT, 'public/assets/css/tokens.css'), 'utf8');
   const colorVars = ['--green', '--red', '--blue', '--yellow', '--teal', '--purple', '--magenta', '--brown', '--olive', '--indigo'];
   for (const v of colorVars) {
     expect(cssContent).toContain(v);
