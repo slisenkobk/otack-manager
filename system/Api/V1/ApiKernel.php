@@ -25,6 +25,9 @@ final class ApiKernel
         // Stub for Task 7; later tasks expand the table.
         $this->routes['GET /api/v1/ping'] = ['handler' => 'Ping', 'action' => 'ping'];
         $this->routes['GET /api/v1/me']   = ['handler' => 'Me',   'action' => 'show'];
+
+        $this->routes['GET /api/v1/projects']      = ['handler' => 'Projects', 'action' => 'index'];
+        $this->routes['GET /api/v1/projects/{id}'] = ['handler' => 'Projects', 'action' => 'show'];
     }
 
     public function handle(Request $req): void
