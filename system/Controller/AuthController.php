@@ -50,9 +50,10 @@ final class AuthController extends BaseController {
     public function loginForm(Request $req, array $params = []): void {
         if ($this->user) { Response::redirect('/'); return; }
         Response::html($this->view->render('auth/login', [
-            'title'     => t('auth.sign_in'),
-            'csrfToken' => $this->csrf->token(),
-            'error'     => $this->consumeFlash('flash_error'),
+            'title'      => t('auth.sign_in'),
+            'csrfToken'  => $this->csrf->token(),
+            'error'      => $this->consumeFlash('flash_error'),
+            'fieldErrors'=> $this->consumeFieldErrors(),
         ], 'layouts/auth'));
     }
 
@@ -65,8 +66,10 @@ final class AuthController extends BaseController {
         } catch (ValidationException $e) {
             // Login surfaces a single generic "invalid credentials" message so
             // we don't leak whether the email exists; map all field failures
-            // through that same translation key.
+            // through that same translation key — and additionally flash the
+            // field-error map so the offending input(s) get a red border.
             $this->flash('flash_error', t('auth.invalid_credentials'));
+            $this->flashFieldErrors($e->fields);
             Response::redirect('/login'); return;
         }
         $email    = $clean['email'];
@@ -111,9 +114,10 @@ final class AuthController extends BaseController {
 
     public function registerForm(Request $req, array $params = []): void {
         Response::html($this->view->render('auth/register', [
-            'title'     => t('auth.create_account'),
-            'csrfToken' => $this->csrf->token(),
-            'error'     => $this->consumeFlash('flash_error'),
+            'title'      => t('auth.create_account'),
+            'csrfToken'  => $this->csrf->token(),
+            'error'      => $this->consumeFlash('flash_error'),
+            'fieldErrors'=> $this->consumeFieldErrors(),
         ], 'layouts/auth'));
     }
 
@@ -137,6 +141,7 @@ final class AuthController extends BaseController {
                 default                      => t('auth.invalid_credentials'),
             };
             $this->flash('flash_error', $msg);
+            $this->flashFieldErrors($e->fields);
             Response::redirect('/register'); return;
         }
         $name     = $clean['name'];
@@ -145,6 +150,7 @@ final class AuthController extends BaseController {
 
         if ($this->users->findByEmail($email)) {
             $this->flash('flash_error', t('auth.email_taken'));
+            $this->flashFieldErrors(['email' => 'taken']);
             Response::redirect('/register'); return;
         }
 

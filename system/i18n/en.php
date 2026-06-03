@@ -93,6 +93,11 @@ return [
     'errors.500.body'  => 'An unexpected error occurred. The team has been notified.',
     'errors.back_to_dashboard' => 'Back to dashboard',
     'errors.csrf_mismatch' => 'CSRF mismatch',
+    'errors.required'       => 'Required',
+    'errors.invalid_email'  => 'Invalid email address',
+    'errors.too_short'      => 'Too short',
+    'errors.too_long'       => 'Too long',
+    'errors.invalid_choice' => 'Invalid choice',
 
     // ─── Dashboard ───────────────────────────────────────────────────────────
     'dashboard.greeting'       => 'Hello, :name',

@@ -94,6 +94,11 @@ return [
     'errors.500.body'  => 'Wystąpił nieoczekiwany błąd. Zespół został powiadomiony.',
     'errors.back_to_dashboard' => 'Wróć do pulpitu',
     'errors.csrf_mismatch' => 'Błąd CSRF',
+    'errors.required'       => 'Wymagane',
+    'errors.invalid_email'  => 'Nieprawidłowy adres email',
+    'errors.too_short'      => 'Za krótkie',
+    'errors.too_long'       => 'Za długie',
+    'errors.invalid_choice' => 'Nieprawidłowy wybór',
 
     // ─── Dashboard ───────────────────────────────────────────────────────────
     'dashboard.greeting'       => 'Cześć, :name',

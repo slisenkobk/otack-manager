@@ -509,3 +509,18 @@ body.public-form {
 .toggle input:checked + .toggle__track { background: var(--accent); }
 .toggle input:checked + .toggle__track::before { transform: translateX(16px); }
 .toggle input:focus-visible + .toggle__track { box-shadow: 0 0 0 3px var(--focus-ring-alpha); }
+
+/* Inline field errors — paired with the validator's $e->fields map and
+   the .field--invalid wrapper class set by views. Keeps the input
+   visually anchored to its message instead of relying on a toast/flash. */
+.field--invalid > .input,
+.field--invalid > input,
+.field--invalid > textarea,
+.field--invalid > select {
+  border-color: var(--danger, #C75B30);
+}
+.field__error {
+  color: var(--danger, #C75B30);
+  font-size: 12px;
+  margin-top: 4px;
+}

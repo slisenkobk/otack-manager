@@ -205,7 +205,12 @@ final class ProjectController extends BaseController {
         $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => 'Edit ' . $project['name']]);
         Response::html($this->view->render('layouts/main', [
             'title' => 'Edit ' . $project['name'], 'csrfToken' => $csrf, 'sidebar' => $sidebar, 'topbar' => $topbar,
-            'content' => $this->view->render('projects/form', ['csrfToken' => $csrf, 'project' => $project, 'mode' => 'edit']),
+            'content' => $this->view->render('projects/form', [
+                'csrfToken'   => $csrf,
+                'project'     => $project,
+                'mode'        => 'edit',
+                'fieldErrors' => $this->consumeFieldErrors(),
+            ]),
         ]));
     }
 
@@ -223,7 +228,15 @@ final class ProjectController extends BaseController {
         $fields = [];
         if (isset($data['name'])) {
             $name = trim((string)$data['name']);
-            if ($name !== '') { $fields['name'] = $name; }
+            if ($name !== '') {
+                $fields['name'] = $name;
+            } elseif (!$isJson) {
+                // The edit-form posts name= unconditionally; an empty value
+                // means the user blanked the input. Flash an inline error
+                // so they see what's wrong on the next render.
+                $this->flashFieldErrors(['name' => 'required']);
+                Response::redirect('/projects/' . $id . '/edit'); return;
+            }
         }
         if (array_key_exists('description', $data)) {
             $rawDesc = (string)$data['description'];

@@ -95,6 +95,11 @@ return [
     'errors.500.body'  => 'Сталася неочікувана помилка. Команду повідомлено.',
     'errors.back_to_dashboard' => 'Повернутися до панелі',
     'errors.csrf_mismatch' => 'Помилка CSRF',
+    'errors.required'       => 'Обовʼязкове поле',
+    'errors.invalid_email'  => 'Невірна електронна адреса',
+    'errors.too_short'      => 'Закоротке',
+    'errors.too_long'       => 'Задовге',
+    'errors.invalid_choice' => 'Невірний вибір',
 
     // ─── Dashboard ───────────────────────────────────────────────────────────
     'dashboard.greeting'       => 'Привіт, :name',
