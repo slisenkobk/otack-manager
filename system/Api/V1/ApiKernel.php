@@ -28,6 +28,12 @@ final class ApiKernel
 
         $this->routes['GET /api/v1/projects']      = ['handler' => 'Projects', 'action' => 'index'];
         $this->routes['GET /api/v1/projects/{id}'] = ['handler' => 'Projects', 'action' => 'show'];
+        $this->routes['POST /api/v1/projects']                       = ['handler' => 'Projects', 'action' => 'create'];
+        $this->routes['PATCH /api/v1/projects/{id}']                 = ['handler' => 'Projects', 'action' => 'update'];
+        $this->routes['DELETE /api/v1/projects/{id}']                = ['handler' => 'Projects', 'action' => 'destroy'];
+        $this->routes['POST /api/v1/projects/{id}/pin']              = ['handler' => 'Projects', 'action' => 'setPin'];
+        $this->routes['POST /api/v1/projects/{id}/members']          = ['handler' => 'Projects', 'action' => 'addMember'];
+        $this->routes['DELETE /api/v1/projects/{id}/members/{id}']   = ['handler' => 'Projects', 'action' => 'removeMember'];
     }
 
     public function handle(Request $req): void

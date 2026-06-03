@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Api\V1\Handlers;
 
 use App\Api\V1\ApiResponse;
+use App\Api\V1\JsonRequest;
 use App\Service\RolePolicy;
 use App\Http\Request;
 
@@ -40,6 +41,90 @@ final class ProjectsHandler extends BaseHandler
         $columns = $this->svc('columns')->listForProject($id);
         $members = $this->svc('members')->list($id);
         return ApiResponse::ok($this->serializeOne($project, $columns, $members));
+    }
+
+    public function create(Request $req): array
+    {
+        if (!RolePolicy::canCreateProject($this->user())) return $this->forbidden();
+        $body = $this->readBody($req);
+        try { $name = JsonRequest::requireString($body, 'name'); }
+        catch (\InvalidArgumentException $e) {
+            return ApiResponse::error(422, 'validation_failed', 'name is required', ['name' => 'required']);
+        }
+        // ProjectRepository::create signature: (name, description, createdBy, color)
+        $id = $this->svc('projects')->create(
+            $name,
+            JsonRequest::optionalString($body, 'description'),
+            $this->userId(),
+            JsonRequest::optionalString($body, 'color')
+        );
+        // Mirror web controller: register creator as owner so canEditProject works.
+        $this->svc('members')->add($id, $this->userId(), 'owner');
+        $project = $this->svc('projects')->findById($id);
+        return ApiResponse::created($this->serializeMany([$project])[0]);
+    }
+
+    public function update(Request $req): array
+    {
+        $id = $this->pathId($req, 3);
+        $project = $this->svc('projects')->findById($id);
+        if (!$project) return $this->notFound();
+        if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) return $this->forbidden();
+        $body = $this->readBody($req);
+        $patch = [];
+        foreach (['name', 'color', 'description', 'status'] as $f) {
+            $v = JsonRequest::optionalString($body, $f);
+            if ($v !== null) $patch[$f] = $v;
+        }
+        if ($patch) $this->svc('projects')->update($id, $patch);
+        return ApiResponse::ok($this->serializeMany([$this->svc('projects')->findById($id)])[0]);
+    }
+
+    public function destroy(Request $req): array
+    {
+        $id = $this->pathId($req, 3);
+        $project = $this->svc('projects')->findById($id);
+        if (!$project) return $this->notFound();
+        if (!RolePolicy::isAdmin($this->user())) return $this->forbidden();
+        $this->svc('projects')->delete($id);
+        return ApiResponse::noContent();
+    }
+
+    public function setPin(Request $req): array
+    {
+        $id = $this->pathId($req, 3);
+        $project = $this->svc('projects')->findById($id);
+        if (!$project) return $this->notFound();
+        if (!$this->canSee($project)) return $this->notFound();
+        $pinned = JsonRequest::optionalBool($this->readBody($req), 'pinned', false);
+        // ProjectRepository::setPinned signature is (id, pinned) — no per-user pin state.
+        $this->svc('projects')->setPinned($id, $pinned);
+        return ApiResponse::ok(['id' => $id, 'pinned' => $pinned]);
+    }
+
+    public function addMember(Request $req): array
+    {
+        $id = $this->pathId($req, 3);
+        $project = $this->svc('projects')->findById($id);
+        if (!$project) return $this->notFound();
+        if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) return $this->forbidden();
+        try { $userId = JsonRequest::requireInt($this->readBody($req), 'user_id'); }
+        catch (\InvalidArgumentException $e) {
+            return ApiResponse::error(422, 'validation_failed', 'user_id required', ['user_id' => 'required']);
+        }
+        $this->svc('members')->add($id, $userId);
+        return ApiResponse::created(['project_id' => $id, 'user_id' => $userId]);
+    }
+
+    public function removeMember(Request $req): array
+    {
+        $id = $this->pathId($req, 3);
+        $userId = $this->pathId($req, 5);
+        $project = $this->svc('projects')->findById($id);
+        if (!$project) return $this->notFound();
+        if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) return $this->forbidden();
+        $this->svc('members')->remove($id, $userId);
+        return ApiResponse::noContent();
     }
 
     private function canSee(array $project): bool
