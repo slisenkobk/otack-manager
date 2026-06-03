@@ -210,4 +210,86 @@ final class ProfileController extends BaseController {
         }
         Response::redirect('/profile');
     }
+
+    // ─── API tokens (Task 17) ────────────────────────────────────────────────
+    // The /profile/tokens page lets a user mint, list, and revoke their own
+    // personal-access tokens. Plaintext is shown ONCE on creation via a
+    // single-use session flash; reload clears it.
+
+    public function tokens(Request $req, array $params = []): void {
+        $csrfToken = $this->csrfToken();
+        $repo      = App::make('api_tokens');
+        $tokens    = $repo->listForUser((int)$this->user['id']);
+
+        // One-time reveal: stored as a structured array in the session on
+        // create, then drained on the next render so a refresh hides it.
+        $s = &$this->session();
+        $oneTime = $s['flash_token_once'] ?? null;
+        unset($s['flash_token_once']);
+
+        $sidebar = $this->view->render('partials/sidebar', [
+            'user' => $this->user, 'activeNav' => 'profile', 'csrfToken' => $csrfToken,
+        ]);
+        $topbar = $this->view->render('partials/topbar', [
+            'user' => $this->user, 'crumb' => t('api_tokens.title'),
+        ]);
+        Response::html($this->view->render('layouts/main', [
+            'title'     => t('api_tokens.title'),
+            'csrfToken' => $csrfToken,
+            'sidebar'   => $sidebar,
+            'topbar'    => $topbar,
+            'content'   => $this->view->render('profile/tokens', [
+                'user'      => $this->user,
+                'csrfToken' => $csrfToken,
+                'tokens'    => $tokens,
+                'oneTime'   => $oneTime,
+                'success'   => $this->consumeFlash('flash_success'),
+                'error'     => $this->consumeFlash('flash_error'),
+            ]),
+        ]));
+    }
+
+    public function tokensCreate(Request $req, array $params = []): void {
+        $name = trim((string)($req->post['name'] ?? ''));
+        if ($name === '') {
+            $this->flash('flash_error', t('api_tokens.error_name_required'));
+            Response::redirect('/profile/tokens'); return;
+        }
+        $expiresRaw = trim((string)($req->post['expires_at'] ?? ''));
+        $expiresAt  = null;
+        if ($expiresRaw !== '') {
+            // strtotime returns false on garbage; treat that as "no expiry"
+            // rather than failing the whole submission — the user explicitly
+            // typed something, but we don't want a 500.
+            $ts = strtotime($expiresRaw);
+            if ($ts !== false && $ts > time()) {
+                $expiresAt = (int)$ts;
+            }
+        }
+        $repo = App::make('api_tokens');
+        $created = $repo->create((int)$this->user['id'], $name, $expiresAt);
+
+        // Plaintext token is shown once and then never recoverable. Storing
+        // it as an array in the session flash so the view can format it.
+        $s = &$this->session();
+        $s['flash_token_once'] = [
+            'name'  => $name,
+            'token' => $created['token'],
+        ];
+        Response::redirect('/profile/tokens');
+    }
+
+    public function tokensRevoke(Request $req, array $params = []): void {
+        $id  = (int)($params['id'] ?? 0);
+        $repo = App::make('api_tokens');
+        $row = $repo->findById($id);
+        // Silent no-op on missing / cross-user IDs — we don't want to leak
+        // whether another user's token id exists. The redirect feedback is
+        // identical to the success case.
+        if ($row && (int)$row['user_id'] === (int)$this->user['id']) {
+            $repo->revoke($id);
+            $this->flash('flash_success', t('api_tokens.revoked'));
+        }
+        Response::redirect('/profile/tokens');
+    }
 }

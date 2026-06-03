@@ -232,6 +232,9 @@ $router->post('/profile/password', 'Profile@updatePassword');
 $router->post('/profile/avatar', 'Profile@updateAvatar');
 $router->post('/profile/avatar/delete', 'Profile@removeAvatar');
 $router->post('/profile/locale', 'Profile@updateLocale');
+$router->get('/profile/tokens', 'Profile@tokens');
+$router->post('/profile/tokens', 'Profile@tokensCreate');
+$router->post('/profile/tokens/{id}/revoke', 'Profile@tokensRevoke');
 
 $router->get('/projects', 'Project@index');
 $router->post('/projects', 'Project@create');

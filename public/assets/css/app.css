@@ -5145,3 +5145,31 @@ a.link-card *,
 /* The rollup badge (e.g. unread forms-data count) hides when the group is
    open because the child item shows its own badge in the natural position. */
 .nav-group--collapsible.is-open .nav-group__rollup-count { display: none; }
+
+/* ─── API tokens panel ─────────────────────────────────────────────────
+   `pre.copyable` flashes briefly when clicked to copy. Reveal block
+   only appears once after token creation (server side flash). */
+pre.copyable {
+  cursor: copy;
+  user-select: all;
+  font-family: var(--mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 13px;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius, 6px);
+  padding: 12px 14px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+pre.copyable:hover { background: var(--paper-3); border-color: var(--rule-2); }
+pre.copyable.copyable--flash {
+  background: var(--brand-3, #FCE4D6);
+  border-color: var(--brand, #C2410C);
+}
+.api-tokens-reveal {
+  border-color: var(--brand, #C2410C);
+  background: linear-gradient(0deg, var(--paper-2), var(--paper-2)) padding-box;
+}
+.api-tokens-reveal__code { margin-top: var(--space-6); }
