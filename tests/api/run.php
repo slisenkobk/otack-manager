@@ -54,6 +54,41 @@ function api_request(string $method, string $path, array $opts = []): array {
     return ['status' => $status, 'body' => $body, 'json' => $json, 'headers' => $meta['wrapper_data']];
 }
 
+/**
+ * Multipart upload helper — stream_context_create can't easily compose
+ * multipart bodies, so we shell out to curl. Used by test_attachments.php.
+ *
+ * $fields are POST form fields; $filePath is the local file to upload under
+ * the $field name (default "file").
+ */
+function api_upload(string $path, string $token, array $fields, string $filePath, ?string $field = 'file'): array {
+    $url  = 'http://localhost:8765' . $path;
+    $tmp  = '/tmp/otack-api-upload-resp.txt';
+    @unlink($tmp);
+    $args = [
+        'curl', '-s', '-o', $tmp, '-w', '%{http_code}',
+        '-X', 'POST',
+        '-H', 'Authorization: Bearer ' . $token,
+        '-H', 'Accept: application/json',
+    ];
+    foreach ($fields as $k => $v) {
+        $args[] = '-F';
+        $args[] = "$k=$v";
+    }
+    $args[] = '-F';
+    $args[] = "$field=@" . $filePath;
+    $args[] = $url;
+    $cmd = implode(' ', array_map('escapeshellarg', $args));
+    $statusRaw = shell_exec($cmd);
+    $status = (int)trim((string)$statusRaw);
+    $body = @file_get_contents($tmp) ?: '';
+    return [
+        'status' => $status,
+        'body'   => $body,
+        'json'   => $body === '' ? null : json_decode($body, true),
+    ];
+}
+
 // Defensive port cleanup — a previous aborted run may have left a server bound.
 @shell_exec('kill $(lsof -ti:8765) 2>/dev/null');
 
