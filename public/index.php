@@ -16,8 +16,12 @@ use App\Bootstrap\{Container, Events, Routes};
 use App\Database\{Migrations, SchemaBootstrap};
 use App\Http\{Csrf, Request, Response};
 
-// Security headers
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'");
+// Security headers. The CSP `style-src` lists BOTH `'unsafe-inline'` and the
+// per-request nonce: we generate the nonce now so the brand <style> tag can
+// pre-nonce itself, but we can't drop `'unsafe-inline'` until the Wave-C
+// inline-style sweep removes the 348 `style=""` attributes still in views.
+$__cspStyleNonce = csp_nonce();
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' 'nonce-$__cspStyleNonce'; script-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'");
 header("X-Content-Type-Options: nosniff");
 header("Referrer-Policy: strict-origin-when-cross-origin");
 
