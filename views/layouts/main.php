@@ -54,7 +54,7 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
       if (is_string($__v) && str_starts_with($__k, 'js.')) $__jsLocale[$__k] = $__v;
   }
 ?>
-<script>window.__t = <?= json_encode($__jsLocale, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
+<script type="application/json" id="i18n-js"><?= json_encode($__jsLocale, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
 <script type="module" src="<?= e(asset_url('/assets/js/ui.js')) ?>"></script>
 <script type="module" src="<?= e(asset_url('/assets/js/wysiwyg.js')) ?>"></script>
 <script type="module" src="<?= e(asset_url('/assets/js/sidebar-groups.js')) ?>"></script>

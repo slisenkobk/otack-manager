@@ -51,3 +51,25 @@ pre-existing.
 - E2E: 65 passed, 2 pre-existing flakes documented above, 48 skipped (serial
   cascade — same number as on `main`).
 - Commit count: 16 commits on `fix/9-1a-ship-blockers`.
+
+## Hot-fix v1.2.1 (CSP regression from J-7)
+
+The original J-7 emit used `<script>window.__t = …</script>` (inline executable),
+which is blocked by the existing `script-src 'self'` CSP. Effect on v1.2.0:
+every migrated toast/confirm rendered the raw key (`"js.toast.saved"`) instead
+of its translation.
+
+Hot-fix shipped on `main` as v1.2.1: switched the channel to a non-executable
+JSON island (`<script type="application/json" id="i18n-js">…</script>`) parsed
+lazily on first `t()` call in `public/assets/js/utils.js`. Same payload, no
+CSP violation. Verified in a real browser session — `window.__t` populates
+correctly and `t('js.toast.column_added')` returns "Column added".
+
+## Other pre-existing CSP issues NOT touched in Wave A
+
+- `views/projects/form.php:38-…` ships an inline `<script>` that has always
+  been CSP-blocked. Wave B's CSP nonce work (S-6) should cover it.
+- The audit's S-6 item is about migrating `style-src 'unsafe-inline'` to
+  nonces; `script-src` was already strict and no inline scripts other than
+  the one above existed pre-Wave-A. Future contributors: do not add inline
+  scripts without a nonce or a JSON-island pattern.

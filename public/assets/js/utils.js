@@ -32,14 +32,25 @@ export function logSilent(err, tag) {
 }
 
 /**
- * Client-side i18n lookup. `window.__t` is populated server-side from the
- * current locale's catalog (js.* namespace, emitted by views/layouts/*.php).
- * Falls back to the explicit fallback arg, then to the key itself — same
- * contract as the server's t() helper, so missing keys surface in dev.
+ * Client-side i18n lookup. The js.* slice of the active server-side catalog
+ * ships as a non-executed JSON island (`<script type="application/json"
+ * id="i18n-js">…</script>`) so the app's strict `script-src 'self'` CSP
+ * accepts it. We parse it once on first call and cache on window.__t for
+ * later reads. Falls back to the explicit fallback, then the key itself —
+ * same contract as the server's t() helper.
  *
  * Example:
  *   UI.toast(t('js.toast.saved'), 'success');
  */
+function loadI18nIsland() {
+  if (window.__t) return;
+  const el = document.getElementById('i18n-js');
+  if (!el) { window.__t = {}; return; }
+  try { window.__t = JSON.parse(el.textContent); }
+  catch (e) { logSilent(e, 'i18n.parseIsland'); window.__t = {}; }
+}
+
 export function t(key, fallback) {
+  if (!window.__t) loadI18nIsland();
   return (window.__t && window.__t[key]) ?? (fallback ?? key);
 }
