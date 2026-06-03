@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 const root = document.querySelector('[data-link-edit]');
 if (root) {
@@ -20,7 +21,7 @@ if (root) {
     try {
       await api('/links/' + id, { method: 'POST', body: JSON.stringify(payload) });
       UI.toast('Link saved', 'success');
-    } catch {} finally { btn.disabled = false; }
+    } catch (e) { logSilent(e, 'links-show.save'); } finally { btn.disabled = false; }
   });
 
   const copyBtn = root.querySelector('[data-action=copy-url]');
@@ -40,7 +41,7 @@ if (root) {
         if (urlLink) urlLink.href = res.url;
       }
       UI.toast('New URL generated', 'success');
-    } catch {} finally { rotateBtn.disabled = false; }
+    } catch (e) { logSilent(e, 'links-show.rotateSlug'); } finally { rotateBtn.disabled = false; }
   });
 
   const toggleBtn = root.querySelector('[data-action=toggle-link]');
@@ -49,7 +50,7 @@ if (root) {
       const res = await api('/links/' + id + '/toggle', { method: 'POST' });
       UI.toast(res.is_disabled ? 'Link disabled' : 'Link enabled', 'success');
       setTimeout(() => location.reload(), 300);
-    } catch {}
+    } catch (e) { logSilent(e, 'links-show.toggle'); }
   });
 
   const delBtn = root.querySelector('[data-action=delete-link]');
@@ -59,6 +60,6 @@ if (root) {
       await api('/links/' + id + '/delete', { method: 'POST' });
       UI.toast('Link deleted', 'success');
       location.href = '/links';
-    } catch {}
+    } catch (e) { logSilent(e, 'links-show.delete'); }
   });
 }

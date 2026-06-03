@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 const FIELD_TYPES = [
   { value: 'text',     label: 'Text (single line)' },
@@ -67,7 +68,7 @@ if (builder) {
       const res = await api(url, { method: 'POST', body: JSON.stringify(payload) });
       UI.toast('Form saved', 'success');
       if (!formId && res?.id) location.href = '/forms/' + res.id;
-    } catch {} finally { btn.disabled = false; }
+    } catch (e) { logSilent(e, 'form-builder.save'); } finally { btn.disabled = false; }
   });
 
   function renderAll(scrollToIdx = -1) {
@@ -274,7 +275,7 @@ if (builder) {
           if (toolbarOpen) toolbarOpen.href = res.url;
         }
         UI.toast('New URL generated', 'success');
-      } catch {} finally { rotBtn.disabled = false; }
+      } catch (e) { logSilent(e, 'form-builder.rotateHash'); } finally { rotBtn.disabled = false; }
     });
   }
 

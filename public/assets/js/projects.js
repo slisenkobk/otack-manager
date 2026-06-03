@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 // Pin / unpin a project card from the index grid.
 // Card itself is an <a>, so we stop propagation on the pin button click.
@@ -25,7 +26,7 @@ document.querySelectorAll('.card[data-project-id] [data-action="toggle-pin"]').f
           if (lastPinned && lastPinned !== card) lastPinned.after(card);
         }
       }
-    } catch {}
+    } catch (e) { logSilent(e, 'projects.pin'); }
     finally { btn.disabled = false; }
   });
 });
@@ -152,7 +153,7 @@ function openProjectModal(trigger) {
             close();
             if (res && res.id) location.href = '/projects/' + res.id + '?tab=overview';
             else location.reload();
-          } catch {}
+          } catch (e) { logSilent(e, 'projects.create'); }
         }
       },
     ],

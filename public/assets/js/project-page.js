@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 const overview = document.querySelector('.project-overview');
 if (overview) {
@@ -43,7 +44,7 @@ if (overview) {
       editor.style.display = 'none';
       rendered.style.display = 'block';
       UI.toast('Description saved', 'success');
-    } catch {}
+    } catch (e) { logSilent(e, 'project-page.saveDescription'); }
   });
 
   const titleEl = overview.querySelector('.project-title[contenteditable]');
@@ -85,7 +86,7 @@ if (overview) {
           body: JSON.stringify({ color: colorInput.value }),
         });
         UI.toast('Color saved', 'success');
-      } catch {}
+      } catch (e) { logSilent(e, 'project-page.saveColor'); }
     });
   }
 
@@ -95,6 +96,6 @@ if (overview) {
     try {
       await api('/projects/' + projectId + '/delete', { method: 'POST' });
       location.href = '/projects';
-    } catch {}
+    } catch (e) { logSilent(e, 'project-page.delete'); }
   });
 }

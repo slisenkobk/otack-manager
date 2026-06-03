@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 document.querySelectorAll('.card[data-form-id]').forEach(card => {
   const id = card.dataset.formId;
@@ -24,7 +25,7 @@ document.querySelectorAll('.card[data-form-id]').forEach(card => {
       await api('/forms/' + id + '/delete', { method: 'POST' });
       card.remove();
       UI.toast('Form deleted', 'success');
-    } catch {}
+    } catch (e) { logSilent(e, 'forms.delete'); }
   });
 
   const dup = card.querySelector('[data-action=duplicate-form]');
@@ -33,7 +34,7 @@ document.querySelectorAll('.card[data-form-id]').forEach(card => {
       const res = await api('/forms/' + id + '/copy', { method: 'POST' });
       UI.toast('Form duplicated', 'success');
       if (res?.url) location.href = res.url;
-    } catch {}
+    } catch (e) { logSilent(e, 'forms.duplicate'); }
   });
 
   const copy = card.querySelector('[data-action=copy-link]');

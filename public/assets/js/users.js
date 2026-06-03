@@ -1,4 +1,5 @@
 import { api, UI, buildCustomSelect } from './ui.js';
+import { logSilent } from './utils.js';
 
 // Search form submits on Enter (native) or via the submit button.
 
@@ -75,7 +76,7 @@ function openUserModal({ title, name = '', email = '', locale = 'en', isEdit = f
             await onSubmit(payload);
             close();
             setTimeout(() => location.reload(), 400);
-          } catch {}
+          } catch (e) { logSilent(e, 'users.submit'); }
         }
       },
     ],

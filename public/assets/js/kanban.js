@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 // Module-level state must be declared BEFORE initKanban runs — otherwise TDZ trips.
 let _searchIds = null; // null = no server filter active; Set<int> otherwise
@@ -61,7 +62,7 @@ function initLazyLoad(root) {
         }
         const sortBtn = document.querySelector('[data-sort-toggle]');
         if (sortBtn?.dataset.sort === 'priority') applySort(root, 'priority');
-      } catch {}
+      } catch (e) { logSilent(e, 'kanban.lazyLoad'); }
     }
   }, { root: null, rootMargin: '200px' });
   root.querySelectorAll('[data-load-sentinel]').forEach(s => io.observe(s));
@@ -288,7 +289,7 @@ function initQuickAdd(root) {
         closeForm();
         recount(root);
         UI.toast('Task added', 'success');
-      } catch {}
+      } catch (e) { logSilent(e, 'kanban.quickAdd'); }
     });
   });
 }
@@ -329,7 +330,7 @@ function initAddColumn(root) {
               UI.toast('Column added', 'success');
               close();
               setTimeout(() => location.reload(), 400);
-            } catch {}
+            } catch (e) { logSilent(e, 'kanban.addColumn'); }
           }
         },
       ],
@@ -454,7 +455,7 @@ async function openColumnSettings(columnId) {
             close();
             UI.toast('Column updated', 'success');
             setTimeout(() => location.reload(), 400);
-          } catch {}
+          } catch (e) { logSilent(e, 'kanban.columnSettings.save'); }
         }
       },
     ],
@@ -506,7 +507,7 @@ async function openColumnSettings(columnId) {
                   close();
                   UI.toast('Column deleted', 'success');
                   setTimeout(() => location.reload(), 400);
-                } catch {}
+                } catch (e) { logSilent(e, 'kanban.columnSettings.moveAndDelete'); }
               }
             },
           ],
@@ -591,7 +592,7 @@ function initToolbar(root) {
     refilter();
     mineBtn.addEventListener('click', () => {
       mineOnly = !mineOnly;
-      try { localStorage.setItem(mineKey, mineOnly ? '1' : '0'); } catch {}
+      try { localStorage.setItem(mineKey, mineOnly ? '1' : '0'); } catch (e) { logSilent(e, 'kanban.localStorage.mineOnly'); }
       paintMine();
       refilter();
     });
@@ -606,7 +607,7 @@ function initToolbar(root) {
     sortBtn.dataset.sort = mode;
     sortLbl.textContent = mode === 'priority' ? labelPriority : labelManual;
     applySort(root, mode);
-    try { localStorage.setItem(sortKey, mode); } catch {}
+    try { localStorage.setItem(sortKey, mode); } catch (e) { logSilent(e, 'kanban.localStorage.sort'); }
   }
   if (sortBtn) {
     const initial = (() => { try { return localStorage.getItem(sortKey); } catch { return null; } })() || 'manual';

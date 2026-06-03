@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 const titleEl = document.querySelector('.task-title');
 const sidebar = document.querySelector('.task-sidebar');
@@ -57,7 +58,7 @@ if (!sidebar) {
       editor.style.display = 'none';
       rendered.style.display = 'block';
       UI.toast('Description saved', 'success');
-    } catch {}
+    } catch (e) { logSilent(e, 'task-page.saveDescription'); }
   });
 
   // Assignee picker (custom dropdown with avatars)
@@ -121,7 +122,7 @@ if (!sidebar) {
           }
         }
         UI.toast(key.replace('_', ' ') + ' updated', 'success');
-      } catch {}
+      } catch (e) { logSilent(e, 'task-page.fieldSave'); }
     });
   });
 
@@ -234,7 +235,7 @@ if (!sidebar) {
             UI.toast('Task linked', 'success');
             // refresh search to drop the just-linked item
             doSearch(search.value);
-          } catch {}
+          } catch (e) { logSilent(e, 'task-page.linkTask'); }
         });
         results.appendChild(row);
       });
@@ -249,7 +250,7 @@ if (!sidebar) {
           const url = '/api/tasks/' + taskId + '/links/search' + (q ? '?q=' + encodeURIComponent(q) : '');
           const res = await api(url);
           renderResults(res.tasks || []);
-        } catch {}
+        } catch (e) { logSilent(e, 'task-page.linkSearch'); }
       }, 150);
     };
 
@@ -286,7 +287,7 @@ if (!sidebar) {
         row.remove();
         ensureEmptyState();
         UI.toast('Link removed', 'success');
-      } catch {}
+      } catch (e) { logSilent(e, 'task-page.unlink'); }
     });
   }
 
@@ -297,7 +298,7 @@ if (!sidebar) {
     try {
       await api('/tasks/' + taskId + '/delete', { method: 'POST' });
       location.href = '/projects/' + projectId;
-    } catch {}
+    } catch (e) { logSilent(e, 'task-page.delete'); }
   });
 
   // Spin task off into a brand-new project

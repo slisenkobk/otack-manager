@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 const root = document.querySelector('.backlog');
 if (root) {
@@ -53,7 +54,7 @@ if (root) {
           } else {
             sentinel.remove();
           }
-        } catch {}
+        } catch (e) { logSilent(e, 'backlog.lazyLoad'); }
       }
     }, { rootMargin: '200px' });
     io.observe(sentinel);

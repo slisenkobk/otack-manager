@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 const builder = document.querySelector('[data-poll-builder]');
 if (builder) {
@@ -54,7 +55,7 @@ if (builder) {
       const res = await api(url, { method: 'POST', body: JSON.stringify(payload) });
       UI.toast('Poll saved', 'success');
       if (!pollId && res?.id) location.href = '/polls/' + res.id;
-    } catch {} finally { btn.disabled = false; }
+    } catch (e) { logSilent(e, 'poll-builder.save'); } finally { btn.disabled = false; }
   });
 
   // Activate (draft → active). Once active, the page reloads to show stats.
@@ -67,7 +68,7 @@ if (builder) {
       await api('/polls/' + pollId + '/activate', { method: 'POST' });
       UI.toast('Poll activated', 'success');
       location.reload();
-    } catch {} finally { activateBtn.disabled = false; }
+    } catch (e) { logSilent(e, 'poll-builder.activate'); } finally { activateBtn.disabled = false; }
   });
 
   // Public URL row (only present for already-saved polls).
@@ -91,7 +92,7 @@ if (builder) {
           urlLink.href = res.url;
         }
         UI.toast('New URL generated', 'success');
-      } catch {} finally { rotBtn.disabled = false; }
+      } catch (e) { logSilent(e, 'poll-builder.rotateHash'); } finally { rotBtn.disabled = false; }
     });
   }
 

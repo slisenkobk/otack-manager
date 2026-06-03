@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 document.querySelectorAll('.card[data-link-id]').forEach(card => {
   const id = card.dataset.linkId;
@@ -22,7 +23,7 @@ document.querySelectorAll('.card[data-link-id]').forEach(card => {
       await api('/links/' + id + '/delete', { method: 'POST' });
       card.remove();
       UI.toast('Link deleted', 'success');
-    } catch {}
+    } catch (e) { logSilent(e, 'links-index.delete'); }
   });
 
   const toggle = card.querySelector('[data-action=toggle-link]');
@@ -33,7 +34,7 @@ document.querySelectorAll('.card[data-link-id]').forEach(card => {
       UI.toast(res.is_disabled ? 'Link disabled' : 'Link enabled', 'success');
       // Refresh icon — simplest is reload so the title/icon stay in sync.
       setTimeout(() => location.reload(), 350);
-    } catch {}
+    } catch (e) { logSilent(e, 'links-index.toggle'); }
   });
 
   const copy = card.querySelector('[data-action=copy-link]');
@@ -77,7 +78,7 @@ function openNewLinkModal() {
             close();
             if (res && res.url) location.href = res.url;
             else location.reload();
-          } catch {}
+          } catch (e) { logSilent(e, 'links-index.create'); }
         }
       },
     ],

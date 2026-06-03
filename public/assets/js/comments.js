@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 function avatarBg(userId) {
   // Mirrors PHP helper user_color(): hsl((id*47) % 360, 55%, 48%)
@@ -226,7 +227,7 @@ document.querySelectorAll('.comment-thread').forEach(thread => {
             article.remove();
           }
           UI.toast('Comment deleted', 'success');
-        } catch {}
+        } catch (e) { logSilent(e, 'comments.delete'); }
       });
     }
     const reply = article.querySelector('[data-action="reply"]');

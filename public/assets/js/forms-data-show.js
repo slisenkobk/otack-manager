@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 const aside = document.querySelector('[data-sub-id]');
 if (aside) {
@@ -49,6 +50,6 @@ if (aside) {
     try {
       await api('/api/forms-data/' + id + '/delete', { method: 'POST' });
       location.href = '/forms-data';
-    } catch {}
+    } catch (e) { logSilent(e, 'forms-data.delete'); }
   });
 }

@@ -17,3 +17,16 @@ export function tagColor(name) {
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
   return TAG_HUES[Math.abs(h) % TAG_HUES.length];
 }
+
+/**
+ * Use in async catch blocks that don't have a user-facing recovery.
+ * Logs to console with a `tag` so future regressions are findable,
+ * and lets the rejection complete without bubbling to window.onerror.
+ *
+ * Example:
+ *   try { await api(...) } catch (e) { logSilent(e, 'kanban.lazyLoad'); }
+ */
+export function logSilent(err, tag) {
+  // eslint-disable-next-line no-console
+  console.warn('[silent]', tag, err);
+}

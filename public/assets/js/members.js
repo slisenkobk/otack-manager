@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 document.querySelectorAll('.members-section').forEach(section => {
   const projectId = section.dataset.projectId;
@@ -15,7 +16,7 @@ document.querySelectorAll('.members-section').forEach(section => {
         await api('/api/projects/' + projectId + '/members/' + userId + '/delete', { method: 'POST' });
         UI.toast('Member removed', 'success');
         location.reload();
-      } catch {}
+      } catch (e) { logSilent(e, 'members.remove'); }
     });
   });
 
@@ -81,7 +82,7 @@ document.querySelectorAll('.members-section').forEach(section => {
           });
           UI.toast('Member added', 'success');
           location.reload();
-        } catch {}
+        } catch (e) { logSilent(e, 'members.add'); }
       });
       dropdown.appendChild(row);
     });

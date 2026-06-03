@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 // Card list interactions (mirrors forms-index.js).
 document.querySelectorAll('.card[data-poll-id]').forEach(card => {
@@ -23,7 +24,7 @@ document.querySelectorAll('.card[data-poll-id]').forEach(card => {
       await api('/polls/' + id + '/delete', { method: 'POST' });
       card.remove();
       UI.toast('Poll deleted', 'success');
-    } catch {}
+    } catch (e) { logSilent(e, 'polls.delete'); }
   });
 
   const dup = card.querySelector('[data-action=duplicate-poll]');
@@ -32,7 +33,7 @@ document.querySelectorAll('.card[data-poll-id]').forEach(card => {
       const res = await api('/polls/' + id + '/copy', { method: 'POST' });
       UI.toast('Poll duplicated', 'success');
       if (res?.url) location.href = res.url;
-    } catch {}
+    } catch (e) { logSilent(e, 'polls.duplicate'); }
   });
 
   const copy = card.querySelector('[data-action=copy-link]');
@@ -59,7 +60,7 @@ if (showRoot) {
       await api('/polls/' + pollId + '/close', { method: 'POST' });
       UI.toast('Poll closed', 'success');
       location.reload();
-    } catch {}
+    } catch (e) { logSilent(e, 'polls.close'); }
   });
 
   const taskBtn = showRoot.querySelector('[data-action=create-summary-task]');
@@ -68,7 +69,7 @@ if (showRoot) {
       const res = await api('/polls/' + pollId + '/create-summary-task', { method: 'POST' });
       UI.toast('Task created', 'success');
       if (res?.url) location.href = res.url;
-    } catch {}
+    } catch (e) { logSilent(e, 'polls.createSummaryTask'); }
   });
 
   const copyUrl = showRoot.querySelector('[data-action=copy-url]');
@@ -143,6 +144,6 @@ if (projectEditor) {
         body: JSON.stringify({ project_id: raw ? parseInt(raw, 10) : null }),
       });
       UI.toast('Project updated', 'success');
-    } catch {} finally { btn.disabled = false; }
+    } catch (e) { logSilent(e, 'polls.saveProject'); } finally { btn.disabled = false; }
   });
 }

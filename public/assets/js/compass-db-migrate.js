@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { logSilent } from './utils.js';
 
 // SQLite → MySQL migration wizard. Three actions:
 //   1. Test connection — validates the form against the target MySQL.
@@ -96,6 +97,6 @@ if (root && root.dataset.currentDriver === 'sqlite') {
       const data = await api('/admin/compass/db-migrate/verify');
       verifyResult.textContent = data.message || '';
       verifyResult.style.color = data.ok ? '#1e6f3a' : '#b00020';
-    } catch {} finally { verifyBtn.disabled = false; }
+    } catch (e) { logSilent(e, 'compass.dbMigrate.verify'); } finally { verifyBtn.disabled = false; }
   });
 }
