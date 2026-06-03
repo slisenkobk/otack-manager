@@ -71,7 +71,7 @@ logs:
 migrate:
 	php bin/migrate.php
 
-test: unit e2e
+test: unit api e2e
 
 unit:
 	php tests/run.php
