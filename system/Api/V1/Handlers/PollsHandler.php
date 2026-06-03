@@ -91,11 +91,15 @@ final class PollsHandler extends BaseHandler
         if (!$poll) return $this->notFound();
         if (!$this->canSeePoll($poll)) return $this->notFound();
 
-        $limit  = min(200, max(1, (int)($req->query['limit'] ?? 50)));
-        $offset = max(0, (int)($req->query['offset'] ?? 0));
+        $limit = min(200, max(1, (int)($req->query['limit'] ?? 50)));
+        // Cursor pagination by id DESC: `?after={id}` returns rows older than
+        // the given id. This matches every other endpoint's `next_cursor`
+        // semantics (last item's id); the previous offset-based cursor was a
+        // contract violation — `next_cursor` was the next offset, not an id.
+        $after = isset($req->query['after']) ? max(0, (int)$req->query['after']) : 0;
 
         // Fetch limit+1 to detect whether more rows exist.
-        $batch   = $this->svc('poll_votes')->listVoters($id, $offset, $limit + 1);
+        $batch   = $this->svc('poll_votes')->listVotersAfterId($id, $after, $limit + 1);
         $hasMore = count($batch) > $limit;
         if ($hasMore) $batch = array_slice($batch, 0, $limit);
 
@@ -111,7 +115,7 @@ final class PollsHandler extends BaseHandler
             ];
         }, $batch);
 
-        $next = $hasMore ? $offset + $limit : null;
+        $next = $hasMore && !empty($items) ? (int)end($items)['id'] : null;
         return ApiResponse::paginated($items, $next);
     }
 

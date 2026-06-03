@@ -73,7 +73,7 @@ final class PollVoteRepository
     }
 
     /**
-     * Offset-paged list for the Voters tab. Newest first.
+     * Offset-paged list for the Voters tab (web UI). Newest first.
      * `limit` is capped at 200 to bound network/render cost.
      */
     public function listVoters(int $pollId, int $offset = 0, int $limit = 10): array
@@ -90,6 +90,42 @@ final class PollVoteRepository
         $stmt->bindValue(1, $pollId, \PDO::PARAM_INT);
         $stmt->bindValue(2, $limit,  \PDO::PARAM_INT);
         $stmt->bindValue(3, $offset, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Cursor-by-id list for the REST API. Ordered id DESC (newest first,
+     * since ids are monotonic). `$afterId === 0` means start from the top.
+     * Otherwise return rows with id < $afterId — i.e. strictly older than
+     * the given cursor. Matches the convention used by other endpoints
+     * (FormsHandler::listSubmissions, etc.).
+     */
+    public function listVotersAfterId(int $pollId, int $afterId, int $limit = 10): array
+    {
+        $limit = max(1, min(200, $limit));
+        if ($afterId > 0) {
+            $stmt = $this->pdo->prepare(
+                'SELECT id, contact, choice_key, remote_ip, created_at
+                 FROM poll_votes
+                 WHERE poll_id = ? AND id < ?
+                 ORDER BY id DESC
+                 LIMIT ?'
+            );
+            $stmt->bindValue(1, $pollId, \PDO::PARAM_INT);
+            $stmt->bindValue(2, $afterId, \PDO::PARAM_INT);
+            $stmt->bindValue(3, $limit, \PDO::PARAM_INT);
+        } else {
+            $stmt = $this->pdo->prepare(
+                'SELECT id, contact, choice_key, remote_ip, created_at
+                 FROM poll_votes
+                 WHERE poll_id = ?
+                 ORDER BY id DESC
+                 LIMIT ?'
+            );
+            $stmt->bindValue(1, $pollId, \PDO::PARAM_INT);
+            $stmt->bindValue(2, $limit, \PDO::PARAM_INT);
+        }
         $stmt->execute();
         return $stmt->fetchAll();
     }

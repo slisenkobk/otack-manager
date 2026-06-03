@@ -356,10 +356,10 @@ while True:
     cursor = body["next_cursor"]
 ```
 
-Note: `GET /api/v1/polls/{id}/voters` uses an **offset-based** cursor instead
-of id-based (the voter table is append-only, ordered by `created_at`). The
-shape is still `{items, next_cursor}`, but `next_cursor` is an offset to pass
-back as `?offset=`.
+Note: `GET /api/v1/polls/{id}/voters` returns voters newest-first (highest
+id first). It uses the same id-based `?after=` cursor as every other list
+endpoint — `next_cursor` is the smallest id in the current page, which you
+pass back as `?after=` to fetch the next (older) page.
 
 ---
 
@@ -1512,8 +1512,8 @@ List individual votes for a poll.
 **Query parameters:**
 
 - `limit` (int, default 50, max 200)
-- `offset` (int) — **offset**-based pagination, not id-based (because voters
-  are ordered by `created_at` and have unstable ids relative to that order).
+- `after` (int) — cursor-by-id, same convention as every other list endpoint.
+  Returns rows with id strictly less than `after` (newest-first / id DESC).
 
 **Response 200:**
 
@@ -1529,11 +1529,11 @@ List individual votes for a poll.
       "created_at": "2026-06-01T12:00:00Z"
     }
   ],
-  "next_cursor": 50
+  "next_cursor": 33
 }
 ```
 
-When `next_cursor` is non-null, pass it back as `?offset=...`. When it's null,
+When `next_cursor` is non-null, pass it back as `?after=...`. When it's null,
 you've reached the end.
 
 ---

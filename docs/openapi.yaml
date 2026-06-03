@@ -1456,14 +1456,10 @@ paths:
       - $ref: '#/components/parameters/PathId'
     get:
       tags: [Polls]
-      summary: List voters of a poll (offset-paginated)
+      summary: List voters of a poll (cursor-paginated by id, newest first)
       parameters:
-        - name: offset
-          in: query
-          schema: { type: integer, minimum: 0, default: 0 }
-        - name: limit
-          in: query
-          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - $ref: '#/components/parameters/AfterCursor'
+        - $ref: '#/components/parameters/Limit'
       responses:
         '200':
           description: OK

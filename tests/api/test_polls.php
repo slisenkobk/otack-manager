@@ -116,4 +116,36 @@ api_it('GET /polls/{id}/voters returns paginated voters list', function () {
         if ($v['choice_key'] === 'opt_1') { assert_eq('Option A', $v['choice_label']); }
         if ($v['choice_key'] === 'opt_2') { assert_eq('Option B', $v['choice_label']); }
     }
+    // Newest-first: id DESC. With only 2 votes and default limit, next_cursor is null.
+    assert_eq(9602, (int)$r['json']['items'][0]['id']);
+    assert_eq(9601, (int)$r['json']['items'][1]['id']);
+    assert_true(array_key_exists('next_cursor', $r['json']));
+    assert_true($r['json']['next_cursor'] === null, 'next_cursor must be null when no more pages');
+});
+
+api_it('GET /polls/{id}/voters uses id-based cursor with ?after', function () {
+    [$pdo, $adminTok,,] = polls_setup();
+    polls_seed_poll($pdo, 9021, 1, 'active');
+    polls_seed_vote($pdo, 9701, 9021, 'a@x', 'opt_1');
+    polls_seed_vote($pdo, 9702, 9021, 'b@x', 'opt_2');
+    polls_seed_vote($pdo, 9703, 9021, 'c@x', 'opt_1');
+
+    // First page: limit=2, expect 2 newest (9703, 9702), next_cursor = 9702.
+    $r = api_request('GET', '/api/v1/polls/9021/voters?limit=2', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+    ]);
+    assert_eq(200, $r['status']);
+    assert_eq(2, count($r['json']['items']));
+    assert_eq(9703, (int)$r['json']['items'][0]['id']);
+    assert_eq(9702, (int)$r['json']['items'][1]['id']);
+    assert_eq(9702, (int)$r['json']['next_cursor']);
+
+    // Follow the cursor: ?after=9702 should return ids strictly less than 9702.
+    $r2 = api_request('GET', '/api/v1/polls/9021/voters?limit=2&after=9702', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+    ]);
+    assert_eq(200, $r2['status']);
+    assert_eq(1, count($r2['json']['items']));
+    assert_eq(9701, (int)$r2['json']['items'][0]['id']);
+    assert_true($r2['json']['next_cursor'] === null, 'next_cursor must be null when no more pages');
 });
