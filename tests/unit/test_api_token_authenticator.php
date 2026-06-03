@@ -73,3 +73,14 @@ it('rejects user with status = pending', function () {
     $auth = new TokenAuthenticator($tokens, $users);
     assert_eq(null, $auth->authenticate('Bearer ' . $t['token']));
 });
+
+it('rejects user with unknown status (defensive)', function () {
+    // Anything outside the two-element allowlist ('approved'|'active') must
+    // be rejected — protects against future status values that haven't
+    // been threaded through the auth path.
+    [$pdo, $tokens, $users] = _authPdo();
+    $t = $tokens->create(1, 'x');
+    $pdo->prepare('UPDATE users SET status = ? WHERE id = ?')->execute(['disabled', 1]);
+    $auth = new TokenAuthenticator($tokens, $users);
+    assert_eq(null, $auth->authenticate('Bearer ' . $t['token']));
+});

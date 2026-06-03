@@ -6,10 +6,10 @@
 function polls_setup(): array {
     api_request('GET', '/api/v1/ping');
     $pdo = \App\Database\Connection::open(dirname(__DIR__, 2) . '/data/app.api-test.sqlite');
-    $pdo->exec("INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, created_at) VALUES (1,   'U', 'u@x',         'x', 'admin',    'active', '2026-01-01')");
+    $pdo->exec("INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, created_at) VALUES (1,   'U', 'u@x',         'x', 'admin',    'approved', '2026-01-01')");
     // 900 is unique to this suite — other tests reuse id 3 as employee.
-    $pdo->exec("INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, created_at) VALUES (900, 'M', 'm-polls@x',   'x', 'manager',  'active', '2026-01-01')");
-    $pdo->exec("INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, created_at) VALUES (2,   'E', 'e@x',         'x', 'employee', 'active', '2026-01-01')");
+    $pdo->exec("INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, created_at) VALUES (900, 'M', 'm-polls@x',   'x', 'manager',  'approved', '2026-01-01')");
+    $pdo->exec("INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, created_at) VALUES (2,   'E', 'e@x',         'x', 'employee', 'approved', '2026-01-01')");
     $repo = new \App\Repository\ApiTokenRepository($pdo);
     $adminTok   = $repo->create(1,   'polls-admin-'   . bin2hex(random_bytes(3)))['token'];
     $managerTok = $repo->create(900, 'polls-manager-' . bin2hex(random_bytes(3)))['token'];

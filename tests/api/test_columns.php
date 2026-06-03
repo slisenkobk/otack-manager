@@ -6,8 +6,8 @@
 function cols_setup(): array {
     api_request('GET', '/api/v1/ping'); // warm-up so migrations run
     $pdo = \App\Database\Connection::open(dirname(__DIR__, 2) . '/data/app.api-test.sqlite');
-    $pdo->exec("INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, created_at) VALUES (1, 'U', 'u@x', 'x', 'admin', 'active', '2026-01-01')");
-    $pdo->exec("INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, created_at) VALUES (2, 'E', 'e@x', 'x', 'employee', 'active', '2026-01-01')");
+    $pdo->exec("INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, created_at) VALUES (1, 'U', 'u@x', 'x', 'admin', 'approved', '2026-01-01')");
+    $pdo->exec("INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, created_at) VALUES (2, 'E', 'e@x', 'x', 'employee', 'approved', '2026-01-01')");
     $repo = new \App\Repository\ApiTokenRepository($pdo);
     $adminTok = $repo->create(1, 'cols-admin-' . bin2hex(random_bytes(3)))['token'];
     $empTok   = $repo->create(2, 'cols-emp-'   . bin2hex(random_bytes(3)))['token'];

@@ -376,6 +376,15 @@ final class TasksHandler extends BaseHandler
 
     private function countFor(string $table, string $entityType, int $entityId): int
     {
+        // SQL identifier interpolation is gated by a static allowlist so a
+        // misuse of this helper (or a future refactor that takes the table
+        // name from input) cannot turn into a SQL-injection sink. The two
+        // permitted tables match the schema for `entity_type` + `entity_id`
+        // polymorphic associations.
+        static $allowed = ['comments' => true, 'attachments' => true];
+        if (!isset($allowed[$table])) {
+            throw new \LogicException("countFor: table not in allowlist: $table");
+        }
         $stmt = $this->pdo->prepare(
             "SELECT COUNT(*) FROM $table WHERE entity_type = ? AND entity_id = ?"
         );
