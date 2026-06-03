@@ -220,11 +220,14 @@ $router->post('/logout',  'Auth@logout');
 
 $router->get('/users', 'User@index');
 $router->post('/users', 'User@create');
+$router->get('/users/{id}', 'User@show');
 $router->post('/users/{id}', 'User@update');
 $router->post('/users/{id}/approve', 'User@approve');
 $router->post('/users/{id}/block', 'User@block');
 $router->post('/users/{id}/role', 'User@setRole');
 $router->post('/users/{id}/delete', 'User@delete');
+$router->post('/users/{id}/tokens/{tid}/revoke', 'User@revokeToken');
+$router->post('/users/{id}/tokens/revoke-all', 'User@revokeAllTokens');
 
 $router->get('/profile', 'Profile@show');
 $router->post('/profile', 'Profile@update');

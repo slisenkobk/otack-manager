@@ -345,6 +345,7 @@ return [
     'users.action.block'       => 'Block',
     'users.action.delete'      => 'Delete',
     'users.action.edit'        => 'Edit user',
+    'users.action.view'        => 'View user',
     'users.delete_confirm'     => 'Delete user ":name"? This removes their account permanently.',
     'users.block_confirm'      => 'Block ":name"? They will be signed out and can no longer log in.',
 
@@ -728,6 +729,12 @@ return [
     'api_tokens.revoked'               => 'Token revoked',
     'api_tokens.error_name_required'   => 'Token name is required',
     'api_tokens.empty_state'           => 'You have not created any API tokens yet.',
+    'api_tokens.admin_section_title'   => 'API tokens for this user',
+    'api_tokens.admin_no_value_note'   => 'Token values are never visible to admins, only metadata.',
+    'api_tokens.admin_empty_state'     => 'This user has not created any API tokens.',
+    'api_tokens.revoke_all'            => 'Revoke all',
+    'api_tokens.all_revoked'           => 'All tokens revoked',
+    'api_tokens.confirm_revoke_all'    => 'Revoke ALL tokens for this user? Every client they use will stop working immediately.',
 
     // ─── Plural-aware (entries are arrays per locale's plural rule names) ────
     'task.count'    => ['one' => ':n task',    'other' => ':n tasks'],

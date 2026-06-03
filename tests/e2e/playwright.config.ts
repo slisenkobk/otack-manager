@@ -16,6 +16,7 @@ export default defineConfig({
       APP_URL: 'http://localhost:8001',
       SEED_DEFAULT_ADMIN_EMAIL: '',
       SEED_DEFAULT_ADMIN_PASSWORD_HASH: '',
+      LOGIN_HASH: '',
     },
   },
 });
