@@ -12,6 +12,7 @@ use App\Repository\SettingsRepository;
 use App\Repository\TaskColumnRepository;
 use App\Repository\TaskRepository;
 use App\Service\EventBus;
+use App\Service\Log;
 use App\View\Renderer;
 
 /**
@@ -219,7 +220,7 @@ final class PublicFormController extends BaseController
             try {
                 $autoTaskId = $this->autoCreateTaskFromSubmission($form, $data, $submissionId);
             } catch (\Throwable $e) {
-                error_log('[forms] auto-task create failed: ' . $e->getMessage());
+                Log::error('forms', 'auto-task create failed: ' . $e->getMessage());
             }
         }
 

@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Api\V1;
 
 use App\Http\Request;
+use App\Service\Log;
 
 final class ApiKernel
 {
@@ -187,7 +188,7 @@ final class ApiKernel
             } catch (\InvalidArgumentException $e) {
                 $resp = ApiResponse::error(422, 'validation_failed', 'Invalid input', [$e->getMessage() => 'required_or_invalid']);
             } catch (\Throwable $e) {
-                error_log('[api] ' . $e);
+                Log::error('api', (string)$e);
                 $resp = ApiResponse::error(500, 'server_error', 'Internal error');
             }
 
@@ -216,7 +217,7 @@ final class ApiKernel
             // the HTML 500 page from the global set_exception_handler in
             // public/index.php. Wraps auth/limiter/serveOpenApi/activity log
             // failures plus anything dispatch() rethrows past its inner catch.
-            error_log('[api kernel] ' . $e);
+            Log::error('api kernel', (string)$e);
             $this->send(ApiResponse::error(500, 'server_error', 'Internal error'));
         }
     }

@@ -361,7 +361,7 @@ final class Updater
                 }
                 $backups->markPruned($id);
             } catch (\Throwable $e) {
-                error_log('[updater:prune] backup ' . $id . ': ' . $e->getMessage());
+                Log::warn('updater:prune', 'backup ' . $id . ': ' . $e->getMessage());
             }
         }
     }

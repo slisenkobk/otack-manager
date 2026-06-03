@@ -6,6 +6,7 @@ use App\Http\Request;
 use App\Http\Response;
 use App\Repository\ShortLinkRepository;
 use App\Repository\ShortLinkVisitRepository;
+use App\Service\Log;
 use App\View\Renderer;
 
 /**
@@ -53,7 +54,7 @@ final class PublicLinkController extends BaseController
                 $referer !== '' ? $referer : null
             );
         } catch (\Throwable $e) {
-            error_log('[short-link] visit log failed: ' . $e->getMessage());
+            Log::warn('short-link', 'visit log failed: ' . $e->getMessage());
         }
 
         Response::redirect((string)$link['target_url'], 302);

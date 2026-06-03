@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Http\AuthGuard;
 use App\Http\Request;
 use App\Http\Response;
+use App\Service\Log;
 use App\Service\Updater;
 use App\View\Renderer;
 
@@ -84,7 +85,7 @@ final class UpdatesController extends BaseController
                 . '&duration=' . (int)$result['duration_seconds']
             );
         } catch (\Throwable $e) {
-            error_log('[updater] ' . $e->getMessage());
+            Log::error('updater', $e->getMessage());
             Response::redirect('/admin/settings?tab=updates&update_error=' . urlencode($e->getMessage()));
         }
     }
@@ -113,7 +114,7 @@ final class UpdatesController extends BaseController
                 . '&duration=' . (int)$result['duration_seconds']
             );
         } catch (\Throwable $e) {
-            error_log('[updater:restore] ' . $e->getMessage());
+            Log::error('updater:restore', $e->getMessage());
             Response::redirect('/admin/settings?tab=updates&restore_error=' . urlencode($e->getMessage()));
         }
     }

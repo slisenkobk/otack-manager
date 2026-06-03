@@ -10,6 +10,7 @@ use App\Repository\ActivityLogRepository;
 use App\Service\CompassService;
 use App\Service\DbMigrator;
 use App\Service\EventBus;
+use App\Service\Log;
 use App\View\Renderer;
 use PDO;
 
@@ -129,7 +130,7 @@ final class CompassController extends BaseController
         try {
             $report = $this->dbMigrator->migrate($this->db, $config);
         } catch (\Throwable $e) {
-            error_log('[db_migrator] ' . $e->getMessage());
+            Log::error('db_migrator', $e->getMessage());
             Response::json(['ok' => false, 'error' => $e->getMessage()], 500);
             return;
         }
