@@ -68,6 +68,15 @@ final class ApiKernel
         $this->routes['GET /api/v1/projects/{id}/attachments']  = ['handler' => 'Attachments', 'action' => 'indexForProject'];
         $this->routes['POST /api/v1/attachments']               = ['handler' => 'Attachments', 'action' => 'create'];
         $this->routes['DELETE /api/v1/attachments/{id}']        = ['handler' => 'Attachments', 'action' => 'destroy'];
+
+        $this->routes['GET /api/v1/forms']                       = ['handler' => 'Forms', 'action' => 'index'];
+        $this->routes['GET /api/v1/forms/{id}']                  = ['handler' => 'Forms', 'action' => 'show'];
+        $this->routes['GET /api/v1/forms/{id}/submissions']      = ['handler' => 'Forms', 'action' => 'submissions'];
+        $this->routes['GET /api/v1/submissions/{id}']            = ['handler' => 'Forms', 'action' => 'showSubmission'];
+
+        $this->routes['GET /api/v1/polls']                       = ['handler' => 'Polls', 'action' => 'index'];
+        $this->routes['GET /api/v1/polls/{id}']                  = ['handler' => 'Polls', 'action' => 'show'];
+        $this->routes['GET /api/v1/polls/{id}/voters']           = ['handler' => 'Polls', 'action' => 'voters'];
     }
 
     public function handle(Request $req): void
