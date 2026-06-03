@@ -154,7 +154,12 @@ final class MysqlDriver implements DriverInterface
         $type = match ($c->type) {
             'id'         => 'BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
             'integer'    => 'INT',
-            'bigInteger' => 'BIGINT',
+            // BIGINT UNSIGNED so FK references to `id` columns (which are
+            // BIGINT UNSIGNED via the `id` mapping above) line up. MySQL
+            // 8 refuses FKs across signed/unsigned mismatch. Application
+            // columns of this type (entity_id, project_id, size, etc.)
+            // are all non-negative, so UNSIGNED is the safer default.
+            'bigInteger' => 'BIGINT UNSIGNED',
             'string'     => 'VARCHAR(' . ($c->length ?? 255) . ')',
             'text'       => 'MEDIUMTEXT',
             'boolean'    => 'TINYINT(1)',

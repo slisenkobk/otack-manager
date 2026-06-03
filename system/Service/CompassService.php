@@ -217,8 +217,15 @@ final class CompassService
             $dbPath = $driver->dsn();
             $size = 0;
         } else {
-            $dbPath = APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite');
-            $size = @filesize($dbPath);
+            // Pull the active connection's actual file path so we measure
+            // whatever PDO is bound to (tests use temp DBs; production uses
+            // data/app.sqlite). Reading APP_ROOT/DB_PATH always pointed at
+            // the configured default and left tests reporting size 0.
+            $row = $this->pdo->query(
+                "SELECT file FROM pragma_database_list WHERE name='main'"
+            )->fetch(\PDO::FETCH_ASSOC);
+            $dbPath = (string)($row['file'] ?? (APP_ROOT . '/' . App::env('DB_PATH', 'data/app.sqlite')));
+            $size = $dbPath !== '' ? (int)@filesize($dbPath) : 0;
         }
 
         $lastMigration = null;
