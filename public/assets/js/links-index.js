@@ -69,7 +69,7 @@ function openNewLinkModal() {
     title: 'New short link',
     body,
     actions: [
-      { label: 'Cancel', variant: 'btn-ghost', onClick: c => c() },
+      { label: 'Cancel', variant: 'btn--ghost', onClick: c => c() },
       { label: 'Create', variant: 'submit', onClick: async (close) => {
           const target = inp.value.trim();
           if (!/^https?:\/\//i.test(target)) { UI.toast(t('js.toast.url_must_start_with_http'), 'error'); inp.focus(); return; }

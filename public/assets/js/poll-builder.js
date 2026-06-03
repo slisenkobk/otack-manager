@@ -109,7 +109,7 @@ if (builder) {
     if (key) inp.setAttribute('data-option-key', key);
     const rmBtn = document.createElement('button');
     rmBtn.type = 'button';
-    rmBtn.className = 'btn-ghost';
+    rmBtn.className = 'btn--ghost';
     rmBtn.setAttribute('data-action', 'remove-option');
     rmBtn.title = 'Remove';
     const x = document.createElement('i');

@@ -28,9 +28,9 @@ foreach (($projects ?? []) as $p) {
       <a href="/forms" class="builder-toolbar__back"><i class="fa-solid fa-arrow-left"></i> <?= e(t('forms.all_forms_link')) ?></a>
     </div>
     <div class="builder-toolbar__right">
-      <button type="button" class="btn-secondary" data-action="add-field"><i class="fa-solid fa-plus"></i> <?= e(t('forms.add_field')) ?></button>
+      <button type="button" class="btn--secondary" data-action="add-field"><i class="fa-solid fa-plus"></i> <?= e(t('forms.add_field')) ?></button>
       <?php if ($form): ?>
-        <a class="btn-secondary" href="<?= e(\abs_url('/f/' . $form['hash'])) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> <?= e(t('forms.open_public')) ?></a>
+        <a class="btn--secondary" href="<?= e(\abs_url('/f/' . $form['hash'])) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> <?= e(t('forms.open_public')) ?></a>
       <?php endif; ?>
       <button type="button" class="btn btn--primary submit" data-action="save-form"><i class="fa-solid fa-check"></i> <?= e(t('forms.save_form')) ?></button>
     </div>
@@ -44,8 +44,8 @@ foreach (($projects ?? []) as $p) {
           <i class="fa-solid fa-link"></i>
           <span data-public-url-text><?= e(\abs_url('/f/' . $form['hash'])) ?></span>
         </a>
-        <button type="button" class="btn-secondary" data-action="copy-url"><i class="fa-regular fa-copy"></i> <?= e(t('forms.copy')) ?></button>
-        <button type="button" class="btn-ghost" data-action="rotate-url" title="<?= e(t('forms.rotate_title')) ?>">
+        <button type="button" class="btn--secondary" data-action="copy-url"><i class="fa-regular fa-copy"></i> <?= e(t('forms.copy')) ?></button>
+        <button type="button" class="btn--ghost" data-action="rotate-url" title="<?= e(t('forms.rotate_title')) ?>">
           <i class="fa-solid fa-arrows-rotate"></i> <?= e(t('forms.rotate')) ?>
         </button>
       </div>

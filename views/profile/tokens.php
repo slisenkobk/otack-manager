@@ -111,7 +111,7 @@ function _token_epoch_fmt(?int $ts): string {
                         data-confirm="<?= e(t('api_tokens.confirm_revoke')) ?>"
                         data-confirm-label="<?= e(t('api_tokens.revoke')) ?>">
                     <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
-                    <button type="submit" class="btn-danger" data-action="revoke-token">
+                    <button type="submit" class="btn--danger" data-action="revoke-token">
                       <i class="fa-solid fa-ban"></i> <?= e(t('api_tokens.revoke')) ?>
                     </button>
                   </form>

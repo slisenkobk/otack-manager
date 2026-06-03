@@ -139,14 +139,14 @@ $converted = in_array($sub['status'], ['converted_task', 'converted_project'], t
             <input type="hidden" data-task-project value="">
           </div>
         </div>
-        <button type="button" class="btn-secondary submission-card__cta" style="margin-top:var(--space-3);" data-action="convert-task">
+        <button type="button" class="btn--secondary submission-card__cta" style="margin-top:var(--space-3);" data-action="convert-task">
           <i class="fa-solid fa-list-check"></i> Create task
         </button>
       </div>
     <?php endif; ?>
 
     <div class="submission-card__section submission-card__section--danger">
-      <button type="button" class="btn-danger submission-card__delete" data-action="delete-sub">
+      <button type="button" class="btn--danger submission-card__delete" data-action="delete-sub">
         <i class="fa-solid fa-trash"></i> Delete submission
       </button>
     </div>

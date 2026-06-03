@@ -94,7 +94,7 @@ foreach ($boardColumns as $c) {
         </div>
       </div>
     <?php endforeach; ?>
-    <button type="button" class="btn-secondary add-column"><i class="fa-solid fa-plus"></i> <?= e(t('projects.kanban.add_column')) ?></button>
+    <button type="button" class="btn--secondary add-column"><i class="fa-solid fa-plus"></i> <?= e(t('projects.kanban.add_column')) ?></button>
   </div>
   <script src="/assets/vendor/sortable.min.js"></script>
   <script type="module" src="<?= e(asset_url('/assets/js/kanban.js')) ?>"></script>
@@ -161,7 +161,7 @@ foreach ($boardColumns as $c) {
         <header class="overview-panel__head">
           <h2 class="overview-panel__title"><?= e(t('projects.overview.title')) ?></h2>
           <?php if (!empty($canEdit)): ?>
-            <button class="btn-ghost" type="button" data-action="edit-description" style="font-size:12px;"><?= e(t('common.edit')) ?></button>
+            <button class="btn--ghost" type="button" data-action="edit-description" style="font-size:12px;"><?= e(t('common.edit')) ?></button>
           <?php endif; ?>
         </header>
         <div class="overview-panel__body rich-text project-description-rendered"><?= $project['description'] ? \App\Service\LinkPreview::enhance(\App\Service\HtmlSanitizer::clean((string)$project['description'])) : '<em class="overview-panel__empty">' . e(t('projects.overview.no_description')) . '</em>' ?></div>
@@ -253,7 +253,7 @@ foreach ($boardColumns as $c) {
       </div>
 
       <?php if (!empty($canEdit)): ?>
-        <button class="btn-danger" type="button" data-action="delete-project"
+        <button class="btn--danger" type="button" data-action="delete-project"
                 style="margin-top:9px;width:100%;padding:8px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;">
           <?= e(t('projects.overview.delete_btn')) ?>
         </button>

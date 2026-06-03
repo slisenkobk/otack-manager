@@ -37,7 +37,7 @@
       <header class="overview-panel__head">
         <h2 class="overview-panel__title"><?= e(t('tasks.description')) ?></h2>
         <?php if (!empty($canEditTask)): ?>
-          <button class="btn-ghost" type="button" data-action="edit-description" style="font-size:12px;"><?= e(t('common.edit')) ?></button>
+          <button class="btn--ghost" type="button" data-action="edit-description" style="font-size:12px;"><?= e(t('common.edit')) ?></button>
         <?php endif; ?>
       </header>
       <div class="overview-panel__body rich-text task-description-rendered">
@@ -108,7 +108,7 @@
         <header class="overview-panel__head" style="padding:0 0 var(--space-6);">
           <h2 class="overview-panel__title"><?= e(t('tasks.related')) ?></h2>
           <?php if ($canEdit): ?>
-            <button class="btn-ghost" type="button" data-action="add-link" style="font-size:12px;">
+            <button class="btn--ghost" type="button" data-action="add-link" style="font-size:12px;">
               <i class="fa-solid fa-plus"></i> <?= e(t('tasks.add_link')) ?>
             </button>
           <?php endif; ?>
@@ -260,14 +260,14 @@
     </div>
 
     <?php if (!empty($canCreateProject)): ?>
-      <button class="btn-ghost" type="button" data-action="promote-to-project"
+      <button class="btn--ghost" type="button" data-action="promote-to-project"
               style="margin-top:9px;width:100%;padding:8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
         <i class="fa-solid fa-up-right-from-square"></i> <?= e(t('tasks.promote_to_project')) ?>
       </button>
     <?php endif; ?>
 
     <?php if (!empty($canEditTask)): ?>
-      <button class="btn-danger" type="button" data-action="delete-task"
+      <button class="btn--danger" type="button" data-action="delete-task"
               style="margin-top:5px;width:100%;padding:8px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;">
         <?= e(t('tasks.delete_btn')) ?>
       </button>

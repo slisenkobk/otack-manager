@@ -35,7 +35,7 @@ foreach ($scopeLabels as $scope => $label):
           <span class="tag-chip__usage mono">
             P:<?= (int)$usage['project_count'] ?> T:<?= (int)$usage['task_count'] ?>
           </span>
-          <button class="btn-danger tag-chip__delete" data-action="delete-tag" type="button" aria-label="<?= e(t('common.delete')) ?>">
+          <button class="btn--danger tag-chip__delete" data-action="delete-tag" type="button" aria-label="<?= e(t('common.delete')) ?>">
             <i class="fa-solid fa-xmark"></i>
           </button>
         </article>

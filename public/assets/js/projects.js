@@ -122,7 +122,7 @@ function openProjectModal(trigger) {
     title: labels.title,
     body,
     actions: [
-      { label: labels.cancel, variant: 'btn-ghost', onClick: c => c() },
+      { label: labels.cancel, variant: 'btn--ghost', onClick: c => c() },
       { label: labels.submit, variant: 'submit', onClick: async (close) => {
           const name = nameF.input.value.trim();
           if (!name) { nameF.input.focus(); return; }

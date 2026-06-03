@@ -53,7 +53,7 @@ export function initAddColumn(root) {
       title: 'New column',
       body,
       actions: [
-        { label: 'Cancel', variant: 'btn-ghost', onClick: c => c() },
+        { label: 'Cancel', variant: 'btn--ghost', onClick: c => c() },
         { label: 'Create', variant: 'submit', onClick: async (close) => {
             const name = nameField.input.value.trim();
             if (!name) { nameField.input.focus(); return; }
@@ -112,12 +112,12 @@ async function openColumnSettings(root, columnId) {
     title: 'Column settings',
     body,
     actions: [
-      { label: 'Delete', variant: 'btn-danger', onClick: async (close) => {
+      { label: 'Delete', variant: 'btn--danger', onClick: async (close) => {
           close();
           await tryDelete(columnId);
         }
       },
-      { label: 'Cancel', variant: 'btn-ghost', onClick: (close) => close() },
+      { label: 'Cancel', variant: 'btn--ghost', onClick: (close) => close() },
       { label: 'Save', variant: 'submit', onClick: async (close) => {
           try {
             await api('/api/columns/' + columnId, {
@@ -169,8 +169,8 @@ async function openColumnSettings(root, columnId) {
           title: 'Move tasks first',
           body: body2,
           actions: [
-            { label: 'Cancel', variant: 'btn-ghost', onClick: c => c() },
-            { label: 'Move and delete', variant: 'btn-danger', onClick: async (close) => {
+            { label: 'Cancel', variant: 'btn--ghost', onClick: c => c() },
+            { label: 'Move and delete', variant: 'btn--danger', onClick: async (close) => {
                 try {
                   await api('/api/columns/' + columnId + '/delete', {
                     method: 'POST',

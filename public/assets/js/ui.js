@@ -38,7 +38,7 @@ export const UI = {
     const actionsEl = node.querySelector('.modal-actions');
     actions.forEach(a => {
       const b = document.createElement('button');
-      b.className = a.variant || 'btn-secondary';
+      b.className = a.variant || 'btn--secondary';
       b.textContent = a.label;
       b.addEventListener('click', () => a.onClick && a.onClick(close));
       actionsEl.appendChild(b);
@@ -64,8 +64,8 @@ export const UI = {
         title: 'Confirm',
         body: `<p>${escapeText(message)}</p>`,
         actions: [
-          { label: 'Cancel', variant: 'btn-ghost', onClick: (close) => { close(); resolve(false); } },
-          { label: confirmLabel, variant: danger ? 'btn-danger' : 'submit',
+          { label: 'Cancel', variant: 'btn--ghost', onClick: (close) => { close(); resolve(false); } },
+          { label: confirmLabel, variant: danger ? 'btn--danger' : 'submit',
             onClick: (close) => { close(); resolve(true); } },
         ],
       });
@@ -86,7 +86,7 @@ export const UI = {
       const m = this.modal({
         title: 'Prompt', body,
         actions: [
-          { label: 'Cancel', variant: 'btn-ghost', onClick: (close) => { close(); resolve(null); } },
+          { label: 'Cancel', variant: 'btn--ghost', onClick: (close) => { close(); resolve(null); } },
           { label: 'OK', variant: 'submit', onClick: (close) => { const v = input.value; close(); resolve(v); } },
         ],
       });

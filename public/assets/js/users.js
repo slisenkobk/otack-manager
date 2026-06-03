@@ -52,7 +52,7 @@ function openUserModal({ title, name = '', email = '', locale = 'en', isEdit = f
     title,
     body,
     actions: [
-      { label: 'Cancel', variant: 'btn-ghost', onClick: c => c() },
+      { label: 'Cancel', variant: 'btn--ghost', onClick: c => c() },
       { label: isEdit ? 'Save' : 'Create', variant: 'submit', onClick: async (close) => {
           const payload = { name: nameF.input.value.trim() };
           if (!isEdit) payload.email = emailF.input.value.trim();

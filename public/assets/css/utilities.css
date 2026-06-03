@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    utilities.css — Utilities + responsive + V4 hybrid + late additions (load 8 of 8)
-   §12 tags/chips, §13 top pills, §15 utilities, §17 empty state,
+   §12 tags/chips, §15 utilities, §17 empty state,
    page-load reveal animation, responsive media queries, V4 hybrid
    overrides, polls, sidebar collapsible groups, API tokens panel.
    MUST load last — cascade-tail.
@@ -85,33 +85,6 @@
 }
 .tag-picker .dropdown .tag-opt:last-child { border-bottom: none; }
 .tag-picker .dropdown .tag-opt:hover { background: var(--paper); color: var(--text); }
-
-/* ─── §13 Top pills (legacy) ─────────────────────────────────── */
-.top-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-5);
-  border: 1px solid var(--rule-2);
-  background: var(--paper);
-  border-radius: var(--radius-full);
-  color: var(--text-2);
-  font-size: var(--fz-micro);
-  cursor: pointer;
-  transition: all var(--duration) var(--ease);
-  font-family: var(--font-mono);
-  letter-spacing: var(--ls-mono);
-  text-transform: uppercase;
-}
-.top-pill:hover { border-color: var(--ink-2); color: var(--text); }
-.top-pill .count {
-  background: var(--accent);
-  color: var(--paper);
-  border-radius: var(--radius-full);
-  font-size: var(--fz-micro);
-  padding: 1px 6px;
-  font-weight: 700;
-}
 
 /* ─── §15 Utilities ──────────────────────────────────────────── */
 .muted { color: var(--text-muted); }
@@ -474,7 +447,7 @@
   flex: 0 0 auto;
   width: 28px;
   height: 28px;
-  /* Override .btn-danger's min-height: 36px — otherwise the delete button
+  /* Override .btn--danger's min-height: 36px — otherwise the delete button
      pushes the chip's content box taller than the swatch / name height
      and the swatch ends up visually nearer the top edge. */
   min-height: 0;
@@ -591,14 +564,14 @@
     gap: var(--space-3);
     width: 100%;
   }
-  .builder-toolbar__right .btn-secondary,
+  .builder-toolbar__right .btn--secondary,
   .builder-toolbar__right .btn--primary {
     font-size: 0;
     padding: 12px 0;
     width: 100%;
     justify-content: center;
   }
-  .builder-toolbar__right .btn-secondary i,
+  .builder-toolbar__right .btn--secondary i,
   .builder-toolbar__right .btn--primary i { font-size: 16px; margin: 0 !important; }
 
   /* Kanban toolbar — search + filters must scroll horizontally inside the

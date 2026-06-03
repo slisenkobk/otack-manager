@@ -56,7 +56,7 @@ $readOnly      = $readOnly ?? false; // disables per-item delete button and the 
 
   <?php if ($canEdit): ?>
     <div style="margin-top:16px;">
-      <label class="btn-secondary" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;">
+      <label class="btn--secondary" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;">
         <i class="fa-solid fa-paperclip"></i> <?= e(t('attach.attach_files')) ?>
         <input type="file" multiple style="display:none;" data-attach-input>
       </label>
