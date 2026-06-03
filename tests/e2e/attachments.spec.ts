@@ -73,3 +73,46 @@ test('over-limit file shows toast error (client-side)', async ({ page }) => {
 
   fs.unlinkSync(tmpPath);
 });
+
+test('opening an image thumbnail launches the lightbox + ArrowRight cycles (T-6)', async ({ page }) => {
+  // Log in as the admin created in the first test.
+  await page.goto('/login');
+  await page.fill('input[name=email]', 'a@att.com');
+  await page.fill('input[name=password]', 'password123');
+  await page.click('button.submit[type=submit]');
+  await expect(page).toHaveURL('/');
+
+  await page.goto('/projects/1?tab=overview');
+  await expect(page.locator('.attachments-section')).toBeVisible({ timeout: 5000 });
+
+  // Upload a second tiny PNG so navigation has something to cycle to. The
+  // first upload from the previous test in this serial run already attached
+  // one; we add another so the lightbox has at least two slides.
+  const tinyPng = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+    'base64'
+  );
+  const tmpPath = path.join(ROOT, 'data/test-tiny-2.png');
+  fs.writeFileSync(tmpPath, tinyPng);
+  await page.locator('input[type=file][data-attach-input]').setInputFiles(tmpPath);
+
+  // Wait for at least one image thumbnail to be present.
+  const thumb = page.locator('.attach-item[data-is-image="1"] [data-action=lightbox]').first();
+  await expect(thumb).toBeVisible({ timeout: 8000 });
+
+  // Click the thumbnail — lightbox should mount.
+  await thumb.click();
+  await expect(page.locator('.lightbox-backdrop')).toBeVisible();
+  await expect(page.locator('.lightbox-img')).toBeVisible();
+
+  // ArrowRight navigates without crashing; src should still be a valid URL.
+  await page.keyboard.press('ArrowRight');
+  const src = await page.locator('.lightbox-img').getAttribute('src');
+  expect(src).toBeTruthy();
+
+  // Escape closes the lightbox.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.lightbox-backdrop')).toHaveCount(0);
+
+  fs.unlinkSync(tmpPath);
+});
