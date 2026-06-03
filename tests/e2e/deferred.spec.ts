@@ -13,6 +13,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
+import { createProject } from './helpers/projects';
 
 const ROOT = path.resolve(__dirname, '../..');
 
@@ -51,10 +52,9 @@ test('D.0 setup: register admin and create project', async ({ page }) => {
   await page.locator('button.submit[type=submit], button.submit').first().click();
   await expect(page).toHaveURL('/');
 
-  await page.goto('/projects/new');
-  await page.fill('input[name=name]', 'Deferred Test Project');
-  await page.locator('button.submit[type=submit], button.submit').first().click();
-  await expect(page).toHaveURL(/\/projects\/\d+$/);
+  await createProject(page, 'Deferred Test Project');
+  // Modal flow lands on ?tab=overview which still matches /projects/{id}.
+  await expect(page).toHaveURL(/\/projects\/\d+(\?tab=overview)?$/);
 });
 
 // ──────────────────────────────────────────────────────────────────

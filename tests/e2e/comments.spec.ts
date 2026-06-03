@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
+import { createProject } from './helpers/projects';
 
 const ROOT = path.resolve(__dirname, '../..');
 
@@ -20,14 +21,9 @@ test('post a comment with markdown', async ({ page }) => {
   await page.click('button.submit[type=submit]');
   await expect(page).toHaveURL('/');
 
-  // Create a project
-  await page.goto('/projects/new');
-  await page.fill('input[name=name]', 'Comments Test');
-  await page.click('button.submit[type=submit]');
-  await expect(page).toHaveURL(/\/projects\/\d+$/);
-
-  // Navigate to Overview tab
-  await page.click('a:has-text("Overview")');
+  // Create a project (modal flow lands on ?tab=overview already)
+  await createProject(page, 'Comments Test');
+  await expect(page).toHaveURL(/\/projects\/\d+\?tab=overview$/);
   await expect(page.locator('.comment-thread')).toBeVisible();
 
   // Post a comment with markdown bold
@@ -37,9 +33,7 @@ test('post a comment with markdown', async ({ page }) => {
   // Wait for the comment to appear in the DOM
   await expect(page.locator('.comment-body strong').first()).toBeVisible();
 
-  // Reload and verify persistence
+  // Reload and verify persistence (still on overview tab)
   await page.reload();
-  await page.click('a:has-text("Overview")');
-
   await expect(page.locator('.comment-body strong').first()).toHaveText('hello');
 });

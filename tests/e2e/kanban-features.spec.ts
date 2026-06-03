@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
+import { createProject } from './helpers/projects';
 const ROOT = path.resolve(__dirname, '../..');
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(() => {
@@ -16,44 +17,47 @@ test('kanban search filters cards client-side', async ({ page }) => {
   await page.click('button.submit[type=submit]');
   await expect(page).toHaveURL('/');
 
-  await page.goto('/projects/new');
-  await page.fill('input[name=name]', 'Filter Test');
-  await page.click('button.submit[type=submit]');
+  await createProject(page, 'Filter Test', { gotoBoard: true });
   await expect(page).toHaveURL(/\/projects\/\d+$/);
 
-  // quick-add three tasks via fold pattern
+  // quick-add three tasks via fold pattern. The form auto-folds after each
+  // submit, so re-trigger before every add.
   const firstCol = page.locator('.kanban-col').first();
-  await firstCol.locator('[data-quickadd-trigger]').click();
+  const trigger = firstCol.locator('[data-quickadd-trigger]');
   const input = firstCol.locator('input[name=title]');
 
+  await trigger.click();
   await input.fill('Design draft');
   await input.press('Enter');
-  await page.waitForTimeout(150);
+  await firstCol.locator('.kanban-card', { hasText: 'Design draft' }).waitFor();
 
+  await trigger.click();
   await input.fill('Backend wiring');
   await input.press('Enter');
-  await page.waitForTimeout(150);
+  await firstCol.locator('.kanban-card', { hasText: 'Backend wiring' }).waitFor();
 
+  await trigger.click();
   await input.fill('Design polish');
   await input.press('Enter');
-  await page.waitForTimeout(150);
-
-  // close form
-  await input.press('Escape');
+  await firstCol.locator('.kanban-card', { hasText: 'Design polish' }).waitFor();
 
   await expect(page.locator('.kanban-card')).toHaveCount(3);
 
-  // search for "design" — should show 2 cards
-  await page.locator('[data-task-search]').fill('design');
-  await page.waitForTimeout(350);
+  // search for "design" — should show 2 cards. Search applies on Enter
+  // or on submit-button click (no live debounce anymore).
+  const searchInput = page.locator('[data-task-search]');
+  await searchInput.fill('design');
+  await searchInput.press('Enter');
+  await page.waitForTimeout(150);
   const visibleAfterSearch = await page.locator('.kanban-card').evaluateAll(
     cards => cards.filter(c => (c as HTMLElement).style.display !== 'none').length
   );
   expect(visibleAfterSearch).toBe(2);
 
   // clear — all 3 visible again
-  await page.locator('[data-task-search]').fill('');
-  await page.waitForTimeout(350);
+  await searchInput.fill('');
+  await searchInput.press('Enter');
+  await page.waitForTimeout(150);
   const visibleAfterClear = await page.locator('.kanban-card').evaluateAll(
     cards => cards.filter(c => (c as HTMLElement).style.display !== 'none').length
   );

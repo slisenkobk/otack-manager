@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
+import { createProject } from './helpers/projects';
 const ROOT = path.resolve(__dirname, '../..');
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(() => {
@@ -17,19 +18,22 @@ test('quick-add then drag from To Do to Done', async ({ page }) => {
   await page.click('button.submit[type=submit]');
   await expect(page).toHaveURL('/');
 
-  await page.goto('/projects/new');
-  await page.fill('input[name=name]', 'Kanban Test');
-  await page.click('button.submit[type=submit]');
+  await createProject(page, 'Kanban Test', { gotoBoard: true });
   await expect(page).toHaveURL(/\/projects\/\d+$/);
 
-  // Quick-add two tasks into "To Do" (first column) via fold pattern
+  // Quick-add two tasks into "To Do" (first column) via fold pattern.
+  // Note: each successful submit folds the form back; we re-trigger before
+  // each add.
   const firstCol = page.locator('.kanban-col').first();
-  await firstCol.locator('[data-quickadd-trigger]').click();
+  const trigger = firstCol.locator('[data-quickadd-trigger]');
   const todoInput = firstCol.locator('input[name=title]');
+
+  await trigger.click();
   await todoInput.fill('First task');
   await todoInput.press('Enter');
   await expect(firstCol.locator('.kanban-card')).toHaveCount(1);
 
+  await trigger.click();
   await todoInput.fill('Second task');
   await todoInput.press('Enter');
   await expect(firstCol.locator('.kanban-card')).toHaveCount(2);

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
+import { createProject } from './helpers/projects';
 const ROOT = path.resolve(__dirname, '../..');
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(() => {
@@ -14,9 +15,7 @@ test('rename a column and persist', async ({ page }) => {
   await page.fill('input[name=email]', 'a@c.com');
   await page.fill('input[name=password]', 'password123');
   await page.click('button.submit[type=submit]');
-  await page.goto('/projects/new');
-  await page.fill('input[name=name]', 'Cols Test');
-  await page.click('button.submit[type=submit]');
+  await createProject(page, 'Cols Test', { gotoBoard: true });
 
   // Click the first column's settings button
   await page.locator('.kanban-col').first().locator('.col-settings').click();
