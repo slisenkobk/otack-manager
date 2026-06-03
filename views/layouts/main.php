@@ -12,6 +12,9 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e(app_name() . (!empty($title) ? ' - ' . $title : '')) ?></title>
 <link rel="icon" type="image/svg+xml" href="<?= e(app_favicon_href()) ?>">
+<link rel="preload" as="font" type="font/woff2" href="/assets/fonts/manrope-400.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/assets/fonts/manrope-500.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/assets/fonts/jetbrainsmono-400.woff2" crossorigin>
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/tokens.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/base.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/layout.css')) ?>">
