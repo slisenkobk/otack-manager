@@ -25,7 +25,6 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/utilities.css')) ?>">
 <?= app_brand_style_tag() ?>
 <link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
-<link rel="stylesheet" href="/assets/vendor/quill/quill.snow.css">
 <meta name="csrf-token" content="<?= e($csrfToken ?? '') ?>">
 <meta name="upload-max-image" content="<?= e(\App\App::env('UPLOAD_MAX_IMAGE', '5242880')) ?>">
 <meta name="upload-max-file"  content="<?= e(\App\App::env('UPLOAD_MAX_FILE',  '52428800')) ?>">
@@ -51,7 +50,6 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 <?php require APP_ROOT . '/views/partials/modal-root.php'; ?>
 <?php require APP_ROOT . '/views/partials/toast-root.php'; ?>
 <?php require APP_ROOT . '/views/partials/lightbox-root.php'; ?>
-<script src="/assets/vendor/quill/quill.min.js" defer></script>
 <script type="module" src="<?= e(asset_url('/assets/js/theme.js')) ?>"></script>
 <?php
   // JS i18n channel: emit only the js.* slice of the current catalog onto
