@@ -46,6 +46,35 @@ it('TaskRepository::listForProject groups by column', function () {
     @unlink($db);
 });
 
+it('TaskRepository::listForProjectAfterId paginates by id and applies filters', function () {
+    [$pdo, $db, $uid, $pid, $cols] = _new_task_setup();
+    $repo = new TaskRepository($pdo);
+    $c0 = (int)$cols[0]['id']; $c1 = (int)$cols[1]['id'];
+    $ids = [];
+    for ($i = 0; $i < 6; $i++) {
+        $ids[] = $repo->create($pid, $i % 2 === 0 ? $c0 : $c1, "T$i", $uid);
+    }
+    $page1 = $repo->listForProjectAfterId($pid, [], 0, 3);
+    assert_eq(3, count($page1));
+    assert_eq($ids[0], (int)$page1[0]['id']);
+    $page2 = $repo->listForProjectAfterId($pid, [], (int)end($page1)['id'], 3);
+    assert_eq(3, count($page2));
+    assert_eq($ids[3], (int)$page2[0]['id']);
+
+    // column_id filter
+    $colFiltered = $repo->listForProjectAfterId($pid, ['column_id' => $c0], 0, 100);
+    assert_eq(3, count($colFiltered));
+    foreach ($colFiltered as $r) {
+        assert_eq($c0, (int)$r['column_id']);
+    }
+
+    // search filter
+    $found = $repo->listForProjectAfterId($pid, ['search' => 'T4'], 0, 100);
+    assert_eq(1, count($found));
+    assert_eq('T4', $found[0]['title']);
+    @unlink($db);
+});
+
 it('TaskRepository::move updates column_id, position, updated_at', function () {
     [$pdo, $db, $uid, $pid, $cols] = _new_task_setup();
     $repo = new TaskRepository($pdo);

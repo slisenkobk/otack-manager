@@ -98,6 +98,67 @@ final class TaskRepository {
         return $stmt->fetch() ?: null;
     }
 
+    /**
+     * Cursor-paginated, filterable task list for the external API.
+     *
+     * Filters (all optional):
+     *   - column_id   (int)    exact match
+     *   - assignee_id (int)    exact match
+     *   - tag_id      (int)    inner join on task_tag_map
+     *   - status      (string) 'open' | 'done' | 'backlog' (joins task_columns)
+     *   - priority    (string) one of TaskRepository priority enum
+     *   - search      (string) case-insensitive LIKE on title
+     *
+     * Returns the requested page of tasks ordered by id ASC, where the page
+     * is "all tasks in this project with id > $afterId". Cap the limit before
+     * calling — this method trusts the value.
+     */
+    public function listForProjectAfterId(int $projectId, array $filters, int $afterId, int $limit): array {
+        $sql = "SELECT t.* FROM tasks t";
+        $where = ['t.project_id = ?', 't.id > ?'];
+        $args  = [$projectId, $afterId];
+
+        if (isset($filters['tag_id']) && (int)$filters['tag_id'] > 0) {
+            $sql .= ' INNER JOIN task_tag_map ttm ON ttm.task_id = t.id';
+            $where[] = 'ttm.tag_id = ?';
+            $args[] = (int)$filters['tag_id'];
+        }
+        if (isset($filters['status']) && $filters['status'] !== '') {
+            $sql .= ' INNER JOIN task_columns tc ON tc.id = t.column_id';
+            $st = (string)$filters['status'];
+            if ($st === 'done') {
+                $where[] = 'tc.is_done = 1';
+            } elseif ($st === 'backlog') {
+                $where[] = 'tc.is_backlog = 1';
+            } elseif ($st === 'open') {
+                $where[] = 'tc.is_done = 0 AND tc.is_backlog = 0';
+            }
+        }
+        if (isset($filters['column_id']) && (int)$filters['column_id'] > 0) {
+            $where[] = 't.column_id = ?';
+            $args[] = (int)$filters['column_id'];
+        }
+        if (isset($filters['assignee_id']) && (int)$filters['assignee_id'] > 0) {
+            $where[] = 't.assignee_id = ?';
+            $args[] = (int)$filters['assignee_id'];
+        }
+        if (isset($filters['priority']) && $filters['priority'] !== '') {
+            $where[] = 't.priority = ?';
+            $args[] = (string)$filters['priority'];
+        }
+        if (isset($filters['search']) && $filters['search'] !== '') {
+            $where[] = 'LOWER(t.title) LIKE ?';
+            $args[] = '%' . mb_strtolower((string)$filters['search']) . '%';
+        }
+
+        $sql .= ' WHERE ' . implode(' AND ', $where);
+        $sql .= ' ORDER BY t.id ASC LIMIT ?';
+        $args[] = $limit;
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($args);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
     public function listForProject(int $projectId): array {
         $stmt = $this->pdo->prepare(
             'SELECT t.*, u.name AS assignee_name, u.avatar AS assignee_avatar

@@ -40,6 +40,16 @@ final class ApiKernel
         $this->routes['PATCH /api/v1/columns/{id}']                  = ['handler' => 'Columns', 'action' => 'update'];
         $this->routes['DELETE /api/v1/columns/{id}']                 = ['handler' => 'Columns', 'action' => 'destroy'];
         $this->routes['POST /api/v1/projects/{id}/columns/reorder']  = ['handler' => 'Columns', 'action' => 'reorder'];
+
+        $this->routes['GET /api/v1/tasks/{id}']                          = ['handler' => 'Tasks', 'action' => 'show'];
+        $this->routes['GET /api/v1/projects/{id}/tasks']                 = ['handler' => 'Tasks', 'action' => 'indexForProject'];
+        $this->routes['POST /api/v1/projects/{id}/tasks']                = ['handler' => 'Tasks', 'action' => 'createInProject'];
+        $this->routes['PATCH /api/v1/tasks/{id}']                        = ['handler' => 'Tasks', 'action' => 'update'];
+        $this->routes['POST /api/v1/tasks/{id}/move']                    = ['handler' => 'Tasks', 'action' => 'move'];
+        $this->routes['DELETE /api/v1/tasks/{id}']                       = ['handler' => 'Tasks', 'action' => 'destroy'];
+        $this->routes['POST /api/v1/tasks/{id}/promote-to-project']      = ['handler' => 'Tasks', 'action' => 'promoteToProject'];
+        $this->routes['POST /api/v1/tasks/{id}/links']                   = ['handler' => 'Tasks', 'action' => 'link'];
+        $this->routes['DELETE /api/v1/tasks/{id}/links/{id}']            = ['handler' => 'Tasks', 'action' => 'unlink'];
     }
 
     public function handle(Request $req): void
