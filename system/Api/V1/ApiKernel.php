@@ -50,6 +50,11 @@ final class ApiKernel
         $this->routes['POST /api/v1/tasks/{id}/promote-to-project']      = ['handler' => 'Tasks', 'action' => 'promoteToProject'];
         $this->routes['POST /api/v1/tasks/{id}/links']                   = ['handler' => 'Tasks', 'action' => 'link'];
         $this->routes['DELETE /api/v1/tasks/{id}/links/{id}']            = ['handler' => 'Tasks', 'action' => 'unlink'];
+
+        $this->routes['GET /api/v1/tasks/{id}/comments']    = ['handler' => 'Comments', 'action' => 'indexForTask'];
+        $this->routes['GET /api/v1/projects/{id}/comments'] = ['handler' => 'Comments', 'action' => 'indexForProject'];
+        $this->routes['POST /api/v1/comments']              = ['handler' => 'Comments', 'action' => 'create'];
+        $this->routes['DELETE /api/v1/comments/{id}']       = ['handler' => 'Comments', 'action' => 'destroy'];
     }
 
     public function handle(Request $req): void
