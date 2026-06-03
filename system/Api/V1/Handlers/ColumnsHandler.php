@@ -10,9 +10,9 @@ use App\Http\Request;
 final class ColumnsHandler extends BaseHandler
 {
     /** GET /api/v1/projects/{id}/columns */
-    public function indexForProject(Request $req): array
+    public function indexForProject(Request $req, array $params = []): array
     {
-        $projectId = $this->pathId($req, 3);
+        $projectId = (int)($params['id'] ?? 0);
         $project = $this->svc('projects')->findById($projectId);
         if (!$project) return $this->notFound();
         if (!$this->canSeeProject($project)) return $this->notFound();
@@ -22,9 +22,9 @@ final class ColumnsHandler extends BaseHandler
     }
 
     /** POST /api/v1/projects/{id}/columns */
-    public function createInProject(Request $req): array
+    public function createInProject(Request $req, array $params = []): array
     {
-        $projectId = $this->pathId($req, 3);
+        $projectId = (int)($params['id'] ?? 0);
         $project = $this->svc('projects')->findById($projectId);
         if (!$project) return $this->notFound();
         if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) {
@@ -54,9 +54,9 @@ final class ColumnsHandler extends BaseHandler
     }
 
     /** PATCH /api/v1/columns/{id} */
-    public function update(Request $req): array
+    public function update(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $col = $this->svc('columns')->findById($id);
         if (!$col) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$col['project_id']);
@@ -87,9 +87,9 @@ final class ColumnsHandler extends BaseHandler
     }
 
     /** DELETE /api/v1/columns/{id} (?force=true to drop tasks too) */
-    public function destroy(Request $req): array
+    public function destroy(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $col = $this->svc('columns')->findById($id);
         if (!$col) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$col['project_id']);
@@ -114,9 +114,9 @@ final class ColumnsHandler extends BaseHandler
     }
 
     /** POST /api/v1/projects/{id}/columns/reorder */
-    public function reorder(Request $req): array
+    public function reorder(Request $req, array $params = []): array
     {
-        $projectId = $this->pathId($req, 3);
+        $projectId = (int)($params['id'] ?? 0);
         $project = $this->svc('projects')->findById($projectId);
         if (!$project) return $this->notFound();
         if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) {

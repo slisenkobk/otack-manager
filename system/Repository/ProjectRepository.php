@@ -29,12 +29,14 @@ final class ProjectRepository {
         } catch (\Throwable $e) { $this->pdo->rollBack(); throw $e; }
     }
 
+    /** @return array<string,mixed>|null */
     public function findById(int $id): ?array {
         $stmt = $this->pdo->prepare('SELECT * FROM projects WHERE id = ?');
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
     }
 
+    /** @return array<string,mixed>|null */
     public function findBySlug(string $slug): ?array {
         $stmt = $this->pdo->prepare('SELECT * FROM projects WHERE slug = ?');
         $stmt->execute([$slug]);
@@ -56,6 +58,7 @@ final class ProjectRepository {
         $this->pdo->prepare('UPDATE projects SET ' . implode(', ', $set) . ' WHERE id = ?')->execute($vals);
     }
 
+    /** @return list<array<string,mixed>> */
     public function listForUser(int $userId, bool $isAdmin): array {
         if ($isAdmin) {
             return $this->pdo->query('SELECT * FROM projects ORDER BY (pinned_at IS NULL), pinned_at DESC, updated_at DESC')->fetchAll();
@@ -102,6 +105,7 @@ final class ProjectRepository {
         return (int)$stmt->fetch()['c'];
     }
 
+    /** @return list<array<string,mixed>> */
     public function listForUserPaged(int $userId, bool $isAdmin, ?string $status, int $limit, int $offset, string $query = ''): array {
         $where = '';
         $args  = [];
@@ -137,6 +141,7 @@ final class ProjectRepository {
         return (int)$row['c'];
     }
 
+    /** @return list<array<string,mixed>> */
     public function recentForUser(int $userId, bool $isAdmin, int $limit = 3): array {
         if ($isAdmin) {
             $stmt = $this->pdo->prepare('SELECT * FROM projects ORDER BY (pinned_at IS NULL), pinned_at DESC, updated_at DESC LIMIT ?');

@@ -2,11 +2,15 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
 use App\Http\AuthGuard;
+use App\Http\Csrf;
 use App\Http\Request;
 use App\Http\Response;
+use App\Repository\AppBackupRepository;
+use App\Repository\AppVersionRepository;
 use App\Repository\SettingsRepository;
+use App\Service\Updater;
+use App\View\Renderer;
 
 final class SettingsController extends BaseController
 {
@@ -26,12 +30,17 @@ final class SettingsController extends BaseController
         'contact_default_text'  => ['label' => 'Form footer text',   'default' => ''],
     ];
 
-    private SettingsRepository $settings;
-
-    public function __construct($view, $user = null) {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private SettingsRepository $settings,
+        private Updater $updater,
+        private AppVersionRepository $appVersions,
+        private AppBackupRepository $appBackups,
+        private Csrf $csrf,
+    ) {
         parent::__construct($view, $user);
         AuthGuard::requireAdmin($this->user);
-        $this->settings = App::make('settings');
     }
 
     public function show(Request $req, array $params = []): void {
@@ -42,26 +51,26 @@ final class SettingsController extends BaseController
 
         $tab = (string)($req->query['tab'] ?? 'workspace');
         $allowedTabs = ['workspace', 'contact'];
-        if (\App\Service\Updater::isEnabled()) $allowedTabs[] = 'updates';
+        if (Updater::isEnabled()) $allowedTabs[] = 'updates';
         if (!in_array($tab, $allowedTabs, true)) $tab = 'workspace';
 
         // Updates tab needs the cached payload from the updater service.
         // We read the cache only (no network call here) — the dashboard
         // is responsible for refreshing the cache on its own cadence.
         $updates = $tab === 'updates'
-            ? App::make('updater')->cachedPayload()
+            ? $this->updater->cachedPayload()
             : null;
         $currentVersionRow = $tab === 'updates'
-            ? App::make('app_versions')->current()
+            ? $this->appVersions->current()
             : null;
         $versionHistory = $tab === 'updates'
-            ? App::make('app_versions')->listRecent(20)
+            ? $this->appVersions->listRecent(20)
             : [];
         $backups = $tab === 'updates'
-            ? App::make('app_backups')->listAll()
+            ? $this->appBackups->listAll()
             : [];
 
-        $csrfToken = App::make('csrf')->token();
+        $csrfToken = $this->csrf->token();
         $sidebar = $this->view->render('partials/sidebar', [
             'user' => $this->user, 'activeNav' => 'settings', 'csrfToken' => $csrfToken,
         ]);
@@ -79,7 +88,7 @@ final class SettingsController extends BaseController
                 'csrfToken'      => $csrfToken,
                 'timezones'      => $this->timezonesWithOffsets(),
                 'currentTab'     => $tab,
-                'updatesEnabled' => \App\Service\Updater::isEnabled(),
+                'updatesEnabled' => Updater::isEnabled(),
                 'updates'        => $updates,
                 'currentVersion' => $currentVersionRow,
                 'versionHistory' => $versionHistory,

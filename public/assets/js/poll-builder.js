@@ -1,5 +1,5 @@
 import { api, UI } from './ui.js';
-import { logSilent, t } from './utils.js';
+import { logSilent, t, withButtonBusy } from './utils.js';
 
 const builder = document.querySelector('[data-poll-builder]');
 if (builder) {
@@ -49,13 +49,14 @@ if (builder) {
       return;
     }
 
-    btn.disabled = true;
-    try {
-      const url = pollId ? '/polls/' + pollId : '/polls';
-      const res = await api(url, { method: 'POST', body: JSON.stringify(payload) });
-      UI.toast(t('js.toast.poll_saved'), 'success');
-      if (!pollId && res?.id) location.href = '/polls/' + res.id;
-    } catch (e) { logSilent(e, 'poll-builder.save'); } finally { btn.disabled = false; }
+    await withButtonBusy(btn, async () => {
+      try {
+        const url = pollId ? '/polls/' + pollId : '/polls';
+        const res = await api(url, { method: 'POST', body: JSON.stringify(payload) });
+        UI.toast(t('js.toast.poll_saved'), 'success');
+        if (!pollId && res?.id) location.href = '/polls/' + res.id;
+      } catch (e) { logSilent(e, 'poll-builder.save'); }
+    });
   });
 
   // Activate (draft → active). Once active, the page reloads to show stats.
@@ -63,12 +64,13 @@ if (builder) {
   if (activateBtn) activateBtn.addEventListener('click', async () => {
     const msg = activateBtn.dataset.confirm || 'Activate this poll? You will not be able to edit it anymore.';
     if (!await UI.confirm(msg, { confirmLabel: 'Activate' })) return;
-    activateBtn.disabled = true;
-    try {
-      await api('/polls/' + pollId + '/activate', { method: 'POST' });
-      UI.toast(t('js.toast.poll_activated'), 'success');
-      location.reload();
-    } catch (e) { logSilent(e, 'poll-builder.activate'); } finally { activateBtn.disabled = false; }
+    await withButtonBusy(activateBtn, async () => {
+      try {
+        await api('/polls/' + pollId + '/activate', { method: 'POST' });
+        UI.toast(t('js.toast.poll_activated'), 'success');
+        location.reload();
+      } catch (e) { logSilent(e, 'poll-builder.activate'); }
+    });
   });
 
   // Public URL row (only present for already-saved polls).
@@ -109,7 +111,7 @@ if (builder) {
     if (key) inp.setAttribute('data-option-key', key);
     const rmBtn = document.createElement('button');
     rmBtn.type = 'button';
-    rmBtn.className = 'btn-ghost';
+    rmBtn.className = 'btn--ghost';
     rmBtn.setAttribute('data-action', 'remove-option');
     rmBtn.title = 'Remove';
     const x = document.createElement('i');

@@ -5,8 +5,12 @@ namespace App\Controller;
 use App\App;
 use App\Http\Request;
 use App\Http\Response;
+use App\Repository\ActivityLogRepository;
 use App\Repository\PollRepository;
 use App\Repository\PollVoteRepository;
+use App\Service\EventBus;
+use App\View\Renderer;
+use PDO;
 
 /**
  * Public, unauthenticated poll voting. /p/{hash} is whitelisted from CSRF in
@@ -19,7 +23,8 @@ use App\Repository\PollVoteRepository;
  *   stage=vote    → server signs the contact, visitor picks a choice
  *
  * The signed contact token is HMAC(poll_hash + contact_normalized + ts) keyed
- * on LOGIN_HASH — same secret reused by PublicFormController's time-trap.
+ * on APP_SECRET (falling back to LOGIN_HASH for backward compatibility) —
+ * same secret reused by PublicFormController's time-trap.
  * Stateless on purpose: a refresh between stages just restarts at contact.
  */
 final class PublicPollController extends BaseController
@@ -32,14 +37,16 @@ final class PublicPollController extends BaseController
     private const MAX_FILL_SECONDS = 3600;
     private const CONTACT_TOKEN_TTL = 3600;
 
-    private PollRepository     $polls;
-    private PollVoteRepository $votes;
-
-    public function __construct($view, $user = null)
-    {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private PollRepository $polls,
+        private PollVoteRepository $votes,
+        private ActivityLogRepository $activity,
+        private EventBus $events,
+        private PDO $db,
+    ) {
         parent::__construct($view, $user);
-        $this->polls = App::make('polls');
-        $this->votes = App::make('poll_votes');
     }
 
     public function show(Request $req, array $params): void
@@ -164,7 +171,7 @@ final class PublicPollController extends BaseController
             throw new \RuntimeException('vote.record failed');
         }
 
-        App::make('activity')->log(
+        $this->activity->log(
             'poll.voted',
             (int)$poll['created_by'],
             null,
@@ -172,7 +179,7 @@ final class PublicPollController extends BaseController
             'new vote on "' . $poll['title'] . '"',
             ['poll_id' => (int)$poll['id'], 'external' => true]
         );
-        App::make('events')->fire('poll.voted', [
+        $this->events->fire('poll.voted', [
             'poll_id'    => (int)$poll['id'],
             'poll_title' => $poll['title'],
             'choice_key' => $choiceKey,
@@ -211,7 +218,8 @@ final class PublicPollController extends BaseController
 
     private function timeTrapSecret(): string
     {
-        $s = (string)App::env('LOGIN_HASH', '');
+        // Prefer APP_SECRET; falls back to LOGIN_HASH for backward compatibility.
+        $s = app_secret();
         return $s !== '' ? $s : 'otack-poll-time-trap-fallback';
     }
 
@@ -282,10 +290,9 @@ final class PublicPollController extends BaseController
     private function rateLimited(string $remoteIp): bool
     {
         if ($remoteIp === '') return false;
-        $pdo = App::make('db');
         $cutoff = (new \DateTimeImmutable('-' . self::RATE_LIMIT_WINDOW . ' seconds'))
             ->format('Y-m-d\TH:i:s.u\Z');
-        $stmt = $pdo->prepare('SELECT COUNT(*) FROM poll_votes WHERE remote_ip = ? AND created_at >= ?');
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM poll_votes WHERE remote_ip = ? AND created_at >= ?');
         $stmt->execute([$remoteIp, $cutoff]);
         return (int)$stmt->fetchColumn() >= self::RATE_LIMIT_PER_IP;
     }

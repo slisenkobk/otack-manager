@@ -2,19 +2,22 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
+use App\Http\Csrf;
 use App\Http\Request;
 use App\Http\Response;
 use App\Http\AuthGuard;
 use App\Repository\TagRepository;
+use App\View\Renderer;
 
 final class TagAdminController extends BaseController {
-    private TagRepository $tags;
-
-    public function __construct($view, $user = null) {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private TagRepository $tags,
+        private Csrf $csrf,
+    ) {
         parent::__construct($view, $user);
         AuthGuard::requireAdmin($this->user);
-        $this->tags = App::make('tags');
     }
 
     public function index(Request $req, array $params = []): void {
@@ -29,7 +32,7 @@ final class TagAdminController extends BaseController {
         foreach ($allTags as $tag) {
             $usages[(int)$tag['id']] = $this->tags->countUsage((int)$tag['id']);
         }
-        $csrfToken = App::make('csrf')->token();
+        $csrfToken = $this->csrf->token();
         $sidebar = $this->view->render('partials/sidebar', [
             'user' => $this->user, 'activeNav' => 'tags', 'csrfToken' => $csrfToken,
         ]);
@@ -54,7 +57,7 @@ final class TagAdminController extends BaseController {
 
     public function update(Request $req, array $params): void {
         $id   = (int)$params['id'];
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
         $tag  = $this->tags->findById($id);
         if (!$tag) { Response::json(['error' => 'Not found'], 404); return; }
         $fields = [];

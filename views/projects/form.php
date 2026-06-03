@@ -2,13 +2,17 @@
 // Edit-only — project creation now happens through the index-page modal.
 $palette      = \App\Repository\ProjectRepository::PALETTE;
 $initialColor = $project['color'] ?? $palette[array_rand($palette)];
+$fieldErrors  = $fieldErrors ?? [];
 ?>
 <div class="page-form">
 <form method="post" action="/projects/<?= (int)$project['id'] ?>" class="brief" style="max-width:none;">
   <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
-  <div class="field">
+  <div class="field<?= isset($fieldErrors['name']) ? ' field--invalid' : '' ?>">
     <label for="f-project-name"><?= e(t('projects.form.name')) ?></label>
     <input id="f-project-name" class="input" type="text" name="name" required autofocus value="<?= e($project['name']) ?>">
+    <?php if (isset($fieldErrors['name'])): ?>
+      <div class="field__error"><?= e(t('errors.' . $fieldErrors['name'], t('errors.required'))) ?></div>
+    <?php endif; ?>
   </div>
   <div class="field" style="margin-top:14px;">
     <label for="project-color-text"><?= e(t('projects.form.color')) ?></label>

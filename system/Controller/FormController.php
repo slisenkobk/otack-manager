@@ -2,24 +2,37 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
 use App\Http\Request;
 use App\Http\Response;
+use App\Http\ValidationException;
+use App\Http\Validator;
+use App\Repository\ActivityLogRepository;
 use App\Repository\FormRepository;
+use App\Repository\ProjectMemberRepository;
+use App\Repository\ProjectRepository;
+use App\Repository\SettingsRepository;
+use App\Service\EventBus;
 use App\Service\RolePolicy;
+use App\View\Renderer;
 
 final class FormController extends BaseController
 {
     public const FIELD_TYPES = ['text', 'textarea', 'email', 'phone', 'number', 'select', 'radio', 'checkbox'];
 
-    private FormRepository $forms;
-
-    public function __construct($view, $user = null) {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private FormRepository $forms,
+        private ProjectRepository $projects,
+        private ProjectMemberRepository $members,
+        private SettingsRepository $settings,
+        private ActivityLogRepository $activity,
+        private EventBus $events,
+    ) {
         parent::__construct($view, $user);
         if (!RolePolicy::canManageForms($this->user)) {
             Response::forbidden('Forms are managed by admins and managers'); exit;
         }
-        $this->forms = App::make('forms');
     }
 
     public function index(Request $req, array $params = []): void {
@@ -50,7 +63,7 @@ final class FormController extends BaseController
         if ($id && !$form) { Response::notFound(); return; }
 
         $isAdmin   = RolePolicy::isAdmin($this->user);
-        $projects  = \App\App::make('projects')->listForUser((int)$this->user['id'], $isAdmin);
+        $projects  = $this->projects->listForUser((int)$this->user['id'], $isAdmin);
 
         $csrf = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', [
@@ -74,16 +87,20 @@ final class FormController extends BaseController
     }
 
     public function save(Request $req, array $params = []): void {
-        $data = json_decode((string)file_get_contents('php://input'), true) ?: [];
-        $title = trim((string)($data['title'] ?? ''));
-        if ($title === '') { Response::json(['error' => 'Title required'], 422); return; }
+        $data = $req->jsonBody([]);
+        try {
+            $clean = Validator::for($data)->required('title')->clean();
+        } catch (ValidationException $e) {
+            Response::json(['error' => 'Title required', 'fields' => $e->fields], 422); return;
+        }
+        $title = $clean['title'];
         // Description is Quill HTML — sanitise via the same pipeline used for
         // task/project descriptions to strip script/style/etc.
         $descriptionRaw = (string)($data['description'] ?? '');
         $description    = trim($descriptionRaw) === '' ? '' : \App\Service\HtmlSanitizer::clean($descriptionRaw);
         $locale = (string)($data['locale'] ?? '');
         if (!in_array($locale, available_locales(), true)) {
-            $locale = (string)App::make('settings')->get('default_locale', 'en');
+            $locale = (string)$this->settings->get('default_locale', 'en');
             if (!in_array($locale, available_locales(), true)) $locale = 'en';
         }
         $fields = $this->normaliseFields($data['fields'] ?? []);
@@ -131,9 +148,9 @@ final class FormController extends BaseController
                 'task_title_template' => $taskTpl,
                 'success_message'     => $successMessage,
             ]);
-            \App\App::make('activity')->log('form.updated', (int)$this->user['id'], null, null,
+            $this->activity->log('form.updated', (int)$this->user['id'], null, null,
                 "updated form '$title'", ['form_id' => $id]);
-            \App\App::make('events')->fire('form.updated', [
+            $this->events->fire('form.updated', [
                 'form_id' => $id, 'title' => $title, 'actor_name' => $this->user['name'],
             ]);
             Response::json(['ok' => true, 'id' => $id]);
@@ -152,9 +169,9 @@ final class FormController extends BaseController
             $taskTpl,
             $successMessage
         );
-        \App\App::make('activity')->log('form.created', (int)$this->user['id'], null, null,
+        $this->activity->log('form.created', (int)$this->user['id'], null, null,
             "created form '$title'", ['form_id' => $id]);
-        \App\App::make('events')->fire('form.created', [
+        $this->events->fire('form.created', [
             'form_id' => $id, 'title' => $title, 'actor_name' => $this->user['name'],
         ]);
         Response::json(['ok' => true, 'id' => $id]);
@@ -184,9 +201,9 @@ final class FormController extends BaseController
         }
         $title = $form['title'];
         $this->forms->delete($id);
-        \App\App::make('activity')->log('form.deleted', (int)$this->user['id'], null, null,
+        $this->activity->log('form.deleted', (int)$this->user['id'], null, null,
             "deleted form '$title'", ['form_id' => $id]);
-        \App\App::make('events')->fire('form.deleted', [
+        $this->events->fire('form.deleted', [
             'form_id' => $id, 'title' => $title, 'actor_name' => $this->user['name'],
         ]);
         Response::json(['ok' => true]);
@@ -237,10 +254,10 @@ final class FormController extends BaseController
             $copySuccess
         );
 
-        \App\App::make('activity')->log('form.created', (int)$this->user['id'], null, null,
+        $this->activity->log('form.created', (int)$this->user['id'], null, null,
             "duplicated form '{$src['title']}' as '$newTitle'",
             ['form_id' => $newId, 'source_form_id' => $id]);
-        \App\App::make('events')->fire('form.created', [
+        $this->events->fire('form.created', [
             'form_id' => $newId, 'title' => $newTitle, 'actor_name' => $this->user['name'],
         ]);
         Response::json(['ok' => true, 'id' => $newId, 'url' => '/forms/' . $newId]);
@@ -266,10 +283,10 @@ final class FormController extends BaseController
 
     /** Admin: any project. Manager: only projects they're a member of. */
     private function canAttachToProject(int $projectId): bool {
-        $project = \App\App::make('projects')->findById($projectId);
+        $project = $this->projects->findById($projectId);
         if (!$project) return false;
         if (RolePolicy::isAdmin($this->user)) return true;
-        return \App\App::make('members')->isMember($projectId, (int)$this->user['id']);
+        return $this->members->isMember($projectId, (int)$this->user['id']);
     }
 
     /**

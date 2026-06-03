@@ -33,6 +33,21 @@ function csrf_field(string $token): string
     return '<input type="hidden" name="_csrf" value="' . e($token) . '">';
 }
 
+/**
+ * HMAC secret for anti-bot time-traps, short-link IP hashing, and similar
+ * server-only signing material. Reads `APP_SECRET`; falls back to
+ * `LOGIN_HASH` for backward compatibility (which historically doubled as
+ * both the /login URL gate AND the HMAC secret). New installs should set
+ * `APP_SECRET` explicitly so the login-URL gate and the HMAC material can
+ * rotate independently.
+ */
+function app_secret(): string
+{
+    $appSecret = (string)\App\App::env('APP_SECRET', '');
+    if ($appSecret !== '') return $appSecret;
+    return (string)\App\App::env('LOGIN_HASH', '');
+}
+
 function icon(string $name, string $extraClass = ''): string
 {
     return '<i class="fa-solid fa-' . e($name) . ($extraClass ? ' ' . e($extraClass) : '') . '"></i>';
@@ -453,16 +468,33 @@ function app_favicon_href(): string
 }
 
 /**
+ * Per-request CSP nonce. Lazy-generated on first call; cached for the rest
+ * of the request. Used by inline `<style>` tags that survive the
+ * Wave-C inline-style sweep so we can eventually drop `'unsafe-inline'`
+ * from the `style-src` directive without breaking the brand palette.
+ *
+ * Until the sweep is complete the nonce is additive: the CSP keeps
+ * `'unsafe-inline'` AND lists the nonce, so already-nonced tags are
+ * forwards-compatible.
+ */
+function csp_nonce(): string
+{
+    static $nonce = null;
+    if ($nonce === null) $nonce = base64_encode(random_bytes(16));
+    return $nonce;
+}
+
+/**
  * Inline <style> that re-bases the brand palette (and its dark-theme pair)
  * onto the user-chosen color from settings. Empty when no override is set
- * — letting the design-system defaults from app.css apply unchanged.
+ * — letting the design-system defaults from tokens.css apply unchanged.
  * Renders nothing-safe HTML so it can sit directly in <head>.
  */
 function app_brand_style_tag(): string
 {
     $c = app_color();
     if ($c === null) return '';
-    return '<style>' .
+    return '<style nonce="' . htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8') . '">' .
         ':root{' .
             '--brand:' . $c . ';' .
             '--brand-2:color-mix(in srgb,' . $c . ' 78%,#000 22%);' .

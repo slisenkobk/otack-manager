@@ -38,7 +38,7 @@ export const UI = {
     const actionsEl = node.querySelector('.modal-actions');
     actions.forEach(a => {
       const b = document.createElement('button');
-      b.className = a.variant || 'btn-secondary';
+      b.className = a.variant || 'btn--secondary';
       b.textContent = a.label;
       b.addEventListener('click', () => a.onClick && a.onClick(close));
       actionsEl.appendChild(b);
@@ -55,6 +55,27 @@ export const UI = {
     document.addEventListener('keydown', onKey);
     ROOT_MODAL().appendChild(node);
     setTimeout(() => node.querySelector('button')?.focus(), 0);
+
+    // Focus trap — Tab cycles within the modal, Shift+Tab too. Without
+    // this, Tab from the last button bleeds into the underlying page —
+    // particularly disorienting when a modal is opened from a kanban
+    // card with dozens of focusables behind the backdrop.
+    const focusableSel = 'a[href], button, textarea, input, select, [tabindex]:not([tabindex="-1"])';
+    node.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      const focusables = Array.from(node.querySelectorAll(focusableSel))
+        .filter(el => !el.disabled && el.offsetParent !== null);
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last  = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    });
     return { close, node };
   },
 
@@ -64,8 +85,8 @@ export const UI = {
         title: 'Confirm',
         body: `<p>${escapeText(message)}</p>`,
         actions: [
-          { label: 'Cancel', variant: 'btn-ghost', onClick: (close) => { close(); resolve(false); } },
-          { label: confirmLabel, variant: danger ? 'btn-danger' : 'submit',
+          { label: 'Cancel', variant: 'btn--ghost', onClick: (close) => { close(); resolve(false); } },
+          { label: confirmLabel, variant: danger ? 'btn--danger' : 'submit',
             onClick: (close) => { close(); resolve(true); } },
         ],
       });
@@ -86,7 +107,7 @@ export const UI = {
       const m = this.modal({
         title: 'Prompt', body,
         actions: [
-          { label: 'Cancel', variant: 'btn-ghost', onClick: (close) => { close(); resolve(null); } },
+          { label: 'Cancel', variant: 'btn--ghost', onClick: (close) => { close(); resolve(null); } },
           { label: 'OK', variant: 'submit', onClick: (close) => { const v = input.value; close(); resolve(v); } },
         ],
       });

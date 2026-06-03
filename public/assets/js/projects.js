@@ -1,5 +1,6 @@
 import { api, UI } from './ui.js';
-import { logSilent } from './utils.js';
+import { logSilent, withButtonBusy } from './utils.js';
+import { buildField } from './ui-fields.js';
 
 // Pin / unpin a project card from the index grid.
 // Card itself is an <a>, so we stop propagation on the pin button click.
@@ -10,24 +11,24 @@ document.querySelectorAll('.card[data-project-id] [data-action="toggle-pin"]').f
     const card = btn.closest('.card');
     const id = card?.dataset.projectId;
     if (!id) return;
-    btn.disabled = true;
-    try {
-      const res = await api('/api/projects/' + id + '/pin', { method: 'POST' });
-      const pinned = !!res.pinned;
-      btn.classList.toggle('is-on', pinned);
-      card.classList.toggle('is-pinned', pinned);
-      UI.toast(pinned ? 'Project pinned to top' : 'Project unpinned', 'success');
-      const grid = card.closest('.cards-row');
-      if (grid) {
-        if (pinned) grid.prepend(card);
-        else {
-          const pinnedCards = grid.querySelectorAll('.card.is-pinned');
-          const lastPinned = pinnedCards[pinnedCards.length - 1];
-          if (lastPinned && lastPinned !== card) lastPinned.after(card);
+    await withButtonBusy(btn, async () => {
+      try {
+        const res = await api('/api/projects/' + id + '/pin', { method: 'POST' });
+        const pinned = !!res.pinned;
+        btn.classList.toggle('is-on', pinned);
+        card.classList.toggle('is-pinned', pinned);
+        UI.toast(pinned ? 'Project pinned to top' : 'Project unpinned', 'success');
+        const grid = card.closest('.cards-row');
+        if (grid) {
+          if (pinned) grid.prepend(card);
+          else {
+            const pinnedCards = grid.querySelectorAll('.card.is-pinned');
+            const lastPinned = pinnedCards[pinnedCards.length - 1];
+            if (lastPinned && lastPinned !== card) lastPinned.after(card);
+          }
         }
-      }
-    } catch (e) { logSilent(e, 'projects.pin'); }
-    finally { btn.disabled = false; }
+      } catch (e) { logSilent(e, 'projects.pin'); }
+    });
   });
 });
 
@@ -39,24 +40,6 @@ function pickPaletteColor() {
   const palette = ['#EA580C', '#5A4E3F', '#2563EB', '#CA8A04', '#4D6840',
                    '#6D28D9', '#DC2626', '#0891B2', '#9333EA', '#0F766E'];
   return palette[Math.floor(Math.random() * palette.length)];
-}
-
-function buildField(label, factory) {
-  const wrap = document.createElement('div');
-  wrap.className = 'field';
-  wrap.style.marginBottom = '12px';
-  const l = document.createElement('label');
-  l.textContent = label;
-  l.style.fontSize = '11px';
-  l.style.textTransform = 'uppercase';
-  l.style.letterSpacing = '.1em';
-  l.style.color = 'var(--ink-3)';
-  l.style.display = 'block';
-  l.style.marginBottom = '4px';
-  wrap.appendChild(l);
-  const input = factory();
-  wrap.appendChild(input);
-  return { wrap, input };
 }
 
 function openProjectModal(trigger) {
@@ -76,7 +59,7 @@ function openProjectModal(trigger) {
     i.className = 'input';
     i.placeholder = labels.name;
     return i;
-  });
+  }, { spaced: true });
   body.appendChild(nameF.wrap);
 
   // Color: text + native picker, matching the show-page chip style. We avoid
@@ -110,7 +93,7 @@ function openProjectModal(trigger) {
     text.addEventListener('input', () => apply(text.value));
     row.__colorText = text;
     return row;
-  });
+  }, { spaced: true });
   body.appendChild(colorWrap.wrap);
 
   // Description uses the same Quill editor as the show-page so creation
@@ -132,14 +115,14 @@ function openProjectModal(trigger) {
     wrap.appendChild(descHost);
     wrap.appendChild(descHidden);
     return wrap;
-  });
+  }, { spaced: true });
   body.appendChild(descF.wrap);
 
   UI.modal({
     title: labels.title,
     body,
     actions: [
-      { label: labels.cancel, variant: 'btn-ghost', onClick: c => c() },
+      { label: labels.cancel, variant: 'btn--ghost', onClick: c => c() },
       { label: labels.submit, variant: 'submit', onClick: async (close) => {
           const name = nameF.input.value.trim();
           if (!name) { nameF.input.focus(); return; }

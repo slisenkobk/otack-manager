@@ -2,12 +2,18 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
 use App\Http\Request;
 use App\Http\Response;
+use App\Repository\ActivityLogRepository;
 use App\Repository\FormRepository;
 use App\Repository\FormSubmissionRepository;
+use App\Repository\ProjectRepository;
 use App\Repository\SettingsRepository;
+use App\Repository\TaskColumnRepository;
+use App\Repository\TaskRepository;
+use App\Service\EventBus;
+use App\Service\Log;
+use App\View\Renderer;
 
 /**
  * Public, unauthenticated form rendering / submission. No CSRF token —
@@ -15,15 +21,19 @@ use App\Repository\SettingsRepository;
  */
 final class PublicFormController extends BaseController
 {
-    private FormRepository           $forms;
-    private FormSubmissionRepository $subs;
-    private SettingsRepository       $settings;
-
-    public function __construct($view, $user = null) {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private FormRepository $forms,
+        private FormSubmissionRepository $subs,
+        private SettingsRepository $settings,
+        private ProjectRepository $projects,
+        private TaskColumnRepository $columns,
+        private TaskRepository $tasks,
+        private ActivityLogRepository $activity,
+        private EventBus $events,
+    ) {
         parent::__construct($view, $user);
-        $this->forms    = App::make('forms');
-        $this->subs     = App::make('form_submissions');
-        $this->settings = App::make('settings');
     }
 
     /** Hash format expected from the public URL — base64url alphabet, length 8..24. */
@@ -43,11 +53,12 @@ final class PublicFormController extends BaseController
 
     private function timeTrapSecret(): string
     {
-        // Reuse LOGIN_HASH as a shared HMAC secret — it's already required to
-        // be set in env and stays stable across requests. Falls back to a fixed
-        // string only in test environments that don't set it; that's fine
-        // because the time trap is defence-in-depth, not the primary gate.
-        $s = (string)\App\App::env('LOGIN_HASH', '');
+        // Prefer APP_SECRET (dedicated HMAC key); falls back to LOGIN_HASH for
+        // backward compatibility (legacy installs that haven't split the env).
+        // Final fallback to a fixed string only in test environments that set
+        // neither; that's fine because the time trap is defence-in-depth, not
+        // the primary gate.
+        $s = app_secret();
         return $s !== '' ? $s : 'otack-form-time-trap-fallback';
     }
 
@@ -210,7 +221,7 @@ final class PublicFormController extends BaseController
             try {
                 $autoTaskId = $this->autoCreateTaskFromSubmission($form, $data, $submissionId);
             } catch (\Throwable $e) {
-                error_log('[forms] auto-task create failed: ' . $e->getMessage());
+                Log::error('forms', 'auto-task create failed: ' . $e->getMessage());
             }
         }
 
@@ -225,7 +236,7 @@ final class PublicFormController extends BaseController
         ), fn($s) => trim($s) !== '')), 0, 160);
         $activityMeta = ['form_id' => (int)$form['id'], 'submission_id' => $submissionId, 'external' => true];
         if ($autoTaskId !== null) $activityMeta['auto_task_id'] = $autoTaskId;
-        \App\App::make('activity')->log(
+        $this->activity->log(
             'form.submitted',
             $ownerId,
             null,
@@ -236,7 +247,7 @@ final class PublicFormController extends BaseController
 
         // Fire the Telegram event with an IMPORTANT marker — these are
         // customer touchpoints, more urgent than internal task chatter.
-        \App\App::make('events')->fire('form.submitted', [
+        $this->events->fire('form.submitted', [
             'form_id'       => (int)$form['id'],
             'form_title'    => $form['title'],
             'submission_id' => $submissionId,
@@ -264,14 +275,14 @@ final class PublicFormController extends BaseController
      * `created_by` to the form owner so audit trails stay coherent.
      */
     private function autoCreateTaskFromSubmission(array $form, array $data, int $submissionId): ?int {
-        $project = \App\App::make('projects')->findById((int)$form['project_id']);
+        $project = $this->projects->findById((int)$form['project_id']);
         if (!$project) return null;
 
         // Drop into the leftmost non-backlog column. If the project has no
         // non-backlog columns yet, give up rather than dumping the task into
         // the backlog — silent backlog landings would surprise the author who
         // explicitly turned auto-task on. Errors are caught one level up.
-        $cols  = \App\App::make('columns')->listForProject((int)$project['id']);
+        $cols  = $this->columns->listForProject((int)$project['id']);
         $board = array_values(array_filter($cols, fn($c) => (int)($c['is_backlog'] ?? 0) === 0));
         usort($board, fn($a, $b) => (int)$a['position'] <=> (int)$b['position']);
         $todoCol = $board[0] ?? null;
@@ -290,19 +301,19 @@ final class PublicFormController extends BaseController
             \App\Service\FormTemplate::renderTaskBody($form, $fields, $data, $submissionId)
         );
 
-        $taskId = \App\App::make('tasks')->create(
+        $taskId = $this->tasks->create(
             (int)$project['id'],
             (int)$todoCol['id'],
             $title,
             (int)$form['created_by']
         );
-        \App\App::make('tasks')->update($taskId, ['description' => $description]);
+        $this->tasks->update($taskId, ['description' => $description]);
 
         // Mark the submission as already converted so admins don't re-promote
         // it manually. The submission row keeps a pointer to the task.
         $this->subs->setStatus($submissionId, 'converted_task', $taskId, null);
 
-        \App\App::make('activity')->log(
+        $this->activity->log(
             'task.created',
             (int)$form['created_by'],
             (int)$project['id'],

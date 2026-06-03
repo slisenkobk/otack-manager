@@ -10,9 +10,9 @@ use App\Http\Request;
 final class CommentsHandler extends BaseHandler
 {
     /** GET /api/v1/tasks/{id}/comments */
-    public function indexForTask(Request $req): array
+    public function indexForTask(Request $req, array $params = []): array
     {
-        $taskId = $this->pathId($req, 3);
+        $taskId = (int)($params['id'] ?? 0);
         $task = $this->svc('tasks')->findById($taskId);
         if (!$task) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$task['project_id']);
@@ -22,9 +22,9 @@ final class CommentsHandler extends BaseHandler
     }
 
     /** GET /api/v1/projects/{id}/comments */
-    public function indexForProject(Request $req): array
+    public function indexForProject(Request $req, array $params = []): array
     {
-        $projectId = $this->pathId($req, 3);
+        $projectId = (int)($params['id'] ?? 0);
         $project = $this->svc('projects')->findById($projectId);
         if (!$project || !$this->canSeeProject($project)) return $this->notFound();
 
@@ -32,7 +32,7 @@ final class CommentsHandler extends BaseHandler
     }
 
     /** POST /api/v1/comments */
-    public function create(Request $req): array
+    public function create(Request $req, array $params = []): array
     {
         $body       = $this->readBody($req);
         $entity     = (string)($body['entity'] ?? '');
@@ -78,9 +78,9 @@ final class CommentsHandler extends BaseHandler
     }
 
     /** DELETE /api/v1/comments/{id} */
-    public function destroy(Request $req): array
+    public function destroy(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $comment = $this->svc('comments')->findById($id);
         if (!$comment) return $this->notFound();
 

@@ -2,23 +2,46 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
+use App\Http\Csrf;
 use App\Http\Request;
 use App\Http\Response;
-use App\Repository\TaskRepository;
-use App\Repository\ProjectRepository;
+use App\Repository\ActivityLogRepository;
+use App\Repository\AttachmentRepository;
+use App\Repository\CommentRepository;
+use App\Repository\FormSubmissionRepository;
+use App\Repository\PollRepository;
 use App\Repository\ProjectMemberRepository;
+use App\Repository\ProjectRepository;
+use App\Repository\TagRepository;
+use App\Repository\TaskColumnRepository;
+use App\Repository\TaskLinkRepository;
+use App\Repository\TaskRepository;
+use App\Repository\UserRepository;
+use App\Service\EventBus;
+use App\View\Renderer;
+use PDO;
 
 final class TaskController extends BaseController {
-    private TaskRepository $tasks;
-    private ProjectRepository $projects;
-    private ProjectMemberRepository $members;
-
-    public function __construct($view, $user = null) {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private TaskRepository $tasks,
+        private ProjectRepository $projects,
+        private ProjectMemberRepository $members,
+        private TaskColumnRepository $columns,
+        private TaskLinkRepository $taskLinks,
+        private TagRepository $tags,
+        private UserRepository $users,
+        private CommentRepository $comments,
+        private AttachmentRepository $attachments,
+        private FormSubmissionRepository $formSubmissions,
+        private PollRepository $polls,
+        private ActivityLogRepository $activity,
+        private EventBus $events,
+        private Csrf $csrf,
+        private PDO $db,
+    ) {
         parent::__construct($view, $user);
-        $this->tasks = App::make('tasks');
-        $this->projects = App::make('projects');
-        $this->members = App::make('members');
     }
 
     private function assertMember(int $projectId): void {
@@ -34,7 +57,7 @@ final class TaskController extends BaseController {
             Response::json(['error' => 'Project not found'], 404); return;
         }
         $this->assertMember($projectId);
-        $data = json_decode(file_get_contents('php://input'), true) ?: $req->post;
+        $data = $req->jsonBody($req->post);
         $columnId = (int)($data['column_id'] ?? 0);
         $title = trim($data['title'] ?? '');
         if (!$columnId || $title === '') {
@@ -44,21 +67,21 @@ final class TaskController extends BaseController {
         $task = $this->tasks->findById($id);
         // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
         $project = $this->projects->findById($projectId);
-        App::make('events')->fire('task.created', [
+        $this->events->fire('task.created', [
             'task_id'      => $id,
             'title'        => $task['title'],
             'project_name' => $project['name'],
             'actor_name'   => $this->user['name'],
             'url'          => \abs_url('/tasks/' . $id),
         ]);
-        App::make('activity')->log(
-            'task.created',
-            (int)$this->user['id'],
-            $projectId,
-            $id,
-            "added task '" . $task['title'] . "'",
-            ['column_id' => $columnId]
-        );
+        $this->activity->log([
+            'event'      => 'task.created',
+            'actor_id'   => (int)$this->user['id'],
+            'project_id' => $projectId,
+            'task_id'    => $id,
+            'summary'    => "added task '" . $task['title'] . "'",
+            'meta'       => ['column_id' => $columnId],
+        ]);
         Response::json(['ok' => true, 'task' => [
             'id' => (int)$task['id'],
             'title' => $task['title'],
@@ -82,23 +105,22 @@ final class TaskController extends BaseController {
         // Detach FKs from sibling entities so they don't carry a dangling
         // pointer (the task page would 404 and "open linked entity" buttons
         // would mislead).
-        App::make('form_submissions')->detachConverted('task', $id);
-        App::make('polls')->detachSummaryTask($id);
-        App::make('task_links')->deleteForTask($id);
-        App::make('events')->fire('task.deleted', [
+        $this->formSubmissions->detachConverted('task', $id);
+        $this->polls->detachSummaryTask($id);
+        $this->taskLinks->deleteForTask($id);
+        $this->events->fire('task.deleted', [
             'task_id'      => $id,
             'title'        => $task['title'],
             'project_name' => $project['name'] ?? '',
             'actor_name'   => $this->user['name'],
         ]);
-        App::make('activity')->log(
-            'task.deleted',
-            (int)$this->user['id'],
-            (int)$task['project_id'],
-            null,
-            "deleted task '" . $task['title'] . "'",
-            ['task_id' => $id]
-        );
+        $this->activity->log([
+            'event'      => 'task.deleted',
+            'actor_id'   => (int)$this->user['id'],
+            'project_id' => (int)$task['project_id'],
+            'summary'    => "deleted task '" . $task['title'] . "'",
+            'meta'       => ['task_id' => $id],
+        ]);
         Response::json(['ok' => true]);
     }
 
@@ -122,14 +144,14 @@ final class TaskController extends BaseController {
         $description = (string)($task['description'] ?? '');
 
         $newId = $this->projects->create($name, $description !== '' ? $description : null, (int)$this->user['id']);
-        App::make('members')->add($newId, (int)$this->user['id'], 'owner');
-        App::make('columns')->seedDefaults($newId);
+        $this->members->add($newId, (int)$this->user['id'], 'owner');
+        $this->columns->seedDefaults($newId);
 
         // Duplicate attachment rows so the new project carries the same files
         // (filename column is a path, shared — files themselves are not copied).
-        $attachments = App::make('attachments')->listFor('task', $id);
+        $attachments = $this->attachments->listFor('task', $id);
         foreach ($attachments as $a) {
-            App::make('attachments')->create([
+            $this->attachments->create([
                 'entity_type'   => 'project',
                 'entity_id'     => $newId,
                 'filename'      => $a['filename'],
@@ -143,26 +165,25 @@ final class TaskController extends BaseController {
 
         // Copy tags. Task tags live in 'task' scope, project tags in 'project'
         // scope — so we resolve/create a sibling tag in the project scope by name+color.
-        $tagsRepo = App::make('tags');
+        $tagsRepo = $this->tags;
         foreach ($tagsRepo->listForTask($id) as $tg) {
             $projTagId = $tagsRepo->create('project', (string)$tg['name'], (string)($tg['color'] ?? '#8B7C68'));
             $tagsRepo->attachToProject($newId, $projTagId);
         }
 
-        App::make('events')->fire('project.created', [
+        $this->events->fire('project.created', [
             'project_id' => $newId,
             'name'       => $name,
             'actor_name' => $this->user['name'],
             'url'        => \abs_url('/projects/' . $newId),
         ]);
-        App::make('activity')->log(
-            'project.created',
-            (int)$this->user['id'],
-            $newId,
-            null,
-            "spun off project '$name' from task '" . $task['title'] . "'",
-            ['from_task_id' => $id, 'copied_attachments' => count($attachments)]
-        );
+        $this->activity->log([
+            'event'      => 'project.created',
+            'actor_id'   => (int)$this->user['id'],
+            'project_id' => $newId,
+            'summary'    => "spun off project '$name' from task '" . $task['title'] . "'",
+            'meta'       => ['from_task_id' => $id, 'copied_attachments' => count($attachments)],
+        ]);
 
         Response::json(['ok' => true, 'project_id' => $newId, 'url' => '/projects/' . $newId . '?tab=overview']);
     }
@@ -172,12 +193,12 @@ final class TaskController extends BaseController {
         $task = $this->tasks->findById($taskId);
         if (!$task) { Response::json(['error' => 'Not found'], 404); return; }
         $this->assertMember((int)$task['project_id']);
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
         $columnId = (int)($data['column_id'] ?? 0);
         $position = (float)($data['position'] ?? 0);
         if (!$columnId) { Response::json(['error' => 'column_id required'], 422); return; }
 
-        $cols = App::make('columns')->listForProject((int)$task['project_id']);
+        $cols = $this->columns->listForProject((int)$task['project_id']);
         $byId = [];
         foreach ($cols as $c) { $byId[(int)$c['id']] = $c; }
         // "To Do" = first non-backlog column by position
@@ -202,21 +223,21 @@ final class TaskController extends BaseController {
 
         // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
         $newColName = $newCol['name'] ?? '';
-        App::make('events')->fire('task.status_changed', [
+        $this->events->fire('task.status_changed', [
             'task_id'    => $taskId,
             'title'      => $task['title'],
             'new_column' => $newColName,
             'actor_name' => $this->user['name'],
             'url'        => \abs_url('/tasks/' . $taskId),
         ]);
-        App::make('activity')->log(
-            'task.status_changed',
-            (int)$this->user['id'],
-            (int)$task['project_id'],
-            $taskId,
-            'moved to ' . ($newColName !== '' ? $newColName : 'another column'),
-            ['column_id' => $columnId, 'new_column' => $newColName]
-        );
+        $this->activity->log([
+            'event'      => 'task.status_changed',
+            'actor_id'   => (int)$this->user['id'],
+            'project_id' => (int)$task['project_id'],
+            'task_id'    => $taskId,
+            'summary'    => 'moved to ' . ($newColName !== '' ? $newColName : 'another column'),
+            'meta'       => ['column_id' => $columnId, 'new_column' => $newColName],
+        ]);
         $fresh = $this->tasks->findById($taskId);
         Response::json(['ok' => true, 'sub_status' => $fresh['sub_status'] ?? null]);
     }
@@ -236,7 +257,7 @@ final class TaskController extends BaseController {
         $metaByTask = [];
         if ($taskIds) {
             $placeholders = implode(',', array_fill(0, count($taskIds), '?'));
-            $stmt = App::make('db')->prepare(
+            $stmt = $this->db->prepare(
                 "SELECT ttm.task_id, t.id, t.name, t.color
                  FROM task_tag_map ttm
                  INNER JOIN tags t ON t.id = ttm.tag_id
@@ -246,7 +267,7 @@ final class TaskController extends BaseController {
             foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $r) {
                 $tagsByTask[(int)$r['task_id']][] = ['id' => (int)$r['id'], 'name' => $r['name'], 'color' => $r['color']];
             }
-            $stmt = App::make('db')->prepare(
+            $stmt = $this->db->prepare(
                 "SELECT t.id,
                         (SELECT COUNT(*) FROM comments WHERE entity_type='task' AND entity_id = t.id) AS comments,
                         (SELECT COUNT(*) FROM attachments WHERE entity_type='task' AND entity_id = t.id) AS attachments,
@@ -271,7 +292,7 @@ final class TaskController extends BaseController {
             $assignees = array_filter(array_unique(array_map(fn($r) => (int)($r['assignee_id'] ?? 0), $rows)));
             if ($assignees) {
                 $placeholders = implode(',', array_fill(0, count($assignees), '?'));
-                $stmt = App::make('db')->prepare("SELECT id, name FROM users WHERE id IN ($placeholders)");
+                $stmt = $this->db->prepare("SELECT id, name FROM users WHERE id IN ($placeholders)");
                 $stmt->execute(array_values($assignees));
                 $byId = [];
                 foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $u) { $byId[(int)$u['id']] = $u['name']; }
@@ -309,15 +330,15 @@ final class TaskController extends BaseController {
         if (!$isAdmin && !$this->members->isMember($projectId, (int)$this->user['id'])) {
             Response::forbidden(); return;
         }
-        $columns = App::make('columns')->listForProject($projectId);
+        $columns = $this->columns->listForProject($projectId);
         $members = $this->members->list($projectId);
-        $comments = App::make('comments')->listFor('task', $id);
-        $attachments = App::make('attachments')->listFor('task', $id);
+        $comments = $this->comments->listFor('task', $id);
+        $attachments = $this->attachments->listFor('task', $id);
         $commentIds = array_column($comments, 'id');
         $commentAttachments = [];
         if ($commentIds) {
             $placeholders = implode(',', array_fill(0, count($commentIds), '?'));
-            $stmt = App::make('db')->prepare(
+            $stmt = $this->db->prepare(
                 "SELECT * FROM attachments WHERE entity_type = 'comment' AND entity_id IN ($placeholders) ORDER BY created_at ASC"
             );
             $stmt->execute($commentIds);
@@ -350,11 +371,11 @@ final class TaskController extends BaseController {
                 }
             }
         }
-        $taskTags    = App::make('tags')->listForTask($id);
-        $allTaskTags = App::make('tags')->listAll();
-        $linkedTasks = App::make('task_links')->listForTask($id);
-        $createdBy = App::make('users')->findById((int)$task['created_by']);
-        $csrfToken = App::make('csrf')->token();
+        $taskTags    = $this->tags->listForTask($id);
+        $allTaskTags = $this->tags->listAll();
+        $linkedTasks = $this->taskLinks->listForTask($id);
+        $createdBy = $this->users->findById((int)$task['created_by']);
+        $csrfToken = $this->csrf->token();
         $sidebar = $this->view->render('partials/sidebar', [
             'user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrfToken,
         ]);
@@ -395,7 +416,7 @@ final class TaskController extends BaseController {
         $this->assertMember($projectId);
         $q   = trim($req->query['q'] ?? '');
         $tag = trim($req->query['tag'] ?? '');
-        $db  = App::make('db');
+        $db  = $this->db;
 
         if ($q !== '' || $tag !== '') {
             $qLower = mb_strtolower($q);
@@ -431,7 +452,7 @@ final class TaskController extends BaseController {
         $this->assertMember($projectId);
 
         $q = trim($req->query['q'] ?? '');
-        $linkedIds = App::make('task_links')->linkedIds($id);
+        $linkedIds = $this->taskLinks->linkedIds($id);
         $exclude = array_merge([$id], $linkedIds);
 
         $placeholders = implode(',', array_fill(0, count($exclude), '?'));
@@ -447,7 +468,7 @@ final class TaskController extends BaseController {
             $args[] = $q;
         }
         $sql .= ' ORDER BY t.id DESC LIMIT 30';
-        $stmt = App::make('db')->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         $stmt->execute($args);
         Response::json(['ok' => true, 'tasks' => $stmt->fetchAll(\PDO::FETCH_ASSOC)]);
     }
@@ -459,19 +480,19 @@ final class TaskController extends BaseController {
         $projectId = (int)$task['project_id'];
         $this->assertMember($projectId);
 
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
         $other = (int)($data['linked_task_id'] ?? 0);
         if ($other <= 0 || $other === $id) { Response::json(['error' => 'Invalid task'], 422); return; }
         $otherTask = $this->tasks->findById($other);
         if (!$otherTask || (int)$otherTask['project_id'] !== $projectId) {
             Response::json(['error' => 'Task must be in the same project'], 422); return;
         }
-        $created = App::make('task_links')->link($id, $other, (int)$this->user['id']);
+        $created = $this->taskLinks->link($id, $other, (int)$this->user['id']);
 
         if ($created) {
             $project = $this->projects->findById($projectId);
             // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
-            App::make('events')->fire('task.linked', [
+            $this->events->fire('task.linked', [
                 'task_id'        => $id,
                 'task_title'     => $task['title'],
                 'linked_task_id' => $other,
@@ -480,7 +501,7 @@ final class TaskController extends BaseController {
                 'actor_name'     => $this->user['name'],
                 'url'            => \abs_url('/tasks/' . $id),
             ]);
-            App::make('activity')->log(
+            $this->activity->log(
                 'task.linked',
                 (int)$this->user['id'],
                 $projectId,
@@ -491,7 +512,7 @@ final class TaskController extends BaseController {
         }
 
         // Return the linked-task row for instant UI render
-        $stmt = App::make('db')->prepare(
+        $stmt = $this->db->prepare(
             "SELECT t.id, t.title, t.column_id, t.priority, t.sub_status,
                     c.name AS column_name, c.color AS column_color,
                     c.is_done AS column_is_done, c.is_backlog AS column_is_backlog
@@ -509,10 +530,10 @@ final class TaskController extends BaseController {
         if (!$task) { Response::json(['error' => 'Not found'], 404); return; }
         $this->assertMember((int)$task['project_id']);
         $otherTask = $this->tasks->findById($other);
-        App::make('task_links')->unlink($id, $other);
+        $this->taskLinks->unlink($id, $other);
         $project = $this->projects->findById((int)$task['project_id']);
         // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
-        App::make('events')->fire('task.unlinked', [
+        $this->events->fire('task.unlinked', [
             'task_id'        => $id,
             'task_title'     => $task['title'],
             'linked_task_id' => $other,
@@ -521,7 +542,7 @@ final class TaskController extends BaseController {
             'actor_name'     => $this->user['name'],
             'url'            => \abs_url('/tasks/' . $id),
         ]);
-        App::make('activity')->log(
+        $this->activity->log(
             'task.unlinked',
             (int)$this->user['id'],
             (int)$task['project_id'],
@@ -537,7 +558,7 @@ final class TaskController extends BaseController {
         $task = $this->tasks->findById($id);
         if (!$task) { Response::json(['error' => 'Not found'], 404); return; }
         $this->assertMember((int)$task['project_id']);
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
 
         // Title/description are "structural" edits — restricted to the author,
         // project manager (owner), or admin. Status / assignee / due / priority
@@ -562,7 +583,7 @@ final class TaskController extends BaseController {
             // Validate the column belongs to this task's project — otherwise a
             // member of two projects could move a task across project boundaries
             // just by sending the foreign column id.
-            $cols = App::make('columns')->listForProject((int)$task['project_id']);
+            $cols = $this->columns->listForProject((int)$task['project_id']);
             $byId = [];
             foreach ($cols as $c) { $byId[(int)$c['id']] = $c; }
             if (!isset($byId[$newColumnId])) {
@@ -601,17 +622,17 @@ final class TaskController extends BaseController {
         $fresh = $this->tasks->findById($id);
         // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
         if (isset($fields['column_id']) && (int)$fields['column_id'] !== (int)$task['column_id']) {
-            $cols = App::make('columns')->listForProject((int)$task['project_id']);
+            $cols = $this->columns->listForProject((int)$task['project_id']);
             $newColName = '';
             foreach ($cols as $c) if ((int)$c['id'] === (int)$fields['column_id']) { $newColName = $c['name']; break; }
-            App::make('events')->fire('task.status_changed', [
+            $this->events->fire('task.status_changed', [
                 'task_id'    => $id,
                 'title'      => $fresh['title'],
                 'new_column' => $newColName,
                 'actor_name' => $this->user['name'],
                 'url'        => \abs_url('/tasks/' . $id),
             ]);
-            App::make('activity')->log(
+            $this->activity->log(
                 'task.status_changed',
                 (int)$this->user['id'],
                 (int)$task['project_id'],
@@ -623,10 +644,10 @@ final class TaskController extends BaseController {
         if (array_key_exists('assignee_id', $fields) && (int)($fields['assignee_id'] ?? 0) !== (int)($task['assignee_id'] ?? 0)) {
             $assigneeName = 'Unassigned';
             if ($fields['assignee_id']) {
-                $assignee = App::make('users')->findById((int)$fields['assignee_id']);
+                $assignee = $this->users->findById((int)$fields['assignee_id']);
                 if ($assignee) $assigneeName = $assignee['name'];
             }
-            App::make('events')->fire('task.assignee_changed', [
+            $this->events->fire('task.assignee_changed', [
                 'task_id'       => $id,
                 'title'         => $fresh['title'],
                 'assignee_name' => $assigneeName,

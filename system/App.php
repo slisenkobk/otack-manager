@@ -7,6 +7,7 @@ final class App
 {
     private static array $factories = [];
     private static array $instances = [];
+    private static array $resolving = [];
 
     public static function singleton(string $id, callable $factory): void
     {
@@ -17,6 +18,7 @@ final class App
     public static function reset(): void
     {
         self::$instances = [];
+        self::$resolving = [];
     }
 
     public static function make(string $id): object
@@ -25,7 +27,17 @@ final class App
         if (!isset(self::$factories[$id])) {
             throw new \RuntimeException("Service '$id' not registered");
         }
-        return self::$instances[$id] = (self::$factories[$id])();
+        if (isset(self::$resolving[$id])) {
+            $chain = implode(' -> ', array_keys(self::$resolving)) . " -> $id";
+            self::$resolving = [];
+            throw new \LogicException("DI circular dependency: $chain");
+        }
+        self::$resolving[$id] = true;
+        try {
+            return self::$instances[$id] = (self::$factories[$id])();
+        } finally {
+            unset(self::$resolving[$id]);
+        }
     }
 
     public static function env(string $key, string $default = ''): string

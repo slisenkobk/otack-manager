@@ -101,6 +101,8 @@ final class ShortLinkVisitRepository
      * Hosts are extracted in PHP because SQLite has no native URL-parsing
      * function — grouping by raw URL would split twitter.com/post/1 and
      * /post/2 into separate buckets, which defeats the point of the report.
+     *
+     * @return list<array{host:string,count:int}>
      */
     public function topReferers(int $linkId, int $limit = 5): array
     {

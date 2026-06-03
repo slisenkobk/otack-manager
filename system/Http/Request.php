@@ -39,6 +39,33 @@ final class Request {
     }
 
     /**
+     * Parse the raw request body as JSON. Centralises the
+     * `json_decode(file_get_contents('php://input'), true)` boilerplate that
+     * used to live in ~25 controller actions.
+     *
+     * - Empty body returns `$default ?? []`.
+     * - Malformed JSON: if `$default` was passed, it is returned; otherwise
+     *   `InvalidArgumentException` propagates so the caller can map to 400.
+     *
+     * Test callers can override the raw payload via `$raw` to avoid touching
+     * `php://input`.
+     */
+    public function jsonBody(?array $default = null, ?string $raw = null): array
+    {
+        if ($raw === null) {
+            $rawBody = file_get_contents('php://input');
+            $raw = is_string($rawBody) ? $rawBody : '';
+        }
+        if ($raw === '') return $default ?? [];
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            if ($default !== null) return $default;
+            throw new \InvalidArgumentException('invalid_json');
+        }
+        return $decoded;
+    }
+
+    /**
      * Best-effort client IP. Honours X-Forwarded-For's first hop ONLY when
      * REMOTE_ADDR is in the TRUSTED_PROXIES allowlist (comma-separated CIDR
      * or single-IP entries). When the env is empty, XFF is ignored.

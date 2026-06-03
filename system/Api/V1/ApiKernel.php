@@ -3,11 +3,39 @@ declare(strict_types=1);
 namespace App\Api\V1;
 
 use App\Http\Request;
+use App\Service\Log;
 
 final class ApiKernel
 {
-    /** @var array<string, array{handler:string, action:string}> "METHOD PATTERN" => handler */
+    /**
+     * Route registration table. Patterns use semantic placeholder names so
+     * routes with two ids stay unambiguous after regex compilation:
+     *
+     *   - {id}      — primary resource id for the URL
+     *   - {userId}  — second numeric segment on /projects/{id}/members/{userId}
+     *   - {otherId} — second numeric segment on /tasks/{id}/links/{otherId}
+     *   - {tagId}   — second numeric segment on …/tags/{tagId}
+     *
+     * All placeholders compile to `\d+` and are surfaced to handlers via the
+     * `$params` array (e.g. `$params['userId']`). The OpenAPI drift test
+     * already canonicalizes any `\{[^}]+\}` to `{id}` before comparing, so
+     * the semantic names here do not regress drift coverage.
+     *
+     * @var array<string, array{handler:string, action:string}>
+     *      keyed by "METHOD PATTERN" (the literal pattern string)
+     */
     private array $routes = [];
+
+    /**
+     * Pre-compiled view of $routes built at construction time. Each entry:
+     *   ['method' => 'POST', 'pattern' => '<original>',
+     *    'regex' => '#^/api/v1/...$#', 'paramNames' => ['id','userId'],
+     *    'handler' => 'Projects', 'action' => 'addMember']
+     *
+     * @var list<array{method:string, pattern:string, regex:string,
+     *                 paramNames:list<string>, handler:string, action:string}>
+     */
+    private array $compiled = [];
 
     public function __construct(
         private TokenAuthenticator $auth,
@@ -18,22 +46,23 @@ final class ApiKernel
         private array $services,   // ['projects' => ProjectRepository, ...] injected
     ) {
         $this->register();
+        $this->compile();
     }
 
     private function register(): void
     {
-        // Stub for Task 7; later tasks expand the table.
         $this->routes['GET /api/v1/ping'] = ['handler' => 'Ping', 'action' => 'ping'];
         $this->routes['GET /api/v1/me']   = ['handler' => 'Me',   'action' => 'show'];
 
-        $this->routes['GET /api/v1/projects']      = ['handler' => 'Projects', 'action' => 'index'];
-        $this->routes['GET /api/v1/projects/{id}'] = ['handler' => 'Projects', 'action' => 'show'];
-        $this->routes['POST /api/v1/projects']                       = ['handler' => 'Projects', 'action' => 'create'];
-        $this->routes['PATCH /api/v1/projects/{id}']                 = ['handler' => 'Projects', 'action' => 'update'];
-        $this->routes['DELETE /api/v1/projects/{id}']                = ['handler' => 'Projects', 'action' => 'destroy'];
-        $this->routes['POST /api/v1/projects/{id}/pin']              = ['handler' => 'Projects', 'action' => 'setPin'];
-        $this->routes['POST /api/v1/projects/{id}/members']          = ['handler' => 'Projects', 'action' => 'addMember'];
-        $this->routes['DELETE /api/v1/projects/{id}/members/{id}']   = ['handler' => 'Projects', 'action' => 'removeMember'];
+        $this->routes['GET /api/v1/projects']                            = ['handler' => 'Projects', 'action' => 'index'];
+        $this->routes['GET /api/v1/projects/{id}']                       = ['handler' => 'Projects', 'action' => 'show'];
+        $this->routes['POST /api/v1/projects']                           = ['handler' => 'Projects', 'action' => 'create'];
+        $this->routes['PATCH /api/v1/projects/{id}']                     = ['handler' => 'Projects', 'action' => 'update'];
+        $this->routes['DELETE /api/v1/projects/{id}']                    = ['handler' => 'Projects', 'action' => 'destroy'];
+        $this->routes['POST /api/v1/projects/{id}/pin']                  = ['handler' => 'Projects', 'action' => 'setPin'];
+        $this->routes['POST /api/v1/projects/{id}/members']              = ['handler' => 'Projects', 'action' => 'addMember'];
+        // {userId} disambiguates the second numeric segment from the project id.
+        $this->routes['DELETE /api/v1/projects/{id}/members/{userId}']   = ['handler' => 'Projects', 'action' => 'removeMember'];
 
         $this->routes['GET /api/v1/projects/{id}/columns']           = ['handler' => 'Columns', 'action' => 'indexForProject'];
         $this->routes['POST /api/v1/projects/{id}/columns']          = ['handler' => 'Columns', 'action' => 'createInProject'];
@@ -49,7 +78,8 @@ final class ApiKernel
         $this->routes['DELETE /api/v1/tasks/{id}']                       = ['handler' => 'Tasks', 'action' => 'destroy'];
         $this->routes['POST /api/v1/tasks/{id}/promote-to-project']      = ['handler' => 'Tasks', 'action' => 'promoteToProject'];
         $this->routes['POST /api/v1/tasks/{id}/links']                   = ['handler' => 'Tasks', 'action' => 'link'];
-        $this->routes['DELETE /api/v1/tasks/{id}/links/{id}']            = ['handler' => 'Tasks', 'action' => 'unlink'];
+        // {otherId} matches the previous pathId(5) "other task id".
+        $this->routes['DELETE /api/v1/tasks/{id}/links/{otherId}']       = ['handler' => 'Tasks', 'action' => 'unlink'];
 
         $this->routes['GET /api/v1/tasks/{id}/comments']    = ['handler' => 'Comments', 'action' => 'indexForTask'];
         $this->routes['GET /api/v1/projects/{id}/comments'] = ['handler' => 'Comments', 'action' => 'indexForProject'];
@@ -60,9 +90,11 @@ final class ApiKernel
         $this->routes['GET /api/v1/tags']                                = ['handler' => 'Tags', 'action' => 'indexGlobal'];
         $this->routes['POST /api/v1/tags']                               = ['handler' => 'Tags', 'action' => 'createGlobal'];
         $this->routes['POST /api/v1/projects/{id}/tags']                 = ['handler' => 'Tags', 'action' => 'attachToProject'];
-        $this->routes['DELETE /api/v1/projects/{id}/tags/{id}']          = ['handler' => 'Tags', 'action' => 'detachFromProject'];
+        // {tagId} disambiguates from the project id.
+        $this->routes['DELETE /api/v1/projects/{id}/tags/{tagId}']       = ['handler' => 'Tags', 'action' => 'detachFromProject'];
         $this->routes['POST /api/v1/tasks/{id}/tags']                    = ['handler' => 'Tags', 'action' => 'attachToTask'];
-        $this->routes['DELETE /api/v1/tasks/{id}/tags/{id}']             = ['handler' => 'Tags', 'action' => 'detachFromTask'];
+        // {tagId} disambiguates from the task id.
+        $this->routes['DELETE /api/v1/tasks/{id}/tags/{tagId}']          = ['handler' => 'Tags', 'action' => 'detachFromTask'];
 
         $this->routes['GET /api/v1/tasks/{id}/attachments']     = ['handler' => 'Attachments', 'action' => 'indexForTask'];
         $this->routes['GET /api/v1/projects/{id}/attachments']  = ['handler' => 'Attachments', 'action' => 'indexForProject'];
@@ -77,6 +109,36 @@ final class ApiKernel
         $this->routes['GET /api/v1/polls']                       = ['handler' => 'Polls', 'action' => 'index'];
         $this->routes['GET /api/v1/polls/{id}']                  = ['handler' => 'Polls', 'action' => 'show'];
         $this->routes['GET /api/v1/polls/{id}/voters']           = ['handler' => 'Polls', 'action' => 'voters'];
+    }
+
+    /**
+     * Compile every entry in $routes to a per-route regex with named captures.
+     * Placeholder spellings (`{id}`, `{userId}`, …) all match \d+; semantic
+     * names disambiguate routes that carry two numeric ids in one URL.
+     */
+    private function compile(): void
+    {
+        foreach ($this->routes as $key => $info) {
+            [$method, $pattern] = explode(' ', $key, 2);
+            $paramNames = [];
+            $regex = preg_replace_callback(
+                '/\{([A-Za-z_][A-Za-z0-9_]*)\}/',
+                function ($m) use (&$paramNames) {
+                    $name = $m[1];
+                    $paramNames[] = $name;
+                    return '(?<' . $name . '>\d+)';
+                },
+                $pattern
+            ) ?? $pattern;
+            $this->compiled[] = [
+                'method'     => $method,
+                'pattern'    => $pattern,
+                'regex'      => '#^' . $regex . '$#',
+                'paramNames' => $paramNames,
+                'handler'    => $info['handler'],
+                'action'     => $info['action'],
+            ];
+        }
     }
 
     public function handle(Request $req): void
@@ -115,8 +177,7 @@ final class ApiKernel
 
             $this->tokens->touchUsage((int)$ctx['token']['id'], (string)($_SERVER['REMOTE_ADDR'] ?? ''));
 
-            $key = $req->method . ' ' . $this->normalisePath($req->path);
-            $match = $this->routes[$key] ?? null;
+            $match = $this->matchRoute($req->method, $req->path);
             if (!$match) {
                 $this->send(ApiResponse::error(404, 'not_found', 'Route not found'));
                 return;
@@ -127,22 +188,24 @@ final class ApiKernel
             } catch (\InvalidArgumentException $e) {
                 $resp = ApiResponse::error(422, 'validation_failed', 'Invalid input', [$e->getMessage() => 'required_or_invalid']);
             } catch (\Throwable $e) {
-                error_log('[api] ' . $e);
+                Log::error('api', (string)$e);
                 $resp = ApiResponse::error(500, 'server_error', 'Internal error');
             }
 
-            // ActivityLogRepository::log signature is:
-            //   log(string $event, int $actorId, ?int $projectId, ?int $taskId, string $summary, array $meta = [])
             $eventName = 'api.' . strtolower($match['handler']) . '.' . $match['action'];
             $summary   = $req->method . ' ' . $req->path . ' → ' . (int)$resp['status'];
-            $this->activity->log(
-                $eventName,
-                (int)$ctx['user']['id'],
-                null,
-                null,
-                $summary,
-                ['route' => $key, 'status' => $resp['status'], 'token_id' => (int)$ctx['token']['id']]
-            );
+            $this->activity->log([
+                'event'    => $eventName,
+                'actor_id' => (int)$ctx['user']['id'],
+                'summary'  => $summary,
+                'meta'     => [
+                    // Use the original literal pattern (not the request path) so the
+                    // activity log groups by route shape rather than per-instance.
+                    'route'    => $req->method . ' ' . $match['pattern'],
+                    'status'   => $resp['status'],
+                    'token_id' => (int)$ctx['token']['id'],
+                ],
+            ]);
 
             $this->send($resp);
         } catch (\Throwable $e) {
@@ -150,15 +213,35 @@ final class ApiKernel
             // the HTML 500 page from the global set_exception_handler in
             // public/index.php. Wraps auth/limiter/serveOpenApi/activity log
             // failures plus anything dispatch() rethrows past its inner catch.
-            error_log('[api kernel] ' . $e);
+            Log::error('api kernel', (string)$e);
             $this->send(ApiResponse::error(500, 'server_error', 'Internal error'));
         }
     }
 
-    /** Strip path params from the route key (handled by handlers themselves). */
-    private function normalisePath(string $path): string
+    /**
+     * Match (method, path) against the compiled routing table.
+     * Returns the matched entry augmented with extracted params, or null.
+     *
+     * @return array{handler:string, action:string, pattern:string,
+     *               params:array<string,int>}|null
+     */
+    private function matchRoute(string $method, string $path): ?array
     {
-        return preg_replace('#/\d+#', '/{id}', $path) ?? $path;
+        foreach ($this->compiled as $route) {
+            if ($route['method'] !== $method) continue;
+            if (!preg_match($route['regex'], $path, $m)) continue;
+            $params = [];
+            foreach ($route['paramNames'] as $name) {
+                $params[$name] = (int)$m[$name];
+            }
+            return [
+                'handler' => $route['handler'],
+                'action'  => $route['action'],
+                'pattern' => $route['pattern'],
+                'params'  => $params,
+            ];
+        }
+        return null;
     }
 
     private function dispatch(array $match, Request $req, array $ctx): array
@@ -168,7 +251,7 @@ final class ApiKernel
             return ApiResponse::error(404, 'not_found', 'Route not found');
         }
         $handler = new $class($this->pdo, $this->services, $ctx);
-        return $handler->{$match['action']}($req);
+        return $handler->{$match['action']}($req, $match['params']);
     }
 
     private function serveOpenApi(): void

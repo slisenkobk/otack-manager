@@ -38,7 +38,15 @@ abstract class BaseHandler
         return JsonRequest::parse($raw);
     }
 
-    /** Pull a numeric path id from /api/v1/<resource>/<id>(/...). */
+    /**
+     * Pull a numeric path id from /api/v1/<resource>/<id>(/...).
+     *
+     * @deprecated Use the `$params` array passed to each handler action
+     *             (e.g. `$params['id']`, `$params['userId']`). ApiKernel now
+     *             extracts named captures from the route regex and injects
+     *             them, so segment-index addressing is no longer needed.
+     *             Kept here as a safety net for any out-of-tree subclasses.
+     */
     protected function pathId(Request $req, int $segmentIndex): int
     {
         $parts = explode('/', trim($req->path, '/'));

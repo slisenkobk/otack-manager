@@ -11,7 +11,14 @@ $contact = $contact ?? [];
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e(app_name() . ' - ' . $form['title']) ?></title>
 <link rel="icon" type="image/svg+xml" href="<?= e(app_favicon_href()) ?>">
-<link rel="stylesheet" href="<?= e(asset_url('/assets/css/app.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/tokens.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/base.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/layout.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/forms.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/kanban.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/cards-panels.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/modal-toast.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/utilities.css')) ?>">
 <link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
 <?= app_brand_style_tag() ?>
 </head>

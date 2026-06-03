@@ -1,0 +1,270 @@
+/* ═══════════════════════════════════════════════════════════════
+   tokens.css — Design tokens (load order 1 of 8)
+   §1 Layer A palette + Layer B semantic + Layer D dark + §2 tokens
+   + §3 typography tokens. Must load first; everything depends on these.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════
+   Otack Manager — Design System CSS
+   Font: Manrope (sans), JetBrains Mono (mono). No serif, no italic.
+   Source of truth: docs/DESIGN.md
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── §1 Layer A — Palette (reference tokens) ────────────────── */
+:root {
+  /* PAPER (warm canvas, 4 steps) */
+  --paper:     #ffffff;
+  --paper-2:   #F5F2EC;
+  --paper-3:   #E2D9C5;
+  --paper-4:   #D4C8AC;
+
+  /* INK (warm dark text, 4 steps) */
+  --ink:       #1A1612;
+  --ink-2:     #5A4E3F;
+  --ink-3:     #8B7C68;
+  --ink-4:     #A89A85;
+
+  /* RULE (subtle dividers, 3 steps) */
+  --rule:      #D7CFBF;
+  --rule-2:    #C5B99F;
+  --rule-3:    #B0A487;
+
+  /* BRAND (warm orange, 5 steps) */
+  --brand:     #C2410C;
+  --brand-2:   #9A2F06;
+  --brand-3:   #FCE4D6;
+  --brand-4:   #F8D1B9;
+  --brand-pop: #EA580C;
+
+  /* SEMANTIC TONES */
+  --green:     #4D6840;  --green-tint:   #E5EFDC;
+  --red:       #B23A2B;  --red-tint:     #F5DAD5;
+  --blue:      #2E5A88;  --blue-tint:    #DCE7F3;
+  --yellow:    #B5871E;  --yellow-tint:  #FAEFCD;
+  --teal:      #2E7878;  --teal-tint:    #D8ECEC;
+  --purple:    #6B4B82;  --purple-tint:  #E8DEEF;
+  --magenta:   #993E62;  --magenta-tint: #F2D7DF;
+  --brown:     #7C5034;  --brown-tint:   #ECDED1;
+  --olive:     #6B7A3A;  --olive-tint:   #E8ECD3;
+  --indigo:    #4B3F88;  --indigo-tint:  #DDD9EF;
+}
+
+/* ─── §1 Layer B — Semantic roles ────────────────────────────── */
+:root {
+  /* Surfaces — V4 Hybrid: warm paper base, white cards sit on top */
+  --bg:                var(--paper-2);
+  --bg-elevated:       var(--paper);
+  --bg-sunken:         var(--paper-3);
+
+  /* Text */
+  --text:              var(--ink);
+  --text-2:            var(--ink-2);
+  --text-muted:        var(--ink-3);
+  --text-placeholder:  var(--ink-4);
+  --text-on-brand:     var(--paper);
+  --text-on-dark:      var(--paper);
+  --text-link:         var(--brand);
+  --text-link-hover:   var(--brand-pop);
+
+  /* Borders */
+  --border:            var(--rule);
+  --border-strong:     var(--rule-2);
+  --border-focus:      var(--brand-pop);
+
+  /* Brand */
+  --accent:            var(--brand);
+  --accent-hover:      var(--brand-2);
+  --accent-pop:        var(--brand-pop);
+  --accent-tint:       var(--brand-3);
+
+  /* Status */
+  --success:           var(--green);
+  --success-bg:        var(--green-tint);
+  --danger:            var(--red);
+  --danger-bg:         var(--red-tint);
+  --warning:           var(--yellow);
+  --warning-bg:        var(--yellow-tint);
+  --info:              var(--blue);
+  --info-bg:           var(--blue-tint);
+
+  /* Focus ring */
+  --focus-ring:        var(--brand-pop);
+  --focus-ring-alpha:  rgba(234, 88, 12, 0.25);
+
+  /* Component surfaces (extracted so dark theme can override cleanly).
+     topbar-bg matches the page bg with slight transparency so the rounded
+     top-left of .main reads as a single curved cream surface against the
+     white shell instead of a hard rectangular topbar covering it. */
+  --topbar-bg:         rgba(245, 242, 236, 0.92);
+  --surface-soft:      #f8f7f7;
+  --auth-page-bg:      #ffffff;
+}
+
+/* ─── §1 Layer D — Dark theme palette ────────────────────────
+   Token-level inversion. Every semantic role above still resolves
+   correctly because we only swap the leaf palette values. Activate
+   via `<html data-theme="dark">` (server-rendered from cookie) or
+   automatically via `prefers-color-scheme: dark` when no explicit
+   theme is chosen. */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* PAPER inverted — deep warm graphite stack */
+    --paper:     #1A1612;
+    --paper-2:   #221D17;
+    --paper-3:   #2D2620;
+    --paper-4:   #3A3128;
+
+    /* INK inverted — cream stack for text */
+    --ink:       #F5F2EC;
+    --ink-2:     #D7CFBF;
+    --ink-3:     #A89A85;
+    --ink-4:     #7A6E5C;
+
+    /* RULE — dark warm dividers */
+    --rule:      #3A3128;
+    --rule-2:    #4A3F33;
+    --rule-3:    #5A4E3F;
+
+    /* BRAND — warm orange slightly punchier on dark */
+    --brand:     #EA580C;
+    --brand-2:   #FB7837;
+    --brand-3:   #3D2014;
+    --brand-4:   #4F2A1B;
+    --brand-pop: #FB7837;
+
+    /* SEMANTIC TONES — solid stays, tint becomes deep version */
+    --green:     #7AA068;  --green-tint:   #1E2A18;
+    --red:       #D4604F;  --red-tint:     #2E1814;
+    --blue:      #5A92C5;  --blue-tint:    #172836;
+    --yellow:    #E0A93A;  --yellow-tint:  #2C2110;
+    --teal:      #5BAFAF;  --teal-tint:    #14302F;
+    --purple:    #9D7BB5;  --purple-tint:  #221A2C;
+    --magenta:   #C5688A;  --magenta-tint: #2A141E;
+    --brown:     #B07C58;  --brown-tint:   #2A1D14;
+    --olive:     #99A85A;  --olive-tint:   #1E2410;
+    --indigo:    #7A6FC2;  --indigo-tint:  #1A1730;
+
+    /* Component surface overrides */
+    --topbar-bg:    rgba(26, 22, 18, 0.85);
+    --surface-soft: #221D17;
+    --auth-page-bg: #1A1612;
+
+    color-scheme: dark;
+  }
+}
+/* Manual override — duplicated rule body so cascade works regardless of OS */
+:root[data-theme="dark"] {
+  --paper:     #1A1612;
+  --paper-2:   #221D17;
+  --paper-3:   #2D2620;
+  --paper-4:   #3A3128;
+  --ink:       #F5F2EC;
+  --ink-2:     #D7CFBF;
+  --ink-3:     #A89A85;
+  --ink-4:     #7A6E5C;
+  --rule:      #3A3128;
+  --rule-2:    #4A3F33;
+  --rule-3:    #5A4E3F;
+  --brand:     #EA580C;
+  --brand-2:   #FB7837;
+  --brand-3:   #3D2014;
+  --brand-4:   #4F2A1B;
+  --brand-pop: #FB7837;
+  --green:     #7AA068;  --green-tint:   #1E2A18;
+  --red:       #D4604F;  --red-tint:     #2E1814;
+  --blue:      #5A92C5;  --blue-tint:    #172836;
+  --yellow:    #E0A93A;  --yellow-tint:  #2C2110;
+  --teal:      #5BAFAF;  --teal-tint:    #14302F;
+  --purple:    #9D7BB5;  --purple-tint:  #221A2C;
+  --magenta:   #C5688A;  --magenta-tint: #2A141E;
+  --brown:     #B07C58;  --brown-tint:   #2A1D14;
+  --olive:     #99A85A;  --olive-tint:   #1E2410;
+  --indigo:    #7A6FC2;  --indigo-tint:  #1A1730;
+  --topbar-bg:    rgba(26, 22, 18, 0.85);
+  --surface-soft: #221D17;
+  --auth-page-bg: #1A1612;
+  color-scheme: dark;
+}
+
+/* ─── §2 Tokens — radius, shadow, motion, spacing, z-index ───── */
+:root {
+  /* Radius */
+  --radius-xs:  3px;
+  --radius-sm:  4px;
+  --radius:     6px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
+
+  /* Shadows (warm-tinted) */
+  --shadow-xs:    0 1px 0 rgba(26, 22, 18, 0.06);
+  --shadow-sm:    0 1px 2px rgba(26, 22, 18, 0.08), 0 1px 1px rgba(26, 22, 18, 0.04);
+  --shadow:       0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 2px 0 rgba(215, 207, 191, 0.4),
+                  0 18px 40px -28px rgba(26, 22, 18, 0.14);
+  --shadow-card:  0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 2px 0 rgba(215, 207, 191, 0.4),
+                  0 18px 40px -28px rgba(26, 22, 18, 0.14);
+  --shadow-md:    0 4px 12px rgba(26, 22, 18, 0.06), 0 1px 3px rgba(26, 22, 18, 0.05);
+  --shadow-lg:    0 12px 30px -8px rgba(26, 22, 18, 0.14), 0 2px 6px rgba(26, 22, 18, 0.06);
+  --shadow-pop:   0 18px 40px -16px rgba(26, 22, 18, 0.16), 0 2px 0 rgba(26, 22, 18, 0.06);
+  --shadow-modal: 0 30px 60px -12px rgba(26, 22, 18, 0.28), 0 8px 16px rgba(26, 22, 18, 0.08);
+
+  /* Motion */
+  --duration-instant: 80ms;
+  --duration-fast:    120ms;
+  --duration:         150ms;
+  --duration-slow:    240ms;
+  --ease:             cubic-bezier(0.2, 0.7, 0.3, 1);
+  --ease-in:          cubic-bezier(0.4, 0, 1, 1);
+  --ease-out:         cubic-bezier(0, 0, 0.2, 1);
+
+  /* Spacing */
+  --space-1:  2px;
+  --space-2:  4px;
+  --space-3:  6px;
+  --space-4:  8px;
+  --space-5:  10px;
+  --space-6:  12px;
+  --space-8:  16px;
+  --space-10: 20px;
+  --space-12: 24px;
+  --space-16: 32px;
+  --space-20: 40px;
+  --space-24: 56px;
+  --space-32: 80px;
+
+  /* Z-index scale */
+  --z-base:     1;
+  --z-sticky:   10;
+  --z-dropdown: 40;
+  --z-modal:    100;
+  --z-toast:    150;
+  --z-lightbox: 200;
+}
+
+/* ─── §3 Typography tokens ───────────────────────────────────── */
+:root {
+  --font-sans: 'Manrope', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'SF Mono', 'Cascadia Mono', 'Cascadia Code', Menlo, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+  --fz-display: clamp(40px, 5.5vw, 64px);
+  --fz-h1:      clamp(24px, 2vw + 1rem, 32px);
+  --fz-h2:      20px;
+  --fz-h3:      16px;
+  --fz-body:    15px;
+  --fz-ui:      13px;
+  --fz-small:   12px;
+  --fz-xs:      11px;
+  --fz-micro:   10px;
+
+  --lh-tight:   1.15;
+  --lh:         1.5;
+  --lh-prose:   1.6;
+
+  --ls-tight:   -0.02em;
+  --ls-mono:    0.1em;
+  --ls-mono-strong: 0.15em;
+}
+

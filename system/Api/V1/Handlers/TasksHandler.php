@@ -10,9 +10,9 @@ use App\Http\Request;
 final class TasksHandler extends BaseHandler
 {
     /** GET /api/v1/tasks/{id} */
-    public function show(Request $req): array
+    public function show(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $task = $this->svc('tasks')->findById($id);
         if (!$task) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$task['project_id']);
@@ -21,9 +21,9 @@ final class TasksHandler extends BaseHandler
     }
 
     /** GET /api/v1/projects/{id}/tasks */
-    public function indexForProject(Request $req): array
+    public function indexForProject(Request $req, array $params = []): array
     {
-        $projectId = $this->pathId($req, 3);
+        $projectId = (int)($params['id'] ?? 0);
         $project = $this->svc('projects')->findById($projectId);
         if (!$project) return $this->notFound();
         if (!$this->canSeeProject($project)) return $this->notFound();
@@ -53,9 +53,9 @@ final class TasksHandler extends BaseHandler
     }
 
     /** POST /api/v1/projects/{id}/tasks */
-    public function createInProject(Request $req): array
+    public function createInProject(Request $req, array $params = []): array
     {
-        $projectId = $this->pathId($req, 3);
+        $projectId = (int)($params['id'] ?? 0);
         $project = $this->svc('projects')->findById($projectId);
         if (!$project) return $this->notFound();
         if (!$this->canSeeProject($project)) return $this->notFound();
@@ -117,9 +117,9 @@ final class TasksHandler extends BaseHandler
     }
 
     /** PATCH /api/v1/tasks/{id} */
-    public function update(Request $req): array
+    public function update(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $task = $this->svc('tasks')->findById($id);
         if (!$task) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$task['project_id']);
@@ -174,9 +174,9 @@ final class TasksHandler extends BaseHandler
     }
 
     /** POST /api/v1/tasks/{id}/move */
-    public function move(Request $req): array
+    public function move(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $task = $this->svc('tasks')->findById($id);
         if (!$task) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$task['project_id']);
@@ -204,9 +204,9 @@ final class TasksHandler extends BaseHandler
     }
 
     /** DELETE /api/v1/tasks/{id} */
-    public function destroy(Request $req): array
+    public function destroy(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $task = $this->svc('tasks')->findById($id);
         if (!$task) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$task['project_id']);
@@ -222,9 +222,9 @@ final class TasksHandler extends BaseHandler
     }
 
     /** POST /api/v1/tasks/{id}/promote-to-project */
-    public function promoteToProject(Request $req): array
+    public function promoteToProject(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $task = $this->svc('tasks')->findById($id);
         if (!$task) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$task['project_id']);
@@ -277,9 +277,9 @@ final class TasksHandler extends BaseHandler
     }
 
     /** POST /api/v1/tasks/{id}/links */
-    public function link(Request $req): array
+    public function link(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $task = $this->svc('tasks')->findById($id);
         if (!$task) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$task['project_id']);
@@ -306,11 +306,11 @@ final class TasksHandler extends BaseHandler
         ]);
     }
 
-    /** DELETE /api/v1/tasks/{id}/links/{other_id} */
-    public function unlink(Request $req): array
+    /** DELETE /api/v1/tasks/{id}/links/{otherId} */
+    public function unlink(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
-        $otherId = $this->pathId($req, 5);
+        $id      = (int)($params['id'] ?? 0);
+        $otherId = (int)($params['otherId'] ?? 0);
         $task = $this->svc('tasks')->findById($id);
         if (!$task) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$task['project_id']);

@@ -179,3 +179,39 @@ api_it('DELETE /projects/{id}/members/{user_id} removes member', function () {
     $memberIds = array_column($g['json']['members'], 'user_id');
     assert_true(!in_array(2, $memberIds, true), 'user 2 should no longer be a member');
 });
+
+/*
+ * Lock in the named-param contract for routes that carry two distinct ids
+ * in one URL. Before Wave-B Task 3 the kernel collapsed every numeric
+ * segment to {id} and handlers reached into the path with pathId(3) /
+ * pathId(5); a regression in segment indexing could have silently let the
+ * project id and user id swap places. The assertions below force both ids
+ * to be extracted independently:
+ *   - the *target* user (3) is removed
+ *   - the *non-target* user (2) survives, proving we didn't delete by project id
+ */
+api_it('DELETE /projects/{id}/members/{userId} resolves both ids distinctly', function () {
+    [$pdo, , $adminTok,] = pw_setup();
+    // Third user only this test cares about; distinct id space so other
+    // tests' fixtures don't interfere with the row count assertion below.
+    $pdo->exec("INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, created_at) VALUES (3, 'F', 'f@x', 'x', 'employee', 'approved', '2026-01-01')");
+    pw_seed_project($pdo, 3009, 'TwoMembers');
+    $pdo->prepare("INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, 'member')")
+        ->execute([3009, 2]);
+    $pdo->prepare("INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, 'member')")
+        ->execute([3009, 3]);
+
+    // Remove user 3 — the SECOND id in the URL — and verify only user 3
+    // leaves. If the kernel ever swapped the captures we'd see user 2
+    // disappear instead.
+    $r = api_request('DELETE', '/api/v1/projects/3009/members/3', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+    ]);
+    assert_eq(204, $r['status']);
+
+    $g = api_request('GET', '/api/v1/projects/3009', ['headers' => ['Authorization: Bearer ' . $adminTok]]);
+    assert_eq(200, $g['status']);
+    $memberIds = array_column($g['json']['members'], 'user_id');
+    assert_true(in_array(2, $memberIds, true),  'user 2 must still be a member (only user 3 was targeted)');
+    assert_true(!in_array(3, $memberIds, true), 'user 3 should have been removed');
+});

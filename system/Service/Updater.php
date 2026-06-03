@@ -361,7 +361,7 @@ final class Updater
                 }
                 $backups->markPruned($id);
             } catch (\Throwable $e) {
-                error_log('[updater:prune] backup ' . $id . ': ' . $e->getMessage());
+                Log::warn('updater:prune', 'backup ' . $id . ': ' . $e->getMessage());
             }
         }
     }
@@ -406,12 +406,31 @@ final class Updater
         foreach ($it as $info) {
             $path = $info->getPathname();
             if ($info->isDir()) {
-                @rmdir($path);
+                $this->logIfFailed(@rmdir($path), 'rmdir', $path);
             } else {
-                @unlink($path);
+                $this->logIfFailed(@unlink($path), 'unlink', $path);
             }
         }
-        @rmdir($dir);
+        $this->logIfFailed(@rmdir($dir), 'rmdir', $dir);
+    }
+
+    /**
+     * Updater filesystem cleanup must never bubble a warning to the response
+     * (it would corrupt JSON / break the rollback transcript), but it must
+     * also not be silent — a botched rollback that leaves orphan files is
+     * exactly the failure mode audit S-9 calls out. Pattern: keep the leading
+     * `@` to suppress the PHP warning, then forward the captured error to
+     * `Log::warn` so it lands in `data/errors.log`.
+     */
+    private function logIfFailed(bool $ok, string $op, string $path): void
+    {
+        if ($ok) return;
+        $err = error_get_last();
+        Log::warn(
+            'updater.cleanup',
+            "{$op} failed: {$path}",
+            ['error' => $err['message'] ?? null]
+        );
     }
 
     // ─── internals: pipeline ───────────────────────────────────────────
@@ -650,7 +669,12 @@ final class Updater
             if (!@rename($src, $dst) && !@copy($src, $dst)) {
                 throw new \RuntimeException("Cannot stash removed file: $rel");
             }
-            @unlink($src);
+            // Cleanup after copy-fallback. Rename already removed src on success,
+            // so the unlink failing for ENOENT is expected — Log catches the
+            // unexpected (e.g. EACCES) so a half-finished swap is investigatable.
+            if (is_file($src)) {
+                $this->logIfFailed(@unlink($src), 'unlink', $src);
+            }
         }
 
         // (b) Rename every staged file into APP_ROOT.
@@ -668,7 +692,7 @@ final class Updater
                 if (!@copy($src, $dst)) {
                     throw new \RuntimeException("Cannot swap file into place: $rel");
                 }
-                @unlink($src);
+                $this->logIfFailed(@unlink($src), 'unlink', $src);
             }
         }
     }
@@ -704,7 +728,10 @@ final class Updater
             if (!@rename($src, $dst) && !@copy($src, $dst)) {
                 throw new \RuntimeException("Cannot stash removed file: $rel");
             }
-            @unlink($src);
+            // Same idempotent cleanup as applySwap — see note there.
+            if (is_file($src)) {
+                $this->logIfFailed(@unlink($src), 'unlink', $src);
+            }
         }
 
         // (b) Copy snapshot files back into APP_ROOT. Use copy-to-tmp +
@@ -721,7 +748,7 @@ final class Updater
                 throw new \RuntimeException("Cannot copy snapshot file: $rel");
             }
             if (!@rename($tmp, $dst)) {
-                @unlink($tmp);
+                $this->logIfFailed(@unlink($tmp), 'unlink', $tmp);
                 throw new \RuntimeException("Cannot install restored: $rel");
             }
         }
@@ -832,7 +859,7 @@ final class Updater
                     $dst = APP_ROOT . '/' . $rel;
                     $parent = dirname($dst);
                     if (!is_dir($parent)) @mkdir($parent, 0755, true);
-                    @rename($src, $dst);
+                    $this->logIfFailed(@rename($src, $dst), 'rename', "$src -> $dst");
                 }
             }
         }

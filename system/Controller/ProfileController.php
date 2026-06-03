@@ -2,25 +2,31 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
+use App\Auth\PasswordHasher;
+use App\Http\Csrf;
 use App\Http\Request;
 use App\Http\Response;
+use App\Repository\ApiTokenRepository;
 use App\Repository\UserRepository;
-use App\Auth\PasswordHasher;
+use App\Service\FileUploader;
+use App\View\Renderer;
 
 final class ProfileController extends BaseController {
-    private UserRepository $users;
-    private PasswordHasher $hasher;
-
-    public function __construct($view, $user = null) {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private UserRepository $users,
+        private PasswordHasher $hasher,
+        private FileUploader $uploader,
+        private ApiTokenRepository $apiTokens,
+        private Csrf $csrf,
+        private object $session,
+    ) {
         parent::__construct($view, $user);
-        $this->users = App::make('users');
-        $this->hasher = App::make('hasher');
     }
 
     private function &session(): array {
-        $obj = App::make('session');
-        return $obj->store;
+        return $this->session->store;
     }
 
     private function flash(string $key, string $value): void {
@@ -36,7 +42,7 @@ final class ProfileController extends BaseController {
     }
 
     public function show(Request $req, array $params = []): void {
-        $csrfToken = App::make('csrf')->token();
+        $csrfToken = $this->csrf->token();
         $sidebar = $this->view->render('partials/sidebar', [
             'user' => $this->user, 'activeNav' => 'profile', 'csrfToken' => $csrfToken,
         ]);
@@ -115,15 +121,14 @@ final class ProfileController extends BaseController {
 
         $file = $req->files['avatar'] ?? null;
         if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-            $uploader = App::make('uploader');
-            $err = $uploader->validate($file);
+            $err = $this->uploader->validate($file);
             if ($err) { $this->flash('flash_error', $err); Response::redirect('/profile'); return; }
-            if (!$uploader->isImage($file['type'] ?? '')) {
+            if (!$this->uploader->isImage($file['type'] ?? '')) {
                 $this->flash('flash_error', t('profile.avatar_hint'));
                 Response::redirect('/profile'); return;
             }
             try {
-                $stored = $uploader->store($file);
+                $stored = $this->uploader->store($file);
             } catch (\Throwable $e) {
                 $this->flash('flash_error', $e->getMessage());
                 Response::redirect('/profile'); return;
@@ -179,15 +184,14 @@ final class ProfileController extends BaseController {
             $this->flash('flash_error', t('profile.avatar_hint'));
             Response::redirect('/profile'); return;
         }
-        $uploader = App::make('uploader');
-        $err = $uploader->validate($file);
+        $err = $this->uploader->validate($file);
         if ($err) { $this->flash('flash_error', $err); Response::redirect('/profile'); return; }
-        if (!$uploader->isImage($file['type'] ?? '')) {
+        if (!$this->uploader->isImage($file['type'] ?? '')) {
             $this->flash('flash_error', t('profile.avatar_hint'));
             Response::redirect('/profile'); return;
         }
         try {
-            $stored = $uploader->store($file);
+            $stored = $this->uploader->store($file);
         } catch (\Throwable $e) {
             $this->flash('flash_error', $e->getMessage());
             Response::redirect('/profile'); return;
@@ -218,8 +222,7 @@ final class ProfileController extends BaseController {
 
     public function tokens(Request $req, array $params = []): void {
         $csrfToken = $this->csrfToken();
-        $repo      = App::make('api_tokens');
-        $tokens    = $repo->listForUser((int)$this->user['id']);
+        $tokens    = $this->apiTokens->listForUser((int)$this->user['id']);
 
         // One-time reveal: stored as a structured array in the session on
         // create, then drained on the next render so a refresh hides it.
@@ -266,8 +269,7 @@ final class ProfileController extends BaseController {
                 $expiresAt = (int)$ts;
             }
         }
-        $repo = App::make('api_tokens');
-        $created = $repo->create((int)$this->user['id'], $name, $expiresAt);
+        $created = $this->apiTokens->create((int)$this->user['id'], $name, $expiresAt);
 
         // Plaintext token is shown once and then never recoverable. Storing
         // it as an array in the session flash so the view can format it.
@@ -281,13 +283,12 @@ final class ProfileController extends BaseController {
 
     public function tokensRevoke(Request $req, array $params = []): void {
         $id  = (int)($params['id'] ?? 0);
-        $repo = App::make('api_tokens');
-        $row = $repo->findById($id);
+        $row = $this->apiTokens->findById($id);
         // Silent no-op on missing / cross-user IDs — we don't want to leak
         // whether another user's token id exists. The redirect feedback is
         // identical to the success case.
         if ($row && (int)$row['user_id'] === (int)$this->user['id']) {
-            $repo->revoke($id);
+            $this->apiTokens->revoke($id);
             $this->flash('flash_success', t('api_tokens.revoked'));
         }
         Response::redirect('/profile/tokens');

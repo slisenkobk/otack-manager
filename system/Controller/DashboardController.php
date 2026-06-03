@@ -2,18 +2,34 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
+use App\Http\Csrf;
 use App\Http\Request;
 use App\Http\Response;
+use App\Repository\ActivityLogRepository;
+use App\Repository\ProjectRepository;
+use App\Repository\TaskRepository;
+use App\Service\Updater;
+use App\View\Renderer;
 
 final class DashboardController extends BaseController {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private ProjectRepository $projects,
+        private TaskRepository $tasks,
+        private ActivityLogRepository $activity,
+        private Updater $updater,
+        private Csrf $csrf,
+    ) {
+        parent::__construct($view, $user);
+    }
+
     public function moreActivity(Request $req, array $params = []): void {
         $isAdmin = $this->user['role'] === 'admin';
         $userId  = (int)$this->user['id'];
         $offset  = max(0, (int)($req->query['offset'] ?? 0));
         $limit   = 10;
-        $activity = App::make('activity');
-        $batch = $activity->recentForUser($userId, $isAdmin, $limit + 1, $offset);
+        $batch = $this->activity->recentForUser($userId, $isAdmin, $limit + 1, $offset);
         $hasMore = count($batch) > $limit;
         if ($hasMore) array_pop($batch);
 
@@ -42,24 +58,21 @@ final class DashboardController extends BaseController {
     public function index(Request $req, array $params = []): void {
         $isAdmin = $this->user['role'] === 'admin';
         $userId  = (int)$this->user['id'];
-        $projects = App::make('projects');
-        $tasks    = App::make('tasks');
-        $activity = App::make('activity');
 
         // Admin dashboard is the cheapest place to refresh the
         // updater's cached "available_version". `checkIfStale` is a
         // no-op when the cache is fresh and silently swallows network
         // errors, so this never blocks the dashboard.
-        if ($isAdmin && \App\Service\Updater::isEnabled()) {
-            App::make('updater')->checkIfStale();
+        if ($isAdmin && Updater::isEnabled()) {
+            $this->updater->checkIfStale();
         }
 
-        $counters = $tasks->dashboardCounters($userId, $isAdmin);
-        $trend    = $tasks->dashboardWeekTrend($userId, $isAdmin);
+        $counters = $this->tasks->dashboardCounters($userId, $isAdmin);
+        $trend    = $this->tasks->dashboardWeekTrend($userId, $isAdmin);
         $stats = [
-            'open_projects' => $projects->countOpenForUser($userId, $isAdmin),
-            'my_tasks'      => $tasks->countOpenForAssignee($userId),
-            'activity'      => $activity->countForUser($userId, $isAdmin),
+            'open_projects' => $this->projects->countOpenForUser($userId, $isAdmin),
+            'my_tasks'      => $this->tasks->countOpenForAssignee($userId),
+            'activity'      => $this->activity->countForUser($userId, $isAdmin),
             'open_tasks'    => $counters['open'],
             'backlog_tasks' => $counters['backlog'],
             'closed_tasks'  => $counters['closed'],
@@ -67,15 +80,15 @@ final class DashboardController extends BaseController {
             'closed_week'   => $counters['closed_week'],
         ];
 
-        $myTasks        = $tasks->listForAssignee($userId, 6);
-        $recentProjects = $projects->recentForUser($userId, $isAdmin, 3);
-        $projectTaskCounts = $tasks->countByProject(array_map(fn($p) => (int)$p['id'], $recentProjects));
+        $myTasks        = $this->tasks->listForAssignee($userId, 6);
+        $recentProjects = $this->projects->recentForUser($userId, $isAdmin, 3);
+        $projectTaskCounts = $this->tasks->countByProject(array_map(fn($p) => (int)$p['id'], $recentProjects));
         $recentActivity = array_map(
             [$this, 'formatActivity'],
-            $activity->recentForUser($userId, $isAdmin, 10)
+            $this->activity->recentForUser($userId, $isAdmin, 10)
         );
 
-        $csrfToken = App::make('csrf')->token();
+        $csrfToken = $this->csrf->token();
         $sidebar = $this->view->render('partials/sidebar', [
             'user'      => $this->user,
             'activeNav' => 'dashboard',

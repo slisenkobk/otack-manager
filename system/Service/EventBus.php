@@ -16,7 +16,7 @@ final class EventBus {
             try {
                 $fn($payload);
             } catch (\Throwable $e) {
-                error_log("EventBus[$event]: " . $e->getMessage());
+                Log::error('EventBus', $event . ': ' . $e->getMessage());
             }
         }
     }

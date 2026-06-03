@@ -63,6 +63,32 @@ $cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:c
 
     <section style="<?= e($card) ?>">
       <h3 style="<?= e($cardTitle) ?>">
+        <i class="fa-solid fa-list-ul" style="color:var(--text-2);" aria-hidden="true"></i>
+        <?= e(t('compass.cache.activity_log')) ?>
+      </h3>
+      <p style="margin:0;font-size:14px;">
+        <?= t('compass.cache.activity_log.stats', [
+            'total' => '<strong>' . (int)$activity['total'] . '</strong>',
+            'stale' => '<strong style="color:' . ($activity['stale'] > 0 ? 'var(--accent)' : 'var(--text-2)') . ';">' . (int)$activity['stale'] . '</strong>',
+            'days'  => (int)$activity['keep_days'],
+        ]) ?>
+      </p>
+      <p class="muted" style="font-size:12px;margin:0;">
+        <?= e(t('compass.cache.activity_log.hint', ['days' => (int)$activity['keep_days']])) ?>
+      </p>
+      <div>
+        <button class="btn btn--danger" type="button"
+                data-compass-action="prune-activity-log"
+                data-compass-confirm="<?= e(t('compass.cache.activity_log.confirm', ['n' => (int)$activity['stale']])) ?>"
+                data-compass-confirm-label="<?= e(t('common.delete')) ?>"
+                <?= $activity['stale'] === 0 ? 'disabled' : '' ?>>
+          <?= e(t('compass.cache.activity_log.prune')) ?>
+        </button>
+      </div>
+    </section>
+
+    <section style="<?= e($card) ?>">
+      <h3 style="<?= e($cardTitle) ?>">
         <i class="fa-solid fa-rotate" style="color:var(--text-2);" aria-hidden="true"></i>
         <?= e(t('compass.cache.assets')) ?>
       </h3>

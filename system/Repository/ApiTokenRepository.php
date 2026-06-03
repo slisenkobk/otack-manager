@@ -31,7 +31,11 @@ final class ApiTokenRepository
         return hash('sha256', $token);
     }
 
-    /** Create a token. Returns ['id' => int, 'token' => string]. Plaintext is shown to the user once. */
+    /**
+     * Create a token. Returns ['id' => int, 'token' => string]. Plaintext is shown to the user once.
+     *
+     * @return array{id:int,token:string}
+     */
     public function create(int $userId, string $name, ?int $expiresAt = null): array
     {
         $token = self::generate();
@@ -44,6 +48,7 @@ final class ApiTokenRepository
         return ['id' => (int)$this->pdo->lastInsertId(), 'token' => $token];
     }
 
+    /** @return array<string,mixed>|null */
     public function findById(int $id): ?array
     {
         $s = $this->pdo->prepare('SELECT * FROM api_tokens WHERE id = ?');
@@ -51,7 +56,11 @@ final class ApiTokenRepository
         return $s->fetch() ?: null;
     }
 
-    /** Active = not revoked, not expired, prefix-sane. Returns full row or null. */
+    /**
+     * Active = not revoked, not expired, prefix-sane. Returns full row or null.
+     *
+     * @return array<string,mixed>|null
+     */
     public function findActiveByToken(string $token): ?array
     {
         // A valid token is 'otk_' (4) + 40 base62 chars = 44 chars. The old
@@ -66,6 +75,7 @@ final class ApiTokenRepository
         return $s->fetch() ?: null;
     }
 
+    /** @return list<array<string,mixed>> */
     public function listForUser(int $userId): array
     {
         $s = $this->pdo->prepare('SELECT * FROM api_tokens WHERE user_id = ? ORDER BY created_at DESC, id DESC');
@@ -73,6 +83,7 @@ final class ApiTokenRepository
         return $s->fetchAll();
     }
 
+    /** @return list<array<string,mixed>> */
     public function listActiveForUser(int $userId): array
     {
         $s = $this->pdo->prepare(

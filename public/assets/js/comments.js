@@ -118,7 +118,7 @@ function buildReplyForm() {
   row.className = 'comment-composer__row';
   const cancel = document.createElement('button');
   cancel.type = 'button';
-  cancel.className = 'btn-ghost';
+  cancel.className = 'btn--ghost';
   cancel.dataset.action = 'cancel-reply';
   cancel.style.fontSize = '12px';
   cancel.textContent = 'Cancel';

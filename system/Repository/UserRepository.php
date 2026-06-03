@@ -5,12 +5,14 @@ namespace App\Repository;
 final class UserRepository {
     public function __construct(private \PDO $pdo) {}
 
+    /** @return array<string,mixed>|null */
     public function findByEmail(string $email): ?array {
         $stmt = $this->pdo->prepare('SELECT * FROM users WHERE email = ? LIMIT 1');
         $stmt->execute([$email]);
         return $stmt->fetch() ?: null;
     }
 
+    /** @return array<string,mixed>|null */
     public function findById(int $id): ?array {
         $stmt = $this->pdo->prepare('SELECT * FROM users WHERE id = ? LIMIT 1');
         $stmt->execute([$id]);
@@ -59,10 +61,12 @@ final class UserRepository {
         $this->pdo->prepare('UPDATE users SET last_login_at = ? WHERE id = ?')->execute([$now, $id]);
     }
 
+    /** @return list<array<string,mixed>> */
     public function listAll(): array {
         return $this->pdo->query('SELECT * FROM users ORDER BY created_at DESC')->fetchAll();
     }
 
+    /** @return list<array<string,mixed>> */
     public function listPaged(int $limit, int $offset, string $query = ''): array {
         if ($query !== '') {
             $like = '%' . mb_strtolower($query) . '%';

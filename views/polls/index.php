@@ -65,10 +65,10 @@ $statusLabels = [
         <div class="card-row">
           <div style="display:flex;gap:6px;">
             <?php if ($statusKey !== 'draft'): ?>
-              <a href="<?= e($publicUrl) ?>" target="_blank" rel="noopener" class="btn-ghost" data-stop title="<?= e(t('polls.open_public')) ?>"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+              <a href="<?= e($publicUrl) ?>" target="_blank" rel="noopener" class="btn--ghost" data-stop title="<?= e(t('polls.open_public')) ?>"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
             <?php endif; ?>
-            <button type="button" class="btn-ghost" data-action="duplicate-poll" data-stop title="<?= e(t('polls.duplicate_title')) ?>"><i class="fa-regular fa-clone"></i></button>
-            <button type="button" class="btn-ghost" data-action="delete-poll" data-stop title="<?= e(t('common.delete')) ?>" style="color:var(--accent);"><i class="fa-solid fa-trash"></i></button>
+            <button type="button" class="btn--ghost" data-action="duplicate-poll" data-stop title="<?= e(t('polls.duplicate_title')) ?>"><i class="fa-regular fa-clone"></i></button>
+            <button type="button" class="btn--ghost" data-action="delete-poll" data-stop title="<?= e(t('common.delete')) ?>" style="color:var(--accent);"><i class="fa-solid fa-trash"></i></button>
           </div>
           <span class="share-link"><?= e($statusKey === 'draft' ? t('common.edit') : t('polls.open_admin')) ?> <span class="arr">&#8594;</span></span>
         </div>

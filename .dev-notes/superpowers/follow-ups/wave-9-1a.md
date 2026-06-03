@@ -73,3 +73,39 @@ correctly and `t('js.toast.column_added')` returns "Column added".
   nonces; `script-src` was already strict and no inline scripts other than
   the one above existed pre-Wave-A. Future contributors: do not add inline
   scripts without a nonce or a JSON-island pattern.
+
+---
+
+## Wave 9.1b — known follow-ups (shipped as v1.3.0)
+
+### Pre-existing e2e flakes (still present, verified on every wave)
+
+Same two as Wave A — unchanged shape, untouched here:
+
+1. `tests/e2e/qa-walk.spec.ts:126` — 1.4 login with correct password after throttle
+2. `tests/e2e/visual-audit.spec.ts:841` — B12: no console errors on key pages
+
+The B12 console-errors test now sees additional warnings from the new `withButtonBusy`-driven `aria-busy` paths and the new lazy-load Quill path; these are not actual errors. Test logic (filter `msg.type() === 'error'`) is unchanged, so the existing failure cascade is the same as before.
+
+### Items NOT done in Wave B
+
+- **S-6 CSP unsafe-inline removal:** Task 13 added per-request `csp_nonce()` helper and nonced the brand style tag, but the CSP header still lists `'unsafe-inline'` in `style-src` because ~348 `style=""` attributes remain in views (CSS-5 sweep). That sweep is scheduled for Wave C / 1.3.x patch.
+- **17 silent-catch sites NOT migrated:** Wave A took the explicit `catch {}` form to `logSilent(e, 'tag')`. Some `try { btn.disabled = true; ... } finally { btn.disabled = false; }` blocks remain that could move to `withButtonBusy` (added in Task 21) — partial migration. ~18 remaining call sites in compass-db-migrate, links-show, dashboard, etc. — migrate opportunistically.
+- **Task 17 (split ui.js):** Deferred to 9.1c per the plan's "if stable" condition. ui.js is at 411 LOC; not blocking.
+- **Task 14 (BaseHandler helper consolidation):** N/A — grep found no `canSeeProject`-style duplicates between BaseHandler (API) and BaseController (web). Each helper exists once.
+
+### Architectural items deliberately left flexible
+
+- **ActivityLog assoc-array migration:** Task 9 added the new signature; only ~8 of 32 callers migrated as a sample. The other 24 work via the positional dispatch. Migrating the rest is mechanical and can happen with future touch.
+- **Controller convention test allowlist:** `BaseController.csrfToken()` and `Factory.php` are allowlisted to keep `App::make()`. Everything else is closed.
+- **i18n usage convention test allowlist:** 7 dynamic prefixes (`activity.`, `errors.`, `status.project.`, `status.user.`, `api_tokens.status_`, `updates.kind.`, `updates.source.`) + `forms_data.brand_tag`. Adding new dynamic keys requires extending this allowlist.
+
+### Stats at end of Wave 9.1b
+
+- Unit: **304 passed** (was 234 at end of Wave A — +70 tests)
+- API: **85 passed** (was 84 at end of Wave A — +1)
+- E2E: **76 passed, 2 pre-existing flakes, 48 cascade-skipped** (same shape as Wave A)
+- Commit count on `refactor/9-1b-architecture`: 43 atomic commits + release commit + merge
+- Asset budget: −577KB on dashboard/kanban first paint (Quill JS+CSS lazy + FA brand fonts dropped); +preload hints for primary woff2
+- index.php went from 451 LOC → 160 LOC (Wave A 451 → 160 → 160; Bootstrap split owns the rest)
+- app.css went from 5175 LOC → 8 layered files (tokens/base/layout/forms/kanban/cards-panels/modal-toast/utilities)

@@ -67,7 +67,7 @@ $renderComment = function (array $c, bool $isReply = false) use ($commentAttachm
     <form class="comment-composer" data-composer="root">
       <textarea class="textarea" name="body" placeholder="<?= e(t('tasks.comment_placeholder')) ?>" rows="3"></textarea>
       <div class="comment-composer__row">
-        <label class="btn-ghost comment-composer__attach">
+        <label class="btn--ghost comment-composer__attach">
           <i class="fa-solid fa-paperclip"></i> <?= e(t('attach.attach_files')) ?>
           <input type="file" multiple hidden data-comment-attach>
         </label>

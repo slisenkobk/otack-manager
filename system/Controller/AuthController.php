@@ -2,29 +2,37 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
+use App\Auth\AuthManager;
+use App\Auth\PasswordHasher;
+use App\Auth\SessionManager;
+use App\Http\Csrf;
 use App\Http\Request;
 use App\Http\Response;
-use App\Http\Csrf;
-use App\Auth\AuthManager;
+use App\Http\ValidationException;
+use App\Http\Validator;
+use App\Repository\SettingsRepository;
 use App\Repository\UserRepository;
+use App\Service\EventBus;
 use App\View\Renderer;
 
 final class AuthController extends BaseController {
-    private AuthManager $auth;
-    private UserRepository $users;
-    private Csrf $csrf;
-
-    public function __construct(Renderer $view, ?array $user = null) {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private AuthManager $auth,
+        private UserRepository $users,
+        private Csrf $csrf,
+        private PasswordHasher $hasher,
+        private SettingsRepository $settings,
+        private EventBus $events,
+        private SessionManager $sessionManager,
+        private object $session,
+    ) {
         parent::__construct($view, $user);
-        $this->auth  = App::make('auth');
-        $this->users = App::make('users');
-        $this->csrf  = App::make('csrf');
     }
 
     private function &session(): array {
-        $obj = App::make('session');
-        return $obj->store;
+        return $this->session->store;
     }
 
     private function flash(string $key, string $value): void {
@@ -42,15 +50,30 @@ final class AuthController extends BaseController {
     public function loginForm(Request $req, array $params = []): void {
         if ($this->user) { Response::redirect('/'); return; }
         Response::html($this->view->render('auth/login', [
-            'title'     => t('auth.sign_in'),
-            'csrfToken' => $this->csrf->token(),
-            'error'     => $this->consumeFlash('flash_error'),
+            'title'      => t('auth.sign_in'),
+            'csrfToken'  => $this->csrf->token(),
+            'error'      => $this->consumeFlash('flash_error'),
+            'fieldErrors'=> $this->consumeFieldErrors(),
         ], 'layouts/auth'));
     }
 
     public function login(Request $req, array $params = []): void {
-        $email    = trim($req->post['email'] ?? '');
-        $password = $req->post['password'] ?? '';
+        try {
+            $clean = Validator::for($req->post)
+                ->required('email')->email('email')
+                ->required('password')
+                ->clean();
+        } catch (ValidationException $e) {
+            // Login surfaces a single generic "invalid credentials" message so
+            // we don't leak whether the email exists; map all field failures
+            // through that same translation key — and additionally flash the
+            // field-error map so the offending input(s) get a red border.
+            $this->flash('flash_error', t('auth.invalid_credentials'));
+            $this->flashFieldErrors($e->fields);
+            Response::redirect('/login'); return;
+        }
+        $email    = $clean['email'];
+        $password = $clean['password'];
         $remember = !empty($req->post['remember']);
         $result   = $this->auth->login($email, $password);
 
@@ -72,12 +95,11 @@ final class AuthController extends BaseController {
         // Persist the remember-me intent so every subsequent request can
         // re-issue the session cookie with the right horizon (sliding window
         // in public/index.php).
-        $session = App::make('session');
-        $session->store['__remember'] = $remember;
-        App::make('session_manager')->extendCookie(
+        $this->session->store['__remember'] = $remember;
+        $this->sessionManager->extendCookie(
             $remember
-                ? \App\Auth\SessionManager::REMEMBER_LIFETIME
-                : \App\Auth\SessionManager::DEFAULT_LIFETIME
+                ? SessionManager::REMEMBER_LIFETIME
+                : SessionManager::DEFAULT_LIFETIME
         );
         // success — drop the resolved-locale cache so the post-login page picks
         // up the new user's locale instead of the Accept-Language fallback.
@@ -92,45 +114,56 @@ final class AuthController extends BaseController {
 
     public function registerForm(Request $req, array $params = []): void {
         Response::html($this->view->render('auth/register', [
-            'title'     => t('auth.create_account'),
-            'csrfToken' => $this->csrf->token(),
-            'error'     => $this->consumeFlash('flash_error'),
+            'title'      => t('auth.create_account'),
+            'csrfToken'  => $this->csrf->token(),
+            'error'      => $this->consumeFlash('flash_error'),
+            'fieldErrors'=> $this->consumeFieldErrors(),
         ], 'layouts/auth'));
     }
 
     public function register(Request $req, array $params = []): void {
-        $name     = trim($req->post['name'] ?? '');
-        $email    = trim($req->post['email'] ?? '');
-        $password = $req->post['password'] ?? '';
+        try {
+            $clean = Validator::for($req->post)
+                ->required('name')
+                ->required('email')->email('email')
+                ->required('password')->minLength('password', 8)
+                ->clean();
+        } catch (ValidationException $e) {
+            // Preserve the existing UX: pick the field-specific message that
+            // matches the first failure, falling back to the generic
+            // "invalid credentials" copy for the email branch.
+            $first = array_key_first($e->fields);
+            $code  = $e->fields[$first];
+            $msg = match ([$first, $code]) {
+                ['name', 'required']         => t('auth.name_required'),
+                ['password', 'required'],
+                ['password', 'too_short']    => t('auth.password_too_short'),
+                default                      => t('auth.invalid_credentials'),
+            };
+            $this->flash('flash_error', $msg);
+            $this->flashFieldErrors($e->fields);
+            Response::redirect('/register'); return;
+        }
+        $name     = $clean['name'];
+        $email    = $clean['email'];
+        $password = $clean['password'];
 
-        if ($name === '') {
-            $this->flash('flash_error', t('auth.name_required'));
-            Response::redirect('/register'); return;
-        }
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $this->flash('flash_error', t('auth.invalid_credentials'));
-            Response::redirect('/register'); return;
-        }
-        if (strlen($password) < 8) {
-            $this->flash('flash_error', t('auth.password_too_short'));
-            Response::redirect('/register'); return;
-        }
         if ($this->users->findByEmail($email)) {
             $this->flash('flash_error', t('auth.email_taken'));
+            $this->flashFieldErrors(['email' => 'taken']);
             Response::redirect('/register'); return;
         }
 
-        $hasher = App::make('hasher');
-        $hash   = $hasher->hash($password);
-        $id     = $this->users->create($email, $hash, $name);
+        $hash = $this->hasher->hash($password);
+        $id   = $this->users->create($email, $hash, $name);
 
         // Inherit the admin-configured default locale, but never write an
         // unknown code (defaults to 'en' if the setting is missing/invalid).
-        $defaultLocale = App::make('settings')->get('default_locale', 'en');
+        $defaultLocale = $this->settings->get('default_locale', 'en');
         if (!in_array($defaultLocale, available_locales(), true)) $defaultLocale = 'en';
         $this->users->updateLocale($id, $defaultLocale);
 
-        App::make('events')->fire('user.registered', [
+        $this->events->fire('user.registered', [
             'user_id' => $id,
             'name'    => $name,
             'email'   => $email,

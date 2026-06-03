@@ -38,6 +38,7 @@ final class AppBackupRepository
         return (int)$this->pdo->lastInsertId();
     }
 
+    /** @return array<string,mixed>|null */
     public function findById(int $id): ?array
     {
         $stmt = $this->pdo->prepare('SELECT * FROM app_backups WHERE id = ?');
@@ -45,7 +46,11 @@ final class AppBackupRepository
         return $stmt->fetch() ?: null;
     }
 
-    /** Newest first. Pruned backups are still surfaced so the admin sees the historical record. */
+    /**
+     * Newest first. Pruned backups are still surfaced so the admin sees the historical record.
+     *
+     * @return list<array<string,mixed>>
+     */
     public function listAll(): array
     {
         return $this->pdo->query(
@@ -57,6 +62,8 @@ final class AppBackupRepository
      * IDs of non-pruned backups beyond the keep-N retention threshold.
      * Returned newest-first by created_at — callers iterate and prune.
      * Empty array when the threshold isn't exceeded.
+     *
+     * @return list<int>
      */
     public function idsBeyondRetention(int $keep): array
     {

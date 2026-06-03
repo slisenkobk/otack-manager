@@ -38,6 +38,8 @@ final class PollRepository
      * input (email or phone) followed by a single radio "Choice" with two
      * blank options. The form-builder JS then lets the admin rename labels
      * and add more options while in draft.
+     *
+     * @return list<array<string,mixed>>
      */
     public static function defaultFields(string $contactKind = self::CONTACT_EMAIL): array
     {
@@ -187,6 +189,7 @@ final class PollRepository
         return $stmt->rowCount();
     }
 
+    /** @return array<string,mixed>|null */
     public function findById(int $id): ?array
     {
         $stmt = $this->pdo->prepare('SELECT * FROM polls WHERE id = ?');
@@ -194,6 +197,7 @@ final class PollRepository
         return $stmt->fetch() ?: null;
     }
 
+    /** @return array<string,mixed>|null */
     public function findByHash(string $hash): ?array
     {
         $stmt = $this->pdo->prepare('SELECT * FROM polls WHERE hash = ?');
@@ -205,6 +209,8 @@ final class PollRepository
      * Manager sees own polls only; admin sees everything. Optional status
      * filter ('draft' | 'active' | 'closed') and free-text query against
      * title/description.
+     *
+     * @return list<array<string,mixed>>
      */
     public function listForUser(int $userId, bool $isAdmin, ?string $status = null, string $query = ''): array
     {

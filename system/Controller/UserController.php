@@ -2,24 +2,37 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
+use App\Auth\PasswordHasher;
+use App\Http\AuthGuard;
+use App\Http\Csrf;
 use App\Http\Request;
 use App\Http\Response;
-use App\Http\AuthGuard;
+use App\Http\ValidationException;
+use App\Http\Validator;
+use App\Repository\ApiTokenRepository;
+use App\Repository\SettingsRepository;
 use App\Repository\UserRepository;
+use App\Service\EventBus;
+use App\View\Renderer;
 
 final class UserController extends BaseController {
-    private UserRepository $users;
-
-    public function __construct($view, $user = null) {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private UserRepository $users,
+        private ApiTokenRepository $apiTokens,
+        private PasswordHasher $hasher,
+        private SettingsRepository $settings,
+        private EventBus $events,
+        private Csrf $csrf,
+        private object $session,
+    ) {
         parent::__construct($view, $user);
         AuthGuard::requireAdmin($this->user);
-        $this->users = App::make('users');
     }
 
     private function &session(): array {
-        $obj = App::make('session');
-        return $obj->store;
+        return $this->session->store;
     }
 
     private function flash(string $key, string $value): void {
@@ -40,7 +53,7 @@ final class UserController extends BaseController {
         if (!$user) { Response::notFound(); return; }
 
         $csrfToken = $this->csrfToken();
-        $apiTokens = App::make('api_tokens')->listForUser($id);
+        $apiTokens = $this->apiTokens->listForUser($id);
 
         $sidebar = $this->view->render('partials/sidebar', [
             'user' => $this->user, 'activeNav' => 'users', 'csrfToken' => $csrfToken,
@@ -66,12 +79,11 @@ final class UserController extends BaseController {
     public function revokeToken(Request $req, array $params): void {
         $userId  = (int)($params['id'] ?? 0);
         $tokenId = (int)($params['tid'] ?? 0);
-        $repo = App::make('api_tokens');
-        $row  = $repo->findById($tokenId);
+        $row = $this->apiTokens->findById($tokenId);
         // Silent no-op on missing / cross-user IDs — admins shouldn't be able
         // to probe token ids that don't belong to this user.
         if ($row && (int)$row['user_id'] === $userId) {
-            $repo->revoke($tokenId);
+            $this->apiTokens->revoke($tokenId);
             $this->flash('flash_success', t('api_tokens.revoked'));
         }
         Response::redirect('/users/' . $userId);
@@ -79,7 +91,7 @@ final class UserController extends BaseController {
 
     public function revokeAllTokens(Request $req, array $params): void {
         $userId = (int)($params['id'] ?? 0);
-        App::make('api_tokens')->revokeAllForUser($userId);
+        $this->apiTokens->revokeAllForUser($userId);
         $this->flash('flash_success', t('api_tokens.all_revoked'));
         Response::redirect('/users/' . $userId);
     }
@@ -92,7 +104,7 @@ final class UserController extends BaseController {
         $list    = $this->users->listPaged($perPage, $offset, $query);
         $total   = $this->users->countAll($query);
         $pages   = max(1, (int)ceil($total / $perPage));
-        $csrfToken = App::make('csrf')->token();
+        $csrfToken = $this->csrf->token();
         $sidebar = $this->view->render('partials/sidebar', [
             'user' => $this->user, 'activeNav' => 'users', 'csrfToken' => $csrfToken,
         ]);
@@ -117,7 +129,7 @@ final class UserController extends BaseController {
         $this->users->approve($id);
         $approved = $this->users->findById($id);
         if ($approved) {
-            App::make('events')->fire('user.approved', [
+            $this->events->fire('user.approved', [
                 'user_id'    => (int)$approved['id'],
                 'name'       => $approved['name'],
                 'actor_name' => $this->user['name'],
@@ -136,7 +148,7 @@ final class UserController extends BaseController {
     }
 
     public function setRole(Request $req, array $params): void {
-        $data = json_decode(file_get_contents('php://input'), true) ?? $req->post;
+        $data = $req->jsonBody($req->post);
         $role = $data['role'] ?? '';
         if (!in_array($role, ['admin', 'manager', 'employee'], true)) {
             Response::json(['error' => 'Invalid role'], 422); return;
@@ -150,19 +162,28 @@ final class UserController extends BaseController {
     }
 
     public function create(Request $req, array $params = []): void {
-        $data  = json_decode(file_get_contents('php://input'), true) ?? $req->post;
-        $name  = trim((string)($data['name'] ?? ''));
-        $email = trim((string)($data['email'] ?? ''));
-        $pass  = (string)($data['password'] ?? '');
+        $data = $req->jsonBody($req->post);
+        try {
+            $clean = Validator::for($data)
+                ->required('name')
+                ->required('email')->email('email')
+                ->required('password')->minLength('password', 8)
+                ->clean();
+        } catch (ValidationException $e) {
+            Response::json([
+                'error'  => 'Name, email and password (min 8) are required',
+                'fields' => $e->fields,
+            ], 422); return;
+        }
+        $name  = $clean['name'];
+        $email = $clean['email'];
+        $pass  = $clean['password'];
         $role  = in_array($data['role'] ?? 'employee', ['admin', 'manager', 'employee'], true)
             ? $data['role'] : 'employee';
-        if ($name === '' || $email === '' || strlen($pass) < 8) {
-            Response::json(['error' => 'Name, email and password (min 8) are required'], 422); return;
-        }
         if ($this->users->findByEmail($email)) {
             Response::json(['error' => 'Email already registered'], 422); return;
         }
-        $hash = App::make('hasher')->hash($pass);
+        $hash = $this->hasher->hash($pass);
         $id   = $this->users->create($email, $hash, $name);
         // create() defaults to pending for non-first users; admin-created → approved + chosen role.
         $this->users->approve($id);
@@ -171,7 +192,7 @@ final class UserController extends BaseController {
         // settings.default_locale (also 'en' if unset).
         $locale = (string)($data['locale'] ?? '');
         if (!in_array($locale, available_locales(), true)) {
-            $locale = App::make('settings')->get('default_locale', 'en');
+            $locale = $this->settings->get('default_locale', 'en');
             if (!in_array($locale, available_locales(), true)) $locale = 'en';
         }
         $this->users->updateLocale($id, $locale);
@@ -182,7 +203,7 @@ final class UserController extends BaseController {
         $id   = (int)$params['id'];
         $u    = $this->users->findById($id);
         if (!$u) { Response::json(['error' => 'Not found'], 404); return; }
-        $data = json_decode(file_get_contents('php://input'), true) ?? $req->post;
+        $data = $req->jsonBody($req->post);
         $name = isset($data['name']) ? trim((string)$data['name']) : null;
         $pass = isset($data['password']) ? (string)$data['password'] : '';
         if ($name !== null && $name !== '' && $name !== $u['name']) {
@@ -190,7 +211,7 @@ final class UserController extends BaseController {
         }
         if ($pass !== '') {
             if (strlen($pass) < 8) { Response::json(['error' => 'Password must be at least 8 chars'], 422); return; }
-            $this->users->updatePassword($id, App::make('hasher')->hash($pass));
+            $this->users->updatePassword($id, $this->hasher->hash($pass));
         }
         $locale = isset($data['locale']) ? (string)$data['locale'] : null;
         if ($locale !== null && in_array($locale, available_locales(), true) && $locale !== ($u['locale'] ?? 'en')) {

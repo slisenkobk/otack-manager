@@ -2,11 +2,12 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
 use App\Http\Request;
 use App\Http\Response;
 use App\Repository\ShortLinkRepository;
 use App\Repository\ShortLinkVisitRepository;
+use App\Service\Log;
+use App\View\Renderer;
 
 /**
  * Public short-link proxy. No auth, no CSRF (whitelisted in public/index.php).
@@ -14,14 +15,13 @@ use App\Repository\ShortLinkVisitRepository;
  */
 final class PublicLinkController extends BaseController
 {
-    private ShortLinkRepository      $links;
-    private ShortLinkVisitRepository $visits;
-
-    public function __construct($view, $user = null)
-    {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private ShortLinkRepository $links,
+        private ShortLinkVisitRepository $visits,
+    ) {
         parent::__construct($view, $user);
-        $this->links  = App::make('short_links');
-        $this->visits = App::make('short_link_visits');
     }
 
     /** Slug shape mirrors ShortLinkRepository::generateSlug — 8 base64url chars.
@@ -39,7 +39,8 @@ final class PublicLinkController extends BaseController
         if (!$link) { $this->renderNotFound(); return; }
 
         $ip      = $this->resolveRemoteIp();
-        $secret  = (string)\App\App::env('LOGIN_HASH', '');
+        // Prefer APP_SECRET; falls back to LOGIN_HASH for backward compatibility.
+        $secret  = app_secret();
         $ipHash  = ShortLinkVisitRepository::hashIp($ip, $secret);
         $ua      = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
         $referer = (string)($_SERVER['HTTP_REFERER']    ?? '');
@@ -54,7 +55,7 @@ final class PublicLinkController extends BaseController
                 $referer !== '' ? $referer : null
             );
         } catch (\Throwable $e) {
-            error_log('[short-link] visit log failed: ' . $e->getMessage());
+            Log::warn('short-link', 'visit log failed: ' . $e->getMessage());
         }
 
         Response::redirect((string)$link['target_url'], 302);

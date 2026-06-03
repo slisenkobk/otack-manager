@@ -1,5 +1,6 @@
 import { api, UI, buildCustomSelect } from './ui.js';
 import { logSilent, t } from './utils.js';
+import { buildField } from './ui-fields.js';
 
 // Search form submits on Enter (native) or via the submit button.
 
@@ -11,29 +12,15 @@ function getLocales() {
   }
 }
 
-function buildField(label, factory) {
-  const wrap = document.createElement('div');
-  wrap.className = 'field';
-  wrap.style.marginBottom = '12px';
-  const l = document.createElement('label');
-  l.textContent = label;
-  l.style.fontSize = '11px';
-  l.style.textTransform = 'uppercase';
-  l.style.letterSpacing = '.1em';
-  l.style.color = 'var(--ink-3)';
-  l.style.display = 'block';
-  l.style.marginBottom = '4px';
-  wrap.appendChild(l);
-  const input = factory();
-  wrap.appendChild(input);
-  return { wrap, input };
-}
+// Wrapper preserves the `{ spaced: true }` styling without forcing every
+// call site to pass it — every user modal field uses the spaced variant.
+const F = (label, factory) => buildField(label, factory, { spaced: true });
 
 function openUserModal({ title, name = '', email = '', locale = 'en', isEdit = false, onSubmit }) {
   const body = document.createElement('div');
-  const nameF = buildField('Name', () => { const i = document.createElement('input'); i.className = 'input'; i.value = name; return i; });
-  const emailF = buildField('Email', () => { const i = document.createElement('input'); i.className = 'input'; i.type = 'email'; i.value = email; if (isEdit) { i.disabled = true; i.style.opacity = '.6'; } return i; });
-  const passF = buildField(isEdit ? 'New password (leave blank to keep)' : 'Password (min 8)', () => { const i = document.createElement('input'); i.className = 'input'; i.type = 'password'; i.minLength = 8; return i; });
+  const nameF = F('Name', () => { const i = document.createElement('input'); i.className = 'input'; i.value = name; return i; });
+  const emailF = F('Email', () => { const i = document.createElement('input'); i.className = 'input'; i.type = 'email'; i.value = email; if (isEdit) { i.disabled = true; i.style.opacity = '.6'; } return i; });
+  const passF = F(isEdit ? 'New password (leave blank to keep)' : 'Password (min 8)', () => { const i = document.createElement('input'); i.className = 'input'; i.type = 'password'; i.minLength = 8; return i; });
   body.appendChild(nameF.wrap);
   body.appendChild(emailF.wrap);
   body.appendChild(passF.wrap);
@@ -46,7 +33,7 @@ function openUserModal({ title, name = '', email = '', locale = 'en', isEdit = f
       { value: 'admin',    label: 'Admin'    },
     ];
     const built = buildCustomSelect(roleItems, 'employee');
-    roleF = buildField('Role', () => built.root);
+    roleF = F('Role', () => built.root);
     roleF.hidden = built.hidden;
     body.appendChild(roleF.wrap);
   }
@@ -57,7 +44,7 @@ function openUserModal({ title, name = '', email = '', locale = 'en', isEdit = f
   // dropdown is visually consistent with the rest of the chrome.
   const localeItems = getLocales().map(l => ({ value: l.code, label: l.name }));
   const localeBuilt = buildCustomSelect(localeItems.length ? localeItems : [{ value: locale, label: locale }], locale);
-  const localeF = buildField('Language', () => localeBuilt.root);
+  const localeF = F('Language', () => localeBuilt.root);
   localeF.hidden = localeBuilt.hidden;
   body.appendChild(localeF.wrap);
 
@@ -65,7 +52,7 @@ function openUserModal({ title, name = '', email = '', locale = 'en', isEdit = f
     title,
     body,
     actions: [
-      { label: 'Cancel', variant: 'btn-ghost', onClick: c => c() },
+      { label: 'Cancel', variant: 'btn--ghost', onClick: c => c() },
       { label: isEdit ? 'Save' : 'Create', variant: 'submit', onClick: async (close) => {
           const payload = { name: nameF.input.value.trim() };
           if (!isEdit) payload.email = emailF.input.value.trim();

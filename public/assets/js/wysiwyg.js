@@ -1,18 +1,51 @@
 /**
  * wysiwyg.js — Initialises Quill on any element with [data-quill]
  *
+ * Quill is lazy-loaded on first sight of a [data-quill] node (AS-3): the layout
+ * no longer ships quill.min.js / quill.snow.css on every authenticated page.
+ *
  * Quill sanitises its own output, so reading editor.root.innerHTML is safe.
  * The server-side HtmlSanitizer provides an additional allow-list check on save.
  */
 
-function initQuill(el) {
-  if (typeof window.Quill === 'undefined') return;
+let _quillLoadPromise = null;
+
+function ensureQuillLoaded() {
+  if (window.Quill) return Promise.resolve();
+  if (_quillLoadPromise) return _quillLoadPromise;
+  _quillLoadPromise = new Promise((resolve, reject) => {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = '/assets/vendor/quill/quill.snow.css';
+    document.head.appendChild(css);
+
+    const s = document.createElement('script');
+    s.src = '/assets/vendor/quill/quill.min.js';
+    s.onload = () => resolve();
+    s.onerror = (e) => {
+      _quillLoadPromise = null; // allow retry on next [data-quill] match
+      reject(e);
+    };
+    document.head.appendChild(s);
+  });
+  return _quillLoadPromise;
+}
+
+async function initQuill(el) {
   // Guard against double-init: the layout loads this module via a cache-busted
   // URL and individual pages may import it again (or the MutationObserver in
   // ui.js re-runs init when modal nodes are inserted). Without the guard,
   // Quill builds a second toolbar above the editor.
   if (el.dataset.quillReady === '1') return;
   el.dataset.quillReady = '1';
+
+  try {
+    await ensureQuillLoaded();
+  } catch (_) {
+    el.dataset.quillReady = ''; // allow retry
+    return;
+  }
+  if (typeof window.Quill === 'undefined') return;
 
   const targetSelector = el.dataset.quillTarget;
   const hidden = targetSelector ? document.querySelector(targetSelector) : null;
@@ -46,13 +79,7 @@ function initQuill(el) {
 }
 
 function tryInit() {
-  if (typeof window.Quill !== 'undefined') {
-    document.querySelectorAll('[data-quill]').forEach(initQuill);
-  } else {
-    window.addEventListener('load', () => {
-      document.querySelectorAll('[data-quill]').forEach(initQuill);
-    }, { once: true });
-  }
+  document.querySelectorAll('[data-quill]').forEach(initQuill);
 }
 
 if (!window.__otackQuillInit) {

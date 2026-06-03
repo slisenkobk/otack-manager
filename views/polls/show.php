@@ -18,13 +18,13 @@ $hasMore   = count($voters) < (int)$total;
     </div>
     <div class="builder-toolbar__right">
       <?php if ($statusKey === 'active'): ?>
-        <button type="button" class="btn-secondary" data-action="close-poll"
+        <button type="button" class="btn--secondary" data-action="close-poll"
                 data-confirm="<?= e(t('polls.close_confirm')) ?>"><i class="fa-solid fa-stop"></i> <?= e(t('polls.close')) ?></button>
       <?php endif; ?>
       <?php if ($statusKey === 'closed' && !empty($poll['project_id']) && empty($poll['summary_task_id'])): ?>
         <button type="button" class="btn btn--primary" data-action="create-summary-task"><i class="fa-solid fa-list-check"></i> <?= e(t('polls.create_summary_task')) ?></button>
       <?php elseif ($statusKey === 'closed' && !empty($poll['summary_task_id'])): ?>
-        <a class="btn-secondary" href="/tasks/<?= (int)$poll['summary_task_id'] ?>" style="text-decoration:none;">
+        <a class="btn--secondary" href="/tasks/<?= (int)$poll['summary_task_id'] ?>" style="text-decoration:none;">
           <i class="fa-solid fa-arrow-up-right-from-square"></i> <?= e(t('polls.view_summary_task')) ?>
         </a>
       <?php endif; ?>
@@ -131,7 +131,7 @@ $hasMore   = count($voters) < (int)$total;
         </table>
         <?php if ($hasMore): ?>
           <div style="margin-top:12px;display:flex;justify-content:center;">
-            <button type="button" class="btn-secondary load-more-voters"
+            <button type="button" class="btn--secondary load-more-voters"
                     data-offset="<?= count($voters) ?>">
               <i class="fa-solid fa-chevron-down"></i> <?= e(t('polls.voters_load_more')) ?>
             </button>

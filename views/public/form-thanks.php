@@ -8,7 +8,14 @@ header('Content-Type: text/html; charset=utf-8');
 <title><?= e(app_name()) ?> - <?= e(t('public_form.thanks_title')) ?></title>
 <link rel="icon" type="image/svg+xml" href="<?= e(app_favicon_href()) ?>">
 <?= app_brand_style_tag() ?>
-<link rel="stylesheet" href="<?= e(asset_url('/assets/css/app.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/tokens.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/base.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/layout.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/forms.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/kanban.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/cards-panels.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/modal-toast.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/utilities.css')) ?>">
 <link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
 <style>
   body { background:

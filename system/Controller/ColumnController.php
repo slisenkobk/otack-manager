@@ -2,23 +2,24 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
 use App\Http\Request;
 use App\Http\Response;
 use App\Repository\TaskColumnRepository;
 use App\Repository\ProjectRepository;
 use App\Repository\ProjectMemberRepository;
+use App\View\Renderer;
+use PDO;
 
 final class ColumnController extends BaseController {
-    private TaskColumnRepository $cols;
-    private ProjectRepository $projects;
-    private ProjectMemberRepository $members;
-
-    public function __construct($view, $user = null) {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private TaskColumnRepository $cols,
+        private ProjectRepository $projects,
+        private ProjectMemberRepository $members,
+        private PDO $db,
+    ) {
         parent::__construct($view, $user);
-        $this->cols = App::make('columns');
-        $this->projects = App::make('projects');
-        $this->members = App::make('members');
     }
 
     private function assertMember(int $projectId): void {
@@ -29,7 +30,7 @@ final class ColumnController extends BaseController {
     }
 
     public function create(Request $req, array $params = []): void {
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
         $projectId = (int)($data['project_id'] ?? 0);
         $name = trim((string)($data['name'] ?? ''));
         $color = (string)($data['color'] ?? '#8B7C68');
@@ -46,12 +47,12 @@ final class ColumnController extends BaseController {
 
     public function update(Request $req, array $params): void {
         $id = (int)$params['id'];
-        $stmt = App::make('db')->prepare('SELECT * FROM task_columns WHERE id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM task_columns WHERE id = ?');
         $stmt->execute([$id]);
         $col = $stmt->fetch();
         if (!$col) { Response::json(['error' => 'Not found'], 404); return; }
         $this->assertMember((int)$col['project_id']);
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
         $fields = [];
         if (isset($data['name'])) $fields['name'] = trim((string)$data['name']);
         if (isset($data['color'])) $fields['color'] = (string)$data['color'];
@@ -62,15 +63,15 @@ final class ColumnController extends BaseController {
 
     public function delete(Request $req, array $params): void {
         $id = (int)$params['id'];
-        $stmt = App::make('db')->prepare('SELECT * FROM task_columns WHERE id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM task_columns WHERE id = ?');
         $stmt->execute([$id]);
         $col = $stmt->fetch();
         if (!$col) { Response::json(['error' => 'Not found'], 404); return; }
         $this->assertMember((int)$col['project_id']);
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
         $moveTo = isset($data['move_to']) && $data['move_to'] !== '' ? (int)$data['move_to'] : null;
 
-        $t = App::make('db')->prepare('SELECT COUNT(*) AS c FROM tasks WHERE column_id = ?');
+        $t = $this->db->prepare('SELECT COUNT(*) AS c FROM tasks WHERE column_id = ?');
         $t->execute([$id]);
         $hasTasks = (int)$t->fetch()['c'] > 0;
         if ($hasTasks && $moveTo === null) {
@@ -90,7 +91,7 @@ final class ColumnController extends BaseController {
             Response::json(['error' => 'Not found'], 404); return;
         }
         $this->assertMember($projectId);
-        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data = $req->jsonBody([]);
         $orderedIds = array_values(array_map('intval', $data['ids'] ?? []));
         if (!$orderedIds) {
             Response::json(['error' => 'ids[] required'], 422); return;

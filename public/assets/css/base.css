@@ -1,0 +1,59 @@
+/* ═══════════════════════════════════════════════════════════════
+   base.css — Font faces + reset + body (load order 2 of 8)
+   §3 Font faces and base reset; depends on tokens.css.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── §3 Font faces ──────────────────────────────────────────── */
+@font-face { font-family: 'Manrope'; font-weight: 400; font-display: swap;
+  src: url('/assets/fonts/manrope-400.woff2') format('woff2'); }
+@font-face { font-family: 'Manrope'; font-weight: 500; font-display: swap;
+  src: url('/assets/fonts/manrope-500.woff2') format('woff2'); }
+@font-face { font-family: 'Manrope'; font-weight: 600; font-display: swap;
+  src: url('/assets/fonts/manrope-600.woff2') format('woff2'); }
+@font-face { font-family: 'Manrope'; font-weight: 700; font-display: swap;
+  src: url('/assets/fonts/manrope-700.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 400; font-display: swap;
+  src: url('/assets/fonts/jetbrainsmono-400.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 500; font-display: swap;
+  src: url('/assets/fonts/jetbrainsmono-500.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 700; font-display: swap;
+  src: url('/assets/fonts/jetbrainsmono-700.woff2') format('woff2'); }
+
+/* ─── §3 Base reset + styles ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  overscroll-behavior-y: none;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fz-body);
+  line-height: var(--lh);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Auth screens: page is plain white, the brief card carries the paper tone. */
+body.auth-page { background: var(--auth-page-bg); }
+body.auth-page::before { content: none; }
+body.auth-page .brief { background: var(--paper-2); }
+body.auth-page .brief .input,
+body.auth-page .brief .textarea,
+body.auth-page .brief .select { background: var(--paper); }
+
+/* Grain overlay — subtle paper texture, not dots */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.3;
+  z-index: var(--z-lightbox);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1 0 0 0 0 0.08 0 0 0 0 0.06 0 0 0 .25 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+

@@ -7,7 +7,7 @@ use App\Http\Request;
 
 final class PingHandler extends BaseHandler
 {
-    public function ping(Request $req): array
+    public function ping(Request $req, array $params = []): array
     {
         return ApiResponse::ok(['ok' => true, 'user_id' => $this->userId()]);
     }

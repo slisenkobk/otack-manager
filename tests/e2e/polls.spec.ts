@@ -110,7 +110,7 @@ test('admin creates poll, voter votes, dedup works, summary task spawns', async 
   await expect(page.locator('.voters-table tbody tr')).toContainText(VOTER_EMAIL);
 
   // Close the poll. UI.confirm with {danger:true} renders the confirm button
-  // as .btn-danger (not .submit), so target the trailing button.
+  // as .btn--danger (not .submit), so target the trailing button.
   await Promise.all([
     page.waitForResponse(r => /\/polls\/\d+\/close$/.test(r.url()) && r.request().method() === 'POST' && r.ok()),
     (async () => {

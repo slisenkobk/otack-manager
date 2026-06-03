@@ -77,23 +77,23 @@ $localeNames = locale_display_names();
           <td class="data-table__cell--actions">
             <div style="display:inline-flex;gap:6px;" data-actions>
               <?php if ($u['status'] === 'pending'): ?>
-                <button class="btn-secondary" data-action="approve" type="button" title="<?= e(t('users.action.approve')) ?>">
+                <button class="btn--secondary" data-action="approve" type="button" title="<?= e(t('users.action.approve')) ?>">
                   <i class="fa-solid fa-check"></i> <?= e(t('users.action.approve')) ?>
                 </button>
               <?php endif; ?>
-              <a class="btn-secondary" href="/users/<?= (int)$u['id'] ?>" title="<?= e(t('users.action.view')) ?>">
+              <a class="btn--secondary" href="/users/<?= (int)$u['id'] ?>" title="<?= e(t('users.action.view')) ?>">
                 <i class="fa-solid fa-eye"></i>
               </a>
-              <button class="btn-secondary" data-action="edit-user" type="button" title="<?= e(t('users.action.edit')) ?>">
+              <button class="btn--secondary" data-action="edit-user" type="button" title="<?= e(t('users.action.edit')) ?>">
                 <i class="fa-solid fa-pen"></i>
               </button>
               <?php if ($u['status'] !== 'blocked' && (int)$u['id'] !== (int)$currentUserId): ?>
-                <button class="btn-secondary" data-action="block" type="button" title="<?= e(t('users.action.block')) ?>">
+                <button class="btn--secondary" data-action="block" type="button" title="<?= e(t('users.action.block')) ?>">
                   <i class="fa-solid fa-ban"></i>
                 </button>
               <?php endif; ?>
               <?php if ((int)$u['id'] !== (int)$currentUserId): ?>
-                <button class="btn-danger" data-action="delete" type="button" title="<?= e(t('users.action.delete')) ?>">
+                <button class="btn--danger" data-action="delete" type="button" title="<?= e(t('users.action.delete')) ?>">
                   <i class="fa-solid fa-trash"></i>
                 </button>
               <?php endif; ?>

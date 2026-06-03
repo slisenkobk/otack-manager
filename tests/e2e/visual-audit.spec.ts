@@ -643,7 +643,7 @@ test('B4: all buttons have visible padding', async ({ page }) => {
   await page.waitForLoadState('networkidle');
 
   // Check primary buttons
-  const buttons = page.locator('.btn, .btn-primary, .btn-secondary, .btn-brand').first();
+  const buttons = page.locator('.btn, .btn--primary, .btn--secondary, .btn--brand').first();
   if (await buttons.count() > 0) {
     const padding = await buttons.evaluate((el) => {
       const cs = getComputedStyle(el);
@@ -676,7 +676,7 @@ test('B5: tag chips use 10-hue color system', async ({ page }) => {
   }
 
   // Check that the CSS has 10 semantic colors
-  const cssContent = fs.readFileSync(path.join(ROOT, 'public/assets/css/app.css'), 'utf8');
+  const cssContent = fs.readFileSync(path.join(ROOT, 'public/assets/css/tokens.css'), 'utf8');
   const colorVars = ['--green', '--red', '--blue', '--yellow', '--teal', '--purple', '--magenta', '--brown', '--olive', '--indigo'];
   for (const v of colorVars) {
     expect(cssContent).toContain(v);

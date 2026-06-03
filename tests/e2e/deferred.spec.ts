@@ -196,7 +196,7 @@ test('D.2.3 admin tags page: delete a tag', async ({ page }) => {
 
   // Confirm modal
   await expect(page.locator('.modal')).toBeVisible({ timeout: 2000 });
-  await page.locator('.modal button.btn-danger').click();
+  await page.locator('.modal button.btn--danger').click();
   await page.waitForTimeout(400);
 
   // One fewer tag

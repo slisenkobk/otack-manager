@@ -2,30 +2,33 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
 use App\Http\Request;
 use App\Http\Response;
-use App\Service\Markdown;
-use App\Service\RolePolicy;
+use App\Repository\ActivityLogRepository;
 use App\Repository\CommentRepository;
 use App\Repository\ProjectMemberRepository;
-use App\Repository\TaskRepository;
 use App\Repository\ProjectRepository;
+use App\Repository\TaskRepository;
+use App\Repository\UserRepository;
+use App\Service\EventBus;
+use App\Service\Markdown;
+use App\Service\RolePolicy;
+use App\View\Renderer;
 
 final class CommentController extends BaseController
 {
-    private CommentRepository       $comments;
-    private ProjectMemberRepository $members;
-    private TaskRepository          $tasks;
-    private ProjectRepository       $projects;
-
-    public function __construct($view, $user = null)
-    {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private CommentRepository $comments,
+        private ProjectMemberRepository $members,
+        private TaskRepository $tasks,
+        private ProjectRepository $projects,
+        private UserRepository $users,
+        private ActivityLogRepository $activity,
+        private EventBus $events,
+    ) {
         parent::__construct($view, $user);
-        $this->comments  = App::make('comments');
-        $this->members   = App::make('members');
-        $this->tasks     = App::make('tasks');
-        $this->projects  = App::make('projects');
     }
 
     /** Assert the current user is a member (or admin) of the project/task entity. */
@@ -67,7 +70,7 @@ final class CommentController extends BaseController
 
     public function create(Request $req, array $params = []): void
     {
-        $data       = json_decode(file_get_contents('php://input'), true) ?? [];
+        $data       = $req->jsonBody([]);
         $entityType = $data['entity_type'] ?? '';
         $entityId   = (int)($data['entity_id'] ?? 0);
         $body       = trim($data['body'] ?? '');
@@ -93,7 +96,7 @@ final class CommentController extends BaseController
             }
             $parentId = (int)($parent['parent_id'] ?: $parent['id']);
             // Resolve the root's author for the notification message
-            $rootAuthor = App::make('users')->findById((int)$parent['user_id']);
+            $rootAuthor = $this->users->findById((int)$parent['user_id']);
             $replyToAuthor = $rootAuthor['name'] ?? null;
         }
 
@@ -109,7 +112,7 @@ final class CommentController extends BaseController
             $targetName = $entity['title'];
             $entityUrl  = \abs_url('/tasks/' . $entityId);
         }
-        App::make('events')->fire('comment.created', [
+        $this->events->fire('comment.created', [
             'comment_id'     => $id,
             'entity_type'    => $entityType,
             'entity_id'      => $entityId,
@@ -123,14 +126,14 @@ final class CommentController extends BaseController
 
         $activityProjectId = $entityType === 'project' ? $entityId : (int)($entity['project_id'] ?? 0);
         $activityTaskId    = $entityType === 'task' ? $entityId : null;
-        App::make('activity')->log(
-            'comment.created',
-            (int)$this->user['id'],
-            $activityProjectId ?: null,
-            $activityTaskId,
-            mb_substr(strip_tags($body), 0, 200),
-            ['comment_id' => $id]
-        );
+        $this->activity->log([
+            'event'      => 'comment.created',
+            'actor_id'   => (int)$this->user['id'],
+            'project_id' => $activityProjectId ?: null,
+            'task_id'    => $activityTaskId,
+            'summary'    => mb_substr(strip_tags($body), 0, 200),
+            'meta'       => ['comment_id' => $id],
+        ]);
 
         Response::json([
             'ok'      => true,
@@ -169,15 +172,15 @@ final class CommentController extends BaseController
         $targetName = '';
         $entityUrl  = '';
         if ($entityType === 'project') {
-            $proj = App::make('projects')->findById($entityId);
+            $proj = $this->projects->findById($entityId);
             $targetName = $proj['name'] ?? ('#' . $entityId);
             $entityUrl  = \abs_url('/projects/' . $entityId);
         } elseif ($entityType === 'task') {
-            $task = App::make('tasks')->findById($entityId);
+            $task = $this->tasks->findById($entityId);
             $targetName = $task['title'] ?? ('#' . $entityId);
             $entityUrl  = \abs_url('/tasks/' . $entityId);
         }
-        App::make('events')->fire('comment.deleted', [
+        $this->events->fire('comment.deleted', [
             'comment_id'   => $id,
             'entity_type'  => $entityType,
             'entity_id'    => $entityId,
@@ -192,17 +195,17 @@ final class CommentController extends BaseController
             $activityProjectId = $entityId;
         } elseif ($entityType === 'task') {
             $activityTaskId = $entityId;
-            $task = App::make('tasks')->findById($entityId);
+            $task = $this->tasks->findById($entityId);
             if ($task) $activityProjectId = (int)$task['project_id'];
         }
-        App::make('activity')->log(
-            'comment.deleted',
-            (int)$this->user['id'],
-            $activityProjectId,
-            $activityTaskId,
-            "deleted a comment on {$entityType} '{$targetName}'",
-            ['comment_id' => $id]
-        );
+        $this->activity->log([
+            'event'      => 'comment.deleted',
+            'actor_id'   => (int)$this->user['id'],
+            'project_id' => $activityProjectId,
+            'task_id'    => $activityTaskId,
+            'summary'    => "deleted a comment on {$entityType} '{$targetName}'",
+            'meta'       => ['comment_id' => $id],
+        ]);
         Response::json(['ok' => true]);
     }
 }

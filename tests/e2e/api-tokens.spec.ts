@@ -59,10 +59,10 @@ test('user can create, view-once, and revoke an API token', async ({ page }) => 
   // then accept the modal. The form is submit-intercepted by api-tokens.js.
   await page.click('[data-action=revoke-token]');
   // The modal renders inside #modal-root; the confirm button uses class
-  // `submit` for non-danger and `btn-danger` for destructive flows.
+  // `submit` for non-danger and `btn--danger` for destructive flows.
   const modal = page.locator('.modal-backdrop .modal');
   await expect(modal).toBeVisible();
-  await modal.locator('button.btn-danger').click();
+  await modal.locator('button.btn--danger').click();
 
   // After revoke the row's status flips to "Revoked".
   await expect(page).toHaveURL('/profile/tokens');
@@ -166,7 +166,7 @@ test.describe('admin tokens view', () => {
     await firstRow.locator('[data-action=revoke-token]').click();
     let modal = page.locator('.modal-backdrop .modal');
     await expect(modal).toBeVisible();
-    await modal.locator('button.btn-danger').click();
+    await modal.locator('button.btn--danger').click();
     await expect(page).toHaveURL(`/users/${bobId}`);
 
     // Exactly one row is now Revoked and one is still Active.
@@ -177,7 +177,7 @@ test.describe('admin tokens view', () => {
     await page.click('[data-action=revoke-all-tokens]');
     modal = page.locator('.modal-backdrop .modal');
     await expect(modal).toBeVisible();
-    await modal.locator('button.btn-danger').click();
+    await modal.locator('button.btn--danger').click();
     await expect(page).toHaveURL(`/users/${bobId}`);
 
     await expect(page.locator('[data-token-row] [data-token-status]', { hasText: /Revoked/i })).toHaveCount(2);

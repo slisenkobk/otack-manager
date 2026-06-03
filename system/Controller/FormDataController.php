@@ -2,25 +2,35 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
 use App\Http\Request;
 use App\Http\Response;
+use App\Repository\ActivityLogRepository;
 use App\Repository\FormRepository;
 use App\Repository\FormSubmissionRepository;
+use App\Repository\ProjectMemberRepository;
+use App\Repository\ProjectRepository;
+use App\Repository\TaskColumnRepository;
+use App\Repository\TaskRepository;
 use App\Service\RolePolicy;
+use App\View\Renderer;
 
 final class FormDataController extends BaseController
 {
-    private FormRepository           $forms;
-    private FormSubmissionRepository $subs;
-
-    public function __construct($view, $user = null) {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private FormRepository $forms,
+        private FormSubmissionRepository $subs,
+        private ProjectRepository $projects,
+        private ProjectMemberRepository $members,
+        private TaskColumnRepository $columns,
+        private TaskRepository $tasks,
+        private ActivityLogRepository $activity,
+    ) {
         parent::__construct($view, $user);
         if (!RolePolicy::canViewFormsData($this->user)) {
             Response::forbidden('Forms Data is for admins and managers'); exit;
         }
-        $this->forms = App::make('forms');
-        $this->subs  = App::make('form_submissions');
     }
 
     public function index(Request $req, array $params = []): void {
@@ -72,7 +82,7 @@ final class FormDataController extends BaseController
 
         // Projects list for the convert-to-task picker (manager scope: visible projects only).
         $isAdmin = RolePolicy::isAdmin($this->user);
-        $projects = App::make('projects')->listForUser((int)$this->user['id'], $isAdmin);
+        $projects = $this->projects->listForUser((int)$this->user['id'], $isAdmin);
 
         $csrf = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', [
@@ -101,7 +111,7 @@ final class FormDataController extends BaseController
         $id = (int)$params['id'];
         $sub = $this->subs->findById($id);
         if (!$sub) { Response::json(['error' => 'Not found'], 404); return; }
-        $data = json_decode((string)file_get_contents('php://input'), true) ?: [];
+        $data = $req->jsonBody([]);
         $status = (string)($data['status'] ?? '');
         if (!in_array($status, ['new', 'in_progress', 'rejected', 'done'], true)) {
             Response::json(['error' => 'Invalid status'], 422); return;
@@ -133,7 +143,7 @@ final class FormDataController extends BaseController
         $form = $this->forms->findById((int)$sub['form_id']);
         if (!$form) { Response::json(['error' => 'Form gone'], 404); return; }
 
-        $payload = json_decode((string)file_get_contents('php://input'), true) ?: [];
+        $payload = $req->jsonBody([]);
         $type    = (string)($payload['type'] ?? '');
 
         $fields = json_decode((string)$form['fields_json'], true) ?: [];
@@ -144,11 +154,11 @@ final class FormDataController extends BaseController
             if (!RolePolicy::canCreateProject($this->user)) {
                 Response::json(['error' => 'Cannot create projects'], 403); return;
             }
-            $newId = App::make('projects')->create($title, $description, (int)$this->user['id']);
-            App::make('members')->add($newId, (int)$this->user['id'], 'owner');
-            App::make('columns')->seedDefaults($newId);
+            $newId = $this->projects->create($title, $description, (int)$this->user['id']);
+            $this->members->add($newId, (int)$this->user['id'], 'owner');
+            $this->columns->seedDefaults($newId);
             $this->subs->setStatus($id, 'converted_project', null, $newId);
-            App::make('activity')->log('project.created', (int)$this->user['id'], $newId, null,
+            $this->activity->log('project.created', (int)$this->user['id'], $newId, null,
                 "created project '$title' from submission #$id", ['submission_id' => $id]);
             Response::json(['ok' => true, 'url' => '/projects/' . $newId . '?tab=overview']);
             return;
@@ -156,25 +166,25 @@ final class FormDataController extends BaseController
 
         if ($type === 'task') {
             $projectId = (int)($payload['project_id'] ?? 0);
-            $project   = $projectId ? App::make('projects')->findById($projectId) : null;
+            $project   = $projectId ? $this->projects->findById($projectId) : null;
             if (!$project) { Response::json(['error' => 'Pick a project'], 422); return; }
             $isAdmin = RolePolicy::isAdmin($this->user);
-            if (!$isAdmin && !App::make('members')->isMember($projectId, (int)$this->user['id'])) {
+            if (!$isAdmin && !$this->members->isMember($projectId, (int)$this->user['id'])) {
                 Response::json(['error' => 'You are not a member of that project'], 403); return;
             }
             // Drop the new task into the To-Do column (leftmost non-backlog column).
-            $cols = App::make('columns')->listForProject($projectId);
+            $cols = $this->columns->listForProject($projectId);
             $board = array_values(array_filter($cols, fn($c) => (int)($c['is_backlog'] ?? 0) === 0));
             usort($board, fn($a, $b) => (int)$a['position'] <=> (int)$b['position']);
             $todoCol = $board[0] ?? $cols[0] ?? null;
             if (!$todoCol) { Response::json(['error' => 'Project has no columns'], 422); return; }
 
-            $taskId = App::make('tasks')->create($projectId, (int)$todoCol['id'], $title, (int)$this->user['id']);
+            $taskId = $this->tasks->create($projectId, (int)$todoCol['id'], $title, (int)$this->user['id']);
             if ($description !== '') {
-                App::make('tasks')->update($taskId, ['description' => \App\Service\HtmlSanitizer::clean($description)]);
+                $this->tasks->update($taskId, ['description' => \App\Service\HtmlSanitizer::clean($description)]);
             }
             $this->subs->setStatus($id, 'converted_task', $taskId, null);
-            App::make('activity')->log('task.created', (int)$this->user['id'], $projectId, $taskId,
+            $this->activity->log('task.created', (int)$this->user['id'], $projectId, $taskId,
                 "created task '$title' from submission #$id", ['submission_id' => $id]);
             Response::json(['ok' => true, 'url' => '/tasks/' . $taskId]);
             return;

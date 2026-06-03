@@ -2,12 +2,19 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
 use App\Http\Request;
 use App\Http\Response;
+use App\Repository\ActivityLogRepository;
 use App\Repository\PollRepository;
 use App\Repository\PollVoteRepository;
+use App\Repository\ProjectMemberRepository;
+use App\Repository\ProjectRepository;
+use App\Repository\SettingsRepository;
+use App\Repository\TaskColumnRepository;
+use App\Repository\TaskRepository;
+use App\Service\EventBus;
 use App\Service\RolePolicy;
+use App\View\Renderer;
 
 /**
  * Admin/manager-facing Polls.
@@ -28,17 +35,23 @@ final class PollController extends BaseController
 {
     public const CONTACT_KINDS = [PollRepository::CONTACT_EMAIL, PollRepository::CONTACT_PHONE];
 
-    private PollRepository     $polls;
-    private PollVoteRepository $votes;
-
-    public function __construct($view, $user = null)
-    {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private PollRepository $polls,
+        private PollVoteRepository $votes,
+        private ProjectRepository $projects,
+        private ProjectMemberRepository $members,
+        private TaskColumnRepository $columns,
+        private TaskRepository $tasks,
+        private SettingsRepository $settings,
+        private ActivityLogRepository $activity,
+        private EventBus $events,
+    ) {
         parent::__construct($view, $user);
         if (!RolePolicy::canManagePolls($this->user)) {
             Response::forbidden('Polls are managed by admins and managers'); exit;
         }
-        $this->polls = App::make('polls');
-        $this->votes = App::make('poll_votes');
     }
 
     public function index(Request $req, array $params = []): void
@@ -99,7 +112,7 @@ final class PollController extends BaseController
 
     public function save(Request $req, array $params = []): void
     {
-        $data = json_decode((string)file_get_contents('php://input'), true) ?: [];
+        $data = $req->jsonBody([]);
         $title = trim((string)($data['title'] ?? ''));
         if ($title === '') { Response::json(['error' => 'Title required'], 422); return; }
 
@@ -108,7 +121,7 @@ final class PollController extends BaseController
 
         $locale = (string)($data['locale'] ?? '');
         if (!in_array($locale, available_locales(), true)) {
-            $locale = (string)App::make('settings')->get('default_locale', 'en');
+            $locale = (string)$this->settings->get('default_locale', 'en');
             if (!in_array($locale, available_locales(), true)) $locale = 'en';
         }
 
@@ -151,9 +164,9 @@ final class PollController extends BaseController
                 'project_id'      => $projectId,
                 'success_message' => $successMessage,
             ]);
-            App::make('activity')->log('poll.updated', (int)$this->user['id'], null, null,
+            $this->activity->log('poll.updated', (int)$this->user['id'], null, null,
                 "updated poll '$title'", ['poll_id' => $id]);
-            App::make('events')->fire('poll.updated', [
+            $this->events->fire('poll.updated', [
                 'poll_id' => $id, 'title' => $title, 'actor_name' => $this->user['name'],
             ]);
             Response::json(['ok' => true, 'id' => $id]);
@@ -171,9 +184,9 @@ final class PollController extends BaseController
             $projectId,
             $successMessage
         );
-        App::make('activity')->log('poll.created', (int)$this->user['id'], null, null,
+        $this->activity->log('poll.created', (int)$this->user['id'], null, null,
             "created poll '$title'", ['poll_id' => $id]);
-        App::make('events')->fire('poll.created', [
+        $this->events->fire('poll.created', [
             'poll_id' => $id, 'title' => $title, 'actor_name' => $this->user['name'],
         ]);
         Response::json(['ok' => true, 'id' => $id]);
@@ -186,9 +199,9 @@ final class PollController extends BaseController
             Response::json(['error' => 'Only draft polls can be activated'], 409);
             return;
         }
-        App::make('activity')->log('poll.activated', (int)$this->user['id'], null, null,
+        $this->activity->log('poll.activated', (int)$this->user['id'], null, null,
             "activated poll '{$poll['title']}'", ['poll_id' => (int)$poll['id']]);
-        App::make('events')->fire('poll.activated', [
+        $this->events->fire('poll.activated', [
             'poll_id' => (int)$poll['id'], 'title' => $poll['title'], 'actor_name' => $this->user['name'],
         ]);
         Response::json(['ok' => true]);
@@ -206,14 +219,14 @@ final class PollController extends BaseController
             Response::json(['error' => 'Draft polls edit the project via the main builder'], 409);
             return;
         }
-        $data = json_decode((string)file_get_contents('php://input'), true) ?: [];
+        $data = $req->jsonBody([]);
         $projectId = !empty($data['project_id']) ? (int)$data['project_id'] : null;
         if ($projectId !== null && !$this->canAttachToProject($projectId)) {
             Response::json(['error' => 'You cannot attach this poll to that project'], 403);
             return;
         }
         $this->polls->update((int)$poll['id'], ['project_id' => $projectId]);
-        App::make('activity')->log('poll.project_changed', (int)$this->user['id'], $projectId, null,
+        $this->activity->log('poll.project_changed', (int)$this->user['id'], $projectId, null,
             "changed attached project on poll '{$poll['title']}'", ['poll_id' => (int)$poll['id']]);
         Response::json(['ok' => true, 'project_id' => $projectId]);
     }
@@ -225,9 +238,9 @@ final class PollController extends BaseController
             Response::json(['error' => 'Only active polls can be closed'], 409);
             return;
         }
-        App::make('activity')->log('poll.closed', (int)$this->user['id'], null, null,
+        $this->activity->log('poll.closed', (int)$this->user['id'], null, null,
             "closed poll '{$poll['title']}'", ['poll_id' => (int)$poll['id']]);
-        App::make('events')->fire('poll.closed', [
+        $this->events->fire('poll.closed', [
             'poll_id' => (int)$poll['id'], 'title' => $poll['title'], 'actor_name' => $this->user['name'],
         ]);
         Response::json(['ok' => true]);
@@ -238,7 +251,7 @@ final class PollController extends BaseController
         $poll = $this->loadOwn($params); if (!$poll) return;
         $title = $poll['title'];
         $this->polls->delete((int)$poll['id']);
-        App::make('activity')->log('poll.deleted', (int)$this->user['id'], null, null,
+        $this->activity->log('poll.deleted', (int)$this->user['id'], null, null,
             "deleted poll '$title'", ['poll_id' => (int)$poll['id']]);
         Response::json(['ok' => true]);
     }
@@ -265,7 +278,7 @@ final class PollController extends BaseController
             $projectId,
             !empty($src['success_message']) ? (string)$src['success_message'] : null
         );
-        App::make('activity')->log('poll.created', (int)$this->user['id'], null, null,
+        $this->activity->log('poll.created', (int)$this->user['id'], null, null,
             "duplicated poll '{$src['title']}' as '$newTitle'",
             ['poll_id' => $newId, 'source_poll_id' => (int)$src['id']]);
         Response::json(['ok' => true, 'id' => $newId, 'url' => '/polls/' . $newId]);
@@ -333,7 +346,7 @@ final class PollController extends BaseController
         $body = \App\Service\HtmlSanitizer::clean($body);
 
         // Same destination rule as form auto-task: leftmost non-backlog column.
-        $cols  = App::make('columns')->listForProject($projectId);
+        $cols  = $this->columns->listForProject($projectId);
         $board = array_values(array_filter($cols, fn($c) => (int)($c['is_backlog'] ?? 0) === 0));
         usort($board, fn($a, $b) => (int)$a['position'] <=> (int)$b['position']);
         $todoCol = $board[0] ?? null;
@@ -341,7 +354,7 @@ final class PollController extends BaseController
             Response::json(['error' => 'Project has no non-backlog column to place the task in'], 409);
             return;
         }
-        $taskId = App::make('tasks')->create(
+        $taskId = $this->tasks->create(
             $projectId,
             (int)$todoCol['id'],
             mb_substr("Poll results — {$poll['title']}", 0, 200),
@@ -350,7 +363,7 @@ final class PollController extends BaseController
         );
         $this->polls->attachSummaryTask((int)$poll['id'], $taskId);
 
-        App::make('activity')->log('poll.summary_task_created', (int)$this->user['id'], $projectId, $taskId,
+        $this->activity->log('poll.summary_task_created', (int)$this->user['id'], $projectId, $taskId,
             "created summary task for poll '{$poll['title']}'", ['poll_id' => (int)$poll['id']]);
         Response::json(['ok' => true, 'task_id' => $taskId, 'url' => '/tasks/' . $taskId]);
     }
@@ -386,16 +399,16 @@ final class PollController extends BaseController
 
     private function canAttachToProject(int $projectId): bool
     {
-        $project = App::make('projects')->findById($projectId);
+        $project = $this->projects->findById($projectId);
         if (!$project) return false;
         if (RolePolicy::isAdmin($this->user)) return true;
-        return App::make('members')->isMember($projectId, (int)$this->user['id']);
+        return $this->members->isMember($projectId, (int)$this->user['id']);
     }
 
     private function renderEditor(?array $poll): void
     {
         $isAdmin  = RolePolicy::isAdmin($this->user);
-        $projects = App::make('projects')->listForUser((int)$this->user['id'], $isAdmin);
+        $projects = $this->projects->listForUser((int)$this->user['id'], $isAdmin);
 
         $csrf    = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', [
@@ -463,11 +476,11 @@ final class PollController extends BaseController
             });
         }
 
-        $project  = !empty($poll['project_id']) ? App::make('projects')->findById((int)$poll['project_id']) : null;
+        $project  = !empty($poll['project_id']) ? $this->projects->findById((int)$poll['project_id']) : null;
         $isAdmin  = RolePolicy::isAdmin($this->user);
         // The project list is only needed for the Project tab; loading it
         // unconditionally is cheap and lets the tab markup stay simple.
-        $projects = App::make('projects')->listForUser((int)$this->user['id'], $isAdmin);
+        $projects = $this->projects->listForUser((int)$this->user['id'], $isAdmin);
 
         $csrf    = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', [

@@ -14,7 +14,7 @@ use App\Http\Request;
 final class PollsHandler extends BaseHandler
 {
     /** GET /api/v1/polls */
-    public function index(Request $req): array
+    public function index(Request $req, array $params = []): array
     {
         if (!RolePolicy::canManagePolls($this->user())) return $this->forbidden();
 
@@ -35,11 +35,11 @@ final class PollsHandler extends BaseHandler
     }
 
     /** GET /api/v1/polls/{id} */
-    public function show(Request $req): array
+    public function show(Request $req, array $params = []): array
     {
         if (!RolePolicy::canManagePolls($this->user())) return $this->forbidden();
 
-        $id   = $this->pathId($req, 3);
+        $id   = (int)($params['id'] ?? 0);
         $poll = $this->svc('polls')->findById($id);
         if (!$poll) return $this->notFound();
         if (!$this->canSeePoll($poll)) return $this->notFound();
@@ -82,11 +82,11 @@ final class PollsHandler extends BaseHandler
     }
 
     /** GET /api/v1/polls/{id}/voters */
-    public function voters(Request $req): array
+    public function voters(Request $req, array $params = []): array
     {
         if (!RolePolicy::canManagePolls($this->user())) return $this->forbidden();
 
-        $id   = $this->pathId($req, 3);
+        $id   = (int)($params['id'] ?? 0);
         $poll = $this->svc('polls')->findById($id);
         if (!$poll) return $this->notFound();
         if (!$this->canSeePoll($poll)) return $this->notFound();

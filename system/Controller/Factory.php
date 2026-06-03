@@ -1,0 +1,219 @@
+<?php
+declare(strict_types=1);
+namespace App\Controller;
+
+use App\App;
+use App\View\Renderer;
+
+/**
+ * Centralised controller instantiation. Each controller declares its deps
+ * in the constructor (TYPED properties); this factory pulls them from the
+ * container and hands a fully-wired instance back to the dispatcher.
+ *
+ * Switch-style is intentional — no Reflection, no magic, explicit. Adding a
+ * new controller means adding one case here.
+ */
+final class Factory
+{
+    public static function make(string $controller, Renderer $view, ?array $user): object
+    {
+        return match ($controller) {
+            'Smoke'      => new SmokeController(
+                $view, $user,
+                App::make('csrf'),
+            ),
+            'PublicLink' => new PublicLinkController(
+                $view, $user,
+                App::make('short_links'),
+                App::make('short_link_visits'),
+            ),
+            'TagAdmin'   => new TagAdminController(
+                $view, $user,
+                App::make('tags'),
+                App::make('csrf'),
+            ),
+            'Updates'    => new UpdatesController(
+                $view, $user,
+                App::make('updater'),
+            ),
+            'Link'       => new LinkController(
+                $view, $user,
+                App::make('short_links'),
+                App::make('short_link_visits'),
+                App::make('activity'),
+            ),
+            'Tag'        => new TagController(
+                $view, $user,
+                App::make('tags'),
+                App::make('projects'),
+                App::make('members'),
+                App::make('tasks'),
+            ),
+            'PublicPoll' => new PublicPollController(
+                $view, $user,
+                App::make('polls'),
+                App::make('poll_votes'),
+                App::make('activity'),
+                App::make('events'),
+                App::make('db'),
+            ),
+            'Column'     => new ColumnController(
+                $view, $user,
+                App::make('columns'),
+                App::make('projects'),
+                App::make('members'),
+                App::make('db'),
+            ),
+            'Dashboard'  => new DashboardController(
+                $view, $user,
+                App::make('projects'),
+                App::make('tasks'),
+                App::make('activity'),
+                App::make('updater'),
+                App::make('csrf'),
+            ),
+            'Settings'   => new SettingsController(
+                $view, $user,
+                App::make('settings'),
+                App::make('updater'),
+                App::make('app_versions'),
+                App::make('app_backups'),
+                App::make('csrf'),
+            ),
+            'Attachment' => new AttachmentController(
+                $view, $user,
+                App::make('attachments'),
+                App::make('uploader'),
+                App::make('members'),
+                App::make('tasks'),
+                App::make('projects'),
+                App::make('activity'),
+                App::make('db'),
+            ),
+            'Auth'       => new AuthController(
+                $view, $user,
+                App::make('auth'),
+                App::make('users'),
+                App::make('csrf'),
+                App::make('hasher'),
+                App::make('settings'),
+                App::make('events'),
+                App::make('session_manager'),
+                App::make('session'),
+            ),
+            'Compass'    => new CompassController(
+                $view, $user,
+                App::make('compass'),
+                App::make('db_migrator'),
+                App::make('db'),
+                App::make('activity'),
+                App::make('events'),
+            ),
+            'Profile'    => new ProfileController(
+                $view, $user,
+                App::make('users'),
+                App::make('hasher'),
+                App::make('uploader'),
+                App::make('api_tokens'),
+                App::make('csrf'),
+                App::make('session'),
+            ),
+            'PublicForm' => new PublicFormController(
+                $view, $user,
+                App::make('forms'),
+                App::make('form_submissions'),
+                App::make('settings'),
+                App::make('projects'),
+                App::make('columns'),
+                App::make('tasks'),
+                App::make('activity'),
+                App::make('events'),
+            ),
+            'User'       => new UserController(
+                $view, $user,
+                App::make('users'),
+                App::make('api_tokens'),
+                App::make('hasher'),
+                App::make('settings'),
+                App::make('events'),
+                App::make('csrf'),
+                App::make('session'),
+            ),
+            'Comment'    => new CommentController(
+                $view, $user,
+                App::make('comments'),
+                App::make('members'),
+                App::make('tasks'),
+                App::make('projects'),
+                App::make('users'),
+                App::make('activity'),
+                App::make('events'),
+            ),
+            'Form'       => new FormController(
+                $view, $user,
+                App::make('forms'),
+                App::make('projects'),
+                App::make('members'),
+                App::make('settings'),
+                App::make('activity'),
+                App::make('events'),
+            ),
+            'FormData'   => new FormDataController(
+                $view, $user,
+                App::make('forms'),
+                App::make('form_submissions'),
+                App::make('projects'),
+                App::make('members'),
+                App::make('columns'),
+                App::make('tasks'),
+                App::make('activity'),
+            ),
+            'Project'    => new ProjectController(
+                $view, $user,
+                App::make('projects'),
+                App::make('members'),
+                App::make('columns'),
+                App::make('tasks'),
+                App::make('tags'),
+                App::make('users'),
+                App::make('comments'),
+                App::make('attachments'),
+                App::make('form_submissions'),
+                App::make('activity'),
+                App::make('events'),
+                App::make('db'),
+            ),
+            'Poll'       => new PollController(
+                $view, $user,
+                App::make('polls'),
+                App::make('poll_votes'),
+                App::make('projects'),
+                App::make('members'),
+                App::make('columns'),
+                App::make('tasks'),
+                App::make('settings'),
+                App::make('activity'),
+                App::make('events'),
+            ),
+            'Task'       => new TaskController(
+                $view, $user,
+                App::make('tasks'),
+                App::make('projects'),
+                App::make('members'),
+                App::make('columns'),
+                App::make('task_links'),
+                App::make('tags'),
+                App::make('users'),
+                App::make('comments'),
+                App::make('attachments'),
+                App::make('form_submissions'),
+                App::make('polls'),
+                App::make('activity'),
+                App::make('events'),
+                App::make('csrf'),
+                App::make('db'),
+            ),
+            default      => throw new \RuntimeException("Unknown controller: $controller"),
+        };
+    }
+}

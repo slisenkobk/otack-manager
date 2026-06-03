@@ -40,6 +40,8 @@ final class TaskLinkRepository {
     /**
      * Returns linked tasks (id, title, column_id, status info) for the given task,
      * scoped to its own project.
+     *
+     * @return list<array<string,mixed>>
      */
     public function listForTask(int $taskId): array {
         $stmt = $this->pdo->prepare(
@@ -56,7 +58,11 @@ final class TaskLinkRepository {
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
-    /** IDs already linked to $taskId (excluding self). */
+    /**
+     * IDs already linked to $taskId (excluding self).
+     *
+     * @return list<int>
+     */
     public function linkedIds(int $taskId): array {
         $stmt = $this->pdo->prepare(
             'SELECT CASE WHEN task_id = ? THEN linked_task_id ELSE task_id END AS other

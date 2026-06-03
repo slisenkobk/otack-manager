@@ -2,31 +2,31 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
 use App\Http\Request;
 use App\Http\Response;
+use App\Repository\ActivityLogRepository;
 use App\Repository\AttachmentRepository;
 use App\Repository\ProjectMemberRepository;
 use App\Repository\TaskRepository;
 use App\Repository\ProjectRepository;
 use App\Service\FileUploader;
+use App\View\Renderer;
+use PDO;
 
 final class AttachmentController extends BaseController
 {
-    private AttachmentRepository     $repo;
-    private FileUploader             $uploader;
-    private ProjectMemberRepository  $members;
-    private TaskRepository           $tasks;
-    private ProjectRepository        $projects;
-
-    public function __construct($view, $user = null)
-    {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private AttachmentRepository $repo,
+        private FileUploader $uploader,
+        private ProjectMemberRepository $members,
+        private TaskRepository $tasks,
+        private ProjectRepository $projects,
+        private ActivityLogRepository $activity,
+        private PDO $db,
+    ) {
         parent::__construct($view, $user);
-        $this->repo     = App::make('attachments');
-        $this->uploader = App::make('uploader');
-        $this->members  = App::make('members');
-        $this->tasks    = App::make('tasks');
-        $this->projects = App::make('projects');
     }
 
     private function assertMembership(string $entityType, int $entityId): void
@@ -55,7 +55,7 @@ final class AttachmentController extends BaseController
         }
 
         if ($entityType === 'comment') {
-            $stmt = App::make('db')->prepare('SELECT * FROM comments WHERE id = ?');
+            $stmt = $this->db->prepare('SELECT * FROM comments WHERE id = ?');
             $stmt->execute([$entityId]);
             $c = $stmt->fetch();
             if (!$c) {
@@ -118,7 +118,7 @@ final class AttachmentController extends BaseController
             $task = $this->tasks->findById($entityId);
             if ($task) $activityProjectId = (int)$task['project_id'];
         } elseif ($entityType === 'comment') {
-            $stmt = App::make('db')->prepare('SELECT * FROM comments WHERE id = ?');
+            $stmt = $this->db->prepare('SELECT * FROM comments WHERE id = ?');
             $stmt->execute([$entityId]);
             $c = $stmt->fetch();
             if ($c) {
@@ -131,7 +131,7 @@ final class AttachmentController extends BaseController
                 }
             }
         }
-        App::make('activity')->log(
+        $this->activity->log(
             'attachment.uploaded',
             (int)$this->user['id'],
             $activityProjectId,

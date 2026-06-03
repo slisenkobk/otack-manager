@@ -2,20 +2,42 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
 use App\Http\Request;
 use App\Http\Response;
+use App\Http\ValidationException;
+use App\Http\Validator;
+use App\Repository\ActivityLogRepository;
+use App\Repository\AttachmentRepository;
+use App\Repository\CommentRepository;
+use App\Repository\FormSubmissionRepository;
+use App\Repository\ProjectMemberRepository;
+use App\Repository\ProjectRepository;
+use App\Repository\TagRepository;
+use App\Repository\TaskColumnRepository;
+use App\Repository\TaskRepository;
+use App\Repository\UserRepository;
+use App\Service\EventBus;
+use App\View\Renderer;
+use PDO;
 
 final class ProjectController extends BaseController {
-    private \App\Repository\ProjectRepository $projects;
-    private \App\Repository\ProjectMemberRepository $members;
-    private \App\Repository\TaskColumnRepository $columns;
-
-    public function __construct($view, $user = null) {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private ProjectRepository $projects,
+        private ProjectMemberRepository $members,
+        private TaskColumnRepository $columns,
+        private TaskRepository $tasks,
+        private TagRepository $tags,
+        private UserRepository $users,
+        private CommentRepository $comments,
+        private AttachmentRepository $attachments,
+        private FormSubmissionRepository $formSubmissions,
+        private ActivityLogRepository $activity,
+        private EventBus $events,
+        private PDO $db,
+    ) {
         parent::__construct($view, $user);
-        $this->projects = App::make('projects');
-        $this->members  = App::make('members');
-        $this->columns  = App::make('columns');
     }
 
 
@@ -36,7 +58,7 @@ final class ProjectController extends BaseController {
         $perPage = 12;
         $offset  = ($page - 1) * $perPage;
         $list    = $this->projects->listForUserPaged((int)$this->user['id'], $isAdmin, $status, $perPage, $offset, $query);
-        $taskCounts = App::make('tasks')->countByProject(array_map(fn($p) => (int)$p['id'], $list));
+        $taskCounts = $this->tasks->countByProject(array_map(fn($p) => (int)$p['id'], $list));
         $statusCounts = [];
         foreach ($allStatuses as $s) {
             $statusCounts[$s] = $this->projects->countAllForUser((int)$this->user['id'], $isAdmin, $s, $query);
@@ -68,20 +90,22 @@ final class ProjectController extends BaseController {
             Response::forbidden('Employees cannot create projects'); return;
         }
         $isJson = $this->isJsonRequest($req);
-        $data   = $isJson ? (json_decode((string)file_get_contents('php://input'), true) ?: []) : $req->post;
-        $name        = trim((string)($data['name'] ?? ''));
-        $description = \App\Service\HtmlSanitizer::clean(trim((string)($data['description'] ?? '')));
-        if ($name === '') {
-            if ($isJson) { Response::json(['error' => 'Name is required'], 422); return; }
+        $data   = $isJson ? $req->jsonBody([]) : $req->post;
+        try {
+            $clean = Validator::for($data)->required('name')->clean();
+        } catch (ValidationException $e) {
+            if ($isJson) { Response::json(['error' => 'Name is required', 'fields' => $e->fields], 422); return; }
             Response::redirect('/projects'); return;
         }
+        $name        = $clean['name'];
+        $description = \App\Service\HtmlSanitizer::clean(trim((string)($data['description'] ?? '')));
         // ProjectRepository::create already wraps its INSERT in a transaction.
         // We run member add and column seed after, each atomic on its own.
         $color = $data['color'] ?? null;
         $id = $this->projects->create($name, $description ?: null, (int)$this->user['id'], $color);
         $this->members->add($id, (int)$this->user['id'], 'owner');
         $this->columns->seedDefaults($id);
-        App::make('events')->fire('project.created', [
+        $this->events->fire('project.created', [
             'project_id' => $id,
             'name'       => $name,
             'actor_name' => $this->user['name'],
@@ -98,9 +122,9 @@ final class ProjectController extends BaseController {
         $this->assertAccess($project);
         $columns    = $this->columns->listForProject($id);
         $members    = $this->members->list($id);
-        $tasksByCol = App::make('tasks')->listForProject($id);
-        $taskTags   = App::make('tags')->listForProjectTasks($id);
-        $taskMeta   = App::make('tasks')->countMetaForProject($id);
+        $tasksByCol = $this->tasks->listForProject($id);
+        $taskTags   = $this->tags->listForProjectTasks($id);
+        $taskMeta   = $this->tasks->countMetaForProject($id);
         $allTaskTagsInProject = [];
         foreach ($taskTags as $tags) {
             foreach ($tags as $t) {
@@ -108,19 +132,19 @@ final class ProjectController extends BaseController {
             }
         }
         $allTaskTagsInProject = array_values($allTaskTagsInProject);
-        $allUsersRaw = App::make('users')->listAll();
+        $allUsersRaw = $this->users->listAll();
         $allUsers = array_values(array_filter($allUsersRaw, fn($u) => $u['status'] === 'approved'));
         $canEdit        = ($this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']));
         $isAdmin        = $this->user['role'] === 'admin';
         $currentUserId  = (int)$this->user['id'];
         $canPost        = $isAdmin || $this->members->isMember($id, $currentUserId);
-        $projectComments     = App::make('comments')->listFor('project', $id);
-        $projectAttachments  = App::make('attachments')->listFor('project', $id);
+        $projectComments     = $this->comments->listFor('project', $id);
+        $projectAttachments  = $this->attachments->listFor('project', $id);
         $commentIds = array_column($projectComments, 'id');
         $commentAttachments = [];
         if ($commentIds) {
             $placeholders = implode(',', array_fill(0, count($commentIds), '?'));
-            $stmt = App::make('db')->prepare(
+            $stmt = $this->db->prepare(
                 "SELECT * FROM attachments WHERE entity_type = 'comment' AND entity_id IN ($placeholders) ORDER BY created_at ASC"
             );
             $stmt->execute($commentIds);
@@ -128,8 +152,8 @@ final class ProjectController extends BaseController {
                 $commentAttachments[(int)$a['entity_id']][] = $a;
             }
         }
-        $projectTags         = App::make('tags')->listForProject($id);
-        $allProjectTags      = App::make('tags')->listAll();
+        $projectTags         = $this->tags->listForProject($id);
+        $allProjectTags      = $this->tags->listAll();
         $csrf    = $this->csrfToken();
         $sidebar = $this->view->render('partials/sidebar', ['user' => $this->user, 'activeNav' => 'projects', 'csrfToken' => $csrf]);
         $statusPill = sprintf(
@@ -181,7 +205,12 @@ final class ProjectController extends BaseController {
         $topbar  = $this->view->render('partials/topbar', ['user' => $this->user, 'crumb' => 'Edit ' . $project['name']]);
         Response::html($this->view->render('layouts/main', [
             'title' => 'Edit ' . $project['name'], 'csrfToken' => $csrf, 'sidebar' => $sidebar, 'topbar' => $topbar,
-            'content' => $this->view->render('projects/form', ['csrfToken' => $csrf, 'project' => $project, 'mode' => 'edit']),
+            'content' => $this->view->render('projects/form', [
+                'csrfToken'   => $csrf,
+                'project'     => $project,
+                'mode'        => 'edit',
+                'fieldErrors' => $this->consumeFieldErrors(),
+            ]),
         ]));
     }
 
@@ -195,11 +224,19 @@ final class ProjectController extends BaseController {
             Response::forbidden(); return;
         }
         $isJson = $this->isJsonRequest($req);
-        $data   = $isJson ? (json_decode((string)file_get_contents('php://input'), true) ?: []) : $req->post;
+        $data   = $isJson ? $req->jsonBody([]) : $req->post;
         $fields = [];
         if (isset($data['name'])) {
             $name = trim((string)$data['name']);
-            if ($name !== '') { $fields['name'] = $name; }
+            if ($name !== '') {
+                $fields['name'] = $name;
+            } elseif (!$isJson) {
+                // The edit-form posts name= unconditionally; an empty value
+                // means the user blanked the input. Flash an inline error
+                // so they see what's wrong on the next render.
+                $this->flashFieldErrors(['name' => 'required']);
+                Response::redirect('/projects/' . $id . '/edit'); return;
+            }
         }
         if (array_key_exists('description', $data)) {
             $rawDesc = (string)$data['description'];
@@ -223,7 +260,7 @@ final class ProjectController extends BaseController {
         $fresh   = $this->projects->findById($id);
         $name    = $fields['name'] ?? $project['name'];
         // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
-        App::make('events')->fire('project.updated', [
+        $this->events->fire('project.updated', [
             'project_id' => $id,
             'name'       => $name !== '' ? $name : $project['name'],
             'actor_name' => $this->user['name'],
@@ -272,20 +309,18 @@ final class ProjectController extends BaseController {
         $this->projects->delete($id);
         // Detach any submissions converted into this project so they can be
         // re-promoted instead of pointing at a dead /projects/{id} link.
-        App::make('form_submissions')->detachConverted('project', $id);
-        App::make('events')->fire('project.deleted', [
+        $this->formSubmissions->detachConverted('project', $id);
+        $this->events->fire('project.deleted', [
             'project_id' => $id,
             'name'       => $project['name'],
             'actor_name' => $this->user['name'],
         ]);
-        App::make('activity')->log(
-            'project.deleted',
-            (int)$this->user['id'],
-            null,
-            null,
-            "deleted project '" . $project['name'] . "'",
-            ['project_id' => $id]
-        );
+        $this->activity->log([
+            'event'    => 'project.deleted',
+            'actor_id' => (int)$this->user['id'],
+            'summary'  => "deleted project '" . $project['name'] . "'",
+            'meta'     => ['project_id' => $id],
+        ]);
         Response::json(['ok' => true]);
     }
 
@@ -296,10 +331,10 @@ final class ProjectController extends BaseController {
         $isOwnerOrAdmin = $this->user['role'] === 'admin' || $this->members->isOwner($projectId, (int)$this->user['id']);
         if (!$isOwnerOrAdmin) { Response::json(['error' => 'Forbidden'], 403); return; }
 
-        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $data = $req->jsonBody([]);
         $userId = (int)($data['user_id'] ?? 0);
         if (!$userId) { Response::json(['error' => 'user_id required'], 422); return; }
-        $u = App::make('users')->findById($userId);
+        $u = $this->users->findById($userId);
         if (!$u || $u['status'] !== 'approved') {
             Response::json(['error' => 'User must be approved'], 422); return;
         }

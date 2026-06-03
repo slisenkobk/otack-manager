@@ -2,11 +2,17 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
+use App\Database\Connection;
 use App\Http\AuthGuard;
 use App\Http\Request;
 use App\Http\Response;
+use App\Repository\ActivityLogRepository;
 use App\Service\CompassService;
+use App\Service\DbMigrator;
+use App\Service\EventBus;
+use App\Service\Log;
+use App\View\Renderer;
+use PDO;
 
 // Admin-only diagnostic / housekeeping panel. Four tabs: migrations,
 // cache (sessions + orphan uploads + asset bust), DB stats, logs.
@@ -14,13 +20,17 @@ use App\Service\CompassService;
 // so admins see them in the Telegram channel.
 final class CompassController extends BaseController
 {
-    private CompassService $compass;
-
-    public function __construct($view, $user = null)
-    {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private CompassService $compass,
+        private DbMigrator $dbMigrator,
+        private PDO $db,
+        private ActivityLogRepository $activity,
+        private EventBus $events,
+    ) {
         parent::__construct($view, $user);
         AuthGuard::requireAdmin($this->user);
-        $this->compass = App::make('compass');
     }
 
     public function index(Request $req, array $params = []): void
@@ -50,10 +60,22 @@ final class CompassController extends BaseController
 
     public function cache(Request $req, array $params = []): void
     {
+        $keepDays = max(1, (int)\App\App::env('ACTIVITY_LOG_KEEP_DAYS', '180'));
+        $cutoff = (new \DateTimeImmutable())->modify("-{$keepDays} days")->format('Y-m-d H:i:s');
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM activity_log WHERE created_at < ?');
+        $stmt->execute([$cutoff]);
+        $activityStale = (int)$stmt->fetchColumn();
+        $activityTotal = (int)$this->db->query('SELECT COUNT(*) FROM activity_log')->fetchColumn();
+
         $this->renderTab('cache', t('compass.tab.cache'), [
             'sessions'      => $this->compass->sessionsStats(),
             'uploads'       => $this->compass->uploadsStats(),
             'assetVersion'  => $this->compass->currentAssetVersion(),
+            'activity'      => [
+                'total'      => $activityTotal,
+                'stale'      => $activityStale,
+                'keep_days'  => $keepDays,
+            ],
         ]);
     }
 
@@ -81,11 +103,11 @@ final class CompassController extends BaseController
      */
     public function dbMigrate(Request $req, array $params = []): void
     {
-        $currentDriver = \App\Database\Connection::driverFor(App::make('db'))?->name() ?? 'sqlite';
+        $currentDriver = Connection::driverFor($this->db)?->name() ?? 'sqlite';
         $plan = null;
         if ($currentDriver === 'sqlite') {
             try {
-                $plan = App::make('db_migrator')->plan(App::make('db'));
+                $plan = $this->dbMigrator->plan($this->db);
             } catch (\Throwable $_) { /* surface as null */ }
         }
         $this->renderTab('db-migrate', t('compass.tab.db_migrate'), [
@@ -101,7 +123,7 @@ final class CompassController extends BaseController
     public function dbMigrateTest(Request $req, array $params = []): void
     {
         $config = $this->collectMysqlConfig($req);
-        $res = App::make('db_migrator')->testConnection($config);
+        $res = $this->dbMigrator->testConnection($config);
         Response::json($res);
     }
 
@@ -111,16 +133,16 @@ final class CompassController extends BaseController
      */
     public function dbMigrateStart(Request $req, array $params = []): void
     {
-        $currentDriver = \App\Database\Connection::driverFor(App::make('db'))?->name();
+        $currentDriver = Connection::driverFor($this->db)?->name();
         if ($currentDriver !== 'sqlite') {
             Response::json(['ok' => false, 'error' => 'Migration only runs from a SQLite source'], 400);
             return;
         }
         $config = $this->collectMysqlConfig($req);
         try {
-            $report = App::make('db_migrator')->migrate(App::make('db'), $config);
+            $report = $this->dbMigrator->migrate($this->db, $config);
         } catch (\Throwable $e) {
-            error_log('[db_migrator] ' . $e->getMessage());
+            Log::error('db_migrator', $e->getMessage());
             Response::json(['ok' => false, 'error' => $e->getMessage()], 500);
             return;
         }
@@ -145,7 +167,7 @@ final class CompassController extends BaseController
      */
     public function dbMigrateVerify(Request $req, array $params = []): void
     {
-        Response::json(App::make('db_migrator')->verifyEnv());
+        Response::json($this->dbMigrator->verifyEnv());
     }
 
     /** @return array{host:string,port:int,db:string,user:string,password:string} */
@@ -221,6 +243,21 @@ final class CompassController extends BaseController
         Response::json(['ok' => true, 'message' => $summary] + $res);
     }
 
+    public function pruneActivityLog(Request $req, array $params = []): void
+    {
+        $days = max(1, (int)\App\App::env('ACTIVITY_LOG_KEEP_DAYS', '180'));
+        $cutoff = (new \DateTimeImmutable())->modify("-{$days} days")->format('Y-m-d H:i:s');
+        $count = $this->activity->pruneBefore($cutoff);
+        $summary = t('compass.activity_log.pruned', ['count' => $count, 'days' => $days]);
+        $this->auditAndNotify(
+            'compass.activity_log.pruned',
+            $summary,
+            ['deleted' => $count, 'cutoff' => $cutoff, 'keep_days' => $days],
+            $summary,
+        );
+        Response::json(['ok' => true, 'message' => $summary, 'deleted' => $count]);
+    }
+
     public function bustAssetCache(Request $req, array $params = []): void
     {
         $version = $this->compass->bumpAssetVersion();
@@ -276,8 +313,8 @@ final class CompassController extends BaseController
     {
         $userId = (int)($this->user['id'] ?? 0);
         $userName = (string)($this->user['name'] ?? 'someone');
-        App::make('activity')->log($event, $userId, null, null, $summary, $meta);
-        App::make('events')->fire('compass.action', [
+        $this->activity->log($event, $userId, null, null, $summary, $meta);
+        $this->events->fire('compass.action', [
             'actor_id'    => $userId,
             'actor_name'  => $userName,
             'event'       => $event,
