@@ -24,6 +24,15 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 <?php require APP_ROOT . '/views/partials/modal-root.php'; ?>
 <?php require APP_ROOT . '/views/partials/toast-root.php'; ?>
 <?php require APP_ROOT . '/views/partials/lightbox-root.php'; ?>
+<?php
+  // JS i18n channel — mirror of main.php so toasts surfaced on login/register
+  // pages (flash messages, validation hints) still resolve via window.__t.
+  $__jsLocale = [];
+  foreach (i18n_catalog() as $__k => $__v) {
+      if (is_string($__v) && str_starts_with($__k, 'js.')) $__jsLocale[$__k] = $__v;
+  }
+?>
+<script>window.__t = <?= json_encode($__jsLocale, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
 <script type="module" src="<?= e(asset_url('/assets/js/ui.js')) ?>"></script>
 </body>
 </html>

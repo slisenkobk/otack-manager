@@ -30,3 +30,16 @@ export function logSilent(err, tag) {
   // eslint-disable-next-line no-console
   console.warn('[silent]', tag, err);
 }
+
+/**
+ * Client-side i18n lookup. `window.__t` is populated server-side from the
+ * current locale's catalog (js.* namespace, emitted by views/layouts/*.php).
+ * Falls back to the explicit fallback arg, then to the key itself — same
+ * contract as the server's t() helper, so missing keys surface in dev.
+ *
+ * Example:
+ *   UI.toast(t('js.toast.saved'), 'success');
+ */
+export function t(key, fallback) {
+  return (window.__t && window.__t[key]) ?? (fallback ?? key);
+}

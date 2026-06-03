@@ -1,5 +1,5 @@
 import { api, UI } from './ui.js';
-import { logSilent } from './utils.js';
+import { logSilent, t } from './utils.js';
 
 const titleEl = document.querySelector('.task-title');
 const sidebar = document.querySelector('.task-sidebar');
@@ -19,7 +19,7 @@ if (!sidebar) {
         const res = await api('/tasks/' + taskId, { method: 'POST', body: JSON.stringify({ title }) });
         lastTitle = res.task.title;
         titleEl.textContent = res.task.title;
-        UI.toast('Title saved', 'success');
+        UI.toast(t('js.toast.title_saved'), 'success');
       } catch {
         titleEl.textContent = lastTitle;
       }
@@ -57,7 +57,7 @@ if (!sidebar) {
       rendered.innerHTML = safeHtml; // nosec: server-sanitized HTML
       editor.style.display = 'none';
       rendered.style.display = 'block';
-      UI.toast('Description saved', 'success');
+      UI.toast(t('js.toast.description_saved'), 'success');
     } catch (e) { logSilent(e, 'task-page.saveDescription'); }
   });
 
@@ -121,7 +121,16 @@ if (!sidebar) {
             badge.hidden = !sub;
           }
         }
-        UI.toast(key.replace('_', ' ') + ' updated', 'success');
+        // J-8: explicit per-field i18n keys instead of building toast text
+        // from the snake_cased field name (which produced "column id updated"
+        // and was untranslatable into PL/UK).
+        const labelKeys = {
+          column_id:   'js.toast.column_changed',
+          assignee_id: 'js.toast.assignee_changed',
+          due_date:    'js.toast.due_changed',
+          priority:    'js.toast.priority_changed',
+        };
+        UI.toast(t(labelKeys[key] ?? 'js.toast.updated'), 'success');
       } catch (e) { logSilent(e, 'task-page.fieldSave'); }
     });
   });
@@ -232,7 +241,7 @@ if (!sidebar) {
             });
             list.appendChild(renderLinkedRow(res.task));
             ensureEmptyState();
-            UI.toast('Task linked', 'success');
+            UI.toast(t('js.toast.task_linked'), 'success');
             // refresh search to drop the just-linked item
             doSearch(search.value);
           } catch (e) { logSilent(e, 'task-page.linkTask'); }
@@ -281,12 +290,12 @@ if (!sidebar) {
       const row = btn.closest('.linked-task');
       const otherId = row?.dataset.linkedId;
       if (!otherId) return;
-      if (!await UI.confirm('Remove this link?')) return;
+      if (!await UI.confirm(t('js.confirm.remove_link'))) return;
       try {
         await api('/api/tasks/' + taskId + '/links/' + otherId + '/delete', { method: 'POST' });
         row.remove();
         ensureEmptyState();
-        UI.toast('Link removed', 'success');
+        UI.toast(t('js.toast.link_removed'), 'success');
       } catch (e) { logSilent(e, 'task-page.unlink'); }
     });
   }
@@ -294,7 +303,7 @@ if (!sidebar) {
   // Delete (button may be absent for non-author/non-admin)
   const deleteBtn = sidebar.querySelector('[data-action=delete-task]');
   if (deleteBtn) deleteBtn.addEventListener('click', async () => {
-    if (!await UI.confirm('Delete this task permanently?', {danger: true, confirmLabel: 'Delete'})) return;
+    if (!await UI.confirm(t('js.confirm.delete_task'), {danger: true, confirmLabel: 'Delete'})) return;
     try {
       await api('/tasks/' + taskId + '/delete', { method: 'POST' });
       location.href = '/projects/' + projectId;
@@ -304,7 +313,7 @@ if (!sidebar) {
   // Spin task off into a brand-new project
   const promoteBtn = sidebar.querySelector('[data-action=promote-to-project]');
   if (promoteBtn) promoteBtn.addEventListener('click', async () => {
-    if (!await UI.confirm('Create a new project from this task? Title and description will be copied.', { confirmLabel: 'Create project' })) return;
+    if (!await UI.confirm(t('js.confirm.create_project_from_task'), { confirmLabel: 'Create project' })) return;
     promoteBtn.disabled = true;
     try {
       const res = await api('/api/tasks/' + taskId + '/promote-to-project', { method: 'POST' });

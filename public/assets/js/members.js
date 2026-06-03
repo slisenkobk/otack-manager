@@ -1,5 +1,5 @@
 import { api, UI } from './ui.js';
-import { logSilent } from './utils.js';
+import { logSilent, t } from './utils.js';
 
 document.querySelectorAll('.members-section').forEach(section => {
   const projectId = section.dataset.projectId;
@@ -11,10 +11,10 @@ document.querySelectorAll('.members-section').forEach(section => {
   section.querySelectorAll('[data-action="remove-member"]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const userId = btn.dataset.userId;
-      if (!await UI.confirm('Remove this member?')) return;
+      if (!await UI.confirm(t('js.confirm.remove_member'))) return;
       try {
         await api('/api/projects/' + projectId + '/members/' + userId + '/delete', { method: 'POST' });
-        UI.toast('Member removed', 'success');
+        UI.toast(t('js.toast.member_removed'), 'success');
         location.reload();
       } catch (e) { logSilent(e, 'members.remove'); }
     });
@@ -80,7 +80,7 @@ document.querySelectorAll('.members-section').forEach(section => {
             method: 'POST',
             body: JSON.stringify({ user_id: +u.id }),
           });
-          UI.toast('Member added', 'success');
+          UI.toast(t('js.toast.member_added'), 'success');
           location.reload();
         } catch (e) { logSilent(e, 'members.add'); }
       });

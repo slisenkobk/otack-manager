@@ -1,5 +1,5 @@
 import { api, UI } from './ui.js';
-import { logSilent } from './utils.js';
+import { logSilent, t } from './utils.js';
 
 document.querySelectorAll('.card[data-link-id]').forEach(card => {
   const id = card.dataset.linkId;
@@ -18,11 +18,11 @@ document.querySelectorAll('.card[data-link-id]').forEach(card => {
 
   const del = card.querySelector('[data-action=delete-link]');
   if (del) del.addEventListener('click', async () => {
-    if (!await UI.confirm('Delete this short link? Visit history will be erased too.', { danger: true, confirmLabel: 'Delete' })) return;
+    if (!await UI.confirm(t('js.confirm.delete_short_link'), { danger: true, confirmLabel: 'Delete' })) return;
     try {
       await api('/links/' + id + '/delete', { method: 'POST' });
       card.remove();
-      UI.toast('Link deleted', 'success');
+      UI.toast(t('js.toast.link_deleted'), 'success');
     } catch (e) { logSilent(e, 'links-index.delete'); }
   });
 
@@ -41,9 +41,9 @@ document.querySelectorAll('.card[data-link-id]').forEach(card => {
   if (copy) copy.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(copy.dataset.url);
-      UI.toast('Link copied', 'success');
+      UI.toast(t('js.toast.link_copied'), 'success');
     } catch {
-      UI.toast('Copy failed — select and copy manually', 'error');
+      UI.toast(t('js.toast.copy_failed_manual'), 'error');
     }
   });
 });
@@ -72,7 +72,7 @@ function openNewLinkModal() {
       { label: 'Cancel', variant: 'btn-ghost', onClick: c => c() },
       { label: 'Create', variant: 'submit', onClick: async (close) => {
           const target = inp.value.trim();
-          if (!/^https?:\/\//i.test(target)) { UI.toast('URL must start with http:// or https://', 'error'); inp.focus(); return; }
+          if (!/^https?:\/\//i.test(target)) { UI.toast(t('js.toast.url_must_start_with_http'), 'error'); inp.focus(); return; }
           try {
             const res = await api('/links', { method: 'POST', body: JSON.stringify({ target_url: target }) });
             close();

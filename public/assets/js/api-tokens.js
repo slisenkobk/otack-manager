@@ -1,4 +1,5 @@
 import { UI } from './ui.js';
+import { t } from './utils.js';
 
 // Click-to-copy on `pre.copyable`. Falls back to a select-all hint if
 // navigator.clipboard isn't available (older browsers / non-HTTPS local).
@@ -9,9 +10,9 @@ document.querySelectorAll('pre.copyable').forEach((node) => {
       await navigator.clipboard.writeText(text);
       node.classList.add('copyable--flash');
       setTimeout(() => node.classList.remove('copyable--flash'), 600);
-      UI.toast('Copied to clipboard', 'success');
+      UI.toast(t('js.toast.copied'), 'success');
     } catch {
-      UI.toast('Copy failed — select and copy manually', 'error');
+      UI.toast(t('js.toast.copy_failed_manual'), 'error');
     }
   });
 });

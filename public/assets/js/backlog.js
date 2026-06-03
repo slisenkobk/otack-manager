@@ -1,5 +1,5 @@
 import { api, UI } from './ui.js';
-import { logSilent } from './utils.js';
+import { logSilent, t } from './utils.js';
 
 const root = document.querySelector('.backlog');
 if (root) {
@@ -17,10 +17,10 @@ if (root) {
           method: 'POST',
           body: JSON.stringify({ title, column_id: columnId }),
         });
-        UI.toast('Task added', 'success');
+        UI.toast(t('js.toast.task_added'), 'success');
         window.location.reload();
       } catch {
-        UI.toast('Could not add task', 'error');
+        UI.toast(t('js.toast.task_add_failed'), 'error');
       }
     });
     input.addEventListener('keydown', (e) => {

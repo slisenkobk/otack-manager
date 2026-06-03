@@ -1,5 +1,5 @@
 import { api, UI } from './ui.js';
-import { logSilent } from './utils.js';
+import { logSilent, t } from './utils.js';
 
 // Module-level state must be declared BEFORE initKanban runs — otherwise TDZ trips.
 let _searchIds = null; // null = no server filter active; Set<int> otherwise
@@ -85,9 +85,9 @@ function initColumnSortable(root) {
           method: 'POST',
           body: JSON.stringify({ ids }),
         });
-        UI.toast('Column order saved', 'success');
+        UI.toast(t('js.toast.column_order_saved'), 'success');
       } catch {
-        UI.toast('Failed to save column order', 'error');
+        UI.toast(t('js.toast.column_order_failed'), 'error');
       }
     },
   });
@@ -198,7 +198,7 @@ function initSortable(list) {
         recount(root);
         const sortBtn = document.querySelector('[data-sort-toggle]');
         if (sortBtn?.dataset.sort === 'priority') applySort(root, 'priority');
-        UI.toast('Task moved', 'success');
+        UI.toast(t('js.toast.task_moved'), 'success');
       } catch {
         // Rollback: put card back in old column at original index
         const children = Array.from(oldCol.children);
@@ -288,7 +288,7 @@ function initQuickAdd(root) {
         list.appendChild(buildCard(res.task));
         closeForm();
         recount(root);
-        UI.toast('Task added', 'success');
+        UI.toast(t('js.toast.task_added'), 'success');
       } catch (e) { logSilent(e, 'kanban.quickAdd'); }
     });
   });
@@ -327,7 +327,7 @@ function initAddColumn(root) {
                   color: colorField.getValue(),
                 }),
               });
-              UI.toast('Column added', 'success');
+              UI.toast(t('js.toast.column_added'), 'success');
               close();
               setTimeout(() => location.reload(), 400);
             } catch (e) { logSilent(e, 'kanban.addColumn'); }
@@ -453,7 +453,7 @@ async function openColumnSettings(columnId) {
               body: JSON.stringify({ name: nameInput.value.trim(), color: colorField.getValue() }),
             });
             close();
-            UI.toast('Column updated', 'success');
+            UI.toast(t('js.toast.column_updated'), 'success');
             setTimeout(() => location.reload(), 400);
           } catch (e) { logSilent(e, 'kanban.columnSettings.save'); }
         }
@@ -462,10 +462,10 @@ async function openColumnSettings(columnId) {
   });
 
   async function tryDelete(columnId) {
-    if (!await UI.confirm('Delete this column?', { danger: true, confirmLabel: 'Delete' })) return;
+    if (!await UI.confirm(t('js.confirm.delete_column'), { danger: true, confirmLabel: 'Delete' })) return;
     try {
       await api('/api/columns/' + columnId + '/delete', { method: 'POST' });
-      UI.toast('Column deleted', 'success');
+      UI.toast(t('js.toast.column_deleted'), 'success');
       setTimeout(() => location.reload(), 400);
     } catch {
       const res = await fetch('/api/columns/' + columnId + '/delete', {
@@ -480,7 +480,7 @@ async function openColumnSettings(columnId) {
       if (data.has_tasks) {
         const otherCols = [...root.querySelectorAll('.kanban-col')].filter(c => +c.dataset.columnId !== columnId);
         if (!otherCols.length) {
-          UI.toast('No other column to move tasks into', 'error');
+          UI.toast(t('js.toast.no_other_column'), 'error');
           return;
         }
         const items = otherCols.map(c => {
@@ -505,7 +505,7 @@ async function openColumnSettings(columnId) {
                     body: JSON.stringify({ move_to: +cs.hidden.value }),
                   });
                   close();
-                  UI.toast('Column deleted', 'success');
+                  UI.toast(t('js.toast.column_deleted'), 'success');
                   setTimeout(() => location.reload(), 400);
                 } catch (e) { logSilent(e, 'kanban.columnSettings.moveAndDelete'); }
               }

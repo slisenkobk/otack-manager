@@ -1,5 +1,5 @@
 import { api, UI } from './ui.js';
-import { logSilent } from './utils.js';
+import { logSilent, t } from './utils.js';
 
 document.querySelectorAll('.tag-picker').forEach(picker => {
   const scope      = picker.dataset.scope;
@@ -24,7 +24,7 @@ document.querySelectorAll('.tag-picker').forEach(picker => {
         await api(url, { method: 'POST' });
         attachedIds.delete(+tagId);
         chip.remove();
-        UI.toast('Tag removed', 'success');
+        UI.toast(t('js.toast.tag_removed'), 'success');
       } catch (e) { logSilent(e, 'tags.remove'); }
     });
   }
@@ -83,7 +83,7 @@ document.querySelectorAll('.tag-picker').forEach(picker => {
       attachedIds.add(+tag.id);
       search.value = '';
       dropdown.style.display = 'none';
-      UI.toast('Tag added', 'success');
+      UI.toast(t('js.toast.tag_added'), 'success');
     } catch (e) { logSilent(e, 'tags.attach'); }
   }
 

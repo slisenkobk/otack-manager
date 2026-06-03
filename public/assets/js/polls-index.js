@@ -1,5 +1,5 @@
 import { api, UI } from './ui.js';
-import { logSilent } from './utils.js';
+import { logSilent, t } from './utils.js';
 
 // Card list interactions (mirrors forms-index.js).
 document.querySelectorAll('.card[data-poll-id]').forEach(card => {
@@ -19,11 +19,11 @@ document.querySelectorAll('.card[data-poll-id]').forEach(card => {
 
   const del = card.querySelector('[data-action=delete-poll]');
   if (del) del.addEventListener('click', async () => {
-    if (!await UI.confirm('Delete this poll? Votes will be removed too.', { danger: true, confirmLabel: 'Delete' })) return;
+    if (!await UI.confirm(t('js.confirm.delete_poll'), { danger: true, confirmLabel: 'Delete' })) return;
     try {
       await api('/polls/' + id + '/delete', { method: 'POST' });
       card.remove();
-      UI.toast('Poll deleted', 'success');
+      UI.toast(t('js.toast.poll_deleted'), 'success');
     } catch (e) { logSilent(e, 'polls.delete'); }
   });
 
@@ -31,7 +31,7 @@ document.querySelectorAll('.card[data-poll-id]').forEach(card => {
   if (dup) dup.addEventListener('click', async () => {
     try {
       const res = await api('/polls/' + id + '/copy', { method: 'POST' });
-      UI.toast('Poll duplicated', 'success');
+      UI.toast(t('js.toast.poll_duplicated'), 'success');
       if (res?.url) location.href = res.url;
     } catch (e) { logSilent(e, 'polls.duplicate'); }
   });
@@ -40,9 +40,9 @@ document.querySelectorAll('.card[data-poll-id]').forEach(card => {
   if (copy) copy.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(copy.dataset.url);
-      UI.toast('Link copied', 'success');
+      UI.toast(t('js.toast.link_copied'), 'success');
     } catch {
-      UI.toast('Copy failed — select and copy manually', 'error');
+      UI.toast(t('js.toast.copy_failed_manual'), 'error');
     }
   });
 });
@@ -58,7 +58,7 @@ if (showRoot) {
     if (!await UI.confirm(msg, { danger: true, confirmLabel: 'Close' })) return;
     try {
       await api('/polls/' + pollId + '/close', { method: 'POST' });
-      UI.toast('Poll closed', 'success');
+      UI.toast(t('js.toast.poll_closed'), 'success');
       location.reload();
     } catch (e) { logSilent(e, 'polls.close'); }
   });
@@ -67,7 +67,7 @@ if (showRoot) {
   if (taskBtn) taskBtn.addEventListener('click', async () => {
     try {
       const res = await api('/polls/' + pollId + '/create-summary-task', { method: 'POST' });
-      UI.toast('Task created', 'success');
+      UI.toast(t('js.toast.task_created'), 'success');
       if (res?.url) location.href = res.url;
     } catch (e) { logSilent(e, 'polls.createSummaryTask'); }
   });
@@ -76,9 +76,9 @@ if (showRoot) {
   if (copyUrl) copyUrl.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(copyUrl.dataset.url);
-      UI.toast('Link copied', 'success');
+      UI.toast(t('js.toast.link_copied'), 'success');
     } catch {
-      UI.toast('Copy failed', 'error');
+      UI.toast(t('js.toast.copy_failed'), 'error');
     }
   });
 }
@@ -143,7 +143,7 @@ if (projectEditor) {
         method: 'POST',
         body: JSON.stringify({ project_id: raw ? parseInt(raw, 10) : null }),
       });
-      UI.toast('Project updated', 'success');
+      UI.toast(t('js.toast.project_updated'), 'success');
     } catch (e) { logSilent(e, 'polls.saveProject'); } finally { btn.disabled = false; }
   });
 }
