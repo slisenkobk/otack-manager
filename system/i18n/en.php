@@ -9,6 +9,7 @@ return [
     'common.save'        => 'Save',
     'common.cancel'      => 'Cancel',
     'common.delete'      => 'Delete',
+    'common.reply'       => 'Reply',
     'common.edit'        => 'Edit',
     'common.create'      => 'Create',
     'common.submit'      => 'Submit',

@@ -749,14 +749,7 @@ test('5.2 post comment as bob', async ({ browser }: { browser: Browser }) => {
   await ctx.close();
 });
 
-test.skip('5.3 admin deletes a comment', async ({ page }) => {
-  // SKIPPED — production gap: the comment-thread partial
-  // (views/partials/comment-thread.php) does not render a delete button.
-  // comments.js wires `[data-action="delete-comment"]` but the markup
-  // never carries that attribute, so there is no UI surface to delete a
-  // comment from the front-end. The DELETE endpoint
-  // POST /api/comments/{id}/delete still exists server-side. Re-enable
-  // this test once the delete affordance is added back to the partial.
+test('5.3 admin deletes a comment', async ({ page }) => {
   await page.goto('/login');
   await page.fill('input[name=email]', 'admin@qa.test');
   await page.fill('input[name=password]', 'password123');

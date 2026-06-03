@@ -13,8 +13,9 @@ foreach ($comments as $c) {
 }
 
 $canPost = $canPost ?? false;
-$renderComment = function (array $c, bool $isReply = false) use ($commentAttachments, $canPost) {
+$renderComment = function (array $c, bool $isReply = false) use ($commentAttachments, $canPost, $currentUserId, $isAdmin) {
     $atts = $commentAttachments[(int)$c['id']] ?? [];
+    $canDelete = $isAdmin || ((int)($c['user_id'] ?? 0) === (int)($currentUserId ?? 0));
     ?>
     <article class="comment<?= $isReply ? ' comment--reply' : '' ?>" data-comment-id="<?= (int)$c['id'] ?>">
       <?= user_avatar_html((int)$c['user_id'], $c['author_name'], $c['author_avatar'] ?? null, 'sm', ['extra_class' => 'comment__avatar']) ?>
@@ -23,7 +24,12 @@ $renderComment = function (array $c, bool $isReply = false) use ($commentAttachm
           <span class="comment-meta__name"><?= e($c['author_name']) ?></span>
           <?php if ($canPost): ?>
             <button type="button" class="comment-reply-btn" data-action="reply">
-              <i class="fa-solid fa-reply"></i> Reply
+              <i class="fa-solid fa-reply"></i> <?= e(t('common.reply')) ?>
+            </button>
+          <?php endif; ?>
+          <?php if ($canDelete): ?>
+            <button type="button" class="comment-reply-btn comment-delete-btn" data-action="delete-comment" title="<?= e(t('common.delete')) ?>">
+              <i class="fa-solid fa-trash"></i>
             </button>
           <?php endif; ?>
           <span class="comment-meta__time" data-iso="<?= e($c['created_at']) ?>"><?= fmt_datetime($c['created_at']) ?></span>
