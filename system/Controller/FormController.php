@@ -4,6 +4,8 @@ namespace App\Controller;
 
 use App\Http\Request;
 use App\Http\Response;
+use App\Http\ValidationException;
+use App\Http\Validator;
 use App\Repository\ActivityLogRepository;
 use App\Repository\FormRepository;
 use App\Repository\ProjectMemberRepository;
@@ -86,8 +88,12 @@ final class FormController extends BaseController
 
     public function save(Request $req, array $params = []): void {
         $data = $req->jsonBody([]);
-        $title = trim((string)($data['title'] ?? ''));
-        if ($title === '') { Response::json(['error' => 'Title required'], 422); return; }
+        try {
+            $clean = Validator::for($data)->required('title')->clean();
+        } catch (ValidationException $e) {
+            Response::json(['error' => 'Title required', 'fields' => $e->fields], 422); return;
+        }
+        $title = $clean['title'];
         // Description is Quill HTML — sanitise via the same pipeline used for
         // task/project descriptions to strip script/style/etc.
         $descriptionRaw = (string)($data['description'] ?? '');

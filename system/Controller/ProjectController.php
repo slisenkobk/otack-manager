@@ -4,6 +4,8 @@ namespace App\Controller;
 
 use App\Http\Request;
 use App\Http\Response;
+use App\Http\ValidationException;
+use App\Http\Validator;
 use App\Repository\ActivityLogRepository;
 use App\Repository\AttachmentRepository;
 use App\Repository\CommentRepository;
@@ -89,12 +91,14 @@ final class ProjectController extends BaseController {
         }
         $isJson = $this->isJsonRequest($req);
         $data   = $isJson ? $req->jsonBody([]) : $req->post;
-        $name        = trim((string)($data['name'] ?? ''));
-        $description = \App\Service\HtmlSanitizer::clean(trim((string)($data['description'] ?? '')));
-        if ($name === '') {
-            if ($isJson) { Response::json(['error' => 'Name is required'], 422); return; }
+        try {
+            $clean = Validator::for($data)->required('name')->clean();
+        } catch (ValidationException $e) {
+            if ($isJson) { Response::json(['error' => 'Name is required', 'fields' => $e->fields], 422); return; }
             Response::redirect('/projects'); return;
         }
+        $name        = $clean['name'];
+        $description = \App\Service\HtmlSanitizer::clean(trim((string)($data['description'] ?? '')));
         // ProjectRepository::create already wraps its INSERT in a transaction.
         // We run member add and column seed after, each atomic on its own.
         $color = $data['color'] ?? null;

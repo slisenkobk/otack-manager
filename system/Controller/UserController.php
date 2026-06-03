@@ -7,6 +7,8 @@ use App\Http\AuthGuard;
 use App\Http\Csrf;
 use App\Http\Request;
 use App\Http\Response;
+use App\Http\ValidationException;
+use App\Http\Validator;
 use App\Repository\ApiTokenRepository;
 use App\Repository\SettingsRepository;
 use App\Repository\UserRepository;
@@ -160,15 +162,24 @@ final class UserController extends BaseController {
     }
 
     public function create(Request $req, array $params = []): void {
-        $data  = $req->jsonBody($req->post);
-        $name  = trim((string)($data['name'] ?? ''));
-        $email = trim((string)($data['email'] ?? ''));
-        $pass  = (string)($data['password'] ?? '');
+        $data = $req->jsonBody($req->post);
+        try {
+            $clean = Validator::for($data)
+                ->required('name')
+                ->required('email')->email('email')
+                ->required('password')->minLength('password', 8)
+                ->clean();
+        } catch (ValidationException $e) {
+            Response::json([
+                'error'  => 'Name, email and password (min 8) are required',
+                'fields' => $e->fields,
+            ], 422); return;
+        }
+        $name  = $clean['name'];
+        $email = $clean['email'];
+        $pass  = $clean['password'];
         $role  = in_array($data['role'] ?? 'employee', ['admin', 'manager', 'employee'], true)
             ? $data['role'] : 'employee';
-        if ($name === '' || $email === '' || strlen($pass) < 8) {
-            Response::json(['error' => 'Name, email and password (min 8) are required'], 422); return;
-        }
         if ($this->users->findByEmail($email)) {
             Response::json(['error' => 'Email already registered'], 422); return;
         }

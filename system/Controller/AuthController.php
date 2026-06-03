@@ -8,6 +8,8 @@ use App\Auth\SessionManager;
 use App\Http\Csrf;
 use App\Http\Request;
 use App\Http\Response;
+use App\Http\ValidationException;
+use App\Http\Validator;
 use App\Repository\SettingsRepository;
 use App\Repository\UserRepository;
 use App\Service\EventBus;
@@ -55,8 +57,20 @@ final class AuthController extends BaseController {
     }
 
     public function login(Request $req, array $params = []): void {
-        $email    = trim($req->post['email'] ?? '');
-        $password = $req->post['password'] ?? '';
+        try {
+            $clean = Validator::for($req->post)
+                ->required('email')->email('email')
+                ->required('password')
+                ->clean();
+        } catch (ValidationException $e) {
+            // Login surfaces a single generic "invalid credentials" message so
+            // we don't leak whether the email exists; map all field failures
+            // through that same translation key.
+            $this->flash('flash_error', t('auth.invalid_credentials'));
+            Response::redirect('/login'); return;
+        }
+        $email    = $clean['email'];
+        $password = $clean['password'];
         $remember = !empty($req->post['remember']);
         $result   = $this->auth->login($email, $password);
 
@@ -104,22 +118,31 @@ final class AuthController extends BaseController {
     }
 
     public function register(Request $req, array $params = []): void {
-        $name     = trim($req->post['name'] ?? '');
-        $email    = trim($req->post['email'] ?? '');
-        $password = $req->post['password'] ?? '';
+        try {
+            $clean = Validator::for($req->post)
+                ->required('name')
+                ->required('email')->email('email')
+                ->required('password')->minLength('password', 8)
+                ->clean();
+        } catch (ValidationException $e) {
+            // Preserve the existing UX: pick the field-specific message that
+            // matches the first failure, falling back to the generic
+            // "invalid credentials" copy for the email branch.
+            $first = array_key_first($e->fields);
+            $code  = $e->fields[$first];
+            $msg = match ([$first, $code]) {
+                ['name', 'required']         => t('auth.name_required'),
+                ['password', 'required'],
+                ['password', 'too_short']    => t('auth.password_too_short'),
+                default                      => t('auth.invalid_credentials'),
+            };
+            $this->flash('flash_error', $msg);
+            Response::redirect('/register'); return;
+        }
+        $name     = $clean['name'];
+        $email    = $clean['email'];
+        $password = $clean['password'];
 
-        if ($name === '') {
-            $this->flash('flash_error', t('auth.name_required'));
-            Response::redirect('/register'); return;
-        }
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $this->flash('flash_error', t('auth.invalid_credentials'));
-            Response::redirect('/register'); return;
-        }
-        if (strlen($password) < 8) {
-            $this->flash('flash_error', t('auth.password_too_short'));
-            Response::redirect('/register'); return;
-        }
         if ($this->users->findByEmail($email)) {
             $this->flash('flash_error', t('auth.email_taken'));
             Response::redirect('/register'); return;
