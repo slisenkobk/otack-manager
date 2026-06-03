@@ -6,6 +6,7 @@ use App\App;
 use App\Http\Request;
 use App\Http\Response;
 use App\Service\Markdown;
+use App\Service\RolePolicy;
 use App\Repository\CommentRepository;
 use App\Repository\ProjectMemberRepository;
 use App\Repository\TaskRepository;
@@ -155,9 +156,7 @@ final class CommentController extends BaseController
             return;
         }
 
-        $isAdmin  = $this->user['role'] === 'admin';
-        $isAuthor = (int)$c['user_id'] === (int)$this->user['id'];
-        if (!$isAdmin && !$isAuthor) {
+        if (!RolePolicy::canDeleteComment($this->user, $c)) {
             Response::json(['error' => 'Forbidden'], 403);
             return;
         }

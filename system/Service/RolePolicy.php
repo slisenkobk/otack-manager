@@ -77,4 +77,11 @@ final class RolePolicy
     public static function canManagePolls(array $user): bool {
         return self::isAdmin($user) || self::isManager($user);
     }
+
+    /** Can delete a comment: admins always; otherwise only the original author. */
+    public static function canDeleteComment(array $user, array $comment): bool
+    {
+        if (self::isAdmin($user)) return true;
+        return (int)($comment['user_id'] ?? 0) === (int)($user['id'] ?? 0);
+    }
 }
