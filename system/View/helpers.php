@@ -33,6 +33,21 @@ function csrf_field(string $token): string
     return '<input type="hidden" name="_csrf" value="' . e($token) . '">';
 }
 
+/**
+ * HMAC secret for anti-bot time-traps, short-link IP hashing, and similar
+ * server-only signing material. Reads `APP_SECRET`; falls back to
+ * `LOGIN_HASH` for backward compatibility (which historically doubled as
+ * both the /login URL gate AND the HMAC secret). New installs should set
+ * `APP_SECRET` explicitly so the login-URL gate and the HMAC material can
+ * rotate independently.
+ */
+function app_secret(): string
+{
+    $appSecret = (string)\App\App::env('APP_SECRET', '');
+    if ($appSecret !== '') return $appSecret;
+    return (string)\App\App::env('LOGIN_HASH', '');
+}
+
 function icon(string $name, string $extraClass = ''): string
 {
     return '<i class="fa-solid fa-' . e($name) . ($extraClass ? ' ' . e($extraClass) : '') . '"></i>';

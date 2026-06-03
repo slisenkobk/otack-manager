@@ -39,7 +39,8 @@ final class PublicLinkController extends BaseController
         if (!$link) { $this->renderNotFound(); return; }
 
         $ip      = $this->resolveRemoteIp();
-        $secret  = (string)\App\App::env('LOGIN_HASH', '');
+        // Prefer APP_SECRET; falls back to LOGIN_HASH for backward compatibility.
+        $secret  = app_secret();
         $ipHash  = ShortLinkVisitRepository::hashIp($ip, $secret);
         $ua      = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
         $referer = (string)($_SERVER['HTTP_REFERER']    ?? '');

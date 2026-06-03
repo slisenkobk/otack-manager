@@ -179,11 +179,17 @@ implement two checks on every public POST:
   whose timestamp is in the future, is older than ~24h, or whose HMAC does not
   verify.
 
-The HMAC secret today is `LOGIN_HASH`. This is documented but flagged as a
-Tier 2 hardening item — `LOGIN_HASH` doubles as the `/login` URL gate and the
-`?hash=` parameter for the bundled migrator, and it does not belong rotating
-the public-form anti-spam key. The planned change is to split this into an
-`APP_SECRET` env (rotated independently). Not in this release.
+The HMAC secret is read from `APP_SECRET` (preferred); when it is empty the
+app falls back to `LOGIN_HASH` for backward compatibility with installs that
+predate the split. New installs should set `APP_SECRET` explicitly so the
+public-form anti-spam key and the `/login` / `?hash=` URL gate can rotate
+independently. The fallback path is legacy and may be removed in a future
+release — see `system/View/helpers.php::app_secret()` and the migrated call
+sites (`PublicFormController`, `PublicPollController`, `PublicLinkController`).
+
+`LOGIN_HASH` remains in use exclusively for its original purpose: the
+`/login?hash=…` URL gate (`public/index.php`) and the bundled migrator
+gate (`public/migrate.php`).
 
 ## 10. HtmlSanitizer
 

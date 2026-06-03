@@ -23,7 +23,8 @@ use PDO;
  *   stage=vote    → server signs the contact, visitor picks a choice
  *
  * The signed contact token is HMAC(poll_hash + contact_normalized + ts) keyed
- * on LOGIN_HASH — same secret reused by PublicFormController's time-trap.
+ * on APP_SECRET (falling back to LOGIN_HASH for backward compatibility) —
+ * same secret reused by PublicFormController's time-trap.
  * Stateless on purpose: a refresh between stages just restarts at contact.
  */
 final class PublicPollController extends BaseController
@@ -217,7 +218,8 @@ final class PublicPollController extends BaseController
 
     private function timeTrapSecret(): string
     {
-        $s = (string)App::env('LOGIN_HASH', '');
+        // Prefer APP_SECRET; falls back to LOGIN_HASH for backward compatibility.
+        $s = app_secret();
         return $s !== '' ? $s : 'otack-poll-time-trap-fallback';
     }
 

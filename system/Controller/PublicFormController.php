@@ -53,11 +53,12 @@ final class PublicFormController extends BaseController
 
     private function timeTrapSecret(): string
     {
-        // Reuse LOGIN_HASH as a shared HMAC secret — it's already required to
-        // be set in env and stays stable across requests. Falls back to a fixed
-        // string only in test environments that don't set it; that's fine
-        // because the time trap is defence-in-depth, not the primary gate.
-        $s = (string)\App\App::env('LOGIN_HASH', '');
+        // Prefer APP_SECRET (dedicated HMAC key); falls back to LOGIN_HASH for
+        // backward compatibility (legacy installs that haven't split the env).
+        // Final fallback to a fixed string only in test environments that set
+        // neither; that's fine because the time trap is defence-in-depth, not
+        // the primary gate.
+        $s = app_secret();
         return $s !== '' ? $s : 'otack-form-time-trap-fallback';
     }
 

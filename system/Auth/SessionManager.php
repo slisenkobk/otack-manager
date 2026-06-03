@@ -13,7 +13,14 @@ final class SessionManager {
     public function start(int $lifetime): void {
         if (session_status() === PHP_SESSION_ACTIVE) return;
         $dir = APP_ROOT . '/data/sessions';
-        if (!is_dir($dir)) mkdir($dir, 0700, true);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0700, true);
+        }
+        // Explicit chmod covers the case where the directory pre-existed under
+        // a looser umask (e.g. created manually or by a previous deploy).
+        if (is_dir($dir)) {
+            @chmod($dir, 0700);
+        }
         session_save_path($dir);
         // The garbage collector must keep remember-me session files around
         // for at least 30 days even if the per-request cookie lifetime is
