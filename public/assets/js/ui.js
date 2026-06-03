@@ -55,6 +55,27 @@ export const UI = {
     document.addEventListener('keydown', onKey);
     ROOT_MODAL().appendChild(node);
     setTimeout(() => node.querySelector('button')?.focus(), 0);
+
+    // Focus trap — Tab cycles within the modal, Shift+Tab too. Without
+    // this, Tab from the last button bleeds into the underlying page —
+    // particularly disorienting when a modal is opened from a kanban
+    // card with dozens of focusables behind the backdrop.
+    const focusableSel = 'a[href], button, textarea, input, select, [tabindex]:not([tabindex="-1"])';
+    node.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      const focusables = Array.from(node.querySelectorAll(focusableSel))
+        .filter(el => !el.disabled && el.offsetParent !== null);
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last  = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    });
     return { close, node };
   },
 
