@@ -13,19 +13,19 @@ function _new_auth_setup(): array {
     $session = [];
     $repo = new UserRepository($pdo);
     $hasher = new PasswordHasher();
-    $auth = new AuthManager($repo, $hasher, $session);
-    return [$auth, $repo, $hasher, &$session, $tmpDb];
+    $throttle = new \App\Auth\LoginThrottle($pdo);
+    $auth = new AuthManager($repo, $hasher, $session, $throttle);
+    return [$auth, $repo, $hasher, &$session, $tmpDb, $pdo];
 }
 
 it('login with wrong password returns null and increments fails', function () {
     $setup = _new_auth_setup();
     [$auth, $repo, $hasher] = $setup;
-    $session = &$setup[3];
+    $pdo = $setup[5];
     $repo->create('a@x', $hasher->hash('correct'), 'A');
     assert_eq(null, $auth->login('a@x', 'wrong'));
-    // fails recorded
-    $keys = array_filter(array_keys($session), fn($k) => str_starts_with($k, 'auth_fails_'));
-    assert_true(count($keys) >= 1);
+    $count = (int)$pdo->query('SELECT count FROM login_attempts')->fetchColumn();
+    assert_true($count >= 1, "expected at least 1 fail recorded, got $count");
     @unlink($setup[4]);
 });
 

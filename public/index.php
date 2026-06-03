@@ -178,8 +178,14 @@ App::singleton('uploader', fn() => new \App\Service\FileUploader(
     (int)App::env('UPLOAD_MAX_FILE', '52428800'),
     APP_ROOT . '/' . App::env('UPLOAD_DIR', 'public/uploads')
 ));
+App::singleton('login_throttle', fn() => new \App\Auth\LoginThrottle(App::make('db')));
 App::singleton('auth',    function () use (&$store) {
-    return new \App\Auth\AuthManager(App::make('users'), App::make('hasher'), $store);
+    return new \App\Auth\AuthManager(
+        App::make('users'),
+        App::make('hasher'),
+        $store,
+        App::make('login_throttle'),
+    );
 });
 App::singleton('csrf',    function () use ($csrf) { return $csrf; });
 App::singleton('session', function () use (&$store) {
