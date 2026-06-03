@@ -6,7 +6,7 @@ final class ApiTokenRepository
 {
     public function __construct(private \PDO $pdo) {}
 
-    /** Generate a fresh plaintext token: 'otk_' + base62(random_bytes(32)). */
+    /** Generate a fresh plaintext token: 'otk_' + 40 base62 chars = 44 chars total. */
     public static function generate(): string
     {
         $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
