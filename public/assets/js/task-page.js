@@ -1,5 +1,5 @@
 import { api, UI } from './ui.js';
-import { logSilent, t } from './utils.js';
+import { logSilent, t, withButtonBusy } from './utils.js';
 
 const titleEl = document.querySelector('.task-title');
 const sidebar = document.querySelector('.task-sidebar');
@@ -314,12 +314,11 @@ if (!sidebar) {
   const promoteBtn = sidebar.querySelector('[data-action=promote-to-project]');
   if (promoteBtn) promoteBtn.addEventListener('click', async () => {
     if (!await UI.confirm(t('js.confirm.create_project_from_task'), { confirmLabel: 'Create project' })) return;
-    promoteBtn.disabled = true;
-    try {
-      const res = await api('/api/tasks/' + taskId + '/promote-to-project', { method: 'POST' });
-      if (res?.url) location.href = res.url;
-    } catch {
-      promoteBtn.disabled = false;
-    }
+    await withButtonBusy(promoteBtn, async () => {
+      try {
+        const res = await api('/api/tasks/' + taskId + '/promote-to-project', { method: 'POST' });
+        if (res?.url) location.href = res.url;
+      } catch (e) { logSilent(e, 'task-page.promoteToProject'); }
+    });
   });
 }

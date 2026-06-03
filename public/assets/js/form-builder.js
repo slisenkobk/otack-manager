@@ -1,5 +1,5 @@
 import { api, UI } from './ui.js';
-import { logSilent, t } from './utils.js';
+import { logSilent, t, withButtonBusy } from './utils.js';
 
 const FIELD_TYPES = [
   { value: 'text',     label: 'Text (single line)' },
@@ -67,13 +67,14 @@ class FormBuilder {
     };
     if (!payload.title) { UI.toast(t('js.toast.title_required'), 'error'); return; }
     if (!payload.fields.length) { UI.toast(t('js.toast.add_one_field'), 'error'); return; }
-    btn.disabled = true;
-    try {
-      const url = this.formId ? '/forms/' + this.formId : '/forms';
-      const res = await api(url, { method: 'POST', body: JSON.stringify(payload) });
-      UI.toast(t('js.toast.form_saved'), 'success');
-      if (!this.formId && res?.id) location.href = '/forms/' + res.id;
-    } catch (e) { logSilent(e, 'form-builder.save'); } finally { btn.disabled = false; }
+    await withButtonBusy(btn, async () => {
+      try {
+        const url = this.formId ? '/forms/' + this.formId : '/forms';
+        const res = await api(url, { method: 'POST', body: JSON.stringify(payload) });
+        UI.toast(t('js.toast.form_saved'), 'success');
+        if (!this.formId && res?.id) location.href = '/forms/' + res.id;
+      } catch (e) { logSilent(e, 'form-builder.save'); }
+    });
   }
 
   renderAll(scrollToIdx = -1) {
@@ -269,18 +270,19 @@ class FormBuilder {
 
     if (rotBtn) rotBtn.addEventListener('click', async () => {
       if (!await UI.confirm(t('js.confirm.rotate_public_link'), { danger: true, confirmLabel: 'Rotate link' })) return;
-      rotBtn.disabled = true;
-      try {
-        const res = await api('/forms/' + id + '/rotate-hash', { method: 'POST' });
-        if (res?.url) {
-          urlText.textContent = res.url;
-          urlLink.href = res.url;
-          // Keep the "Open public" toolbar link in sync, if present
-          const toolbarOpen = document.querySelector('[data-builder-toolbar] a[href*="/f/"]');
-          if (toolbarOpen) toolbarOpen.href = res.url;
-        }
-        UI.toast(t('js.toast.new_url_generated'), 'success');
-      } catch (e) { logSilent(e, 'form-builder.rotateHash'); } finally { rotBtn.disabled = false; }
+      await withButtonBusy(rotBtn, async () => {
+        try {
+          const res = await api('/forms/' + id + '/rotate-hash', { method: 'POST' });
+          if (res?.url) {
+            urlText.textContent = res.url;
+            urlLink.href = res.url;
+            // Keep the "Open public" toolbar link in sync, if present
+            const toolbarOpen = document.querySelector('[data-builder-toolbar] a[href*="/f/"]');
+            if (toolbarOpen) toolbarOpen.href = res.url;
+          }
+          UI.toast(t('js.toast.new_url_generated'), 'success');
+        } catch (e) { logSilent(e, 'form-builder.rotateHash'); }
+      });
     });
   }
 

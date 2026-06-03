@@ -1,5 +1,5 @@
 import { api, UI } from './ui.js';
-import { logSilent, t } from './utils.js';
+import { logSilent, t, withButtonBusy } from './utils.js';
 
 // Card list interactions (mirrors forms-index.js).
 document.querySelectorAll('.card[data-poll-id]').forEach(card => {
@@ -136,14 +136,15 @@ if (projectEditor) {
   const input = projectEditor.querySelector('[data-poll-project-input]');
   const btn   = projectEditor.querySelector('[data-action=save-project]');
   if (btn && input) btn.addEventListener('click', async () => {
-    btn.disabled = true;
-    try {
-      const raw = (input.value || '').trim();
-      await api('/polls/' + id + '/project', {
-        method: 'POST',
-        body: JSON.stringify({ project_id: raw ? parseInt(raw, 10) : null }),
-      });
-      UI.toast(t('js.toast.project_updated'), 'success');
-    } catch (e) { logSilent(e, 'polls.saveProject'); } finally { btn.disabled = false; }
+    await withButtonBusy(btn, async () => {
+      try {
+        const raw = (input.value || '').trim();
+        await api('/polls/' + id + '/project', {
+          method: 'POST',
+          body: JSON.stringify({ project_id: raw ? parseInt(raw, 10) : null }),
+        });
+        UI.toast(t('js.toast.project_updated'), 'success');
+      } catch (e) { logSilent(e, 'polls.saveProject'); }
+    });
   });
 }

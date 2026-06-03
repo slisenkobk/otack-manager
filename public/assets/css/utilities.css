@@ -1177,3 +1177,29 @@ pre.copyable.copyable--flash {
   background: linear-gradient(0deg, var(--paper-2), var(--paper-2)) padding-box;
 }
 .api-tokens-reveal__code { margin-top: var(--space-6); }
+
+/* aria-busy spinner for buttons — paired with utils.js withButtonBusy().
+   Hides the label (color: transparent) and overlays a spinner so the
+   layout doesn't shift when an async action is in flight. */
+.btn[aria-busy="true"] {
+  position: relative;
+  color: transparent;
+  cursor: progress;
+}
+.btn[aria-busy="true"]::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin .8s linear infinite;
+  /* Inherit color from a non-transparent ancestor — currentColor at
+     this scope is `transparent` from the rule above. */
+  color: var(--ink, #2A2118);
+}
+@keyframes btn-spin { to { transform: rotate(1turn); } }

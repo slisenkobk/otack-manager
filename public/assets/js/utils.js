@@ -54,3 +54,29 @@ export function t(key, fallback) {
   if (!window.__t) loadI18nIsland();
   return (window.__t && window.__t[key]) ?? (fallback ?? key);
 }
+
+/**
+ * Wrap an async operation so the button shows busy state (`aria-busy`,
+ * disabled) for the duration. Replaces ad-hoc
+ *   btn.disabled = true;
+ *   try { … } finally { btn.disabled = false; }
+ * blocks scattered across 45+ call sites — a class of bug where the
+ * `finally` branch is omitted or the button stays disabled on rejection.
+ * Also sets aria-busy so screen-readers + CSS get a single source of truth.
+ *
+ * Example:
+ *   await withButtonBusy(saveBtn, async () => {
+ *     await api('/foo', { method: 'POST' });
+ *   });
+ */
+export async function withButtonBusy(btn, fn) {
+  if (!btn) return await fn();
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  try {
+    return await fn();
+  } finally {
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+  }
+}
