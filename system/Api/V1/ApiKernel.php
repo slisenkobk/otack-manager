@@ -55,6 +55,14 @@ final class ApiKernel
         $this->routes['GET /api/v1/projects/{id}/comments'] = ['handler' => 'Comments', 'action' => 'indexForProject'];
         $this->routes['POST /api/v1/comments']              = ['handler' => 'Comments', 'action' => 'create'];
         $this->routes['DELETE /api/v1/comments/{id}']       = ['handler' => 'Comments', 'action' => 'destroy'];
+
+        $this->routes['GET /api/v1/projects/{id}/tags']                  = ['handler' => 'Tags', 'action' => 'indexForProject'];
+        $this->routes['GET /api/v1/tags']                                = ['handler' => 'Tags', 'action' => 'indexGlobal'];
+        $this->routes['POST /api/v1/tags']                               = ['handler' => 'Tags', 'action' => 'createGlobal'];
+        $this->routes['POST /api/v1/projects/{id}/tags']                 = ['handler' => 'Tags', 'action' => 'attachToProject'];
+        $this->routes['DELETE /api/v1/projects/{id}/tags/{id}']          = ['handler' => 'Tags', 'action' => 'detachFromProject'];
+        $this->routes['POST /api/v1/tasks/{id}/tags']                    = ['handler' => 'Tags', 'action' => 'attachToTask'];
+        $this->routes['DELETE /api/v1/tasks/{id}/tags/{id}']             = ['handler' => 'Tags', 'action' => 'detachFromTask'];
     }
 
     public function handle(Request $req): void
