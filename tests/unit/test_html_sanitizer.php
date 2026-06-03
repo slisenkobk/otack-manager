@@ -67,3 +67,23 @@ it('removes HTML comments', function () {
     $out = HtmlSanitizer::clean('<p>x</p><!-- secret --><p>y</p>');
     assert_true(strpos($out, 'secret') === false, "comment leaked: $out");
 });
+
+it('strips onmouseover from allow-listed <a>', function () {
+    $out = HtmlSanitizer::clean('<a href="https://example.com" onmouseover="alert(1)">x</a>');
+    assert_true(strpos($out, 'onmouseover') === false, "onmouseover leaked: $out");
+});
+
+it('strips onload from allow-listed <a>', function () {
+    $out = HtmlSanitizer::clean('<a href="https://example.com" onload="alert(1)">x</a>');
+    assert_true(strpos($out, 'onload') === false, "onload leaked: $out");
+});
+
+it('strips onfocus from allow-listed <a>', function () {
+    $out = HtmlSanitizer::clean('<a href="https://example.com" onfocus="alert(1)">x</a>');
+    assert_true(strpos($out, 'onfocus') === false, "onfocus leaked: $out");
+});
+
+it('strips onerror from allow-listed <a>', function () {
+    $out = HtmlSanitizer::clean('<a href="https://example.com" onerror="alert(1)">x</a>');
+    assert_true(strpos($out, 'onerror') === false, "onerror leaked: $out");
+});

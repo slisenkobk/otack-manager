@@ -8,6 +8,10 @@ namespace App\Service;
  * (event handlers, javascript: hrefs, data: urls).
  *
  * Used for Quill WYSIWYG output before persisting descriptions.
+ *
+ * Requires `ext-dom`. The extension is hard-required at boot
+ * (see system/bootstrap.php); absence aborts startup with HTTP 500,
+ * so this class can assume DOMDocument is always available.
  */
 final class HtmlSanitizer
 {
@@ -29,11 +33,7 @@ final class HtmlSanitizer
             return '';
         }
 
-        // Use DOMDocument if available; fall back to strip_tags
-        if (!extension_loaded('dom')) {
-            return strip_tags($html, '<' . implode('><', self::ALLOWED_TAGS) . '>');
-        }
-
+        // ext-dom is hard-required at boot (system/bootstrap.php) — no fallback.
         $doc = new \DOMDocument();
         // Suppress warnings from malformed HTML; wrap in UTF-8 body
         @$doc->loadHTML(

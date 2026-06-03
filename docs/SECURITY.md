@@ -202,10 +202,12 @@ p, strong, em, u, a, code, pre, ul, ol, li, br, blockquote
 - Any attribute whose name starts with `on` (event handler) is stripped.
 - `<a target="_blank">` automatically gets `rel="noopener noreferrer"`.
 
-The implementation requires `ext-dom`. When `ext-dom` is missing the sanitizer
-falls back to `strip_tags`, which is **markedly weaker** — it removes
-unallowed tags but does not enforce the attribute allow-list. `ext-dom` is
-therefore listed as a hard requirement in [DEPLOYMENT.md](DEPLOYMENT.md).
+The implementation requires `ext-dom`. **DOMDocument is REQUIRED at boot**
+(verified in `system/bootstrap.php` alongside `pdo`, `fileinfo`, `mbstring`);
+absence aborts startup with HTTP 500. The previous `strip_tags` fallback has
+been removed — it left attribute-based payloads (e.g. `onmouseover=`) intact
+on allow-listed tags. `ext-dom` is also listed as a hard requirement in
+[DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## 11. Reporting vulnerabilities
 
