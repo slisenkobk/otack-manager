@@ -119,6 +119,9 @@ Make sure:
 - [docs/DATABASE.md](docs/DATABASE.md) — dual-driver (SQLite + MySQL) design + in-app migrator plan
 - [docs/UPDATES.md](docs/UPDATES.md) — design of the in-app GitHub-driven updater (versions, backups, restore)
 - [docs/QA-CHECKLIST.md](docs/QA-CHECKLIST.md) — manual QA walkthrough
+- [docs/API.md](docs/API.md) — third-party REST API guide: integration setup, auth, endpoint reference, recipes
+- [docs/INTEGRATION-CHECKLIST.md](docs/INTEGRATION-CHECKLIST.md) — one-page checklist for integrators
+- [docs/openapi.yaml](docs/openapi.yaml) — OpenAPI 3.1.0 machine-readable contract
 
 ## Stack
 
