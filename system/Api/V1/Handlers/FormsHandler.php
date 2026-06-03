@@ -14,7 +14,7 @@ use App\Http\Request;
 final class FormsHandler extends BaseHandler
 {
     /** GET /api/v1/forms */
-    public function index(Request $req): array
+    public function index(Request $req, array $params = []): array
     {
         if (!RolePolicy::canViewFormsData($this->user())) return $this->forbidden();
 
@@ -31,11 +31,11 @@ final class FormsHandler extends BaseHandler
     }
 
     /** GET /api/v1/forms/{id} */
-    public function show(Request $req): array
+    public function show(Request $req, array $params = []): array
     {
         if (!RolePolicy::canViewFormsData($this->user())) return $this->forbidden();
 
-        $id   = $this->pathId($req, 3);
+        $id   = (int)($params['id'] ?? 0);
         $form = $this->svc('forms')->findById($id);
         if (!$form) return $this->notFound();
         if (!$this->canSeeForm($form)) return $this->notFound();
@@ -44,11 +44,11 @@ final class FormsHandler extends BaseHandler
     }
 
     /** GET /api/v1/forms/{id}/submissions */
-    public function submissions(Request $req): array
+    public function submissions(Request $req, array $params = []): array
     {
         if (!RolePolicy::canViewFormsData($this->user())) return $this->forbidden();
 
-        $id   = $this->pathId($req, 3);
+        $id   = (int)($params['id'] ?? 0);
         $form = $this->svc('forms')->findById($id);
         if (!$form) return $this->notFound();
         if (!$this->canSeeForm($form)) return $this->notFound();
@@ -77,11 +77,11 @@ final class FormsHandler extends BaseHandler
     }
 
     /** GET /api/v1/submissions/{id} */
-    public function showSubmission(Request $req): array
+    public function showSubmission(Request $req, array $params = []): array
     {
         if (!RolePolicy::canViewFormsData($this->user())) return $this->forbidden();
 
-        $id  = $this->pathId($req, 3);
+        $id  = (int)($params['id'] ?? 0);
         $sub = $this->svc('form_submissions')->findById($id);
         if (!$sub) return $this->notFound();
         $form = $this->svc('forms')->findById((int)$sub['form_id']);

@@ -9,7 +9,7 @@ use App\Http\Request;
 
 final class ProjectsHandler extends BaseHandler
 {
-    public function index(Request $req): array
+    public function index(Request $req, array $params = []): array
     {
         $after = isset($req->query['after']) ? (int)$req->query['after'] : 0;
         $limit = min(100, max(1, (int)($req->query['limit'] ?? 50)));
@@ -30,10 +30,9 @@ final class ProjectsHandler extends BaseHandler
         return ApiResponse::paginated($this->serializeMany($items), $next);
     }
 
-    public function show(Request $req): array
+    public function show(Request $req, array $params = []): array
     {
-        // Segment index 3 because /api/v1/projects/{id} → ['api','v1','projects','{id}']
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $project = $this->svc('projects')->findById($id);
         if (!$project) return $this->notFound();
         if (!$this->canSeeProject($project)) return $this->notFound();
@@ -43,7 +42,7 @@ final class ProjectsHandler extends BaseHandler
         return ApiResponse::ok($this->serializeOne($project, $columns, $members));
     }
 
-    public function create(Request $req): array
+    public function create(Request $req, array $params = []): array
     {
         if (!RolePolicy::canCreateProject($this->user())) return $this->forbidden();
         $body = $this->readBody($req);
@@ -64,9 +63,9 @@ final class ProjectsHandler extends BaseHandler
         return ApiResponse::created($this->serializeMany([$project])[0]);
     }
 
-    public function update(Request $req): array
+    public function update(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $project = $this->svc('projects')->findById($id);
         if (!$project) return $this->notFound();
         if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) return $this->forbidden();
@@ -80,9 +79,9 @@ final class ProjectsHandler extends BaseHandler
         return ApiResponse::ok($this->serializeMany([$this->svc('projects')->findById($id)])[0]);
     }
 
-    public function destroy(Request $req): array
+    public function destroy(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $project = $this->svc('projects')->findById($id);
         if (!$project) return $this->notFound();
         if (!RolePolicy::isAdmin($this->user())) return $this->forbidden();
@@ -90,9 +89,9 @@ final class ProjectsHandler extends BaseHandler
         return ApiResponse::noContent();
     }
 
-    public function setPin(Request $req): array
+    public function setPin(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $project = $this->svc('projects')->findById($id);
         if (!$project) return $this->notFound();
         // Visibility check first — invisible project should look like a 404,
@@ -111,9 +110,9 @@ final class ProjectsHandler extends BaseHandler
         return ApiResponse::ok(['id' => $id, 'pinned' => $pinned]);
     }
 
-    public function addMember(Request $req): array
+    public function addMember(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $project = $this->svc('projects')->findById($id);
         if (!$project) return $this->notFound();
         if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) return $this->forbidden();
@@ -125,10 +124,10 @@ final class ProjectsHandler extends BaseHandler
         return ApiResponse::created(['project_id' => $id, 'user_id' => $userId]);
     }
 
-    public function removeMember(Request $req): array
+    public function removeMember(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
-        $userId = $this->pathId($req, 5);
+        $id     = (int)($params['id'] ?? 0);
+        $userId = (int)($params['userId'] ?? 0);
         $project = $this->svc('projects')->findById($id);
         if (!$project) return $this->notFound();
         if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) return $this->forbidden();

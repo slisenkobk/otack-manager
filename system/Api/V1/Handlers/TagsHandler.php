@@ -9,9 +9,9 @@ use App\Http\Request;
 final class TagsHandler extends BaseHandler
 {
     /** GET /api/v1/projects/{id}/tags */
-    public function indexForProject(Request $req): array
+    public function indexForProject(Request $req, array $params = []): array
     {
-        $projectId = $this->pathId($req, 3);
+        $projectId = (int)($params['id'] ?? 0);
         $project = $this->svc('projects')->findById($projectId);
         if (!$project || !$this->canSeeProject($project)) return $this->notFound();
 
@@ -20,7 +20,7 @@ final class TagsHandler extends BaseHandler
     }
 
     /** GET /api/v1/tags — admin-only global catalogue. */
-    public function indexGlobal(Request $req): array
+    public function indexGlobal(Request $req, array $params = []): array
     {
         if (!RolePolicy::isAdmin($this->user())) return $this->forbidden();
         $tags = $this->svc('tags')->listAll();
@@ -28,7 +28,7 @@ final class TagsHandler extends BaseHandler
     }
 
     /** POST /api/v1/tags — admin-only global tag creation. */
-    public function createGlobal(Request $req): array
+    public function createGlobal(Request $req, array $params = []): array
     {
         if (!RolePolicy::isAdmin($this->user())) return $this->forbidden();
 
@@ -50,9 +50,9 @@ final class TagsHandler extends BaseHandler
     }
 
     /** POST /api/v1/projects/{id}/tags — attach tag to project. */
-    public function attachToProject(Request $req): array
+    public function attachToProject(Request $req, array $params = []): array
     {
-        $projectId = $this->pathId($req, 3);
+        $projectId = (int)($params['id'] ?? 0);
         $project = $this->svc('projects')->findById($projectId);
         if (!$project || !$this->canSeeProject($project)) return $this->notFound();
         if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) {
@@ -75,11 +75,11 @@ final class TagsHandler extends BaseHandler
         ]);
     }
 
-    /** DELETE /api/v1/projects/{id}/tags/{tag_id} — detach. */
-    public function detachFromProject(Request $req): array
+    /** DELETE /api/v1/projects/{id}/tags/{tagId} — detach. */
+    public function detachFromProject(Request $req, array $params = []): array
     {
-        $projectId = $this->pathId($req, 3);
-        $tagId     = $this->pathId($req, 5);
+        $projectId = (int)($params['id'] ?? 0);
+        $tagId     = (int)($params['tagId'] ?? 0);
         $project = $this->svc('projects')->findById($projectId);
         if (!$project || !$this->canSeeProject($project)) return $this->notFound();
         if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) {
@@ -91,9 +91,9 @@ final class TagsHandler extends BaseHandler
     }
 
     /** POST /api/v1/tasks/{id}/tags — attach tag to task. */
-    public function attachToTask(Request $req): array
+    public function attachToTask(Request $req, array $params = []): array
     {
-        $taskId = $this->pathId($req, 3);
+        $taskId = (int)($params['id'] ?? 0);
         $task = $this->svc('tasks')->findById($taskId);
         if (!$task) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$task['project_id']);
@@ -118,11 +118,11 @@ final class TagsHandler extends BaseHandler
         ]);
     }
 
-    /** DELETE /api/v1/tasks/{id}/tags/{tag_id} — detach. */
-    public function detachFromTask(Request $req): array
+    /** DELETE /api/v1/tasks/{id}/tags/{tagId} — detach. */
+    public function detachFromTask(Request $req, array $params = []): array
     {
-        $taskId = $this->pathId($req, 3);
-        $tagId  = $this->pathId($req, 5);
+        $taskId = (int)($params['id'] ?? 0);
+        $tagId  = (int)($params['tagId'] ?? 0);
         $task = $this->svc('tasks')->findById($taskId);
         if (!$task) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$task['project_id']);

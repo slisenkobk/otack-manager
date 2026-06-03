@@ -18,9 +18,9 @@ use App\Service\RolePolicy;
 final class AttachmentsHandler extends BaseHandler
 {
     /** GET /api/v1/tasks/{id}/attachments */
-    public function indexForTask(Request $req): array
+    public function indexForTask(Request $req, array $params = []): array
     {
-        $taskId = $this->pathId($req, 3);
+        $taskId = (int)($params['id'] ?? 0);
         $task = $this->svc('tasks')->findById($taskId);
         if (!$task) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$task['project_id']);
@@ -33,9 +33,9 @@ final class AttachmentsHandler extends BaseHandler
     }
 
     /** GET /api/v1/projects/{id}/attachments */
-    public function indexForProject(Request $req): array
+    public function indexForProject(Request $req, array $params = []): array
     {
-        $projectId = $this->pathId($req, 3);
+        $projectId = (int)($params['id'] ?? 0);
         $project = $this->svc('projects')->findById($projectId);
         if (!$project || !$this->canSeeProject($project)) return $this->notFound();
 
@@ -53,7 +53,7 @@ final class AttachmentsHandler extends BaseHandler
      * PHP's SAPI from the multipart body. Everything else in the API stays
      * JSON-only.
      */
-    public function create(Request $req): array
+    public function create(Request $req, array $params = []): array
     {
         $entity   = (string)($_POST['entity'] ?? '');
         $entityId = (int)($_POST['entity_id'] ?? 0);
@@ -114,9 +114,9 @@ final class AttachmentsHandler extends BaseHandler
      * canEditProject are NOT applied here — the web controller intentionally
      * allows any uploader (incl. employees) to delete their own files.
      */
-    public function destroy(Request $req): array
+    public function destroy(Request $req, array $params = []): array
     {
-        $id = $this->pathId($req, 3);
+        $id = (int)($params['id'] ?? 0);
         $row = $this->svc('attachments')->findById($id);
         if (!$row) return $this->notFound();
 

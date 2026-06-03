@@ -7,7 +7,7 @@ use App\Http\Request;
 
 final class MeHandler extends BaseHandler
 {
-    public function show(Request $req): array
+    public function show(Request $req, array $params = []): array
     {
         $u = $this->user();
         return ApiResponse::ok([
