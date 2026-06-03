@@ -182,6 +182,18 @@ it('user_locale ignores ?locale= when APP_DEBUG is off', function () {
     i18n_reset_cache();
 });
 
+it('i18n catalogues have key parity (api_tokens scope and beyond)', function () {
+    $en = include dirname(__DIR__, 2) . '/system/i18n/en.php';
+    $pl = include dirname(__DIR__, 2) . '/system/i18n/pl.php';
+    $uk = include dirname(__DIR__, 2) . '/system/i18n/uk.php';
+    // Known pre-existing gap from audit 2026-06-02; tracked separately.
+    $known_gaps = ['forms_data.brand_tag'];
+    $missingPl = array_diff_key($en, $pl, array_flip($known_gaps));
+    $missingUk = array_diff_key($en, $uk, array_flip($known_gaps));
+    assert_true(empty($missingPl), 'pl missing: ' . implode(',', array_keys($missingPl)));
+    assert_true(empty($missingUk), 'uk missing: ' . implode(',', array_keys($missingUk)));
+});
+
 it('user_locale ignores invalid locale codes', function () {
     $_GET['locale'] = 'xx';
     $_ENV['APP_DEBUG'] = 'true';
