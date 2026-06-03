@@ -98,6 +98,7 @@ export const UI = {
   toast(message, type = 'info') {
     const node = document.createElement('div');
     node.className = 'toast toast--' + type;
+    if (type === 'error') node.setAttribute('role', 'alert');
     node.textContent = message;
     ROOT_TOAST().appendChild(node);
     const remove = () => node.remove();
