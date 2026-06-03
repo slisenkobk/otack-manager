@@ -114,6 +114,9 @@ Make sure:
 
 ## Documentation
 
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — request flow, DI, repositories, services, events
+- [docs/SECURITY.md](docs/SECURITY.md) — threat model, CSP, CSRF, sessions, sanitizer, trusted proxies
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — PHP requirements, filesystem perms, MySQL setup, TLS, backups
 - [docs/DESIGN.md](docs/DESIGN.md) — full design system (palette → semantic → component specs); source of truth for UI
 - [docs/MIGRATIONS.md](docs/MIGRATIONS.md) — schema migration format, naming rules, **data preservation rule**
 - [docs/DATABASE.md](docs/DATABASE.md) — dual-driver (SQLite + MySQL) design + in-app migrator plan
