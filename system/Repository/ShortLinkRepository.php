@@ -48,6 +48,7 @@ final class ShortLinkRepository
         return (int)$this->pdo->lastInsertId();
     }
 
+    /** @return array<string,mixed>|null */
     public function findById(int $id): ?array
     {
         $stmt = $this->pdo->prepare('SELECT * FROM short_links WHERE id = ?');
@@ -55,7 +56,11 @@ final class ShortLinkRepository
         return $stmt->fetch() ?: null;
     }
 
-    /** Active-only lookup: disabled links return null so /s/{slug} can 404 them. */
+    /**
+     * Active-only lookup: disabled links return null so /s/{slug} can 404 them.
+     *
+     * @return array<string,mixed>|null
+     */
     public function findActiveBySlug(string $slug): ?array
     {
         $stmt = $this->pdo->prepare('SELECT * FROM short_links WHERE slug = ? AND is_disabled = 0');
@@ -63,6 +68,7 @@ final class ShortLinkRepository
         return $stmt->fetch() ?: null;
     }
 
+    /** @return array<string,mixed>|null */
     public function findBySlug(string $slug): ?array
     {
         $stmt = $this->pdo->prepare('SELECT * FROM short_links WHERE slug = ?');
@@ -73,6 +79,8 @@ final class ShortLinkRepository
     /**
      * List for the admin grid. Managers see their own only; admin sees all.
      * Query matches against title or target_url substrings.
+     *
+     * @return list<array<string,mixed>>
      */
     public function listForUser(int $userId, bool $isAdmin, string $query = ''): array
     {

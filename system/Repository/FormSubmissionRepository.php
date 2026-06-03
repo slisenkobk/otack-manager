@@ -39,6 +39,7 @@ final class FormSubmissionRepository
         return (int)$stmt->fetchColumn();
     }
 
+    /** @return array<string,mixed>|null */
     public function findById(int $id): ?array {
         $stmt = $this->pdo->prepare('SELECT * FROM form_submissions WHERE id = ?');
         $stmt->execute([$id]);
@@ -50,6 +51,8 @@ final class FormSubmissionRepository
      * the submission JSON blob (raw text match) and the parent form title;
      * users mostly remember submissions by what was typed in or which
      * form it belonged to.
+     *
+     * @return list<array<string,mixed>>
      */
     public function listAll(?int $formId = null, ?string $status = null, string $query = ''): array {
         $sql  = 'SELECT s.*, f.title AS form_title, f.hash AS form_hash
@@ -111,6 +114,7 @@ final class FormSubmissionRepository
         return (int)$stmt->rowCount();
     }
 
+    /** @return array<string,int> */
     public function countByStatus(): array {
         $rows = $this->pdo->query('SELECT status, COUNT(*) AS c FROM form_submissions GROUP BY status')->fetchAll();
         $out = [];

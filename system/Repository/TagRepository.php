@@ -15,12 +15,14 @@ final class TagRepository {
         return (int)$this->pdo->lastInsertId();
     }
 
+    /** @return array<string,mixed>|null */
     public function findById(int $id): ?array {
         $stmt = $this->pdo->prepare('SELECT * FROM tags WHERE id = ?');
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
     }
 
+    /** @return list<array<string,mixed>> */
     public function listForScope(string $scope): array {
         $stmt = $this->pdo->prepare('SELECT * FROM tags WHERE scope = ? ORDER BY name ASC');
         $stmt->execute([$scope]);
@@ -53,6 +55,7 @@ final class TagRepository {
             ->execute([$taskId, $tagId]);
     }
 
+    /** @return list<array<string,mixed>> */
     public function listForProject(int $projectId): array {
         $stmt = $this->pdo->prepare(
             'SELECT t.* FROM tags t INNER JOIN project_tag_map m ON m.tag_id = t.id WHERE m.project_id = ? ORDER BY t.name ASC'
@@ -80,6 +83,7 @@ final class TagRepository {
         return $out;
     }
 
+    /** @return list<array<string,mixed>> */
     public function listForTask(int $taskId): array {
         $stmt = $this->pdo->prepare(
             'SELECT t.* FROM tags t INNER JOIN task_tag_map m ON m.tag_id = t.id WHERE m.task_id = ? ORDER BY t.name ASC'
@@ -88,11 +92,13 @@ final class TagRepository {
         return $stmt->fetchAll();
     }
 
+    /** @return list<array<string,mixed>> */
     public function listAll(): array {
         $stmt = $this->pdo->query('SELECT * FROM tags ORDER BY scope ASC, name ASC');
         return $stmt->fetchAll();
     }
 
+    /** @return list<array<string,mixed>> */
     public function listPaged(int $limit, int $offset, string $query = ''): array {
         if ($query !== '') {
             $like = '%' . mb_strtolower($query) . '%';
@@ -115,6 +121,7 @@ final class TagRepository {
         return (int)$this->pdo->query('SELECT COUNT(*) AS c FROM tags')->fetch()['c'];
     }
 
+    /** @return array{project_count:int,task_count:int} */
     public function countUsage(int $tagId): array {
         $proj = $this->pdo->prepare('SELECT COUNT(*) FROM project_tag_map WHERE tag_id = ?');
         $proj->execute([$tagId]);

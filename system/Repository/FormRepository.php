@@ -86,18 +86,21 @@ final class FormRepository
         $this->pdo->prepare('UPDATE forms SET ' . implode(', ', $set) . ' WHERE id = ?')->execute($vals);
     }
 
+    /** @return array<string,mixed>|null */
     public function findById(int $id): ?array {
         $stmt = $this->pdo->prepare('SELECT * FROM forms WHERE id = ?');
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
     }
 
+    /** @return array<string,mixed>|null */
     public function findByHash(string $hash): ?array {
         $stmt = $this->pdo->prepare('SELECT * FROM forms WHERE hash = ?');
         $stmt->execute([$hash]);
         return $stmt->fetch() ?: null;
     }
 
+    /** @return list<array<string,mixed>> */
     public function listAll(string $query = ''): array {
         if ($query === '') {
             return $this->pdo->query('SELECT * FROM forms ORDER BY created_at DESC')->fetchAll();

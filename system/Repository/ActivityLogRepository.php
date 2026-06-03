@@ -30,7 +30,11 @@ final class ActivityLogRepository
         return (int)$this->pdo->lastInsertId();
     }
 
-    /** Recent activity visible to the user. Admin sees everything; members see only their projects. */
+    /**
+     * Recent activity visible to the user. Admin sees everything; members see only their projects.
+     *
+     * @return list<array<string,mixed>>
+     */
     public function recentForUser(int $userId, bool $isAdmin, int $limit = 10, int $offset = 0): array
     {
         $base =

@@ -28,7 +28,11 @@ final class AppVersionRepository
         return (int)$this->pdo->lastInsertId();
     }
 
-    /** Newest first. limit caps at 200 just to bound the History table render. */
+    /**
+     * Newest first. limit caps at 200 just to bound the History table render.
+     *
+     * @return list<array<string,mixed>>
+     */
     public function listRecent(int $limit = 20): array
     {
         $limit = max(1, min(200, $limit));
@@ -50,6 +54,8 @@ final class AppVersionRepository
      * an in-flight update (between code swap and the post-swap insert)
      * — callers that need authoritative "what's running right now"
      * should read APP_VERSION instead. This method is for the audit UI.
+     *
+     * @return array<string,mixed>|null
      */
     public function current(): ?array
     {

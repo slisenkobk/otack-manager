@@ -28,6 +28,7 @@ final class AttachmentRepository
         return (int)$this->pdo->lastInsertId();
     }
 
+    /** @return array<string,mixed>|null */
     public function findById(int $id): ?array
     {
         $stmt = $this->pdo->prepare('SELECT * FROM attachments WHERE id = ?');
@@ -35,6 +36,7 @@ final class AttachmentRepository
         return $stmt->fetch() ?: null;
     }
 
+    /** @return list<array<string,mixed>> */
     public function listFor(string $entityType, int $entityId): array
     {
         $stmt = $this->pdo->prepare(
@@ -47,6 +49,8 @@ final class AttachmentRepository
     /**
      * Returns attachments belonging to the task itself plus any files attached to comments
      * on that task — single chronological list for the task's "Attachments" panel.
+     *
+     * @return list<array<string,mixed>>
      */
     public function listForTaskAggregate(int $taskId): array
     {

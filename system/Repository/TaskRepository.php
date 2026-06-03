@@ -29,6 +29,7 @@ final class TaskRepository {
         return (int)$this->pdo->lastInsertId();
     }
 
+    /** @return list<array<string,mixed>> */
     public function listForColumnPaged(int $columnId, int $limit, int $offset): array {
         $stmt = $this->pdo->prepare(
             'SELECT t.*, u.name AS assignee_name, u.avatar AS assignee_avatar
@@ -45,6 +46,9 @@ final class TaskRepository {
     /**
      * Returns ['open' => int, 'total' => int] grouped by project_id for the given ids.
      * Open = tasks in columns where is_done = 0 AND is_backlog = 0.
+     *
+     * @param list<int> $projectIds
+     * @return array<int, array{open:int,total:int}>
      */
     public function countByProject(array $projectIds): array {
         if (!$projectIds) return [];
@@ -66,7 +70,11 @@ final class TaskRepository {
         return $out;
     }
 
-    /** Per-tab counts for a single project. */
+    /**
+     * Per-tab counts for a single project.
+     *
+     * @return array{board_open:int,backlog:int,done:int}
+     */
     public function countsForProject(int $projectId): array {
         $stmt = $this->pdo->prepare(
             "SELECT
@@ -92,6 +100,7 @@ final class TaskRepository {
         return (int)$stmt->fetch()['c'];
     }
 
+    /** @return array<string,mixed>|null */
     public function findById(int $id): ?array {
         $stmt = $this->pdo->prepare('SELECT * FROM tasks WHERE id = ?');
         $stmt->execute([$id]);
@@ -112,6 +121,9 @@ final class TaskRepository {
      * Returns the requested page of tasks ordered by id ASC, where the page
      * is "all tasks in this project with id > $afterId". Cap the limit before
      * calling — this method trusts the value.
+     *
+     * @param array<string,mixed> $filters
+     * @return list<array<string,mixed>>
      */
     public function listForProjectAfterId(int $projectId, array $filters, int $afterId, int $limit): array {
         $sql = "SELECT t.* FROM tasks t";
@@ -159,6 +171,7 @@ final class TaskRepository {
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
+    /** @return array<int, list<array<string,mixed>>> */
     public function listForProject(int $projectId): array {
         $stmt = $this->pdo->prepare(
             'SELECT t.*, u.name AS assignee_name, u.avatar AS assignee_avatar
@@ -236,6 +249,8 @@ final class TaskRepository {
      * Returns dashboard counters for the visible scope.
      * Admin sees all projects; others see only projects they're members of.
      * Keys: open, backlog, closed, opened_week, closed_week.
+     *
+     * @return array{open:int,backlog:int,closed:int,opened_week:int,closed_week:int}
      */
     public function dashboardCounters(int $userId, bool $isAdmin): array {
         $weekStart = (new \DateTimeImmutable('monday this week'))->format('Y-m-d\T00:00:00\Z');
@@ -270,6 +285,8 @@ final class TaskRepository {
      * 7-day daily counts for opened/closed tasks (used by the dashboard
      * sparkline bars). Returns ['opened' => [int x 7], 'closed' => [int x 7]],
      * oldest day first. Scope mirrors dashboardCounters().
+     *
+     * @return array{opened:list<int>,closed:list<int>}
      */
     public function dashboardWeekTrend(int $userId, bool $isAdmin): array {
         $days = [];
@@ -329,6 +346,7 @@ final class TaskRepository {
         return (int)$stmt->fetch()['c'];
     }
 
+    /** @return list<array<string,mixed>> */
     public function listForAssignee(int $userId, int $limit = 6): array {
         $stmt = $this->pdo->prepare(
             'SELECT t.*, p.name AS project_name, c.name AS column_name

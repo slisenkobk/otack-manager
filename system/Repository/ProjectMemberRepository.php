@@ -20,6 +20,7 @@ final class ProjectMemberRepository {
         )->execute([$projectId, $userId]);
     }
 
+    /** @return list<array<string,mixed>> */
     public function list(int $projectId): array {
         $stmt = $this->pdo->prepare(
             'SELECT u.id, u.name, u.email, u.avatar, pm.role

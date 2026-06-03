@@ -12,6 +12,8 @@ final class PollVoteRepository
      * propagating PDO's SQLSTATE 23000 to the controller.
      *
      * Returns ['ok' => bool, 'reason' => 'duplicate'|null].
+     *
+     * @return array{ok:bool,reason:?string}
      */
     public function record(
         int $pollId,
@@ -58,6 +60,8 @@ final class PollVoteRepository
      * Aggregate vote count per choice_key, ordered by count desc. The caller
      * joins this against the poll's fields_json to get human-readable labels
      * — the repo deliberately doesn't know about field schema.
+     *
+     * @return list<array<string,mixed>>
      */
     public function tallyByChoice(int $pollId): array
     {
@@ -75,6 +79,8 @@ final class PollVoteRepository
     /**
      * Offset-paged list for the Voters tab (web UI). Newest first.
      * `limit` is capped at 200 to bound network/render cost.
+     *
+     * @return list<array<string,mixed>>
      */
     public function listVoters(int $pollId, int $offset = 0, int $limit = 10): array
     {
@@ -100,6 +106,8 @@ final class PollVoteRepository
      * Otherwise return rows with id < $afterId — i.e. strictly older than
      * the given cursor. Matches the convention used by other endpoints
      * (FormsHandler::listSubmissions, etc.).
+     *
+     * @return list<array<string,mixed>>
      */
     public function listVotersAfterId(int $pollId, int $afterId, int $limit = 10): array
     {

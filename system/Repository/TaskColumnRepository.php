@@ -21,6 +21,7 @@ final class TaskColumnRepository {
         }
     }
 
+    /** @return array<string,mixed>|null */
     public function findBacklog(int $projectId): ?array {
         $stmt = $this->pdo->prepare('SELECT * FROM task_columns WHERE project_id = ? AND is_backlog = 1 LIMIT 1');
         $stmt->execute([$projectId]);
@@ -28,6 +29,7 @@ final class TaskColumnRepository {
         return $row ?: null;
     }
 
+    /** @return array<string,mixed>|null */
     public function findById(int $id): ?array {
         $stmt = $this->pdo->prepare('SELECT * FROM task_columns WHERE id = ? LIMIT 1');
         $stmt->execute([$id]);
@@ -35,6 +37,7 @@ final class TaskColumnRepository {
         return $row ?: null;
     }
 
+    /** @return list<array<string,mixed>> */
     public function listForProject(int $projectId): array {
         $stmt = $this->pdo->prepare('SELECT * FROM task_columns WHERE project_id = ? ORDER BY position ASC');
         $stmt->execute([$projectId]);

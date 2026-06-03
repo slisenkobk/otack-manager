@@ -22,6 +22,7 @@ final class CommentRepository
         return (int)$this->pdo->lastInsertId();
     }
 
+    /** @return array<string,mixed>|null */
     public function findById(int $id): ?array
     {
         $stmt = $this->pdo->prepare('SELECT * FROM comments WHERE id = ?');
@@ -29,6 +30,7 @@ final class CommentRepository
         return $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
     }
 
+    /** @return list<array<string,mixed>> */
     public function listFor(string $entityType, int $entityId): array
     {
         $stmt = $this->pdo->prepare(
@@ -48,6 +50,7 @@ final class CommentRepository
         $this->pdo->prepare('DELETE FROM comments WHERE id = ? OR parent_id = ?')->execute([$id, $id]);
     }
 
+    /** @return list<array<string,mixed>> */
     public function recentForUser(int $userId, bool $isAdmin, int $limit = 10, int $offset = 0): array
     {
         if ($isAdmin) {
