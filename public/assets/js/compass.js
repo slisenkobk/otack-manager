@@ -21,6 +21,10 @@ const ACTIONS = {
     url: '/admin/compass/logs/clear',
     danger: true,
   },
+  'prune-activity-log': {
+    url: '/admin/compass/cache/activity-log/prune',
+    danger: true,
+  },
 };
 
 async function runAction(btn) {

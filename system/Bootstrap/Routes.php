@@ -103,6 +103,7 @@ final class Routes
         $router->post('/admin/compass/cache/sessions/clear',    'Compass@clearSessions');
         $router->post('/admin/compass/cache/uploads/orphans/clear', 'Compass@clearOrphanUploads');
         $router->post('/admin/compass/cache/bust',              'Compass@bustAssetCache');
+        $router->post('/admin/compass/cache/activity-log/prune', 'Compass@pruneActivityLog');
         $router->get('/admin/compass/db-stats',                 'Compass@stats');
         $router->get('/admin/compass/logs',                     'Compass@logs');
         $router->post('/admin/compass/logs/clear',              'Compass@clearErrorLog');

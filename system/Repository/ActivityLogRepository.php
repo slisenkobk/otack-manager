@@ -87,6 +87,18 @@ final class ActivityLogRepository
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
+    /**
+     * Delete activity_log rows older than the given cutoff timestamp.
+     * `$cutoff` must be in the same string format as `activity_log.created_at`
+     * (`Y-m-d H:i:s`). Returns the number of rows pruned.
+     */
+    public function pruneBefore(string $cutoff): int
+    {
+        $stmt = $this->pdo->prepare('DELETE FROM activity_log WHERE created_at < ?');
+        $stmt->execute([$cutoff]);
+        return $stmt->rowCount();
+    }
+
     public function countForUser(int $userId, bool $isAdmin): int
     {
         if ($isAdmin) {

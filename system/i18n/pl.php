@@ -508,6 +508,13 @@ return [
     'compass.cache.assets.bump'    => 'Podbij wersję',
     'compass.cache.assets.bumped'  => 'Wersja zasobów podbita do :version',
 
+    'compass.cache.activity_log'         => 'Dziennik aktywności',
+    'compass.cache.activity_log.stats'   => ':total łącznie · :stale starszych niż :days dni',
+    'compass.cache.activity_log.hint'    => 'Usuwa wiersze activity_log starsze niż :days dni (ACTIVITY_LOG_KEEP_DAYS).',
+    'compass.cache.activity_log.prune'   => 'Wyczyść stare wpisy',
+    'compass.cache.activity_log.confirm' => 'Usunąć :n wierszy dziennika aktywności starszych niż próg retencji?',
+    'compass.activity_log.pruned'        => 'Usunięto :count wierszy dziennika aktywności starszych niż :days dni.',
+
     'compass.db.heading'     => 'Baza danych',
     'compass.db.meta'        => ':path · :size · tabel: :tables · łącznie wierszy: :rows',
     'compass.db.last_migration' => 'Ostatnia migracja',

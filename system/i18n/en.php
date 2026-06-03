@@ -512,6 +512,13 @@ return [
     'compass.cache.assets.bump'    => 'Bump version',
     'compass.cache.assets.bumped'  => 'Asset version bumped to :version',
 
+    'compass.cache.activity_log'         => 'Activity log',
+    'compass.cache.activity_log.stats'   => ':total total · :stale older than :days days',
+    'compass.cache.activity_log.hint'    => 'Deletes activity_log rows older than :days days (ACTIVITY_LOG_KEEP_DAYS).',
+    'compass.cache.activity_log.prune'   => 'Prune old entries',
+    'compass.cache.activity_log.confirm' => 'Delete :n activity_log rows older than the retention cutoff?',
+    'compass.activity_log.pruned'        => 'Pruned :count activity_log rows older than :days days.',
+
     'compass.db.heading'     => 'Database',
     'compass.db.meta'        => ':path · :size · :tables tables · :rows total rows',
     'compass.db.last_migration' => 'Last migration',

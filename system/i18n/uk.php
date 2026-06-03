@@ -509,6 +509,13 @@ return [
     'compass.cache.assets.bump'    => 'Підвищити версію',
     'compass.cache.assets.bumped'  => 'Версію ресурсів підвищено до :version',
 
+    'compass.cache.activity_log'         => 'Журнал активності',
+    'compass.cache.activity_log.stats'   => ':total всього · :stale старіших за :days днів',
+    'compass.cache.activity_log.hint'    => 'Видаляє рядки activity_log старіші за :days днів (ACTIVITY_LOG_KEEP_DAYS).',
+    'compass.cache.activity_log.prune'   => 'Очистити старі записи',
+    'compass.cache.activity_log.confirm' => 'Видалити :n рядків журналу активності, старіших за межу зберігання?',
+    'compass.activity_log.pruned'        => 'Видалено :count рядків журналу активності, старіших за :days днів.',
+
     'compass.db.heading'     => 'База даних',
     'compass.db.meta'        => ':path · :size · таблиць: :tables · усього рядків: :rows',
     'compass.db.last_migration' => 'Остання міграція',

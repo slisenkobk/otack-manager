@@ -60,10 +60,22 @@ final class CompassController extends BaseController
 
     public function cache(Request $req, array $params = []): void
     {
+        $keepDays = max(1, (int)\App\App::env('ACTIVITY_LOG_KEEP_DAYS', '180'));
+        $cutoff = (new \DateTimeImmutable())->modify("-{$keepDays} days")->format('Y-m-d H:i:s');
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM activity_log WHERE created_at < ?');
+        $stmt->execute([$cutoff]);
+        $activityStale = (int)$stmt->fetchColumn();
+        $activityTotal = (int)$this->db->query('SELECT COUNT(*) FROM activity_log')->fetchColumn();
+
         $this->renderTab('cache', t('compass.tab.cache'), [
             'sessions'      => $this->compass->sessionsStats(),
             'uploads'       => $this->compass->uploadsStats(),
             'assetVersion'  => $this->compass->currentAssetVersion(),
+            'activity'      => [
+                'total'      => $activityTotal,
+                'stale'      => $activityStale,
+                'keep_days'  => $keepDays,
+            ],
         ]);
     }
 
@@ -229,6 +241,21 @@ final class CompassController extends BaseController
             $summary
         );
         Response::json(['ok' => true, 'message' => $summary] + $res);
+    }
+
+    public function pruneActivityLog(Request $req, array $params = []): void
+    {
+        $days = max(1, (int)\App\App::env('ACTIVITY_LOG_KEEP_DAYS', '180'));
+        $cutoff = (new \DateTimeImmutable())->modify("-{$days} days")->format('Y-m-d H:i:s');
+        $count = $this->activity->pruneBefore($cutoff);
+        $summary = t('compass.activity_log.pruned', ['count' => $count, 'days' => $days]);
+        $this->auditAndNotify(
+            'compass.activity_log.pruned',
+            $summary,
+            ['deleted' => $count, 'cutoff' => $cutoff, 'keep_days' => $days],
+            $summary,
+        );
+        Response::json(['ok' => true, 'message' => $summary, 'deleted' => $count]);
     }
 
     public function bustAssetCache(Request $req, array $params = []): void
