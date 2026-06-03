@@ -6,14 +6,42 @@ final class ActivityLogRepository
 {
     public function __construct(private \PDO $pdo) {}
 
+    /**
+     * Record an activity log entry.
+     *
+     * Two call styles supported:
+     *   - Positional (legacy): log('task.created', $userId, $projectId, $taskId, $summary, $meta = [])
+     *   - Assoc (preferred):   log([
+     *         'event'      => 'task.created',
+     *         'actor_id'   => $userId,
+     *         'project_id' => $projectId,
+     *         'task_id'    => $taskId,
+     *         'summary'    => '…',
+     *         'meta'       => [...],
+     *     ])
+     *
+     * The assoc form is forward-compatible if new fields are added.
+     *
+     * @param string|array<string,mixed> $event
+     * @param array<string,mixed> $meta
+     */
     public function log(
-        string $event,
-        int $actorId,
-        ?int $projectId,
-        ?int $taskId,
-        string $summary,
-        array $meta = []
+        string|array $event,
+        int $actorId = 0,
+        ?int $projectId = null,
+        ?int $taskId = null,
+        string $summary = '',
+        array $meta = [],
     ): int {
+        if (is_array($event)) {
+            $args      = $event;
+            $event     = (string)($args['event'] ?? '');
+            $actorId   = (int)($args['actor_id'] ?? 0);
+            $projectId = isset($args['project_id']) ? (int)$args['project_id'] : null;
+            $taskId    = isset($args['task_id']) ? (int)$args['task_id'] : null;
+            $summary   = (string)($args['summary'] ?? '');
+            $meta      = (array)($args['meta'] ?? []);
+        }
         $stmt = $this->pdo->prepare(
             'INSERT INTO activity_log (event, actor_id, project_id, task_id, summary, meta, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?)'

@@ -74,14 +74,14 @@ final class TaskController extends BaseController {
             'actor_name'   => $this->user['name'],
             'url'          => \abs_url('/tasks/' . $id),
         ]);
-        $this->activity->log(
-            'task.created',
-            (int)$this->user['id'],
-            $projectId,
-            $id,
-            "added task '" . $task['title'] . "'",
-            ['column_id' => $columnId]
-        );
+        $this->activity->log([
+            'event'      => 'task.created',
+            'actor_id'   => (int)$this->user['id'],
+            'project_id' => $projectId,
+            'task_id'    => $id,
+            'summary'    => "added task '" . $task['title'] . "'",
+            'meta'       => ['column_id' => $columnId],
+        ]);
         Response::json(['ok' => true, 'task' => [
             'id' => (int)$task['id'],
             'title' => $task['title'],
@@ -114,14 +114,13 @@ final class TaskController extends BaseController {
             'project_name' => $project['name'] ?? '',
             'actor_name'   => $this->user['name'],
         ]);
-        $this->activity->log(
-            'task.deleted',
-            (int)$this->user['id'],
-            (int)$task['project_id'],
-            null,
-            "deleted task '" . $task['title'] . "'",
-            ['task_id' => $id]
-        );
+        $this->activity->log([
+            'event'      => 'task.deleted',
+            'actor_id'   => (int)$this->user['id'],
+            'project_id' => (int)$task['project_id'],
+            'summary'    => "deleted task '" . $task['title'] . "'",
+            'meta'       => ['task_id' => $id],
+        ]);
         Response::json(['ok' => true]);
     }
 
@@ -178,14 +177,13 @@ final class TaskController extends BaseController {
             'actor_name' => $this->user['name'],
             'url'        => \abs_url('/projects/' . $newId),
         ]);
-        $this->activity->log(
-            'project.created',
-            (int)$this->user['id'],
-            $newId,
-            null,
-            "spun off project '$name' from task '" . $task['title'] . "'",
-            ['from_task_id' => $id, 'copied_attachments' => count($attachments)]
-        );
+        $this->activity->log([
+            'event'      => 'project.created',
+            'actor_id'   => (int)$this->user['id'],
+            'project_id' => $newId,
+            'summary'    => "spun off project '$name' from task '" . $task['title'] . "'",
+            'meta'       => ['from_task_id' => $id, 'copied_attachments' => count($attachments)],
+        ]);
 
         Response::json(['ok' => true, 'project_id' => $newId, 'url' => '/projects/' . $newId . '?tab=overview']);
     }
@@ -232,14 +230,14 @@ final class TaskController extends BaseController {
             'actor_name' => $this->user['name'],
             'url'        => \abs_url('/tasks/' . $taskId),
         ]);
-        $this->activity->log(
-            'task.status_changed',
-            (int)$this->user['id'],
-            (int)$task['project_id'],
-            $taskId,
-            'moved to ' . ($newColName !== '' ? $newColName : 'another column'),
-            ['column_id' => $columnId, 'new_column' => $newColName]
-        );
+        $this->activity->log([
+            'event'      => 'task.status_changed',
+            'actor_id'   => (int)$this->user['id'],
+            'project_id' => (int)$task['project_id'],
+            'task_id'    => $taskId,
+            'summary'    => 'moved to ' . ($newColName !== '' ? $newColName : 'another column'),
+            'meta'       => ['column_id' => $columnId, 'new_column' => $newColName],
+        ]);
         $fresh = $this->tasks->findById($taskId);
         Response::json(['ok' => true, 'sub_status' => $fresh['sub_status'] ?? null]);
     }

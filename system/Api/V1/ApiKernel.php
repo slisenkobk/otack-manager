@@ -192,24 +192,20 @@ final class ApiKernel
                 $resp = ApiResponse::error(500, 'server_error', 'Internal error');
             }
 
-            // ActivityLogRepository::log signature is:
-            //   log(string $event, int $actorId, ?int $projectId, ?int $taskId, string $summary, array $meta = [])
             $eventName = 'api.' . strtolower($match['handler']) . '.' . $match['action'];
             $summary   = $req->method . ' ' . $req->path . ' → ' . (int)$resp['status'];
-            $this->activity->log(
-                $eventName,
-                (int)$ctx['user']['id'],
-                null,
-                null,
-                $summary,
-                [
+            $this->activity->log([
+                'event'    => $eventName,
+                'actor_id' => (int)$ctx['user']['id'],
+                'summary'  => $summary,
+                'meta'     => [
                     // Use the original literal pattern (not the request path) so the
                     // activity log groups by route shape rather than per-instance.
                     'route'    => $req->method . ' ' . $match['pattern'],
                     'status'   => $resp['status'],
                     'token_id' => (int)$ctx['token']['id'],
-                ]
-            );
+                ],
+            ]);
 
             $this->send($resp);
         } catch (\Throwable $e) {

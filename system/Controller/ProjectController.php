@@ -302,14 +302,12 @@ final class ProjectController extends BaseController {
             'name'       => $project['name'],
             'actor_name' => $this->user['name'],
         ]);
-        $this->activity->log(
-            'project.deleted',
-            (int)$this->user['id'],
-            null,
-            null,
-            "deleted project '" . $project['name'] . "'",
-            ['project_id' => $id]
-        );
+        $this->activity->log([
+            'event'    => 'project.deleted',
+            'actor_id' => (int)$this->user['id'],
+            'summary'  => "deleted project '" . $project['name'] . "'",
+            'meta'     => ['project_id' => $id],
+        ]);
         Response::json(['ok' => true]);
     }
 

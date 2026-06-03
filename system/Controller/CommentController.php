@@ -126,14 +126,14 @@ final class CommentController extends BaseController
 
         $activityProjectId = $entityType === 'project' ? $entityId : (int)($entity['project_id'] ?? 0);
         $activityTaskId    = $entityType === 'task' ? $entityId : null;
-        $this->activity->log(
-            'comment.created',
-            (int)$this->user['id'],
-            $activityProjectId ?: null,
-            $activityTaskId,
-            mb_substr(strip_tags($body), 0, 200),
-            ['comment_id' => $id]
-        );
+        $this->activity->log([
+            'event'      => 'comment.created',
+            'actor_id'   => (int)$this->user['id'],
+            'project_id' => $activityProjectId ?: null,
+            'task_id'    => $activityTaskId,
+            'summary'    => mb_substr(strip_tags($body), 0, 200),
+            'meta'       => ['comment_id' => $id],
+        ]);
 
         Response::json([
             'ok'      => true,
@@ -198,14 +198,14 @@ final class CommentController extends BaseController
             $task = $this->tasks->findById($entityId);
             if ($task) $activityProjectId = (int)$task['project_id'];
         }
-        $this->activity->log(
-            'comment.deleted',
-            (int)$this->user['id'],
-            $activityProjectId,
-            $activityTaskId,
-            "deleted a comment on {$entityType} '{$targetName}'",
-            ['comment_id' => $id]
-        );
+        $this->activity->log([
+            'event'      => 'comment.deleted',
+            'actor_id'   => (int)$this->user['id'],
+            'project_id' => $activityProjectId,
+            'task_id'    => $activityTaskId,
+            'summary'    => "deleted a comment on {$entityType} '{$targetName}'",
+            'meta'       => ['comment_id' => $id],
+        ]);
         Response::json(['ok' => true]);
     }
 }
