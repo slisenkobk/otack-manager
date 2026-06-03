@@ -343,8 +343,11 @@ final class TasksHandler extends BaseHandler
             'assignee_id' => $t['assignee_id'] !== null ? (int)$t['assignee_id'] : null,
             'due_date'    => $t['due_date'] ?? null,
             'sub_status'  => $t['sub_status'] ?? null,
-            'created_at'  => $t['created_at'] ?? null,
-            'updated_at'  => $t['updated_at'] ?? null,
+            // ISO-normalise so list shape matches ProjectsHandler / the
+            // detail shape and clients don't have to handle raw DB strings
+            // (which differ between SQLite text and MySQL DATETIME).
+            'created_at'  => $this->isoTime($t['created_at'] ?? null),
+            'updated_at'  => $this->isoTime($t['updated_at'] ?? null),
         ];
     }
 

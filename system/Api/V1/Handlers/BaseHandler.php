@@ -60,4 +60,17 @@ abstract class BaseHandler
         return $this->svc('members')->isMember((int)$project['id'], $this->userId())
             || (int)$project['created_by'] === $this->userId();
     }
+
+    /**
+     * Normalise DB timestamps to RFC-3339 UTC. Accepts ints (unix epoch) and
+     * any date-parseable string; returns null if input is null/empty.
+     * Shared so every handler emits the same shape in API responses.
+     */
+    protected function isoTime($v): ?string
+    {
+        if ($v === null || $v === '') return null;
+        if (is_numeric($v)) return gmdate('Y-m-d\TH:i:s\Z', (int)$v);
+        try { return (new \DateTimeImmutable((string)$v))->format('Y-m-d\TH:i:s\Z'); }
+        catch (\Throwable $_) { return (string)$v; }
+    }
 }

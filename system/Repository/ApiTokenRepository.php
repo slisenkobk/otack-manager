@@ -54,7 +54,9 @@ final class ApiTokenRepository
     /** Active = not revoked, not expired, prefix-sane. Returns full row or null. */
     public function findActiveByToken(string $token): ?array
     {
-        if (!str_starts_with($token, 'otk_') || strlen($token) < 40) return null;
+        // A valid token is 'otk_' (4) + 40 base62 chars = 44 chars. The old
+        // bound of 40 admitted four-too-short candidates; tighten to 44.
+        if (!str_starts_with($token, 'otk_') || strlen($token) < 44) return null;
         $s = $this->pdo->prepare(
             'SELECT * FROM api_tokens
               WHERE token_hash = ? AND revoked_at IS NULL

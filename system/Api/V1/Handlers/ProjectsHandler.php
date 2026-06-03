@@ -203,11 +203,6 @@ final class ProjectsHandler extends BaseHandler
         return $base;
     }
 
-    private function isoTime($v): ?string
-    {
-        if ($v === null || $v === '') return null;
-        if (is_numeric($v)) return gmdate('Y-m-d\TH:i:s\Z', (int)$v);
-        try { return (new \DateTimeImmutable((string)$v))->format('Y-m-d\TH:i:s\Z'); }
-        catch (\Throwable $_) { return (string)$v; }
-    }
+    // isoTime() now lives on BaseHandler — used by every handler that emits
+    // created_at/updated_at, ensuring a single ISO normalisation source.
 }
