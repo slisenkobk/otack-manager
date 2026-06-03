@@ -156,5 +156,14 @@ if (!class_exists($class)) {
     echo App::make('view')->render('errors/404', [], 'layouts/auth');
     exit;
 }
-$ctrl = new $class(App::make('view'), $currentUser);
+try {
+    $ctrl = \App\Controller\Factory::make($match['controller'], App::make('view'), $currentUser);
+} catch (\RuntimeException $e) {
+    // Fallback for controllers not yet migrated to the Factory (transitional).
+    if (str_starts_with($e->getMessage(), 'Unknown controller:')) {
+        $ctrl = new $class(App::make('view'), $currentUser);
+    } else {
+        throw $e;
+    }
+}
 $ctrl->{$match['action']}($req, $match['params']);

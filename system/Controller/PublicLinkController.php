@@ -2,11 +2,11 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
 use App\Http\Request;
 use App\Http\Response;
 use App\Repository\ShortLinkRepository;
 use App\Repository\ShortLinkVisitRepository;
+use App\View\Renderer;
 
 /**
  * Public short-link proxy. No auth, no CSRF (whitelisted in public/index.php).
@@ -14,14 +14,13 @@ use App\Repository\ShortLinkVisitRepository;
  */
 final class PublicLinkController extends BaseController
 {
-    private ShortLinkRepository      $links;
-    private ShortLinkVisitRepository $visits;
-
-    public function __construct($view, $user = null)
-    {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private ShortLinkRepository $links,
+        private ShortLinkVisitRepository $visits,
+    ) {
         parent::__construct($view, $user);
-        $this->links  = App::make('short_links');
-        $this->visits = App::make('short_link_visits');
     }
 
     /** Slug shape mirrors ShortLinkRepository::generateSlug — 8 base64url chars.

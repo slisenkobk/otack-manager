@@ -2,26 +2,24 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
 use App\Http\Request;
 use App\Http\Response;
 use App\Repository\TagRepository;
 use App\Repository\ProjectRepository;
 use App\Repository\ProjectMemberRepository;
 use App\Repository\TaskRepository;
+use App\View\Renderer;
 
 final class TagController extends BaseController {
-    private TagRepository $tags;
-    private ProjectRepository $projects;
-    private ProjectMemberRepository $members;
-    private TaskRepository $tasksRepo;
-
-    public function __construct($view, $user = null) {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private TagRepository $tags,
+        private ProjectRepository $projects,
+        private ProjectMemberRepository $members,
+        private TaskRepository $tasksRepo,
+    ) {
         parent::__construct($view, $user);
-        $this->tags     = App::make('tags');
-        $this->projects = App::make('projects');
-        $this->members  = App::make('members');
-        $this->tasksRepo = App::make('tasks');
     }
 
     private function assertProjectMember(int $projectId): void {

@@ -2,26 +2,27 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
 use App\Http\Request;
 use App\Http\Response;
+use App\Repository\ActivityLogRepository;
 use App\Repository\ShortLinkRepository;
 use App\Repository\ShortLinkVisitRepository;
 use App\Service\RolePolicy;
+use App\View\Renderer;
 
 final class LinkController extends BaseController
 {
-    private ShortLinkRepository      $links;
-    private ShortLinkVisitRepository $visits;
-
-    public function __construct($view, $user = null)
-    {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private ShortLinkRepository $links,
+        private ShortLinkVisitRepository $visits,
+        private ActivityLogRepository $activity,
+    ) {
         parent::__construct($view, $user);
         if (!RolePolicy::canManageLinks($this->user)) {
             Response::forbidden('Links are managed by admins and managers'); exit;
         }
-        $this->links  = App::make('short_links');
-        $this->visits = App::make('short_link_visits');
     }
 
     public function index(Request $req, array $params = []): void
@@ -105,7 +106,7 @@ final class LinkController extends BaseController
             return;
         }
         $id = $this->links->create($target, $title !== '' ? mb_substr($title, 0, 200) : null, (int)$this->user['id']);
-        App::make('activity')->log('link.created', (int)$this->user['id'], null, null,
+        $this->activity->log('link.created', (int)$this->user['id'], null, null,
             "created short link → $target", ['link_id' => $id]);
         $link = $this->links->findById($id);
         Response::json(['ok' => true, 'id' => $id, 'slug' => $link['slug'], 'url' => '/links/' . $id]);
@@ -168,7 +169,7 @@ final class LinkController extends BaseController
         if (!$link) { Response::json(['error' => 'Not found'], 404); return; }
         if (!$this->canManage($link)) { Response::json(['error' => 'Forbidden'], 403); return; }
         $this->links->delete($id);
-        App::make('activity')->log('link.deleted', (int)$this->user['id'], null, null,
+        $this->activity->log('link.deleted', (int)$this->user['id'], null, null,
             "deleted short link /s/{$link['slug']}", ['link_id' => $id]);
         Response::json(['ok' => true]);
     }

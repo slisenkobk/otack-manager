@@ -2,11 +2,11 @@
 declare(strict_types=1);
 namespace App\Controller;
 
-use App\App;
 use App\Http\AuthGuard;
 use App\Http\Request;
 use App\Http\Response;
 use App\Service\Updater;
+use App\View\Renderer;
 
 /**
  * Updates endpoints.
@@ -18,7 +18,11 @@ use App\Service\Updater;
  */
 final class UpdatesController extends BaseController
 {
-    public function __construct($view, $user = null) {
+    public function __construct(
+        Renderer $view,
+        ?array $user,
+        private Updater $updater,
+    ) {
         parent::__construct($view, $user);
         AuthGuard::requireAdmin($this->user);
         if (!Updater::isEnabled()) {
@@ -34,10 +38,8 @@ final class UpdatesController extends BaseController
      */
     public function check(Request $req, array $params = []): void
     {
-        /** @var Updater $updater */
-        $updater = App::make('updater');
         try {
-            $payload = $updater->check();
+            $payload = $this->updater->check();
         } catch (\Throwable $e) {
             Response::json(['error' => $e->getMessage()], 502);
             return;
@@ -56,13 +58,10 @@ final class UpdatesController extends BaseController
      */
     public function run(Request $req, array $params = []): void
     {
-        /** @var Updater $updater */
-        $updater = App::make('updater');
-
         // Re-check live so we're acting on the freshest available tag,
         // not whatever the dashboard cached an hour ago.
         try {
-            $payload = $updater->check();
+            $payload = $this->updater->check();
         } catch (\Throwable $e) {
             Response::redirect('/admin/settings?tab=updates&update_error=' . urlencode($e->getMessage()));
             return;
@@ -78,7 +77,7 @@ final class UpdatesController extends BaseController
         @ignore_user_abort(true);
 
         try {
-            $result = $updater->update((string)$payload['available'], (int)($this->user['id'] ?? 0) ?: null);
+            $result = $this->updater->update((string)$payload['available'], (int)($this->user['id'] ?? 0) ?: null);
             Response::redirect(
                 '/admin/settings?tab=updates'
                 . '&updated_to=' . urlencode($result['to'])
@@ -106,10 +105,8 @@ final class UpdatesController extends BaseController
         @set_time_limit(300);
         @ignore_user_abort(true);
 
-        /** @var Updater $updater */
-        $updater = App::make('updater');
         try {
-            $result = $updater->restore($backupId, (int)($this->user['id'] ?? 0) ?: null);
+            $result = $this->updater->restore($backupId, (int)($this->user['id'] ?? 0) ?: null);
             Response::redirect(
                 '/admin/settings?tab=updates'
                 . '&restored_to=' . urlencode($result['to'])
