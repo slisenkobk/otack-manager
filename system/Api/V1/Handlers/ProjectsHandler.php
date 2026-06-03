@@ -95,7 +95,16 @@ final class ProjectsHandler extends BaseHandler
         $id = $this->pathId($req, 3);
         $project = $this->svc('projects')->findById($id);
         if (!$project) return $this->notFound();
+        // Visibility check first — invisible project should look like a 404,
+        // not differentiate against the edit-gate 403 below.
         if (!$this->canSeeProject($project)) return $this->notFound();
+        // pinned is a project-wide flag (no per-user state), so changing it
+        // affects every member's board view. Plain employees on the project
+        // should NOT be able to pin/unpin — match the web UI which gates this
+        // to admins/managers/owners. canEditProject is the right policy here.
+        if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) {
+            return $this->forbidden();
+        }
         $pinned = JsonRequest::optionalBool($this->readBody($req), 'pinned', false);
         // ProjectRepository::setPinned signature is (id, pinned) — no per-user pin state.
         $this->svc('projects')->setPinned($id, $pinned);

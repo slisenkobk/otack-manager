@@ -135,6 +135,22 @@ api_it('POST /projects/{id}/pin sets pinned false idempotently', function () {
     assert_eq(false, $g['json']['pinned']);
 });
 
+api_it('POST /projects/{id}/pin as employee member returns 403', function () {
+    [$pdo, , , $empTok] = pw_setup();
+    // Project owned by admin; employee added as plain member (visibility OK).
+    pw_seed_project($pdo, 3104, 'EmpPinTry');
+    $pdo->prepare("INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, 'member')")
+        ->execute([3104, 2]);
+    // Employees can see the project but pinning is project-wide — it must
+    // be gated to managers/admins/owners. Expect 403, not 200.
+    $r = api_request('POST', '/api/v1/projects/3104/pin', [
+        'headers' => ['Authorization: Bearer ' . $empTok],
+        'body'    => json_encode(['pinned' => true]),
+    ]);
+    assert_eq(403, $r['status']);
+    assert_eq('forbidden', $r['json']['error']);
+});
+
 api_it('POST /projects/{id}/members adds member', function () {
     [$pdo, , $adminTok,] = pw_setup();
     pw_seed_project($pdo, 3006, 'MemberAdd');
