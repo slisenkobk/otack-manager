@@ -553,6 +553,8 @@ return [
     'activity.form.updated'       => 'updated form',
     'activity.form.deleted'       => 'deleted form',
     'activity.compass.action'     => 'ran a Compass action',
+    'activity.attachment.uploaded' => 'attached file',
+    'activity.actor.visitor'      => 'Visitor',
 
     // ─── Polls ─────────────────────────────────────────────────────────────
     'nav.integrations'                => 'Integrations',

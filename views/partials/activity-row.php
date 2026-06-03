@@ -16,27 +16,17 @@ $icon = match ($a['event']) {
     'form.deleted'         => 'fa-solid fa-trash',
     default                => 'fa-regular fa-circle-dot',
 };
-$verb = match ($a['event']) {
-    'comment.created'      => 'commented',
-    'comment.deleted'      => 'deleted comment',
-    'attachment.uploaded'  => 'attached file',
-    'task.status_changed'  => 'changed status',
-    'task.created'         => 'created task',
-    'task.deleted'         => 'deleted task',
-    'task.linked'          => 'linked',
-    'task.unlinked'        => 'unlinked',
-    'project.deleted'      => 'deleted project',
-    'form.submitted'       => 'submitted form',
-    'form.created'         => 'created form',
-    'form.updated'         => 'updated form',
-    'form.deleted'         => 'deleted form',
-    default                => 'updated',
-};
+$verb = t('activity.' . $a['event']);
+// Fall back to a humanised event when no translation exists (t() returns the
+// key unchanged in that case, which would surface as e.g. "activity.foo.bar").
+if ($verb === 'activity.' . $a['event']) {
+    $verb = ucfirst(str_replace(['.', '_'], ' ', $a['event']));
+}
 // External form submissions: actor isn't a logged-in user. Override the
 // actor label with a neutral "Visitor" tag so it doesn't misattribute the
 // action to the form's owner (who is just the activity scope holder).
 $isExternal = $a['event'] === 'form.submitted';
-$actorName  = $isExternal ? 'Visitor' : $a['actor_name'];
+$actorName  = $isExternal ? t('activity.actor.visitor') : $a['actor_name'];
 ?>
 <div class="activity-row<?= $isExternal ? ' activity-row--important' : '' ?>">
   <i class="activity-row__icon <?= e($icon) ?>" aria-hidden="true"></i>

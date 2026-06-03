@@ -546,6 +546,8 @@ return [
     'activity.form.updated'       => 'zaktualizował(a) formularz',
     'activity.form.deleted'       => 'usunął(-ęła) formularz',
     'activity.compass.action'     => 'wykonał(a) akcję Compass',
+    'activity.attachment.uploaded' => 'dodał(a) załącznik',
+    'activity.actor.visitor'      => 'Gość',
 
     // ─── Polls ─────────────────────────────────────────────────────────────
     'nav.integrations'                => 'Integracje',

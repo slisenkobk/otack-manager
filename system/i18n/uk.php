@@ -547,6 +547,8 @@ return [
     'activity.form.updated'       => 'оновив(-ла) форму',
     'activity.form.deleted'       => 'видалив(-ла) форму',
     'activity.compass.action'     => 'виконав(-ла) дію Компасу',
+    'activity.attachment.uploaded' => 'додав(-ла) вкладення',
+    'activity.actor.visitor'      => 'Відвідувач',
 
     // ─── Polls ─────────────────────────────────────────────────────────────
     'nav.integrations'                => 'Інтеграції',

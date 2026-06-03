@@ -204,3 +204,18 @@ it('user_locale ignores invalid locale codes', function () {
     unset($_GET['locale']);
     i18n_reset_cache();
 });
+
+it('every locale has every key in en.php (parity, with explicit exemptions)', function () {
+    $en = require dirname(__DIR__, 2) . '/system/i18n/en.php';
+    $pl = require dirname(__DIR__, 2) . '/system/i18n/pl.php';
+    $uk = require dirname(__DIR__, 2) . '/system/i18n/uk.php';
+    $exempt = ['forms_data.brand_tag' => true];
+
+    $missing = [];
+    foreach (array_keys($en) as $k) {
+        if (isset($exempt[$k])) continue;
+        if (!array_key_exists($k, $pl)) $missing[] = "pl: $k";
+        if (!array_key_exists($k, $uk)) $missing[] = "uk: $k";
+    }
+    assert_true(empty($missing), 'i18n gaps: ' . implode(', ', array_slice($missing, 0, 5)));
+});
