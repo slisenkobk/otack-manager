@@ -486,11 +486,11 @@ test('3.6 delete a column with tasks → prompts move-to', async ({ page }) => {
   await expect(page.locator('.modal')).toBeVisible();
 
   // Click Delete button
-  await page.locator('.modal button.btn-danger:has-text("Delete")').click();
+  await page.locator('.modal button.btn--danger:has-text("Delete")').click();
 
   // Confirm "Delete this column?" dialog
   await expect(page.locator('.modal')).toBeVisible({ timeout: 3000 });
-  const confirmBtn = page.locator('.modal button.btn-danger').last();
+  const confirmBtn = page.locator('.modal button.btn--danger').last();
   await confirmBtn.click();
 
   // Should now show "Move tasks to" modal (because column has tasks)
@@ -498,7 +498,7 @@ test('3.6 delete a column with tasks → prompts move-to', async ({ page }) => {
   await page.screenshot({ path: SS('3.6-move-tasks-modal'), fullPage: true });
 
   // Select destination and confirm
-  await page.locator('.modal button.btn-danger').click();
+  await page.locator('.modal button.btn--danger').click();
   await page.waitForTimeout(600);
   await page.screenshot({ path: SS('3.6-after-delete-col'), fullPage: true });
   // Old column count - 1
@@ -684,7 +684,7 @@ test('4.7 delete task → redirected to project board', async ({ page }) => {
   await page.locator('[data-action=delete-task]').click();
   // Confirm modal
   await expect(page.locator('.modal')).toBeVisible();
-  await page.locator('.modal button.btn-danger').click();
+  await page.locator('.modal button.btn--danger').click();
   await page.waitForTimeout(500);
   await expect(page).toHaveURL('/projects/1');
   await page.screenshot({ path: SS('4.7-after-delete'), fullPage: true });
@@ -764,7 +764,7 @@ test('5.3 admin deletes a comment', async ({ page }) => {
   await anyComment.locator('[data-action=delete-comment]').evaluate((el: HTMLElement) => el.click());
   await page.waitForTimeout(200);
   await expect(page.locator('.modal')).toBeVisible({ timeout: 3000 });
-  await page.locator('.modal button.btn-danger').click();
+  await page.locator('.modal button.btn--danger').click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: SS('5.3-comment-deleted'), fullPage: true });
 });
@@ -917,7 +917,7 @@ test('6.6 delete attachment as uploader', async ({ page }) => {
   const delBtn = firstItem.locator('[data-action=delete-attachment]');
   await delBtn.click();
   await expect(page.locator('.modal')).toBeVisible();
-  await page.locator('.modal button.btn-danger').click();
+  await page.locator('.modal button.btn--danger').click();
   await page.waitForTimeout(400);
   await expect(page.locator('.attach-item')).toHaveCount(countBefore - 1);
   await page.screenshot({ path: SS('6.6-attachment-deleted'), fullPage: true });

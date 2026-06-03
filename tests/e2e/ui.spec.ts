@@ -11,6 +11,6 @@ test('confirm resolves true on OK', async ({ page }) => {
   await page.goto('/ui-sandbox');
   await page.waitForFunction(() => !!(window as any).UI);
   const result = page.evaluate(() => (window as any).UI.confirm('Sure?'));
-  await page.click('.modal-actions .submit, .modal-actions .btn-danger');
+  await page.click('.modal-actions .submit, .modal-actions .btn--danger');
   expect(await result).toBe(true);
 });

@@ -643,7 +643,7 @@ test('B4: all buttons have visible padding', async ({ page }) => {
   await page.waitForLoadState('networkidle');
 
   // Check primary buttons
-  const buttons = page.locator('.btn, .btn-primary, .btn-secondary, .btn-brand').first();
+  const buttons = page.locator('.btn, .btn--primary, .btn--secondary, .btn--brand').first();
   if (await buttons.count() > 0) {
     const padding = await buttons.evaluate((el) => {
       const cs = getComputedStyle(el);
