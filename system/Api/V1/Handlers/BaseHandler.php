@@ -4,6 +4,7 @@ namespace App\Api\V1\Handlers;
 
 use App\Api\V1\ApiResponse;
 use App\Api\V1\JsonRequest;
+use App\Service\RolePolicy;
 use App\Http\Request;
 
 abstract class BaseHandler
@@ -46,4 +47,17 @@ abstract class BaseHandler
 
     protected function notFound(): array { return ApiResponse::error(404, 'not_found', 'Not found'); }
     protected function forbidden(): array { return ApiResponse::error(403, 'forbidden', 'Action not permitted'); }
+
+    /**
+     * Visibility helper shared across handlers that gate on project access.
+     * Admins see all projects; everyone else needs a membership row or to be
+     * the original creator.
+     */
+    protected function canSeeProject(array $project): bool
+    {
+        if (RolePolicy::isAdmin($this->user())) return true;
+        // ProjectMemberRepository::isMember signature is (projectId, userId).
+        return $this->svc('members')->isMember((int)$project['id'], $this->userId())
+            || (int)$project['created_by'] === $this->userId();
+    }
 }

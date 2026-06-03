@@ -34,6 +34,12 @@ final class ApiKernel
         $this->routes['POST /api/v1/projects/{id}/pin']              = ['handler' => 'Projects', 'action' => 'setPin'];
         $this->routes['POST /api/v1/projects/{id}/members']          = ['handler' => 'Projects', 'action' => 'addMember'];
         $this->routes['DELETE /api/v1/projects/{id}/members/{id}']   = ['handler' => 'Projects', 'action' => 'removeMember'];
+
+        $this->routes['GET /api/v1/projects/{id}/columns']           = ['handler' => 'Columns', 'action' => 'indexForProject'];
+        $this->routes['POST /api/v1/projects/{id}/columns']          = ['handler' => 'Columns', 'action' => 'createInProject'];
+        $this->routes['PATCH /api/v1/columns/{id}']                  = ['handler' => 'Columns', 'action' => 'update'];
+        $this->routes['DELETE /api/v1/columns/{id}']                 = ['handler' => 'Columns', 'action' => 'destroy'];
+        $this->routes['POST /api/v1/projects/{id}/columns/reorder']  = ['handler' => 'Columns', 'action' => 'reorder'];
     }
 
     public function handle(Request $req): void

@@ -28,6 +28,13 @@ final class TaskColumnRepository {
         return $row ?: null;
     }
 
+    public function findById(int $id): ?array {
+        $stmt = $this->pdo->prepare('SELECT * FROM task_columns WHERE id = ? LIMIT 1');
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
     public function listForProject(int $projectId): array {
         $stmt = $this->pdo->prepare('SELECT * FROM task_columns WHERE project_id = ? ORDER BY position ASC');
         $stmt->execute([$projectId]);
@@ -67,6 +74,18 @@ final class TaskColumnRepository {
                 if ($moveTasksTo === null) throw new \RuntimeException('Column has tasks; provide moveTasksTo');
                 $this->pdo->prepare('UPDATE tasks SET column_id = ? WHERE column_id = ?')->execute([$moveTasksTo, $id]);
             }
+            $this->pdo->prepare('DELETE FROM task_columns WHERE id = ?')->execute([$id]);
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack(); throw $e;
+        }
+    }
+
+    /** Hard-delete a column and any tasks it owns. Used by the REST API force flag. */
+    public function deleteWithTasks(int $id): void {
+        $this->pdo->beginTransaction();
+        try {
+            $this->pdo->prepare('DELETE FROM tasks WHERE column_id = ?')->execute([$id]);
             $this->pdo->prepare('DELETE FROM task_columns WHERE id = ?')->execute([$id]);
             $this->pdo->commit();
         } catch (\Throwable $e) {

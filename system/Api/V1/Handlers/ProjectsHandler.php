@@ -36,7 +36,7 @@ final class ProjectsHandler extends BaseHandler
         $id = $this->pathId($req, 3);
         $project = $this->svc('projects')->findById($id);
         if (!$project) return $this->notFound();
-        if (!$this->canSee($project)) return $this->notFound();
+        if (!$this->canSeeProject($project)) return $this->notFound();
 
         $columns = $this->svc('columns')->listForProject($id);
         $members = $this->svc('members')->list($id);
@@ -95,7 +95,7 @@ final class ProjectsHandler extends BaseHandler
         $id = $this->pathId($req, 3);
         $project = $this->svc('projects')->findById($id);
         if (!$project) return $this->notFound();
-        if (!$this->canSee($project)) return $this->notFound();
+        if (!$this->canSeeProject($project)) return $this->notFound();
         $pinned = JsonRequest::optionalBool($this->readBody($req), 'pinned', false);
         // ProjectRepository::setPinned signature is (id, pinned) — no per-user pin state.
         $this->svc('projects')->setPinned($id, $pinned);
@@ -125,15 +125,6 @@ final class ProjectsHandler extends BaseHandler
         if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) return $this->forbidden();
         $this->svc('members')->remove($id, $userId);
         return ApiResponse::noContent();
-    }
-
-    private function canSee(array $project): bool
-    {
-        if (RolePolicy::isAdmin($this->user())) return true;
-        $members = $this->svc('members');
-        // ProjectMemberRepository::isMember signature is (projectId, userId).
-        return $members->isMember((int)$project['id'], $this->userId())
-            || (int)$project['created_by'] === $this->userId();
     }
 
     /**
