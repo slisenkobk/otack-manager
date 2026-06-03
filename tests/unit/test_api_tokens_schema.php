@@ -38,5 +38,5 @@ it('api_tokens cascades on user delete', function () {
         ->execute([$uid, 'a', str_repeat('a', 64), 'otk_aaaaaaaa', time()]);
     $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$uid]);
     $remaining = (int)$pdo->query('SELECT COUNT(*) FROM api_tokens')->fetchColumn();
-    assert_eq(0, $remaining);
+    assert_eq(0, $remaining, 'tokens should be deleted with user');
 });
