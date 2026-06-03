@@ -54,3 +54,22 @@ it('returns null when user has been blocked', function () {
     $auth = new TokenAuthenticator($tokens, $users);
     assert_eq(null, $auth->authenticate('Bearer ' . $t['token']));
 });
+
+it('accepts user with production status = approved', function () {
+    [$pdo, $tokens, $users] = _authPdo();
+    $t = $tokens->create(1, 'x');
+    // Production UserRepository uses 'approved', not 'active'. API auth must match.
+    $pdo->prepare('UPDATE users SET status = ? WHERE id = ?')->execute(['approved', 1]);
+    $auth = new TokenAuthenticator($tokens, $users);
+    $ctx = $auth->authenticate('Bearer ' . $t['token']);
+    assert_true($ctx !== null);
+    assert_eq(1, (int)$ctx['user']['id']);
+});
+
+it('rejects user with status = pending', function () {
+    [$pdo, $tokens, $users] = _authPdo();
+    $t = $tokens->create(1, 'x');
+    $pdo->prepare('UPDATE users SET status = ? WHERE id = ?')->execute(['pending', 1]);
+    $auth = new TokenAuthenticator($tokens, $users);
+    assert_eq(null, $auth->authenticate('Bearer ' . $t['token']));
+});

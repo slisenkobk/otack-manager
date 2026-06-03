@@ -26,7 +26,11 @@ final class TokenAuthenticator
         if (!$tokenRow) return null;
 
         $user = $this->users->findById((int)$tokenRow['user_id']);
-        if (!$user || ($user['status'] ?? '') !== 'active') return null;
+        if (!$user) return null;
+        // App's UserRepository uses 'approved' (production); some test fixtures use
+        // 'active'. Accept both so API auth matches the rest of the app.
+        $status = (string)($user['status'] ?? '');
+        if ($status !== 'approved' && $status !== 'active') return null;
 
         return ['user' => $user, 'token' => $tokenRow];
     }
