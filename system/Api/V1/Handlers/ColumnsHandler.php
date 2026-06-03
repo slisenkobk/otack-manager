@@ -60,7 +60,10 @@ final class ColumnsHandler extends BaseHandler
         $col = $this->svc('columns')->findById($id);
         if (!$col) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$col['project_id']);
-        if (!$project) return $this->notFound();
+        // 404 (not 403) when the project is invisible to the caller, mirroring
+        // TasksHandler/CommentsHandler/AttachmentsHandler — refuses to leak
+        // the existence of foreign projects via differential status codes.
+        if (!$project || !$this->canSeeProject($project)) return $this->notFound();
         if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) {
             return $this->forbidden();
         }
@@ -90,7 +93,8 @@ final class ColumnsHandler extends BaseHandler
         $col = $this->svc('columns')->findById($id);
         if (!$col) return $this->notFound();
         $project = $this->svc('projects')->findById((int)$col['project_id']);
-        if (!$project) return $this->notFound();
+        // 404 (not 403) when the project is invisible to the caller — see update().
+        if (!$project || !$this->canSeeProject($project)) return $this->notFound();
         if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) {
             return $this->forbidden();
         }

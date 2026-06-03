@@ -142,6 +142,29 @@ api_it('DELETE /columns/{id}?force=true deletes even with tasks', function () {
     assert_eq(0, $cnt);
 });
 
+api_it('PATCH /columns/{id} returns 404 (not 403) for non-visible project', function () {
+    [$pdo, , $empTok] = cols_setup();
+    // Project owned by admin (user 1), employee (user 2) is NOT a member.
+    cols_seed_project($pdo, 4101, 1);
+    cols_seed_column($pdo, 41001, 4101, 'Hidden', 0);
+    $r = api_request('PATCH', '/api/v1/columns/41001', [
+        'headers' => ['Authorization: Bearer ' . $empTok],
+        'body'    => json_encode(['name' => 'X']),
+    ]);
+    // Visibility check fires BEFORE the edit check — must be 404, never 403.
+    assert_eq(404, $r['status']);
+});
+
+api_it('DELETE /columns/{id} returns 404 (not 403) for non-visible project', function () {
+    [$pdo, , $empTok] = cols_setup();
+    cols_seed_project($pdo, 4102, 1);
+    cols_seed_column($pdo, 41002, 4102, 'Hidden', 0);
+    $r = api_request('DELETE', '/api/v1/columns/41002', [
+        'headers' => ['Authorization: Bearer ' . $empTok],
+    ]);
+    assert_eq(404, $r['status']);
+});
+
 api_it('POST /projects/{id}/columns/reorder updates positions', function () {
     [$pdo, $adminTok,] = cols_setup();
     cols_seed_project($pdo, 4009);
