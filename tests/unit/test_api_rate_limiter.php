@@ -49,3 +49,20 @@ it('isolates tokens', function () {
     $r = $rl->check(2);
     assert_true($r['allowed']);
 });
+
+it('enforces exact count-equals-max boundary in a tight loop', function () {
+    // Single-threaded: 65 calls against max=60, windowSeconds=60.
+    // Expect exactly 60 allowed=true, 5 allowed=false. This catches the
+    // off-by-one boundary AND ensures the atomic UPSERT counts each
+    // call exactly once.
+    $rl = new RateLimiter(_rlPdo(), max: 60, windowSeconds: 60);
+    $allowed = 0;
+    $blocked = 0;
+    for ($i = 0; $i < 65; $i++) {
+        $r = $rl->check(99);
+        if ($r['allowed']) $allowed++;
+        else                $blocked++;
+    }
+    assert_eq(60, $allowed);
+    assert_eq(5,  $blocked);
+});
