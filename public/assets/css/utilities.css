@@ -1203,3 +1203,28 @@ pre.copyable.copyable--flash {
   color: var(--ink, #2A2118);
 }
 @keyframes btn-spin { to { transform: rotate(1turn); } }
+
+/* Tablet/small-laptop breakpoint — bridges the gap between the desktop
+   layout and the 600px phone breakpoint above. Collapses task / project /
+   compass tabs gracefully so they don't bleed off the right edge. */
+@media (max-width: 720px) {
+  /* Collapse the project overview + task detail sidebars earlier — at the
+     desktop breakpoint, the 280px sidebar squeezes the main column too
+     much for comfortable reading. */
+  .project-overview,
+  .task-detail { grid-template-columns: 1fr; gap: var(--space-6); }
+  .project-sidebar { margin-top: var(--space-6); }
+
+  /* Project & compass tabs row — stack vertically with full-width tap
+     targets instead of horizontally overflowing. */
+  .project-tabs {
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: stretch;
+  }
+  .project-tab {
+    width: 100%;
+    text-align: left;
+    justify-content: flex-start;
+  }
+}
