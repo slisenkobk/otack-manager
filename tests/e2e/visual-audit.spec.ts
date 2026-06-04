@@ -843,7 +843,15 @@ test('B12: no console errors on key pages', async ({ page }) => {
   page.on('console', (msg) => {
     if (msg.type() === 'error') {
       const t = msg.text();
-      if (!t.includes('favicon') && !t.includes('FontAwesome') && !t.includes('net::ERR')) {
+      // Filter benign transport flakes that aren't code bugs:
+      //  - 'favicon' / 'FontAwesome' — chromium-specific 404 phrasing
+      //  - 'net::ERR' — chromium network errors (assets briefly 0-length)
+      //  - 'downloadable font' — firefox-specific font load timing flake on
+      //    the CI php -S server (status=2152398850 is NS_BINDING_ABORTED;
+      //    the font ultimately renders, the console just yells about the
+      //    initial aborted fetch)
+      if (!t.includes('favicon') && !t.includes('FontAwesome')
+          && !t.includes('net::ERR') && !t.includes('downloadable font')) {
         errors.push(t);
       }
     }
