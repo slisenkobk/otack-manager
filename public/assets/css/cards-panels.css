@@ -843,3 +843,35 @@ h1.display em {
 .status--converted_task::before,
 .status--converted_project::before { background: var(--accent); }
 
+/* ─── §11 Dashboard ──────────────────────────────────────────── */
+/* The greeting `<span>` wrapping the user's name lives inside the
+   translated string, so we colour it by class. */
+.dashboard-greeting-name { color: var(--brand); }
+/* Editorial sub-line under the dashboard greeting: mono caps strip
+   summarising open projects / tasks / events for the week. */
+.dashboard-summary-line {
+  margin-top: 12px;
+  font-size: 12px;
+  letter-spacing: .15em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+}
+/* Variant of `.cards-row` used on the dashboard "My tasks" strip — the
+   regular 3-track grid is replaced with auto-fill 260px so the strip
+   wraps gracefully when the user has many in-flight tasks. */
+.cards-row--auto { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+/* `.card` rendered as an `<a>` — reset link defaults and tighten min
+   height since the dashboard task chip is denser than a project card. */
+.card--link { text-decoration: none; color: inherit; min-height: 130px; }
+/* My-task chip text rows: title and the smaller project caption. */
+.my-task-card__title { font-weight: 600; font-size: 15px; line-height: 1.3; }
+.my-task-card__project {
+  font-size: 10px;
+  color: var(--ink-3);
+  margin-top: 6px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+/* Centred wrapper for the activity-feed "Load more" button. */
+.activity-load-more { margin-top: 12px; text-align: center; }
+

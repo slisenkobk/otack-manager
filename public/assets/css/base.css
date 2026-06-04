@@ -45,6 +45,14 @@ body.auth-page .brief { background: var(--paper-2); }
 body.auth-page .brief .input,
 body.auth-page .brief .textarea,
 body.auth-page .brief .select { background: var(--paper); }
+/* Auth layout `<main>` shell: centres the login/register/pending card
+   in the viewport with generous breathing room around it. */
+.auth-page__main {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 40px;
+}
 
 /* Grain overlay — subtle paper texture, not dots */
 body::before {

@@ -1,8 +1,8 @@
 <div class="dashboard-page">
 
 <section class="hero mb-16">
-  <h1 class="display" style="font-weight:700;"><?= t('dashboard.greeting', ['name' => '<span style="color:var(--brand);">' . e($user['name']) . '</span>']) ?></h1>
-  <p class="mono" style="margin-top:12px;font-size:12px;letter-spacing:.15em;color:var(--ink-3);text-transform:uppercase;">
+  <h1 class="display"><?= t('dashboard.greeting', ['name' => '<span class="dashboard-greeting-name">' . e($user['name']) . '</span>']) ?></h1>
+  <p class="mono dashboard-summary-line">
     <?= e(t('dashboard.summary_line', [
       'projects' => (int)$stats['open_projects'],
       'tasks'    => (int)$stats['my_tasks'],
@@ -23,7 +23,7 @@ $spark = function (array $series): string {
     $bars = '';
     foreach ($series as $v) {
         $h = max(8, (int)round(($v / $max) * 100));
-        $bars .= '<span style="height:' . $h . '%"></span>';
+        $bars .= '<span ' . inline_style('height:' . $h . '%') . '></span>';
     }
     return '<span class="spark" aria-hidden="true">' . $bars . '</span>';
 };
@@ -67,14 +67,14 @@ $sparkClosed = $spark($trend['closed'] ?? []);
       <p class="empty-state__text"><?= e(t('dashboard.empty.my_tasks')) ?></p>
     </div>
   <?php else: ?>
-    <div class="cards-row" style="grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));">
+    <div class="cards-row cards-row--auto">
       <?php foreach ($myTasks as $i => $tk): ?>
-        <a class="card" href="/tasks/<?= (int)$tk['id'] ?>" style="text-decoration:none;color:inherit;min-height:130px;">
+        <a class="card card--link" href="/tasks/<?= (int)$tk['id'] ?>">
           <span class="corner-tag"><?= e(t('tasks.id_prefix', ['id' => (int)$tk['id']])) ?></span>
           <span class="corner-meta"><?= e($tk['column_name']) ?></span>
           <div class="mt-24">
-            <div style="font-weight:600;font-size:15px;line-height:1.3;"><?= e($tk['title']) ?></div>
-            <div class="mono muted" style="font-size:10px;color:var(--ink-3);margin-top:6px;letter-spacing:.1em;text-transform:uppercase;"><?= e($tk['project_name']) ?></div>
+            <div class="my-task-card__title"><?= e($tk['title']) ?></div>
+            <div class="mono my-task-card__project"><?= e($tk['project_name']) ?></div>
           </div>
           <div class="card-row">
             <?php if (!empty($tk['due_date'])): ?>
@@ -153,7 +153,7 @@ $sparkClosed = $spark($trend['closed'] ?? []);
       endforeach; ?>
     </div>
     <?php if (count($recentActivity) >= 10): ?>
-      <div style="margin-top:12px;text-align:center;">
+      <div class="activity-load-more">
         <button class="btn--secondary load-more-activity" type="button" data-offset="10"><?= e(t('common.load_more')) ?></button>
       </div>
     <?php endif; ?>

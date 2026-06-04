@@ -525,6 +525,41 @@ body.public-form {
   margin-top: 4px;
 }
 
+/* Auth: "remember me" row sits between the password field and the
+   submit button. Inline-flex so the checkbox and label hug each other. */
+.auth-remember-me {
+  margin-top: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+/* Auth: full-width submit on the login/register `.brief` cards. The
+   global `.submit` rule is inline-flex with content-width sizing, so
+   this modifier widens it and lifts it off the previous control. */
+.auth-submit { margin-top: 18px; width: 100%; }
+.auth-submit--tight { margin-top: 22px; }
+/* Auth: pending-approval screen (after sign-up while a moderator
+   reviews the account). One-off icon-headline-paragraph stack — kept
+   visually centred by `.text-center` on `.brief`. */
+.auth-pending__icon {
+  font-size: 48px;
+  color: var(--brand);
+  margin-bottom: 18px;
+}
+.auth-pending__title {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+.auth-pending__body {
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
 /* V-9: fieldset/legend grouping for long admin forms. Visually a thin
    heading above a stack of fields, semantically a screen-reader group. The
    browser's default fieldset border/padding is reset so this slots into
