@@ -535,9 +535,6 @@ h1.display em {
   color: var(--text-muted);
   margin-bottom: var(--space-8);
 }
-.overview-panel__attach .attachments-section > div[style*="margin-top"] {
-  margin-top: var(--space-8) !important;
-}
 .overview-panel--comments {
   padding: var(--space-12);
   background: color-mix(in srgb, var(--paper) 65%, var(--paper-2));
@@ -553,7 +550,7 @@ h1.display em {
   border: 1px solid var(--rule);
   border-radius: 4px;
   background: var(--paper);
-  text-decoration: none !important;
+  text-decoration: none;
   color: inherit;
   transition: border-color .12s ease, background .12s ease;
 }
