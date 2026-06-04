@@ -118,15 +118,31 @@ for the audit-driven cleanup plan referenced in `#9` below.
   migration (O-7 gated by test count), AppContext DTO,
   `JS-disabled + cookie=auto` regression (CSS-6 — acceptable trade-off
   documented in 9.1c follow-up).
-
-## Open
-
-### #10 — Setup wizard for new installs
-
-A small `install` step on first boot that walks an admin through:
-- Database choice (SQLite vs MySQL connection params)
-- Admin user creation
-- `LOGIN_HASH` setup (also storable / toggleable from DB, exposed in
-  Platform settings)
-
-Goal: zero-friction first run on a client's server.
+- **#10 — Setup wizard for new installs.** Closed 2026-06-04 with tag
+  `v1.5.0`. Spec at
+  [.dev-notes/superpowers/specs/2026-06-04-install-wizard-design.md](.dev-notes/superpowers/specs/2026-06-04-install-wizard-design.md),
+  plan at
+  [.dev-notes/superpowers/plans/2026-06-04-install-wizard-implementation.md](.dev-notes/superpowers/plans/2026-06-04-install-wizard-implementation.md).
+  - **ConfigStore** — `data/config.json` (mode 0600) overlay over `$_ENV`
+    / `.env`. Validates on both `set()` AND `load()` against a strict
+    14-key allow-list, atomic writes via tmp + rename, non-fatal log on
+    mode mismatch.
+  - **Six-step browser wizard** at `/install/{welcome,db,admin,security,integrations,done}`:
+    SQLite default or MySQL with test-connection, admin user creation,
+    optional LOGIN_HASH toggle + auto-generated APP_SECRET, optional
+    Telegram bot, summary. Each step writes immediately; resume on tab
+    reload; 404 after `settings.installed_at` is stamped.
+  - **InstallGate** — `isInstallRequired($pdo)` predicate (no admin AND
+    no `installed_at`), wired in `public/index.php` behind a feature
+    flag with path-traversal rejection + parsed-path matching.
+  - **Mid-wizard hardening** — `/install/admin` and `/install/db` POST
+    handlers refuse when an approved admin already exists, plugging an
+    unauthenticated-second-admin attack in the mid-wizard window.
+  - **Compass → Platform Settings tab** at `/admin/compass/platform` —
+    mirrors the wizard surface for post-install edits: LOGIN_HASH
+    toggle, APP_SECRET rotate, APP_URL, TRUSTED_PROXIES, Telegram
+    (masked), updates settings. Shares ConfigStore with the wizard.
+  - **Migration** — `20260604_010_seed_installed_at.php` stamps existing
+    pre-1.5.0 installs so the feature-flag flip is gate-safe.
+  - Tests: 334 unit / 85 api / install + platform-settings e2e specs
+    green on chromium and firefox.
