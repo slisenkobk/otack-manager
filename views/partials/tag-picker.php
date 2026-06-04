@@ -3,7 +3,7 @@
   <div class="tag-chips">
     <?php foreach ($current as $t): ?>
       <span class="tag tag-picker__chip" data-tag-id="<?= (int)$t['id'] ?>"
-            style="display:inline-flex;align-items:center;gap:6px;padding:3px 8px;background:<?= e($t['color']) ?>33;color:var(--ink);border-radius:999px;font-size:11px;font-family:var(--font-mono);letter-spacing:.05em;">
+            data-bg="<?= e($t['color']) ?>33">
         <?= e($t['name']) ?>
         <?php if ($canEdit): ?>
           <button type="button" class="tag-picker__chip-remove" data-action="remove-tag">

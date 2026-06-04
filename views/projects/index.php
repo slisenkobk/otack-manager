@@ -48,7 +48,7 @@
           <i class="fa-solid fa-thumbtack"></i>
         </button>
         <div class="card-head">
-          <div class="ini" style="background: <?= e($p['color'] ?? '#1A1612') ?>;"><?= e(mb_strtoupper(mb_substr($p['name'], 0, 2))) ?></div>
+          <div class="ini" data-bg="<?= e($p['color'] ?? '#1A1612') ?>"><?= e(mb_strtoupper(mb_substr($p['name'], 0, 2))) ?></div>
           <div>
             <h3 class="name"><?= e($p['name']) ?></h3>
           </div>

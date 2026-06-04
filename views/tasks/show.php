@@ -29,7 +29,6 @@
         <span class="sub-status" data-task-sub-status hidden></span>
       <?php endif; ?>
       <h1 class="task-title<?= !empty($canEditTask) ? ' is-editable' : '' ?>" <?= !empty($canEditTask) ? 'contenteditable="true"' : '' ?> spellcheck="false"
-          style="font-size:24px;font-weight:700;letter-spacing:-0.015em;margin:0;outline:none;border-bottom:1px dashed transparent;padding-bottom:4px;<?= !empty($canEditTask) ? 'cursor:text;' : '' ?>line-height:1.25;"
           data-task-id="<?= (int)$task['id'] ?>"><?= e($task['title']) ?></h1>
     </div>
 
@@ -155,14 +154,14 @@
       ?>
       <div class="custom-select" data-custom-select>
         <button type="button" class="custom-select__btn">
-          <span class="custom-select__icon"><span class="dot col-dot" style="background: <?= e($currentCol['color'] ?? '#8B7C68') ?>"></span></span>
+          <span class="custom-select__icon"><span class="dot col-dot" data-bg="<?= e($currentCol['color'] ?? '#8B7C68') ?>"></span></span>
           <span class="custom-select__label"><?= e($currentCol['name'] ?? '—') ?></span>
           <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
         </button>
         <div class="custom-select__pop" hidden>
           <?php foreach ($columns as $c): ?>
             <div class="custom-select__opt<?= (int)$c['id'] === (int)$task['column_id'] ? ' is-selected' : '' ?>" data-value="<?= (int)$c['id'] ?>">
-              <span class="custom-select__icon"><span class="dot col-dot" style="background: <?= e($c['color']) ?>"></span></span>
+              <span class="custom-select__icon"><span class="dot col-dot" data-bg="<?= e($c['color']) ?>"></span></span>
               <span class="custom-select__opt-label"><?= e($c['name']) ?></span>
             </div>
           <?php endforeach; ?>

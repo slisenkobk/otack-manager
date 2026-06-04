@@ -64,7 +64,7 @@ $isDisabled = (int)$link['is_disabled'] === 1;
         <h3 class="link-stats__heading"><?= e(t('links.stats.daily_30')) ?></h3>
         <div class="link-stats__bars">
           <?php foreach ($byDay as $d): $h = $maxDay > 0 ? max(2, (int)round($d['total'] / $maxDay * 100)) : 2; ?>
-            <span class="link-stats__bar" style="height:<?= $h ?>%;" title="<?= e($d['date']) ?>: <?= (int)$d['total'] ?> (<?= (int)$d['unique'] ?> unique)"></span>
+            <span class="link-stats__bar" data-height-pct="<?= (int)$h ?>" title="<?= e($d['date']) ?>: <?= (int)$d['total'] ?> (<?= (int)$d['unique'] ?> unique)"></span>
           <?php endforeach; ?>
         </div>
         <div class="link-stats__bars-axis">

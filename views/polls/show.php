@@ -66,7 +66,7 @@ $hasMore   = count($voters) < (int)$total;
                 <span class="poll-stats__count"><?= (int)$row['count'] ?> · <?= e($row['pct']) ?>%</span>
               </div>
               <div class="poll-stats__bar">
-                <div class="poll-stats__bar-fill" style="width: <?= e(min(100, max(0, (float)$row['pct']))) ?>%"></div>
+                <div class="poll-stats__bar-fill" data-width-pct="<?= e(min(100, max(0, (float)$row['pct']))) ?>"></div>
               </div>
             </div>
           <?php endforeach; ?>

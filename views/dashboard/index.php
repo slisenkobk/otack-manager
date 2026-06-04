@@ -113,7 +113,7 @@ $sparkClosed = $spark($trend['closed'] ?? []);
           <span class="corner-tag"><?= e(t('projects.label.id', ['id' => (int)$p['id']])) ?></span>
           <span class="corner-meta"><?= fmt_date($p['updated_at']) ?></span>
           <div class="card-head">
-            <div class="ini" style="background: <?= e($p['color'] ?? '#1A1612') ?>;"><?= e(mb_strtoupper(mb_substr($p['name'], 0, 2))) ?></div>
+            <div class="ini" data-bg="<?= e($p['color'] ?? '#1A1612') ?>"><?= e(mb_strtoupper(mb_substr($p['name'], 0, 2))) ?></div>
             <div><h3 class="name"><?= e($p['name']) ?></h3></div>
           </div>
           <?php $desc = trim(strip_tags((string)($p['description'] ?? ''))); ?>

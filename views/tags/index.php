@@ -24,7 +24,7 @@ foreach ($scopeLabels as $scope => $label):
         $usage = $usages[(int)$tag['id']] ?? ['project_count' => 0, 'task_count' => 0];
       ?>
         <article class="card tag-chip" data-tag-id="<?= (int)$tag['id'] ?>" data-tag-row>
-          <label class="color-swatch tag-swatch tag-chip__swatch" title="<?= e(t('tags.change_color')) ?>" style="background: <?= e($tag['color']) ?>;">
+          <label class="color-swatch tag-swatch tag-chip__swatch" title="<?= e(t('tags.change_color')) ?>" data-bg="<?= e($tag['color']) ?>">
             <input type="color" class="tag-color-input" value="<?= e($tag['color']) ?>">
           </label>
           <span class="tag-name tag-chip__name" contenteditable="true" spellcheck="false"

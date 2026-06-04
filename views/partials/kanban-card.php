@@ -16,8 +16,7 @@ $meta['links'] = $meta['links'] ?? 0;
   <?php if ($tags || !empty($t['sub_status'])): ?>
     <div class="kanban-card__row">
       <?php foreach (array_slice($tags, 0, 2) as $tag): ?>
-        <span class="kanban-card__tag tag"
-              style="--tag: <?= e($tag['color']) ?>; --tag-bg: <?= e($tag['color']) ?>22;">
+        <span class="kanban-card__tag tag" data-tag-color="<?= e($tag['color']) ?>">
           <?= e($tag['name']) ?>
         </span>
       <?php endforeach; ?>

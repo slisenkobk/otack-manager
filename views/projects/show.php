@@ -56,7 +56,7 @@ foreach ($boardColumns as $c) {
       <div class="kanban-col" data-column-id="<?= (int)$col['id'] ?>">
         <div class="kanban-col__head kanban-col-head">
           <button type="button" class="kanban-col__drag" aria-label="<?= e(t('projects.kanban.col_reorder')) ?>" title="<?= e(t('projects.kanban.col_reorder_title')) ?>"><i class="fa-solid fa-grip-vertical"></i></button>
-          <span class="kanban-col__dot dot" style="background: <?= e($col['color']) ?>"></span>
+          <span class="kanban-col__dot dot" data-bg="<?= e($col['color']) ?>"></span>
           <span class="kanban-col__name name"><?= e($col['name']) ?></span>
           <span class="kanban-col__count kanban-col-count"><?= count($colTasks) ?></span>
           <button type="button" class="btn-icon col-settings kanban-col__settings" data-column-id="<?= (int)$col['id'] ?>" aria-label="<?= e(t('projects.kanban.col_settings')) ?>"><i class="fa-solid fa-ellipsis"></i></button>
@@ -142,20 +142,19 @@ foreach ($boardColumns as $c) {
       <div class="project-overview__header">
         <?php if (!empty($canEdit)): ?>
           <label class="project-avatar-edit" title="<?= e(t('projects.overview.color_title')) ?>">
-            <div class="ini project-avatar" style="width:44px;height:44px;font-size:14px;background: <?= e($project['color'] ?? '#1A1612') ?>;flex-shrink:0;">
+            <div class="ini project-avatar project-avatar--lg" data-bg="<?= e($project['color'] ?? '#1A1612') ?>">
               <?= e(mb_strtoupper(mb_substr($project['name'], 0, 2))) ?>
             </div>
             <input type="color" data-project-color value="<?= e($project['color'] ?? '#1A1612') ?>">
           </label>
         <?php else: ?>
-          <div class="ini project-avatar" style="width:44px;height:44px;font-size:14px;background: <?= e($project['color'] ?? '#1A1612') ?>;flex-shrink:0;">
+          <div class="ini project-avatar project-avatar--lg" data-bg="<?= e($project['color'] ?? '#1A1612') ?>">
             <?= e(mb_strtoupper(mb_substr($project['name'], 0, 2))) ?>
           </div>
         <?php endif; ?>
         <h1 class="project-title<?= !empty($canEdit) ? ' is-editable' : '' ?>"
             <?= !empty($canEdit) ? 'contenteditable="true" spellcheck="false"' : '' ?>
-            data-project-id="<?= (int)$project['id'] ?>"
-            style="font-size:32px;font-weight:700;letter-spacing:-0.02em;margin:0;outline:none;border-bottom:1px dashed transparent;padding-bottom:4px;flex:1;min-width:0;<?= !empty($canEdit) ? 'cursor:text;' : '' ?>"><?= e($project['name']) ?></h1>
+            data-project-id="<?= (int)$project['id'] ?>"><?= e($project['name']) ?></h1>
       </div>
       <section class="overview-panel">
         <header class="overview-panel__head">
