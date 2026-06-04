@@ -1,6 +1,10 @@
 <?php
-// Theme preference: cookie 'theme' ∈ {light,dark,auto}. 'auto' (or unset)
-// falls back to prefers-color-scheme — handled purely in CSS.
+// Theme preference: cookie 'theme' ∈ {light,dark,auto}. Explicit choices
+// (light/dark) get rendered as `data-theme="…"` here; 'auto' (or unset)
+// leaves the attribute off so theme-init.js (loaded synchronously in
+// <head> below) can stamp it from `prefers-color-scheme` before CSS
+// evaluates. CSS-6 dropped the `@media` block that used to handle this
+// purely in CSS, so JS is now the single source of truth.
 $themePref = $_COOKIE['theme'] ?? 'auto';
 if (!in_array($themePref, ['light', 'dark', 'auto'], true)) $themePref = 'auto';
 $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
