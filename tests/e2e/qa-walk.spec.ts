@@ -544,7 +544,10 @@ test('4.1 edit title via contenteditable + blur', async ({ page }) => {
   await page.goto('/tasks/' + taskId);
   const titleEl = page.locator('.task-title');
   await titleEl.click();
-  await page.keyboard.press('Meta+A');
+  // ControlOrMeta is Playwright's cross-platform shortcut — Cmd on macOS,
+  // Control on Linux/Windows. Hard-coding Meta+A used to leave the existing
+  // text in place on CI runners.
+  await page.keyboard.press('ControlOrMeta+A');
   await page.keyboard.type('Renamed Task Title');
   await titleEl.blur();
   await page.waitForTimeout(300);
@@ -1270,7 +1273,7 @@ test('12.4 toast auto-dismisses after ~4s', async ({ page }) => {
   // Trigger a toast by editing title
   const titleEl = page.locator('.task-title');
   await titleEl.click();
-  await page.keyboard.press('Meta+A');
+  await page.keyboard.press('ControlOrMeta+A');
   await page.keyboard.type('Toast Test Title');
   await titleEl.blur();
   // Toast appears
