@@ -63,8 +63,14 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
   }
 ?>
 <script type="application/json" id="i18n-js"><?= json_encode($__jsLocale, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
-<script type="module" src="<?= e(asset_url('/assets/js/ui.js')) ?>"></script>
-<script type="module" src="<?= e(asset_url('/assets/js/wysiwyg.js')) ?>"></script>
-<script type="module" src="<?= e(asset_url('/assets/js/sidebar-groups.js')) ?>"></script>
+<?php // Three site-wide modules: load without the asset_version query so the URL
+      // matches what page-level modules use when they `import './ui.js'`. ES
+      // modules dedup by URL — keeping them on the same canonical path is what
+      // lets us drop the old `window.__otack*Init` guards. These files change
+      // rarely; production deploys that touch them should bust browser cache
+      // via the HTTP layer (nginx ETag / Cache-Control) rather than `?v=`. ?>
+<script type="module" src="/assets/js/ui.js"></script>
+<script type="module" src="/assets/js/wysiwyg.js"></script>
+<script type="module" src="/assets/js/sidebar-groups.js"></script>
 </body>
 </html>

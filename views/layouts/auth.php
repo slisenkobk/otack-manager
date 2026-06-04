@@ -43,6 +43,9 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
   }
 ?>
 <script type="application/json" id="i18n-js"><?= json_encode($__jsLocale, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
-<script type="module" src="<?= e(asset_url('/assets/js/ui.js')) ?>"></script>
+<?php // No `?v=` query: matches the URL page-level modules use when they
+      // `import './ui.js'`, so ES-module dedup gives us one execution per page.
+      // See views/layouts/main.php for the same canonicalisation rationale. ?>
+<script type="module" src="/assets/js/ui.js"></script>
 </body>
 </html>

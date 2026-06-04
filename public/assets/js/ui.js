@@ -216,19 +216,13 @@ function initUserMenu() {
   }
 }
 
-// Idempotency guard: the layout loads this module via a cache-busted URL
-// (?v=…), and other modules (dashboard.js, etc.) import it via a relative
-// path. Browsers treat those as distinct module instances and run the
-// top-level code twice — without a guard, the user-menu / flash init would
-// attach two click listeners, which then pingpong open()/close() on every
-// click and the dropdown never actually opens.
-if (!window.__otackUiInit) {
-  window.__otackUiInit = true;
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initUserMenu);
-  } else {
-    initUserMenu();
-  }
+// ui.js is loaded ONCE per page: the layout script tag and every page-module
+// `import './ui.js'` resolve to the same canonical URL (`/assets/js/ui.js`,
+// no query), so ES-module dedup runs this top-level code exactly once.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initUserMenu);
+} else {
+  initUserMenu();
 }
 
 // Page-load flash: if the layout rendered <meta name="flash-message">,
@@ -240,13 +234,10 @@ function initFlash() {
   const type = document.querySelector('meta[name="flash-type"]')?.content || 'info';
   UI.toast(msg, type);
 }
-if (!window.__otackFlashInit) {
-  window.__otackFlashInit = true;
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initFlash);
-  } else {
-    initFlash();
-  }
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initFlash);
+} else {
+  initFlash();
 }
 
 // Mobile-nav drawer toggle. The hamburger in the topbar adds
@@ -280,25 +271,19 @@ function initMobileNav() {
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
 }
-if (!window.__otackMobileNavInit) {
-  window.__otackMobileNavInit = true;
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initMobileNav);
-  } else {
-    initMobileNav();
-  }
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initMobileNav);
+} else {
+  initMobileNav();
 }
 
 // Auto-submit any form-control marked [data-auto-submit] on change.
-if (!window.__otackAutoSubmitInit) {
-  window.__otackAutoSubmitInit = true;
-  document.addEventListener('change', (e) => {
-    const el = e.target.closest('[data-auto-submit]');
-    if (!el) return;
-    const form = el.closest('form');
-    if (form) form.submit();
-  });
-}
+document.addEventListener('change', (e) => {
+  const el = e.target.closest('[data-auto-submit]');
+  if (!el) return;
+  const form = el.closest('form');
+  if (form) form.submit();
+});
 
 // Custom select — replaces native <select> with styled dropdown.
 function initCustomSelect(root) {
