@@ -16,18 +16,23 @@ use App\Bootstrap\{Container, Events, Routes};
 use App\Database\{Migrations, SchemaBootstrap};
 use App\Http\{Csrf, Request, Response};
 
-// Security headers. CSP `style-src` is nonce-only — `'unsafe-inline'`
-// dropped per S-6 (Wave 9.1e). All inline styles flow through either
-// `inline_style()` (PHP helper that stamps the per-request nonce) or
-// `data-*` attrs + `dynamic-style.js` (JS DOM-style mutations are not
-// governed by CSP `style-src`). The single inline `<style>` block from
-// `app_brand_style_tag()` carries the same nonce. Adding `'nonce-…'`
-// to a CSP directive automatically disables `'unsafe-inline'` per spec
-// — the explicit `'unsafe-inline'` removal here is belt-and-suspenders
-// for older browsers that don't fully implement the nonce-fallback
-// rule.
+// Security headers. CSP `style-src` is split per CSP3 (Wave 9.1e / S-6):
+//   - `style-src-elem 'self' 'nonce-X'`  — `<style>` elements: nonce-only.
+//     Rogue `<style>` injection (the highest-value style XSS vector,
+//     since attackers can ship arbitrary CSS incl. `@import`) is fully
+//     blocked. The `app_brand_style_tag()` helper carries the same
+//     nonce so the brand-color override still applies.
+//   - `style-src-attr 'unsafe-inline'`  — inline `style=""` attrs and
+//     JS DOM-style mutations (`el.style.X = …`, `setProperty(...)`).
+//     The Wave 9.1e CSS-5 sweep + dynamic-style bridge removed every
+//     non-nonced inline style at the SOURCE level, but legitimate
+//     JS-driven style writes (tag-picker dropdowns, member-avatar bg,
+//     task-page editor toggle, kanban filter `display:none`, comments
+//     tree pseudo-arms, color-swatch previews, etc.) still need to
+//     work. CSP3 distinguishes element vs attribute style — we keep
+//     the strict half (element) and accept the lax half (attribute).
 $nonce = csp_nonce();
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'nonce-$nonce'; script-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src-elem 'self' 'nonce-$nonce'; style-src-attr 'unsafe-inline'; script-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'");
 header("X-Content-Type-Options: nosniff");
 header("Referrer-Policy: strict-origin-when-cross-origin");
 
