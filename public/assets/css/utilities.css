@@ -1579,3 +1579,15 @@ pre.copyable.copyable--flash {
   font-size: 13px;
   align-self: center;
 }
+
+/* Updates tab — current version + check-now rows. */
+.updates-current-line { margin: 0; font-size: 18px; }
+.updates-check-line {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.updates-intro     { margin: 0 0 8px; font-size: 15px; }
+.updates-duration  { font-size: 12px; color: var(--ink-3); margin: 0 0 14px; }
