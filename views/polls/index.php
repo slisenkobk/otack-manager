@@ -63,7 +63,7 @@ $statusLabels = [
           </div>
         <?php endif; ?>
         <div class="card-row">
-          <div style="display:flex;gap:6px;">
+          <div class="flex-row-gap-6">
             <?php if ($statusKey !== 'draft'): ?>
               <a href="<?= e($publicUrl) ?>" target="_blank" rel="noopener" class="btn--ghost" data-stop title="<?= e(t('polls.open_public')) ?>"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
             <?php endif; ?>

@@ -22,7 +22,7 @@ $currentStatusLabel = $statusLabels[$currentStatus] ?? '';
       <button type="submit" class="search-field__submit" aria-label="<?= e(t('common.search')) ?>"><i class="fa-solid fa-arrow-right"></i></button>
     </div>
     <div class="forms-data-filters__selects">
-    <div class="custom-select custom-select--compact" data-custom-select<?= count($forms) > 6 ? ' data-custom-select-search' : '' ?> style="width:200px;">
+    <div class="custom-select custom-select--compact w-200" data-custom-select<?= count($forms) > 6 ? ' data-custom-select-search' : '' ?>>
       <button type="button" class="custom-select__btn">
         <span class="custom-select__label"><?= e($currentFormTitle !== '' ? $currentFormTitle : t('forms_data.all_forms')) ?></span>
         <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
@@ -49,7 +49,7 @@ $currentStatusLabel = $statusLabels[$currentStatus] ?? '';
       <input type="hidden" name="form_id" value="<?= e((string)($currentForm ?? '')) ?>" data-auto-submit-on-change>
     </div>
 
-    <div class="custom-select custom-select--compact" data-custom-select style="width:200px;">
+    <div class="custom-select custom-select--compact w-200" data-custom-select>
       <button type="button" class="custom-select__btn">
         <span class="custom-select__label"><?= e($currentStatusLabel !== '' ? $currentStatusLabel : t('forms_data.all_statuses')) ?></span>
         <i class="fa-solid fa-chevron-down custom-select__chevron"></i>

@@ -6,7 +6,7 @@ $total = count($status);
 <?php include APP_ROOT . '/views/partials/compass-tabs.php'; ?>
 <div class="brief brief--wide">
 
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-8);margin-bottom:var(--space-6);flex-wrap:wrap;">
+  <div class="split-head">
     <div>
       <h2 class="fz-20 fw-600 u-mb-space-2"><?= e(t('compass.migrations.heading')) ?></h2>
       <p class="muted fz-13 m-0">
@@ -28,19 +28,19 @@ $total = count($status);
     </button>
   </div>
 
-  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+  <table class="data-table">
     <thead>
-      <tr style="text-align:left;border-bottom:1px solid var(--rule);">
-        <th style="padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-2);"><?= e(t('compass.migrations.col.migration')) ?></th>
-        <th style="padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-2);"><?= e(t('compass.migrations.col.applied_at')) ?></th>
-        <th style="padding:var(--space-3) var(--space-4);font-weight:600;color:var(--text-2);text-align:right;"><?= e(t('compass.migrations.col.status')) ?></th>
+      <tr class="table-head-row">
+        <th class="table-cell--strong"><?= e(t('compass.migrations.col.migration')) ?></th>
+        <th class="table-cell--strong"><?= e(t('compass.migrations.col.applied_at')) ?></th>
+        <th class="table-cell--strong-right"><?= e(t('compass.migrations.col.status')) ?></th>
       </tr>
     </thead>
     <tbody>
     <?php foreach ($status as $row): ?>
-      <tr style="border-bottom:1px solid var(--rule);">
-        <td style="padding:var(--space-3) var(--space-4);"><code class="fz-12"><?= e($row['name']) ?></code></td>
-        <td style="padding:var(--space-3) var(--space-4);" class="muted">
+      <tr class="border-rule-bottom">
+        <td><code class="fz-12 table-cell"><?= e($row['name']) ?></code></td>
+        <td class="muted table-cell">
           <?= $row['applied'] && isset($appliedAt[$row['name']]) ? e($appliedAt[$row['name']]) : '—' ?>
         </td>
         <td style="padding:var(--space-3) var(--space-4);text-align:right;">

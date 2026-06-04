@@ -5,7 +5,7 @@ $initialColor = $project['color'] ?? $palette[array_rand($palette)];
 $fieldErrors  = $fieldErrors ?? [];
 ?>
 <div class="page-form">
-<form method="post" action="/projects/<?= (int)$project['id'] ?>" class="brief" style="max-width:none;">
+<form class="max-w-none" method="post" action="/projects/<?= (int)$project['id'] ?>" class="brief">
   <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
   <div class="field<?= isset($fieldErrors['name']) ? ' field--invalid' : '' ?>">
     <label for="f-project-name"><?= e(t('projects.form.name')) ?></label>

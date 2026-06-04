@@ -1341,3 +1341,74 @@ pre.copyable.copyable--flash {
      section headers inside compass / admin pages. */
   margin: 16px 0 8px;
 }
+
+/* Pass-3 additions */
+.flex-row-gap-6     { display: flex; gap: 6px; }
+.flex-row-gap-8     { display: flex; gap: 8px; }
+.flex-row-gap-8-mt-8 { display: flex; gap: 8px; margin-top: 8px; }
+.table-cell         { padding: var(--space-3) var(--space-4); }
+.table-cell--strong { padding: var(--space-3) var(--space-4); font-weight: 600; color: var(--text-2); }
+.table-cell--strong-right { padding: var(--space-3) var(--space-4); font-weight: 600; color: var(--text-2); text-align: right; }
+.table-head-row     { text-align: left; border-bottom: 1px solid var(--rule); }
+.w-full             { width: 100%; }
+.w-200              { width: 200px; }
+.w-140              { width: 140px; }
+.w-full-mt-8        { width: 100%; margin-top: 8px; }
+.data-table         { width: 100%; border-collapse: collapse; font-size: 13px; }
+.text-ink           { color: var(--ink); }
+.text-brand-underline { color: var(--brand); text-decoration: underline; }
+.text-accent-mb-12  { color: var(--accent); margin: 0 0 12px; }
+.head-with-actions  {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: var(--space-8);
+}
+.split-head         {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-8);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+.section-strong-label {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .15em;
+  color: var(--ink-3);
+  margin: 0 0 8px;
+}
+.section-strong-label--alt {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+  margin: 0 0 8px;
+}
+.page-section-title-lg {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 24px;
+}
+.text-hint-tight    { margin: -8px 0 16px; color: var(--ink-3); font-size: 13px; }
+.text-13-mb-10      { font-size: 13px; margin: 0 0 10px; }
+.text-13-ink-2-mt-18 { margin-top: 18px; font-size: 13px; color: var(--ink-2); }
+.callout-card       {
+  border: 1px solid var(--rule);
+  padding: 18px;
+  background: var(--paper);
+  border-radius: 4px;
+}
+.border-rule-bottom { border-bottom: 1px solid var(--rule); }
+
+/* Pass-4 add-ons */
+.text-right     { text-align: right; }
+.text-center    { text-align: center; }
+.p-0            { padding: 0; }
+.opacity-50     { opacity: 0.5; }
+.min-w-0        { min-width: 0; }
+.max-w-none     { max-width: none; }
+.max-w-440      { max-width: 440px; }

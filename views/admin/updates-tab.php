@@ -139,7 +139,7 @@ $installedAt = $currentVersion['installed_at'] ?? null;
         <tbody>
           <?php foreach ($backups as $b): ?>
             <?php $isPruned = !empty($b['pruned_at']); ?>
-            <tr<?= $isPruned ? ' style="opacity:0.5;"' : '' ?>>
+            <tr class="opacity-50"<?= $isPruned ? '' : '' ?>>
               <td>
                 <span class="updates-version">v<?= e((string)$b['version_from']) ?></span>
                 → <span class="updates-version">v<?= e((string)$b['version_to']) ?></span>

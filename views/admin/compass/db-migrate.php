@@ -18,10 +18,10 @@
 
     <?php if ($plan): ?>
       <div style="margin-bottom:18px;">
-        <h3 style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink-3);margin:0 0 8px;">
+        <h3 class="section-strong-label--alt">
           <?= e(t('compass.db_migrate.plan_heading')) ?>
         </h3>
-        <p class="muted" style="font-size:13px;margin:0 0 10px;">
+        <p class="muted text-13-mb-10">
           <?= e(t('compass.db_migrate.plan_summary', [
             'tables' => (string)count($plan['tables']),
             'rows'   => (string)$plan['total_rows'],
@@ -93,10 +93,10 @@
     <div data-test-result class="mt-14"></div>
 
     <div data-run-result style="margin-top:18px;display:none;">
-      <h3 style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink-3);margin:0 0 8px;">
+      <h3 class="section-strong-label--alt">
         <?= e(t('compass.db_migrate.next_steps_heading')) ?>
       </h3>
-      <p class="muted" style="font-size:13px;margin:0 0 10px;"><?= e(t('compass.db_migrate.next_steps_body')) ?></p>
+      <p class="muted text-13-mb-10"><?= e(t('compass.db_migrate.next_steps_body')) ?></p>
       <pre data-env-block style="background:var(--paper-3,#0f0f0f0a);padding:12px 14px;border-radius:6px;overflow:auto;font-size:12px;"></pre>
       <div style="margin-top:14px;display:flex;gap:10px;">
         <button type="button" class="btn btn--secondary" data-action="verify">

@@ -174,7 +174,7 @@ foreach ($boardColumns as $c) {
                    data-placeholder="<?= e(t('projects.overview.description_placeholder')) ?>"><?= $project['description'] ? \App\Service\HtmlSanitizer::clean((string)$project['description']) : '' ?></div>
             </div>
             <input type="hidden" id="project-description-hidden" value="<?= e($project['description'] ?? '') ?>">
-            <div style="display:flex;gap:8px;margin-top:8px;">
+            <div class="flex-row-gap-8-mt-8">
               <button class="btn btn--primary submit" type="button" data-action="save-description"><?= e(t('common.save')) ?></button>
               <button class="btn btn--ghost" type="button" data-action="cancel-description"><?= e(t('common.cancel')) ?></button>
             </div>
@@ -203,7 +203,7 @@ foreach ($boardColumns as $c) {
     </div>
     <aside class="project-sidebar"
            style="border:1px solid var(--rule);padding:18px;background:var(--paper);border-radius:4px;">
-      <h3 style="font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.15em;color:var(--ink-3);margin:0 0 8px;"><?= e(t('projects.overview.details')) ?></h3>
+      <h3 class="section-strong-label"><?= e(t('projects.overview.details')) ?></h3>
 
       <?php if (!empty($canEdit)): ?>
         <div class="field mb-7">

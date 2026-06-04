@@ -1,4 +1,4 @@
-<div class="page-actions" style="margin-bottom:var(--space-8);justify-content:space-between;gap:10px;">
+<div class="page-actions head-with-actions">
   <form method="get" action="/users" class="search-field search-field--with-submit m-0">
     <i class="fa-solid fa-magnifying-glass muted fz-12"></i>
     <input class="input input--inline" name="q" placeholder="<?= e(t('users.search_placeholder')) ?>" value="<?= e($query ?? '') ?>" data-user-search>
@@ -37,7 +37,7 @@ $localeNames = locale_display_names();
           <td>
             <div class="data-table__cell--user">
               <?= user_avatar_html((int)$u['id'], $u['name'], $u['avatar'] ?? null, 'md') ?>
-              <div style="min-width:0;">
+              <div class="min-w-0">
                 <div class="data-table__name" data-user-name><?= e($u['name']) ?></div>
                 <div class="data-table__sub" data-user-email><?= e($u['email']) ?></div>
               </div>
@@ -45,7 +45,7 @@ $localeNames = locale_display_names();
           </td>
           <td>
             <?php if ((int)$u['id'] !== (int)$currentUserId): ?>
-              <div class="custom-select custom-select--compact" data-custom-select style="width:140px;">
+              <div class="custom-select custom-select--compact w-140" data-custom-select>
                 <button type="button" class="custom-select__btn">
                   <span class="custom-select__label"><?= e($roleLabels[$u['role']] ?? $u['role']) ?></span>
                   <i class="fa-solid fa-chevron-down custom-select__chevron"></i>

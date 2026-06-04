@@ -47,9 +47,9 @@ $contactLabel = $contactField === 'phone' ? t('public_poll.phone_label') : t('pu
       <?php if ($stage === 'contact'): ?>
         <div class="pf-card">
           <h3 class="pf-card__title"><?= e(t('public_poll.stage_contact_title')) ?></h3>
-          <p class="muted" style="margin:-8px 0 16px;color:var(--ink-3);font-size:13px;"><?= e(t('public_poll.stage_contact_hint')) ?></p>
+          <p class="muted text-hint-tight"><?= e(t('public_poll.stage_contact_hint')) ?></p>
           <?php if ($error): ?>
-            <p class="pf-error" role="alert" style="color:var(--accent);margin:0 0 12px;"><?= e($error) ?></p>
+            <p class="pf-error text-accent-mb-12" role="alert"><?= e($error) ?></p>
           <?php endif; ?>
           <div class="pf-field<?= $error ? ' pf-field--invalid' : '' ?>">
             <label class="pf-field__label pf-field__label--req" for="poll_contact"><?= e($contactLabel) ?></label>
@@ -61,7 +61,7 @@ $contactLabel = $contactField === 'phone' ? t('public_poll.phone_label') : t('pu
                    autocomplete="<?= e($contactField === 'phone' ? 'tel' : 'email') ?>"
                    required>
           </div>
-          <button type="submit" class="btn btn--primary submit" style="width:100%;margin-top:8px;"><?= e(t('public_poll.stage_contact_submit')) ?></button>
+          <button type="submit" class="btn btn--primary submit w-full-mt-8"><?= e(t('public_poll.stage_contact_submit')) ?></button>
         </div>
 
       <?php elseif ($stage === 'vote' && $choiceField): ?>
@@ -73,11 +73,11 @@ $contactLabel = $contactField === 'phone' ? t('public_poll.phone_label') : t('pu
         <input type="hidden" name="contact_token_ts"    value="<?= e((string)$contactTokenTs) ?>">
         <div class="pf-card">
           <h3 class="pf-card__title"><?= e((string)$choiceField['label']) ?></h3>
-          <p class="muted" style="margin:-8px 0 16px;color:var(--ink-3);font-size:13px;">
+          <p class="muted text-hint-tight">
             <?= e(t('public_poll.voting_as', ['contact' => $contactRaw])) ?>
           </p>
           <?php if ($error): ?>
-            <p class="pf-error" role="alert" style="color:var(--accent);margin:0 0 12px;"><?= e($error) ?></p>
+            <p class="pf-error text-accent-mb-12" role="alert"><?= e($error) ?></p>
           <?php endif; ?>
           <div class="pf-field">
             <?php foreach ((array)($choiceField['options'] ?? []) as $opt):
@@ -92,7 +92,7 @@ $contactLabel = $contactField === 'phone' ? t('public_poll.phone_label') : t('pu
               </label>
             <?php endforeach; ?>
           </div>
-          <button type="submit" class="btn btn--primary submit" style="width:100%;margin-top:8px;"><?= e(t('public_poll.stage_vote_submit')) ?></button>
+          <button type="submit" class="btn btn--primary submit w-full-mt-8"><?= e(t('public_poll.stage_vote_submit')) ?></button>
         </div>
       <?php endif; ?>
 

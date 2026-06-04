@@ -51,7 +51,7 @@
                data-placeholder="<?= e(t('projects.overview.description_placeholder')) ?>"><?= $task['description'] ?? '' ?></div>
         </div>
         <input type="hidden" id="task-description-hidden" value="<?= e($task['description'] ?? '') ?>">
-        <div style="display:flex;gap:8px;margin-top:8px;">
+        <div class="flex-row-gap-8-mt-8">
           <button class="btn btn--primary submit" type="button" data-action="save-description"><?= e(t('common.save')) ?></button>
           <button class="btn btn--ghost" type="button" data-action="cancel-description"><?= e(t('common.cancel')) ?></button>
         </div>
@@ -113,7 +113,7 @@
             </button>
           <?php endif; ?>
         </header>
-        <div class="overview-panel__body" style="padding:0;">
+        <div class="overview-panel__body p-0">
           <div class="linked-tasks__list" data-linked-list>
             <?php if (empty($linkedTasks)): ?>
               <em class="overview-panel__empty" data-linked-empty><?= e(t('tasks.no_related')) ?></em>
@@ -146,7 +146,7 @@
 
   <aside class="task-sidebar" data-task-id="<?= (int)$task['id'] ?>" data-project-id="<?= (int)$project['id'] ?>"
          style="border:1px solid var(--rule);padding:18px;background:var(--paper);border-radius:4px;">
-    <h3 style="font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.15em;color:var(--ink-3);margin:0 0 8px;"><?= e(t('projects.overview.details')) ?></h3>
+    <h3 class="section-strong-label"><?= e(t('projects.overview.details')) ?></h3>
 
     <div class="field mb-7">
       <label class="section-label"><?= e(t('projects.overview.status')) ?></label>

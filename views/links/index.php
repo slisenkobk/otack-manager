@@ -1,4 +1,4 @@
-<div class="page-actions" style="margin-bottom:var(--space-8);justify-content:space-between;gap:10px;">
+<div class="page-actions head-with-actions">
   <form method="get" action="/links" class="search-field search-field--with-submit m-0">
     <i class="fa-solid fa-magnifying-glass muted fz-12"></i>
     <input class="input input--inline" name="q" placeholder="<?= e(t('links.search_placeholder')) ?>" value="<?= e($query ?? '') ?>">
@@ -35,14 +35,14 @@
           <button type="button" class="form-card__url-copy" data-action="copy-link" data-url="<?= e($publicUrl) ?>" data-stop title="<?= e(t('links.copy_link')) ?>"><i class="fa-regular fa-copy"></i></button>
         </div>
         <div class="link-card__stats" style="display:flex;gap:14px;font-size:12px;color:var(--ink-3);margin-top:8px;">
-          <span><strong style="color:var(--ink);"><?= (int)$s['total'] ?></strong> <?= e(t('links.stat.total')) ?></span>
-          <span><strong style="color:var(--ink);"><?= (int)$s['unique'] ?></strong> <?= e(t('links.stat.unique')) ?></span>
+          <span><strong class="text-ink"><?= (int)$s['total'] ?></strong> <?= e(t('links.stat.total')) ?></span>
+          <span><strong class="text-ink"><?= (int)$s['unique'] ?></strong> <?= e(t('links.stat.unique')) ?></span>
           <?php if ($isDisabled): ?>
             <span class="badge badge--muted" style="margin-left:auto;"><?= e(t('links.status.disabled')) ?></span>
           <?php endif; ?>
         </div>
         <div class="card-row">
-          <div style="display:flex;gap:6px;">
+          <div class="flex-row-gap-6">
             <a href="<?= e($publicUrl) ?>" target="_blank" rel="noopener" class="btn--ghost" data-stop title="<?= e(t('links.open_public')) ?>"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
             <button type="button" class="btn--ghost" data-action="toggle-link" data-stop title="<?= e($isDisabled ? t('links.action.enable') : t('links.action.disable')) ?>"><i class="fa-solid <?= $isDisabled ? 'fa-toggle-off' : 'fa-toggle-on' ?>"></i></button>
             <button type="button" class="btn--ghost text-accent" data-action="delete-link" data-stop title="<?= e(t('common.delete')) ?>"><i class="fa-solid fa-trash"></i></button>

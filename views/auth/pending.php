@@ -1,4 +1,4 @@
-<div class="brief" style="text-align:center;">
+<div class="brief text-center">
   <i class="fa-solid fa-hourglass-half" style="font-size:48px;color:var(--brand);margin-bottom:18px;"></i>
   <h1 style="font-size:24px;font-weight:600;margin:0 0 12px;"><?= e(t('auth.pending_title')) ?></h1>
   <p style="color:var(--ink-2);font-size:15px;line-height:1.55;">
