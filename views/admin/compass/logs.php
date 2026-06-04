@@ -51,11 +51,10 @@ $entries    = array_slice($entries, 0, $displayCap);
     <?php foreach ($entries as $entry):
       $lvlLower = strtolower($entry['level']);
       $isError = str_contains($lvlLower, 'error') || str_contains($lvlLower, 'fatal');
-      $tagColor = $isError ? 'var(--accent)' : 'var(--text-2)';
     ?>
       <li class="compass-log-entry">
         <header class="compass-log-entry__head">
-          <span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;color:<?= e($tagColor) ?>;"><?= e($entry['level']) ?></span>
+          <span class="compass-log-entry__level<?= $isError ? ' compass-log-entry__level--error' : '' ?>"><?= e($entry['level']) ?></span>
           <span class="muted compass-log-entry__time"><?= e($entry['time']) ?></span>
         </header>
         <pre class="compass-log-entry__body"><?= e(rtrim($entry['body'])) ?></pre>
