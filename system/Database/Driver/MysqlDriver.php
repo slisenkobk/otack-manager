@@ -68,19 +68,20 @@ final class MysqlDriver implements DriverInterface
         // UNIQUE composite constraints
         foreach ($bp->indexes as $idx) {
             if ($idx->unique && count($idx->columns) > 1) {
-                $name = $idx->inferredName($bp->table);
-                $defs[] = "UNIQUE KEY $name (" . implode(', ', $idx->columns) . ')';
+                $name = $this->q($idx->inferredName($bp->table));
+                $cols = $this->qList($idx->columns);
+                $defs[] = "UNIQUE KEY $name ($cols)";
             }
         }
         if ($bp->primaryColumns !== null) {
-            $defs[] = 'PRIMARY KEY (' . implode(', ', $bp->primaryColumns) . ')';
+            $defs[] = 'PRIMARY KEY (' . $this->qList($bp->primaryColumns) . ')';
         }
         // Foreign keys (MySQL needs the CONSTRAINT clause in the table body)
         foreach ($bp->foreignKeys as $fk) {
             $defs[] = $this->foreignKeySql($bp->table, $fk);
         }
 
-        $head = 'CREATE TABLE' . ($bp->ifNotExists ? ' IF NOT EXISTS' : '') . ' ' . $bp->table;
+        $head = 'CREATE TABLE' . ($bp->ifNotExists ? ' IF NOT EXISTS' : '') . ' ' . $this->q($bp->table);
         $tail = ' ENGINE=InnoDB DEFAULT CHARSET=' . $this->charset . ' COLLATE=' . $this->collation;
         $stmts = [$head . " (\n  " . implode(",\n  ", $defs) . "\n)" . $tail];
 
@@ -96,7 +97,7 @@ final class MysqlDriver implements DriverInterface
     {
         $stmts = [];
         foreach ($bp->columns as $c) {
-            $stmts[] = 'ALTER TABLE ' . $bp->table . ' ADD COLUMN ' . $this->columnSql($c);
+            $stmts[] = 'ALTER TABLE ' . $this->q($bp->table) . ' ADD COLUMN ' . $this->columnSql($c);
         }
         foreach ($bp->indexes as $idx) {
             $stmts[] = $this->indexSql($bp->table, $idx);
@@ -175,9 +176,9 @@ final class MysqlDriver implements DriverInterface
             'date'       => 'DATE',
             default      => throw new \RuntimeException("Unknown column type: {$c->type}"),
         };
-        if ($c->type === 'id') return $c->name . ' ' . $type;
+        if ($c->type === 'id') return $this->q($c->name) . ' ' . $type;
 
-        $parts = [$c->name, $type];
+        $parts = [$this->q($c->name), $type];
         if (!$c->nullable)  $parts[] = 'NOT NULL';
         if ($c->hasDefault) {
             // MySQL 8.0.13+ requires DEFAULT (expr) for JSON/TEXT/BLOB.
@@ -194,9 +195,9 @@ final class MysqlDriver implements DriverInterface
 
     private function foreignKeySql(string $table, \App\Database\Schema\ForeignKey $fk): string
     {
-        $name = 'fk_' . $table . '_' . $fk->column;
-        $sql = "CONSTRAINT $name FOREIGN KEY ({$fk->column}) "
-             . "REFERENCES {$fk->referencedTable}({$fk->referencedColumn})";
+        $name = $this->q('fk_' . $table . '_' . $fk->column);
+        $sql = "CONSTRAINT $name FOREIGN KEY (" . $this->q($fk->column) . ") "
+             . "REFERENCES " . $this->q($fk->referencedTable) . "(" . $this->q($fk->referencedColumn) . ")";
         if ($fk->onDelete) $sql .= ' ON DELETE ' . $fk->onDelete;
         if ($fk->onUpdate) $sql .= ' ON UPDATE ' . $fk->onUpdate;
         return $sql;
@@ -204,13 +205,13 @@ final class MysqlDriver implements DriverInterface
 
     private function indexSql(string $table, \App\Database\Schema\Index $idx): string
     {
-        $name = $idx->inferredName($table);
+        $name = $this->q($idx->inferredName($table));
         $kw = $idx->unique ? 'CREATE UNIQUE INDEX' : 'CREATE INDEX';
         // MySQL has no "CREATE INDEX IF NOT EXISTS" but supports
         // ALTER TABLE ... ADD INDEX which errors on dup. Keep simple
         // CREATE INDEX; migrations are idempotent via the runner's
         // applied-set check, so re-execution doesn't happen.
-        return "$kw $name ON $table(" . implode(', ', $idx->columns) . ')';
+        return "$kw $name ON " . $this->q($table) . "(" . $this->qList($idx->columns) . ")";
     }
 
     private function defaultLiteral(string|int|float|bool|null $v): string
@@ -219,5 +220,23 @@ final class MysqlDriver implements DriverInterface
         if (is_bool($v))         return $v ? '1' : '0';
         if (is_int($v) || is_float($v)) return (string)$v;
         return "'" . str_replace("'", "''", (string)$v) . "'";
+    }
+
+    /**
+     * Backtick-quote a MySQL identifier (table / column / index name). This
+     * is required for any identifier that collides with a reserved word —
+     * `key`, `value`, `order`, `status`, etc. We quote ALL identifiers
+     * unconditionally so future migrations can use any name without surprise.
+     * Embedded backticks are doubled per the MySQL spec.
+     */
+    private function q(string $name): string
+    {
+        return '`' . str_replace('`', '``', $name) . '`';
+    }
+
+    /** @param list<string> $names */
+    private function qList(array $names): string
+    {
+        return implode(', ', array_map([$this, 'q'], $names));
     }
 }
