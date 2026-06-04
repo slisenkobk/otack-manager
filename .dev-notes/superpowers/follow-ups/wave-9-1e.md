@@ -155,3 +155,17 @@ If a future polish wave needs a manual UX sweep, the 14-flow
 checklist remains in
 `.dev-notes/superpowers/plans/2026-06-04-todo-9-1e-implementation.md`
 Task 10 for reuse.
+
+## Lighthouse smoke (Wave 9.1e Task 12) — skipped
+
+The plan flagged Task 12 as "skip in CI; run ad-hoc" with "No commit
+unless improvements were made". Skipped this wave to keep release
+focused on S-6 closure. Optional follow-up:
+
+1. Add `tests/e2e/lighthouse.spec.ts` (skip-by-default in CI).
+2. Run against `/dashboard`, `/projects/1`, `/login` with
+   thresholds `Performance ≥ 90`, `Accessibility ≥ 95`, `Best
+   Practices ≥ 95`.
+3. Record scores in `.dev-notes/superpowers/qa/`.
+
+Not a blocker for v1.4.0.

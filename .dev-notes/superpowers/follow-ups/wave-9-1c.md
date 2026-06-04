@@ -1,5 +1,13 @@
 # Wave 9.1c — known follow-ups
 
+## STATUS: RESOLVED in Wave 9.1e (v1.4.0)
+
+The CSS-5 inline-style sweep (`140 → 0 non-nonced`), CSS-4
+`!important` finalisation (`13 left, all legitimate`), and the S-6
+CSP `style-src` tightening (split into `style-src-elem 'nonce-X'` +
+`style-src-attr 'unsafe-inline'`) all shipped in `v1.4.0`. TODO #9
+is closed — see [TODO.md](../../../TODO.md#9-—-refactor-and-code-quality-pass-for-productisation).
+
 Items audited or partially completed during the polish wave that were
 intentionally deferred. Tracked here so they don't get lost.
 
