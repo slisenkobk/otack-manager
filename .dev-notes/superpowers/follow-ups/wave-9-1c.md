@@ -3,6 +3,43 @@
 Items audited or partially completed during the polish wave that were
 intentionally deferred. Tracked here so they don't get lost.
 
+## Wave 9.1d — partial closure of blockers (`v1.3.3`)
+
+The follow-up wave that handled the CSS-5 + CSS-4 + silent-catch debt:
+
+- **CSS-5 inline-style sweep:** 355 → 140 inline `style=""` attributes
+  across `views/` (−60.6%). Four sed-driven passes introduced ~50 utility
+  classes (`.fz-*`, `.mt-*`, `.field-hint`, `.section-label`,
+  `.compass-card`, `.callout-card`, `.table-cell--*`, `.split-head`, etc.)
+  in `utilities.css`. The 140 survivors split into:
+   - 26 truly dynamic (`<?= … ?>` inside the style value — project / column
+     / tag colors)
+   - ~114 unique one-offs that each warrant a per-page semantic class
+     rather than another utility
+- **CSS-4 !important prune:** dropped 4 of 21 (one dead rule targeting
+  inline `[style*="margin-top"]` which no longer exists; three redundant
+  `text-decoration: none !important` on `.link-card` where specificity
+  already wins).
+- **17 silent disabled-busy sites → `withButtonBusy`:** 6 sites migrated
+  (`updates-tab.js`, `dashboard.js`, `compass.js` × 2, `links-show.js` × 2);
+  the remaining ~11 sites are inside `form.submit()` paths where re-enable
+  in `finally` would be wrong (page navigates away).
+- **S-6 CSP `'unsafe-inline'` removal:** **STILL DEFERRED.** The 140
+  remaining inline styles would all need `nonce="…"` (and CSP would need
+  `'nonce-X'`). Adding nonce to `style-src` SILENTLY DISABLES
+  `'unsafe-inline'` (CSP spec) — confirmed by the v1.3.1 hot-fix incident.
+  Path to closure is a dedicated **Wave 9.1e** scoped specifically to
+  inline-style elimination:
+   1. Migrate the ~114 unique one-off styles to per-page semantic classes
+      (touch every view; ~3-4 hours).
+   2. For the 26 dynamic styles, convert to CSS custom properties on the
+      element via `data-*` + a small `theme-init`-style script, OR add a
+      `csp_nonce()` helper to `style` attributes for the genuinely-needed
+      ones (e.g. progress-bar `width: N%`).
+   3. Drop `'unsafe-inline'` from `style-src` in `public/index.php`.
+   4. Confirm via the `B12 no console errors` e2e — no CSP-violation
+      reports.
+
 ## CSS-4 audit — `!important` declarations (deferred removal)
 
 Inventoried 21 `!important` declarations across four CSS files. The plan

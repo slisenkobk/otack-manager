@@ -24,7 +24,7 @@ $hasMore   = count($voters) < (int)$total;
       <?php if ($statusKey === 'closed' && !empty($poll['project_id']) && empty($poll['summary_task_id'])): ?>
         <button type="button" class="btn btn--primary" data-action="create-summary-task"><i class="fa-solid fa-list-check"></i> <?= e(t('polls.create_summary_task')) ?></button>
       <?php elseif ($statusKey === 'closed' && !empty($poll['summary_task_id'])): ?>
-        <a class="btn--secondary" href="/tasks/<?= (int)$poll['summary_task_id'] ?>" style="text-decoration:none;">
+        <a class="btn--secondary no-underline" href="/tasks/<?= (int)$poll['summary_task_id'] ?>">
           <i class="fa-solid fa-arrow-up-right-from-square"></i> <?= e(t('polls.view_summary_task')) ?>
         </a>
       <?php endif; ?>
@@ -75,7 +75,7 @@ $hasMore   = count($voters) < (int)$total;
     </section>
   <?php elseif ($tab === 'project'): ?>
     <section class="builder-panel" data-poll-project-edit data-poll-id="<?= $pollId ?>">
-      <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('polls.project_section_hint')) ?></p>
+      <p class="muted field-hint"><?= e(t('polls.project_section_hint')) ?></p>
       <div class="field">
         <label><?= e(t('polls.integration.project_label')) ?></label>
         <div class="custom-select" data-custom-select data-poll-project-wrap>

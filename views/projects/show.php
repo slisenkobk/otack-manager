@@ -161,12 +161,12 @@ foreach ($boardColumns as $c) {
         <header class="overview-panel__head">
           <h2 class="overview-panel__title"><?= e(t('projects.overview.title')) ?></h2>
           <?php if (!empty($canEdit)): ?>
-            <button class="btn--ghost" type="button" data-action="edit-description" style="font-size:12px;"><?= e(t('common.edit')) ?></button>
+            <button class="btn--ghost fz-12" type="button" data-action="edit-description"><?= e(t('common.edit')) ?></button>
           <?php endif; ?>
         </header>
         <div class="overview-panel__body rich-text project-description-rendered"><?= $project['description'] ? \App\Service\LinkPreview::enhance(\App\Service\HtmlSanitizer::clean((string)$project['description'])) : '<em class="overview-panel__empty">' . e(t('projects.overview.no_description')) . '</em>' ?></div>
         <?php if (!empty($canEdit)): ?>
-          <div class="overview-panel__body project-description-editor" style="display:none;">
+          <div class="overview-panel__body project-description-editor d-none">
             <div class="wysiwyg-host">
               <div class="wysiwyg-editor"
                    data-quill
@@ -174,7 +174,7 @@ foreach ($boardColumns as $c) {
                    data-placeholder="<?= e(t('projects.overview.description_placeholder')) ?>"><?= $project['description'] ? \App\Service\HtmlSanitizer::clean((string)$project['description']) : '' ?></div>
             </div>
             <input type="hidden" id="project-description-hidden" value="<?= e($project['description'] ?? '') ?>">
-            <div style="display:flex;gap:8px;margin-top:8px;">
+            <div class="flex-row-gap-8-mt-8">
               <button class="btn btn--primary submit" type="button" data-action="save-description"><?= e(t('common.save')) ?></button>
               <button class="btn btn--ghost" type="button" data-action="cancel-description"><?= e(t('common.cancel')) ?></button>
             </div>
@@ -203,12 +203,12 @@ foreach ($boardColumns as $c) {
     </div>
     <aside class="project-sidebar"
            style="border:1px solid var(--rule);padding:18px;background:var(--paper);border-radius:4px;">
-      <h3 style="font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.15em;color:var(--ink-3);margin:0 0 8px;"><?= e(t('projects.overview.details')) ?></h3>
+      <h3 class="section-strong-label"><?= e(t('projects.overview.details')) ?></h3>
 
       <?php if (!empty($canEdit)): ?>
-        <div class="field" style="margin-bottom:7px;">
-          <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;"><?= e(t('projects.overview.status')) ?></label>
-          <form method="post" action="/projects/<?= (int)$project['id'] ?>" class="project-status-form" style="margin:0;">
+        <div class="field mb-7">
+          <label class="section-label"><?= e(t('projects.overview.status')) ?></label>
+          <form class="m-0" method="post" action="/projects/<?= (int)$project['id'] ?>" class="project-status-form">
             <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
             <?php
               $statusOpts = project_statuses();
@@ -235,13 +235,13 @@ foreach ($boardColumns as $c) {
         </div>
       <?php endif; ?>
 
-      <div class="field" style="margin-bottom:7px;">
-        <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;"><?= e(t('projects.overview.members')) ?></label>
+      <div class="field mb-7">
+        <label class="section-label"><?= e(t('projects.overview.members')) ?></label>
         <?php $projectId = (int)$project['id']; require APP_ROOT . '/views/partials/members.php'; ?>
       </div>
 
-      <div class="field" style="margin-bottom:7px;">
-        <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;"><?= e(t('projects.overview.tags')) ?></label>
+      <div class="field mb-7">
+        <label class="section-label"><?= e(t('projects.overview.tags')) ?></label>
         <?php
           $scope      = 'project';
           $entityType = 'project';

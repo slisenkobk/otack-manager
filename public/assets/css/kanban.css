@@ -398,7 +398,7 @@ a.link-card,
   background: var(--paper);
   border: 1px solid var(--rule-2);
   border-radius: var(--radius-sm);
-  text-decoration: none !important;
+  text-decoration: none;
   color: var(--text);
   transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
   max-width: 100%;
@@ -407,7 +407,7 @@ a.link-card,
   vertical-align: middle;
 }
 a.link-card *,
-.rich-text a.link-card * { text-decoration: none !important; }
+.rich-text a.link-card * { text-decoration: none; }
 .link-card:hover {
   border-color: var(--accent);
   box-shadow: 0 2px 6px -4px rgba(26, 22, 18, 0.18);

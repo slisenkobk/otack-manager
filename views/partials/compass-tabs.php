@@ -13,7 +13,7 @@ $tabs = [
     <?php foreach ($tabs as $key => $tab): ?>
       <a href="<?= e($tab['href']) ?>"
          class="project-tab<?= $currentTab === $key ? ' project-tab--active' : '' ?>">
-        <i class="fa-solid <?= e($tab['icon']) ?>" aria-hidden="true" style="margin-right:var(--space-2);"></i>
+        <i class="fa-solid <?= e($tab['icon']) ?> mr-space-2" aria-hidden="true"></i>
         <?= e($tab['label']) ?>
       </a>
     <?php endforeach; ?>

@@ -16,13 +16,13 @@ $currentStatusLabel = $statusLabels[$currentStatus] ?? '';
 ?>
 <div class="page-actions" style="margin-bottom:var(--space-8);justify-content:flex-start;gap:10px;">
   <form method="get" action="/forms-data" class="forms-data-filters">
-    <div class="search-field search-field--with-submit" style="margin:0;">
-      <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted);font-size:12px;"></i>
+    <div class="search-field search-field--with-submit m-0">
+      <i class="fa-solid fa-magnifying-glass muted fz-12"></i>
       <input class="input input--inline" name="q" placeholder="<?= e(t('forms_data.search_placeholder')) ?>" value="<?= e($query ?? '') ?>">
       <button type="submit" class="search-field__submit" aria-label="<?= e(t('common.search')) ?>"><i class="fa-solid fa-arrow-right"></i></button>
     </div>
     <div class="forms-data-filters__selects">
-    <div class="custom-select custom-select--compact" data-custom-select<?= count($forms) > 6 ? ' data-custom-select-search' : '' ?> style="width:200px;">
+    <div class="custom-select custom-select--compact w-200" data-custom-select<?= count($forms) > 6 ? ' data-custom-select-search' : '' ?>>
       <button type="button" class="custom-select__btn">
         <span class="custom-select__label"><?= e($currentFormTitle !== '' ? $currentFormTitle : t('forms_data.all_forms')) ?></span>
         <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
@@ -49,7 +49,7 @@ $currentStatusLabel = $statusLabels[$currentStatus] ?? '';
       <input type="hidden" name="form_id" value="<?= e((string)($currentForm ?? '')) ?>" data-auto-submit-on-change>
     </div>
 
-    <div class="custom-select custom-select--compact" data-custom-select style="width:200px;">
+    <div class="custom-select custom-select--compact w-200" data-custom-select>
       <button type="button" class="custom-select__btn">
         <span class="custom-select__label"><?= e($currentStatusLabel !== '' ? $currentStatusLabel : t('forms_data.all_statuses')) ?></span>
         <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
@@ -88,12 +88,12 @@ $currentStatusLabel = $statusLabels[$currentStatus] ?? '';
         if ($v !== '') { $preview = $v; break; }
       }
     ?>
-      <a class="card" href="/forms-data/<?= (int)$r['id'] ?>" style="text-decoration:none;color:inherit;">
+      <a class="card no-underline-inherit" href="/forms-data/<?= (int)$r['id'] ?>">
         <span class="corner-tag">S-<?= (int)$r['id'] ?></span>
         <span class="corner-meta"><?= fmt_datetime($r['created_at']) ?></span>
         <div class="card-head">
           <div class="ini" style="background: var(--ink-2);"><i class="fa-solid fa-envelope-open-text" style="color:var(--paper);font-size:14px;"></i></div>
-          <div style="flex:1;min-width:0;">
+          <div class="flex-1-min">
             <h3 class="name"><?= e($r['form_title']) ?></h3>
           </div>
         </div>

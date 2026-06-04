@@ -76,7 +76,7 @@ $isDisabled = (int)$link['is_disabled'] === 1;
       <div class="link-stats__referers">
         <h3 class="link-stats__heading"><?= e(t('links.stats.referers')) ?></h3>
         <?php if (!$referers): ?>
-          <p class="muted" style="font-size:12px;color:var(--ink-3);"><?= e(t('links.stats.referers_empty')) ?></p>
+          <p class="muted fz-12 text-ink-3"><?= e(t('links.stats.referers_empty')) ?></p>
         <?php else: ?>
           <ul class="link-stats__ref-list">
             <?php foreach ($referers as $r): ?>
@@ -95,7 +95,7 @@ $isDisabled = (int)$link['is_disabled'] === 1;
         <i class="fa-solid <?= $isDisabled ? 'fa-toggle-off' : 'fa-toggle-on' ?>"></i>
         <span data-toggle-label><?= e($isDisabled ? t('links.action.enable') : t('links.action.disable')) ?></span>
       </button>
-      <button type="button" class="btn--secondary" data-action="delete-link" style="color:var(--accent);">
+      <button type="button" class="btn--secondary text-accent" data-action="delete-link">
         <i class="fa-solid fa-trash"></i> <?= e(t('common.delete')) ?>
       </button>
     </div>

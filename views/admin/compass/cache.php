@@ -3,27 +3,25 @@
 //         $uploads{total,orphan,orphan_bytes},
 //         $assetVersion, $csrfToken
 $hours = (int)round($sessions['lifetime_seconds'] / 3600);
-$card = 'background:var(--paper);border:1px solid var(--rule);border-radius:var(--radius);padding:var(--space-8);display:flex;flex-direction:column;gap:var(--space-4);';
-$cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:center;gap:var(--space-3);';
 ?>
 <?php include APP_ROOT . '/views/partials/compass-tabs.php'; ?>
 <div class="brief brief--wide">
 
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--space-6);">
 
-    <section style="<?= e($card) ?>">
-      <h3 style="<?= e($cardTitle) ?>">
-        <i class="fa-solid fa-clock-rotate-left" style="color:var(--text-2);" aria-hidden="true"></i>
+    <section class="compass-card">
+      <h3 class="compass-card__title">
+        <i class="fa-solid fa-clock-rotate-left text-text-2" aria-hidden="true"></i>
         <?= e(t('compass.cache.sessions')) ?>
       </h3>
-      <p style="margin:0;font-size:14px;">
+      <p class="m-0 fz-14">
         <?= t('compass.cache.sessions.stats', [
             'total' => '<strong>' . (int)$sessions['total'] . '</strong>',
             'stale' => '<strong style="color:' . ($sessions['stale'] > 0 ? 'var(--accent)' : 'var(--text-2)') . ';">' . (int)$sessions['stale'] . '</strong>',
             'bytes' => '<span class="muted">' . e(human_bytes((int)$sessions['stale_bytes'])) . '</span>',
         ]) ?>
       </p>
-      <p class="muted" style="font-size:12px;margin:0;"><?= e(t('compass.cache.sessions.hint', ['hours' => $hours])) ?></p>
+      <p class="muted fz-12 m-0"><?= e(t('compass.cache.sessions.hint', ['hours' => $hours])) ?></p>
       <div>
         <button class="btn btn--danger" type="button"
                 data-compass-action="clear-sessions"
@@ -35,19 +33,19 @@ $cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:c
       </div>
     </section>
 
-    <section style="<?= e($card) ?>">
-      <h3 style="<?= e($cardTitle) ?>">
-        <i class="fa-solid fa-folder-open" style="color:var(--text-2);" aria-hidden="true"></i>
+    <section class="compass-card">
+      <h3 class="compass-card__title">
+        <i class="fa-solid fa-folder-open text-text-2" aria-hidden="true"></i>
         <?= e(t('compass.cache.uploads')) ?>
       </h3>
-      <p style="margin:0;font-size:14px;">
+      <p class="m-0 fz-14">
         <?= t('compass.cache.uploads.stats', [
             'total'  => '<strong>' . (int)$uploads['total'] . '</strong>',
             'orphan' => '<strong style="color:' . ($uploads['orphan'] > 0 ? 'var(--accent)' : 'var(--text-2)') . ';">' . (int)$uploads['orphan'] . '</strong>',
             'bytes'  => '<span class="muted">' . e(human_bytes((int)$uploads['orphan_bytes'])) . '</span>',
         ]) ?>
       </p>
-      <p class="muted" style="font-size:12px;margin:0;">
+      <p class="muted fz-12 m-0">
         <?= t('compass.cache.uploads.hint', ['path' => '<code>public/uploads/</code>', 'table' => '<code>attachments</code>']) ?>
       </p>
       <div>
@@ -61,19 +59,19 @@ $cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:c
       </div>
     </section>
 
-    <section style="<?= e($card) ?>">
-      <h3 style="<?= e($cardTitle) ?>">
-        <i class="fa-solid fa-list-ul" style="color:var(--text-2);" aria-hidden="true"></i>
+    <section class="compass-card">
+      <h3 class="compass-card__title">
+        <i class="fa-solid fa-list-ul text-text-2" aria-hidden="true"></i>
         <?= e(t('compass.cache.activity_log')) ?>
       </h3>
-      <p style="margin:0;font-size:14px;">
+      <p class="m-0 fz-14">
         <?= t('compass.cache.activity_log.stats', [
             'total' => '<strong>' . (int)$activity['total'] . '</strong>',
             'stale' => '<strong style="color:' . ($activity['stale'] > 0 ? 'var(--accent)' : 'var(--text-2)') . ';">' . (int)$activity['stale'] . '</strong>',
             'days'  => (int)$activity['keep_days'],
         ]) ?>
       </p>
-      <p class="muted" style="font-size:12px;margin:0;">
+      <p class="muted fz-12 m-0">
         <?= e(t('compass.cache.activity_log.hint', ['days' => (int)$activity['keep_days']])) ?>
       </p>
       <div>
@@ -87,19 +85,19 @@ $cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:c
       </div>
     </section>
 
-    <section style="<?= e($card) ?>">
-      <h3 style="<?= e($cardTitle) ?>">
-        <i class="fa-solid fa-rotate" style="color:var(--text-2);" aria-hidden="true"></i>
+    <section class="compass-card">
+      <h3 class="compass-card__title">
+        <i class="fa-solid fa-rotate text-text-2" aria-hidden="true"></i>
         <?= e(t('compass.cache.assets')) ?>
       </h3>
-      <p style="margin:0;font-size:14px;">
+      <p class="m-0 fz-14">
         <?= t('compass.cache.assets.current', [
             'version' => $assetVersion !== ''
                 ? '<strong><code>' . e($assetVersion) . '</code></strong>'
                 : '<strong><span class="muted">' . e(t('compass.cache.assets.none')) . '</span></strong>',
         ]) ?>
       </p>
-      <p class="muted" style="font-size:12px;margin:0;">
+      <p class="muted fz-12 m-0">
         <?= e(t('compass.cache.assets.hint')) ?>
       </p>
       <div>

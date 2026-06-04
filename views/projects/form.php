@@ -5,7 +5,7 @@ $initialColor = $project['color'] ?? $palette[array_rand($palette)];
 $fieldErrors  = $fieldErrors ?? [];
 ?>
 <div class="page-form">
-<form method="post" action="/projects/<?= (int)$project['id'] ?>" class="brief" style="max-width:none;">
+<form class="max-w-none" method="post" action="/projects/<?= (int)$project['id'] ?>" class="brief">
   <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
   <div class="field<?= isset($fieldErrors['name']) ? ' field--invalid' : '' ?>">
     <label for="f-project-name"><?= e(t('projects.form.name')) ?></label>
@@ -14,7 +14,7 @@ $fieldErrors  = $fieldErrors ?? [];
       <div class="field__error"><?= e(t('errors.' . $fieldErrors['name'], t('errors.required'))) ?></div>
     <?php endif; ?>
   </div>
-  <div class="field" style="margin-top:14px;">
+  <div class="field mt-14">
     <label for="project-color-text"><?= e(t('projects.form.color')) ?></label>
     <div class="color-picker-row">
       <input type="text" class="input" name="color" id="project-color-text" value="<?= e($initialColor) ?>" maxlength="7">
@@ -23,7 +23,7 @@ $fieldErrors  = $fieldErrors ?? [];
       </label>
     </div>
   </div>
-  <div class="field" style="margin-top:14px;">
+  <div class="field mt-14">
     <label><?= e(t('projects.form.description')) ?></label>
     <div class="wysiwyg-host">
       <div class="wysiwyg-editor"
@@ -34,7 +34,7 @@ $fieldErrors  = $fieldErrors ?? [];
     <input type="hidden" name="description" id="project-description-hidden"
            value="<?= e($project['description'] ?? '') ?>">
   </div>
-  <button class="submit" type="submit" style="margin-top:18px;">
+  <button class="submit mt-18" type="submit">
     <?= e(t('common.save')) ?> &#8594;
   </button>
 </form>

@@ -1,4 +1,5 @@
 import { api, UI } from './ui.js';
+import { withButtonBusy } from './utils.js';
 
 // "Check now" button in Settings → Updates. Hits the API, refreshes the
 // section in place, and surfaces errors as toasts (GitHub rate-limit /
@@ -6,18 +7,15 @@ import { api, UI } from './ui.js';
 const root = document.querySelector('[data-updates-section]');
 if (root) {
   const btn   = root.querySelector('[data-action=check-now]');
-  if (btn) btn.addEventListener('click', async () => {
-    btn.disabled = true;
+  if (btn) btn.addEventListener('click', () => withButtonBusy(btn, async () => {
     try {
       await api('/api/updates/check');
       UI.toast(btn.dataset.toastOk || 'Updates checked', 'success');
       setTimeout(() => location.reload(), 350);
     } catch (e) {
       UI.toast(btn.dataset.toastError || 'Check failed — see server log', 'error');
-    } finally {
-      btn.disabled = false;
     }
-  });
+  }));
 
   // "Update now" — gated by a hard confirmation modal, then the hidden
   // <form> POSTs to /admin/updates/run. We deliberately use a full form

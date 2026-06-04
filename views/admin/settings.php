@@ -30,18 +30,18 @@ $localeNames = locale_display_names();
   <div class="project-tabs">
     <a href="/admin/settings?tab=workspace"
        class="project-tab<?= $currentTab === 'workspace' ? ' project-tab--active' : '' ?>">
-      <i class="fa-solid fa-briefcase" aria-hidden="true" style="margin-right:var(--space-2);"></i>
+      <i class="fa-solid fa-briefcase mr-space-2" aria-hidden="true"></i>
       <?= e(t('settings.tab.workspace')) ?>
     </a>
     <a href="/admin/settings?tab=contact"
        class="project-tab<?= $currentTab === 'contact' ? ' project-tab--active' : '' ?>">
-      <i class="fa-solid fa-address-card" aria-hidden="true" style="margin-right:var(--space-2);"></i>
+      <i class="fa-solid fa-address-card mr-space-2" aria-hidden="true"></i>
       <?= e(t('settings.tab.contact')) ?>
     </a>
     <?php if (!empty($updatesEnabled)): ?>
       <a href="/admin/settings?tab=updates"
          class="project-tab<?= $currentTab === 'updates' ? ' project-tab--active' : '' ?>">
-        <i class="fa-solid fa-cloud-arrow-down" aria-hidden="true" style="margin-right:var(--space-2);"></i>
+        <i class="fa-solid fa-cloud-arrow-down mr-space-2" aria-hidden="true"></i>
         <?= e(t('settings.tab.updates')) ?>
       </a>
     <?php endif; ?>
@@ -61,7 +61,7 @@ $localeNames = locale_display_names();
 
   <?php if ($currentTab === 'workspace'): ?>
 
-    <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 18px;"><?= e(t('settings.section.workspace_hint', ['fallback' => 'Otack Manager'])) ?></p>
+    <p class="muted field-hint--top"><?= e(t('settings.section.workspace_hint', ['fallback' => 'Otack Manager'])) ?></p>
 
     <fieldset class="field-group">
       <legend class="field-group__legend"><?= e(t('settings.tab.workspace')) ?></legend>
@@ -136,7 +136,7 @@ $localeNames = locale_display_names();
           </div>
           <input type="hidden" name="default_locale" value="<?= e($curLocale) ?>">
         </div>
-        <p class="muted" style="font-size:12px;color:var(--ink-3);margin:8px 0 0;"><?= e(t('settings.field.default_locale_hint')) ?></p>
+        <p class="muted field-hint--tight2"><?= e(t('settings.field.default_locale_hint')) ?></p>
       </div>
 
       <div class="field form-grid__span">
@@ -145,7 +145,7 @@ $localeNames = locale_display_names();
                value="<?= e($values['project_palette'] ?? '') ?>"
                placeholder="EA580C,5A4E3F,2563EB,…"
                pattern="^[0-9A-Fa-f]{6}(\s*,\s*[0-9A-Fa-f]{6})*$">
-        <p class="muted" style="font-size:12px;color:var(--ink-3);margin:6px 0 0;">
+        <p class="muted field-hint--tight">
           <?= e(t('settings.field.project_palette_hint')) ?>
         </p>
       </div>
@@ -154,7 +154,7 @@ $localeNames = locale_display_names();
 
   <?php elseif ($currentTab === 'contact'): ?>
 
-    <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 18px;"><?= e(t('settings.section.contact_hint')) ?></p>
+    <p class="muted field-hint--top"><?= e(t('settings.section.contact_hint')) ?></p>
 
     <fieldset class="field-group">
       <legend class="field-group__legend"><?= e(t('settings.tab.contact')) ?></legend>
@@ -176,7 +176,7 @@ $localeNames = locale_display_names();
         <input id="f-contact-address" class="input" type="text" name="contact_address" value="<?= e($values['contact_address'] ?? '') ?>">
       </div>
     </div>
-    <div class="field" style="margin-top:14px;">
+    <div class="field mt-14">
       <label><?= e(t('settings.field.contact_footer')) ?></label>
       <div class="wysiwyg-host">
         <div class="wysiwyg-editor"

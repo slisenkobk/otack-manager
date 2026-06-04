@@ -9,7 +9,7 @@ $statusLabels = [
 ];
 $converted = in_array($sub['status'], ['converted_task', 'converted_project'], true);
 ?>
-<div class="page-actions page-actions--inline" style="margin-bottom:var(--space-8);">
+<div class="page-actions page-actions--inline u-mb-space-8">
   <a href="/forms-data" style="color:var(--ink-3);text-decoration:none;font-size:12px;"><i class="fa-solid fa-arrow-left"></i> All submissions</a>
   <span class="status status--<?= e($sub['status']) ?>"><?= e($statusLabels[$sub['status']] ?? $sub['status']) ?></span>
 </div>
@@ -114,7 +114,7 @@ $converted = in_array($sub['status'], ['converted_task', 'converted_project'], t
           <i class="fa-solid fa-folder-plus"></i> New project
         </button>
         <div class="field" style="margin-top:var(--space-4);">
-          <label style="font-size:12px;color:var(--ink-3);">Or pick a project for a new task</label>
+          <label class="fz-12 text-ink-3">Or pick a project for a new task</label>
           <div class="custom-select" data-custom-select<?= count($projects) > 6 ? ' data-custom-select-search' : '' ?>>
             <button type="button" class="custom-select__btn">
               <span class="custom-select__label" style="color:var(--ink-3);">— pick project —</span>
