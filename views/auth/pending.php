@@ -6,6 +6,6 @@
   </p>
   <form method="post" action="/logout" class="mt-24">
     <input type="hidden" name="_csrf" value="<?= e($csrfToken ?? '') ?>">
-    <button class="btn--ghost" type="submit"><?= e(t('auth.sign_out')) ?></button>
+    <button class="btn btn--ghost" type="submit"><?= e(t('auth.sign_out')) ?></button>
   </form>
 </div>

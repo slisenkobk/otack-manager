@@ -154,7 +154,7 @@ $sparkClosed = $spark($trend['closed'] ?? []);
     </div>
     <?php if (count($recentActivity) >= 10): ?>
       <div class="activity-load-more">
-        <button class="btn--secondary load-more-activity" type="button" data-offset="10"><?= e(t('common.load_more')) ?></button>
+        <button class="btn btn--secondary load-more-activity" type="button" data-offset="10"><?= e(t('common.load_more')) ?></button>
       </div>
     <?php endif; ?>
   <?php endif; ?>

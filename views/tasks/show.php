@@ -36,7 +36,7 @@
       <header class="overview-panel__head">
         <h2 class="overview-panel__title"><?= e(t('tasks.description')) ?></h2>
         <?php if (!empty($canEditTask)): ?>
-          <button class="btn--ghost fz-12" type="button" data-action="edit-description"><?= e(t('common.edit')) ?></button>
+          <button class="btn btn--ghost fz-12" type="button" data-action="edit-description"><?= e(t('common.edit')) ?></button>
         <?php endif; ?>
       </header>
       <div class="overview-panel__body rich-text task-description-rendered">
@@ -107,7 +107,7 @@
         <header class="overview-panel__head overview-panel__head--linked">
           <h2 class="overview-panel__title"><?= e(t('tasks.related')) ?></h2>
           <?php if ($canEdit): ?>
-            <button class="btn--ghost fz-12" type="button" data-action="add-link">
+            <button class="btn btn--ghost fz-12" type="button" data-action="add-link">
               <i class="fa-solid fa-plus"></i> <?= e(t('tasks.add_link')) ?>
             </button>
           <?php endif; ?>
@@ -258,13 +258,13 @@
     </div>
 
     <?php if (!empty($canCreateProject)): ?>
-      <button class="btn--ghost btn--block-cta btn--block-cta--icon" type="button" data-action="promote-to-project">
+      <button class="btn btn--ghost btn--block-cta btn--block-cta--icon" type="button" data-action="promote-to-project">
         <i class="fa-solid fa-up-right-from-square"></i> <?= e(t('tasks.promote_to_project')) ?>
       </button>
     <?php endif; ?>
 
     <?php if (!empty($canEditTask)): ?>
-      <button class="btn--danger btn--block-cta btn--block-cta--tight" type="button" data-action="delete-task">
+      <button class="btn btn--danger btn--block-cta btn--block-cta--tight" type="button" data-action="delete-task">
         <?= e(t('tasks.delete_btn')) ?>
       </button>
     <?php endif; ?>

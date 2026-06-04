@@ -43,9 +43,9 @@
         </div>
         <div class="card-row">
           <div class="flex-row-gap-6">
-            <a href="<?= e($publicUrl) ?>" target="_blank" rel="noopener" class="btn--ghost" data-stop title="<?= e(t('links.open_public')) ?>"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-            <button type="button" class="btn--ghost" data-action="toggle-link" data-stop title="<?= e($isDisabled ? t('links.action.enable') : t('links.action.disable')) ?>"><i class="fa-solid <?= $isDisabled ? 'fa-toggle-off' : 'fa-toggle-on' ?>"></i></button>
-            <button type="button" class="btn--ghost text-accent" data-action="delete-link" data-stop title="<?= e(t('common.delete')) ?>"><i class="fa-solid fa-trash"></i></button>
+            <a href="<?= e($publicUrl) ?>" target="_blank" rel="noopener" class="btn btn--ghost" data-stop title="<?= e(t('links.open_public')) ?>"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+            <button type="button" class="btn btn--ghost" data-action="toggle-link" data-stop title="<?= e($isDisabled ? t('links.action.enable') : t('links.action.disable')) ?>"><i class="fa-solid <?= $isDisabled ? 'fa-toggle-off' : 'fa-toggle-on' ?>"></i></button>
+            <button type="button" class="btn btn--ghost text-accent" data-action="delete-link" data-stop title="<?= e(t('common.delete')) ?>"><i class="fa-solid fa-trash"></i></button>
           </div>
           <span class="share-link"><?= e(t('common.edit')) ?> <span class="arr">&#8594;</span></span>
         </div>

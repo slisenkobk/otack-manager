@@ -45,7 +45,7 @@ foreach (($projects ?? []) as $p) {
     </div>
     <div class="builder-toolbar__right">
       <?php if ($poll): ?>
-        <button type="button" class="btn--secondary" data-action="activate-poll"
+        <button type="button" class="btn btn--secondary" data-action="activate-poll"
                 data-confirm="<?= e(t('polls.activate_confirm')) ?>"><i class="fa-solid fa-play"></i> <?= e(t('polls.activate')) ?></button>
       <?php endif; ?>
       <button type="button" class="btn btn--primary submit" data-action="save-poll"><i class="fa-solid fa-check"></i> <?= e(t('polls.save_poll')) ?></button>
@@ -61,8 +61,8 @@ foreach (($projects ?? []) as $p) {
           <i class="fa-solid fa-link"></i>
           <span data-public-url-text><?= e(\abs_url('/p/' . $poll['hash'])) ?></span>
         </a>
-        <button type="button" class="btn--secondary" data-action="copy-url"><i class="fa-regular fa-copy"></i> <?= e(t('polls.copy')) ?></button>
-        <button type="button" class="btn--ghost" data-action="rotate-url" title="<?= e(t('polls.rotate_title')) ?>">
+        <button type="button" class="btn btn--secondary" data-action="copy-url"><i class="fa-regular fa-copy"></i> <?= e(t('polls.copy')) ?></button>
+        <button type="button" class="btn btn--ghost" data-action="rotate-url" title="<?= e(t('polls.rotate_title')) ?>">
           <i class="fa-solid fa-arrows-rotate"></i> <?= e(t('polls.rotate')) ?>
         </button>
       </div>
@@ -150,11 +150,11 @@ foreach (($projects ?? []) as $p) {
                    data-option-key="<?= e($opt['key']) ?>"
                    value="<?= e($opt['label']) ?>"
                    placeholder="<?= e(t('polls.option_placeholder', ['n' => $i + 1])) ?>">
-            <button type="button" class="btn--ghost" data-action="remove-option" title="<?= e(t('common.remove')) ?>"><i class="fa-solid fa-xmark"></i></button>
+            <button type="button" class="btn btn--ghost" data-action="remove-option" title="<?= e(t('common.remove')) ?>"><i class="fa-solid fa-xmark"></i></button>
           </div>
         <?php endforeach; ?>
       </div>
-      <button type="button" class="btn--secondary mt-8" data-action="add-option">
+      <button type="button" class="btn btn--secondary mt-8" data-action="add-option">
         <i class="fa-solid fa-plus"></i> <?= e(t('polls.add_option')) ?>
       </button>
     </div>

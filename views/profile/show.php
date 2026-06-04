@@ -15,12 +15,12 @@ $currentLocale = $user['locale'] ?? 'en';
       <div class="profile-avatar">
         <?= user_avatar_html((int)$user['id'], $user['name'], $user['avatar'] ?? null, 'lg', ['extra_class' => 'profile-avatar__pic']) ?>
         <div class="profile-avatar__controls">
-          <label class="btn--secondary profile-avatar__upload">
+          <label class="btn btn--secondary profile-avatar__upload">
             <i class="fa-solid fa-upload"></i> <?= e(t('profile.upload_image')) ?>
             <input type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp" hidden data-avatar-input>
           </label>
           <?php if (!empty($user['avatar'])): ?>
-            <button class="btn--ghost profile-avatar__remove" type="button" data-remove-avatar>
+            <button class="btn btn--ghost profile-avatar__remove" type="button" data-remove-avatar>
               <?= e(t('profile.remove_avatar')) ?>
             </button>
           <?php endif; ?>

@@ -12,7 +12,7 @@ $isDisabled = (int)$link['is_disabled'] === 1;
       <a href="/links" class="builder-toolbar__back"><i class="fa-solid fa-arrow-left"></i> <?= e(t('links.all_links')) ?></a>
     </div>
     <div class="builder-toolbar__right">
-      <a class="btn--secondary" href="<?= e($publicUrl) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> <?= e(t('links.open_public')) ?></a>
+      <a class="btn btn--secondary" href="<?= e($publicUrl) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> <?= e(t('links.open_public')) ?></a>
       <button type="button" class="btn btn--primary submit" data-action="save-link"><i class="fa-solid fa-check"></i> <?= e(t('common.save')) ?></button>
     </div>
   </div>
@@ -24,8 +24,8 @@ $isDisabled = (int)$link['is_disabled'] === 1;
         <i class="fa-solid fa-link"></i>
         <span data-public-url-text><?= e($publicUrl) ?></span>
       </a>
-      <button type="button" class="btn--secondary" data-action="copy-url"><i class="fa-regular fa-copy"></i> <?= e(t('forms.copy')) ?></button>
-      <button type="button" class="btn--ghost" data-action="rotate-url" title="<?= e(t('links.rotate_title')) ?>">
+      <button type="button" class="btn btn--secondary" data-action="copy-url"><i class="fa-regular fa-copy"></i> <?= e(t('forms.copy')) ?></button>
+      <button type="button" class="btn btn--ghost" data-action="rotate-url" title="<?= e(t('links.rotate_title')) ?>">
         <i class="fa-solid fa-arrows-rotate"></i> <?= e(t('forms.rotate')) ?>
       </button>
     </div>
@@ -91,11 +91,11 @@ $isDisabled = (int)$link['is_disabled'] === 1;
   <section class="builder-panel">
     <h2 class="builder-panel__title"><?= e(t('links.danger.title')) ?></h2>
     <div class="link-danger__actions">
-      <button type="button" class="btn--secondary" data-action="toggle-link">
+      <button type="button" class="btn btn--secondary" data-action="toggle-link">
         <i class="fa-solid <?= $isDisabled ? 'fa-toggle-off' : 'fa-toggle-on' ?>"></i>
         <span data-toggle-label><?= e($isDisabled ? t('links.action.enable') : t('links.action.disable')) ?></span>
       </button>
-      <button type="button" class="btn--secondary text-accent" data-action="delete-link">
+      <button type="button" class="btn btn--secondary text-accent" data-action="delete-link">
         <i class="fa-solid fa-trash"></i> <?= e(t('common.delete')) ?>
       </button>
     </div>

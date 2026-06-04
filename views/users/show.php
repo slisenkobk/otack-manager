@@ -35,7 +35,7 @@ foreach ($apiTokens as $tok) {
 ?>
 
 <div class="page-actions u-mb-space-8">
-  <a class="btn--secondary" href="/users">
+  <a class="btn btn--secondary" href="/users">
     <i class="fa-solid fa-arrow-left"></i> <?= e(t('nav.users')) ?>
   </a>
 </div>
@@ -72,7 +72,7 @@ foreach ($apiTokens as $tok) {
               data-confirm-label="<?= e(t('api_tokens.revoke_all')) ?>"
               class="m-0">
           <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
-          <button type="submit" class="btn--danger" data-action="revoke-all-tokens">
+          <button type="submit" class="btn btn--danger" data-action="revoke-all-tokens">
             <i class="fa-solid fa-ban"></i> <?= e(t('api_tokens.revoke_all')) ?>
           </button>
         </form>
@@ -124,7 +124,7 @@ foreach ($apiTokens as $tok) {
                         data-confirm="<?= e(t('api_tokens.confirm_revoke')) ?>"
                         data-confirm-label="<?= e(t('api_tokens.revoke')) ?>">
                     <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
-                    <button type="submit" class="btn--danger" data-action="revoke-token">
+                    <button type="submit" class="btn btn--danger" data-action="revoke-token">
                       <i class="fa-solid fa-ban"></i> <?= e(t('api_tokens.revoke')) ?>
                     </button>
                   </form>

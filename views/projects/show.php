@@ -94,7 +94,7 @@ foreach ($boardColumns as $c) {
         </div>
       </div>
     <?php endforeach; ?>
-    <button type="button" class="btn--secondary add-column"><i class="fa-solid fa-plus"></i> <?= e(t('projects.kanban.add_column')) ?></button>
+    <button type="button" class="btn btn--secondary add-column"><i class="fa-solid fa-plus"></i> <?= e(t('projects.kanban.add_column')) ?></button>
   </div>
   <?php // Sortable is now lazy-loaded from kanban-board/columns/form-builder via loadSortable() in utils.js — drop the synchronous <script> tag to unblock first paint (-44 KB on non-kanban pages, deferred work on kanban itself). ?>
   <script type="module" src="<?= e(asset_url('/assets/js/kanban.js')) ?>"></script>
@@ -160,7 +160,7 @@ foreach ($boardColumns as $c) {
         <header class="overview-panel__head">
           <h2 class="overview-panel__title"><?= e(t('projects.overview.title')) ?></h2>
           <?php if (!empty($canEdit)): ?>
-            <button class="btn--ghost fz-12" type="button" data-action="edit-description"><?= e(t('common.edit')) ?></button>
+            <button class="btn btn--ghost fz-12" type="button" data-action="edit-description"><?= e(t('common.edit')) ?></button>
           <?php endif; ?>
         </header>
         <div class="overview-panel__body rich-text project-description-rendered"><?= $project['description'] ? \App\Service\LinkPreview::enhance(\App\Service\HtmlSanitizer::clean((string)$project['description'])) : '<em class="overview-panel__empty">' . e(t('projects.overview.no_description')) . '</em>' ?></div>
@@ -251,7 +251,7 @@ foreach ($boardColumns as $c) {
       </div>
 
       <?php if (!empty($canEdit)): ?>
-        <button class="btn--danger btn--block-cta" type="button" data-action="delete-project">
+        <button class="btn btn--danger btn--block-cta" type="button" data-action="delete-project">
           <?= e(t('projects.overview.delete_btn')) ?>
         </button>
       <?php endif; ?>

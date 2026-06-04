@@ -811,6 +811,14 @@ h1.display em {
   border-top: 1px dashed var(--rule);
 }
 
+/* When .card__tasks precedes .card-row (project listing cards), the
+   tasks counter owns the bottom-push and .card-row trails right
+   after it. Without this override, both siblings have `margin-top:
+   auto` and flex distributes the free space evenly between them —
+   which pushes .card__tasks toward the middle on cards with no
+   description. */
+.card__tasks ~ .card-row { margin-top: 0; }
+
 /* ─── §7 Panel ───────────────────────────────────────────────── */
 .panel {
   background: var(--bg-elevated);
