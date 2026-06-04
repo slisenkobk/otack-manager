@@ -57,13 +57,13 @@ function icon(string $name, string $extraClass = ''): string
 // from settings (bumped via /admin/compass cache tab). Returns the path
 // unchanged when no version is set yet.
 //
-// Intentionally NOT memoised in a function static: that would persist across
-// requests in PHP-FPM / php -S workers and silently serve stale URLs after a
-// bump. The settings table lookup is a single indexed SELECT — cheap enough
-// to do on each call (typically 4 calls per page).
+// Memoised per request via the `asset_version` DI singleton — App::reset()
+// at the top of every request refreshes the value, so admins still see the
+// bump take effect on the next page-load while a single render does one
+// SELECT instead of one per <script>/<link> tag emitted.
 function asset_url(string $path): string
 {
-    try { $ver = \App\App::make('settings')->get('asset_version', ''); }
+    try { $ver = \App\App::make('asset_version')->value; }
     catch (\Throwable $_) { $ver = ''; }
     if ($ver === '') return $path;
     return $path . (str_contains($path, '?') ? '&' : '?') . 'v=' . rawurlencode($ver);
