@@ -37,12 +37,12 @@ it('MySQL CREATE TABLE: id maps to BIGINT UNSIGNED + InnoDB/utf8mb4', function (
     $stmts = (new MysqlDriver('mysql:host=x', 'u', 'p'))->compileCreateTable($bp);
     $sql = $stmts[0];
 
-    assert_true(strpos($sql, 'CREATE TABLE users') === 0);
-    assert_true(strpos($sql, 'id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY') !== false);
-    assert_true(strpos($sql, 'email VARCHAR(320) NOT NULL UNIQUE') !== false);
+    assert_true(strpos($sql, 'CREATE TABLE `users`') === 0);
+    assert_true(strpos($sql, '`id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY') !== false);
+    assert_true(strpos($sql, '`email` VARCHAR(320) NOT NULL UNIQUE') !== false);
     // timestamp → VARCHAR(32) on MySQL (matches SQLite TEXT shape so the
     // ISO8601 strings the repos write round-trip identically).
-    assert_true(strpos($sql, 'created_at VARCHAR(32) NOT NULL') !== false);
+    assert_true(strpos($sql, '`created_at` VARCHAR(32) NOT NULL') !== false);
     assert_true(strpos($sql, 'ENGINE=InnoDB') !== false);
     assert_true(strpos($sql, 'utf8mb4') !== false);
 });
@@ -64,7 +64,7 @@ it('MySQL: foreign key emitted as CONSTRAINT … FOREIGN KEY clause', function (
     $bp->foreign('project_id')->references('id')->on('projects')->onDelete('CASCADE');
 
     $sql = (new MysqlDriver('mysql:host=x', 'u', 'p'))->compileCreateTable($bp)[0];
-    assert_true(strpos($sql, 'CONSTRAINT fk_tasks_project_id FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE') !== false);
+    assert_true(strpos($sql, 'CONSTRAINT `fk_tasks_project_id` FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON DELETE CASCADE') !== false);
 });
 
 it('Indexes: separate CREATE INDEX statement for single-column index, inline for composite UNIQUE', function () {
@@ -94,7 +94,7 @@ it('ALTER TABLE ADD COLUMN: emits per-column statement on both drivers', functio
 
     $mysql = (new MysqlDriver('mysql:host=x', 'u', 'p'))->compileAlterTable($bp);
     assert_eq(2, count($mysql));
-    assert_true(strpos($mysql[0], "ALTER TABLE tasks ADD COLUMN priority VARCHAR(16) NOT NULL DEFAULT 'none'") !== false);
+    assert_true(strpos($mysql[0], "ALTER TABLE `tasks` ADD COLUMN `priority` VARCHAR(16) NOT NULL DEFAULT 'none'") !== false);
 });
 
 it('Defaults: scalar types pass through; booleans render as 0/1', function () {
