@@ -1,6 +1,11 @@
 // UI primitives: modal, confirm, prompt, toast, lightbox.
 // Pure render/dispatch — no DOM mutation observers, no auto-init.
-// Imported by ui.js (façade) and indirectly by page modules.
+//
+// **Import via `./ui.js` (the façade), not directly from this file.** The
+// façade also pulls in `./ui-bootstrap.js`, which side-effects the
+// user-menu, flash relay, mobile-nav, auto-submit and custom-select
+// observers. Importing only `./ui-modal.js` bypasses those bootstraps
+// and silently breaks the shell on whatever page does it.
 
 const ROOT_MODAL = () => document.getElementById('modal-root');
 const ROOT_TOAST = () => document.getElementById('toast-root');

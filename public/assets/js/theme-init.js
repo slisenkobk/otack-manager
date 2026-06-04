@@ -21,6 +21,22 @@
   // 'auto' or unset → follow system preference. matchMedia is supported
   // everywhere we run; the optional-chain on `.matches` keeps the script
   // a no-op on hypothetical environments without it.
-  var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  html.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+  if (!window.matchMedia) {
+    html.setAttribute('data-theme', 'light');
+    return;
+  }
+  var mql = window.matchMedia('(prefers-color-scheme: dark)');
+  var apply = function () {
+    // Only re-apply when the user is still on 'auto' — explicit choice
+    // means data-theme is set (and the user-menu toggle owns it).
+    var c = (document.cookie.match(/(?:^|; )theme=([^;]+)/) || [])[1];
+    if (c === 'light' || c === 'dark') return;
+    html.setAttribute('data-theme', mql.matches ? 'dark' : 'light');
+  };
+  apply();
+  // Live-follow OS theme changes mid-session. addEventListener is the
+  // current API; addListener is the deprecated fallback for older
+  // browsers (matchMedia is a MediaQueryList).
+  if (mql.addEventListener) mql.addEventListener('change', apply);
+  else if (mql.addListener) mql.addListener(apply);
 })();

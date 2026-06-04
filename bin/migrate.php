@@ -23,7 +23,8 @@ try {
     $applied = Migrations::run($boot);
 
     if (!$applied) {
-        fwrite(STDOUT, "Schema up to date — no migrations applied (" . basename($dbPath) . ")\n");
+        $dsn = App::env('DB_DSN', 'sqlite:' . APP_ROOT . '/data/app.sqlite');
+        fwrite(STDOUT, "Schema up to date — no migrations applied ($dsn)\n");
     } else {
         fwrite(STDOUT, "Applied " . count($applied) . " migration(s):\n");
         foreach ($applied as $name) {

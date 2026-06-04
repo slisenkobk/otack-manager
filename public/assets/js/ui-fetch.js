@@ -1,6 +1,11 @@
 // Authenticated JSON fetch wrapper used by every page module. Pulls the
 // CSRF token from <meta>, sets Content-Type for JSON bodies, and surfaces
 // non-2xx responses through UI.toast so silent failures stay visible.
+//
+// **Import via `./ui.js` (the façade), not directly from this file.** The
+// façade also triggers `./ui-bootstrap.js`, which sets up the shell
+// listeners (user menu, flash, mobile nav, custom-select observer). Direct
+// imports bypass those.
 import { UI } from './ui-modal.js';
 import { logSilent } from './utils.js';
 

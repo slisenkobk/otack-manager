@@ -26,6 +26,21 @@ Action when CSS-5 ships: re-run `grep -n '!important' public/assets/css/*.css`
 and drop any declaration whose neighbouring inline-style attribute is gone.
 Estimated yield after CSS-5: ~6 of 21 declarations become removable.
 
+## CSS-6 known regression — JS-disabled users with cookie=auto
+
+The dark-theme dedup (commit `6c79e45`) dropped the
+`@media (prefers-color-scheme: dark)` block from `tokens.css` and made
+`public/assets/js/theme-init.js` the single source of truth. Consequence:
+**a user with JavaScript disabled AND `theme=auto` (or no cookie) always
+gets the light palette**, regardless of OS preference. Users with an
+explicit `theme=dark`/`theme=light` cookie still get the right palette
+server-side, so the regression is bounded to the small "no-cookie +
+no-JS" intersection.
+
+This is acceptable for an admin-facing tool but worth a docs/SECURITY.md
+mention if we ever ship a public-facing surface that relies on the dark
+auto-detect for an opted-in-but-no-JS reader-mode use case.
+
 ## Items also carried forward from earlier waves
 
 See `wave-9-1a.md` for:
