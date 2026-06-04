@@ -178,7 +178,9 @@
 .sidebar__foot-version {
   display: block;
   margin-top: 6px;
-  opacity: 0.6;
+  /* Inherits --text-muted (--ink-3) which already provides AA contrast on
+     the sidebar's white surface; the previous opacity:0.6 reduced the
+     effective contrast to ~2.4 (Wave 9.1e Task 11). */
   font-size: var(--fz-micro);
   letter-spacing: var(--ls-mono);
 }

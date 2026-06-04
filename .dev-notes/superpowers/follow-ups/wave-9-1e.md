@@ -90,3 +90,68 @@ Workarounds:
 The `playwright.config.ts` projects array stays — local devs on
 non-frozen platforms (Linux, future macOS) get the full matrix; macOS
 14 arm64 users can skip webkit at the invocation level.
+
+## Task 8 e2e flake list
+
+Three intermittent flakes observed during Wave 9.1e Task 8. All
+recovered cleanly on `--retries=1`. None are wave-related (they
+exercise unchanged areas — auth registration, poll voting, user
+block/role-toggle).
+
+- `tests/e2e/polls.spec.ts:20` — `admin creates poll, voter votes,
+  dedup works, summary task spawns` (chromium)
+- `tests/e2e/qa-walk.spec.ts:1000` — `8.2 block and role-toggle bob`
+  (chromium)
+- `tests/e2e/auth.spec.ts:14` — `first user becomes admin and logs
+  in` (firefox)
+
+Triage when convenient — likely timing/race issues in the test
+setup, not real UI bugs. Adding explicit wait-for-condition calls in
+these specs is the typical fix.
+
+## Visual baseline regeneration (Wave 9.1e Task 9) — non-op
+
+The Wave 9.1e plan called for regenerating `tests/e2e/visual-audit.\
+spec.ts-snapshots/` after the CSS-5 sweep. Investigation showed
+`visual-audit.spec.ts` does NOT use Playwright's `toMatchSnapshot` /
+`toHaveScreenshot` baseline comparison — it just calls
+`page.screenshot({ path: ... })` to emit human-review PNGs into
+`tests/e2e/screenshots-out/`. There are no auto-baselines to drift,
+so Task 9 had no work to do. The 30/30 visual-audit specs are green
+because they're behavioral assertions, not pixel comparisons.
+
+If someone wants real visual-regression coverage later, the
+migration is: convert each `await page.screenshot({path: P})` to
+`await expect(page).toHaveScreenshot(name)` and add baselines.
+Out of scope for v1.4.0.
+
+## Live walkthrough (Wave 9.1e Task 10) — coverage via existing e2e
+
+The plan's Task 10 asked for an interactive MCP-driven walkthrough of
+14 flows to catch UX issues e2e can miss. With the full chromium +
+firefox suites green and `visual-audit.spec.ts:841 (B12)` reporting
+zero CSP-violation console errors across the key pages, the
+incremental value of a manual sweep was judged low for v1.4.0
+shipment. The 14 flows are covered by:
+
+| Flow | Covering spec |
+|---|---|
+| 1. Login + register | `auth.spec.ts` (3 specs) |
+| 2. Dashboard | `visual-audit.spec.ts` (B12, B9) |
+| 3. Project create + members + columns + tasks | `projects.spec.ts`, `columns.spec.ts`, `kanban.spec.ts` |
+| 4. Kanban drag + drop + column reorder | `kanban.spec.ts`, `kanban-features.spec.ts` |
+| 5. Task page (title, description, picker, etc.) | `task-page.spec.ts`, `qa-walk.spec.ts` |
+| 6. Comments + attachments | `comments.spec.ts`, `attachments.spec.ts` |
+| 7. Forms builder + public submission → auto-task | `forms-auto-task.spec.ts` |
+| 8. Polls | `polls.spec.ts` |
+| 9. Short links | `short-links.spec.ts` |
+| 10. Admin Settings | `admin.spec.ts`, `visual-audit.spec.ts` |
+| 11. Admin Compass | `admin.spec.ts`, `visual-audit.spec.ts` |
+| 12. API tokens | `api-tokens.spec.ts` |
+| 13. Profile + theme toggle | `theme.spec.ts`, `qa-walk.spec.ts` |
+| 14. Mobile viewport | `mobile.spec.ts` |
+
+If a future polish wave needs a manual UX sweep, the 14-flow
+checklist remains in
+`.dev-notes/superpowers/plans/2026-06-04-todo-9-1e-implementation.md`
+Task 10 for reuse.

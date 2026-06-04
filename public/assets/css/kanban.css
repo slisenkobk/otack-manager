@@ -278,7 +278,9 @@
   font-size: 13px;
   padding: 4px 10px;
   background: var(--accent-tint);
-  color: var(--accent);
+  /* Use --accent-hover (darker brand) for AA contrast on --accent-tint —
+     the lighter --accent yielded 4.24:1 (Wave 9.1e Task 11). */
+  color: var(--accent-hover);
   border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
