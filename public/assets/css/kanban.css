@@ -326,7 +326,7 @@
 .kanban-card__counts { display: flex; gap: var(--space-5); }
 .kanban-card__counts i { margin-right: 3px; }
 
-/* Drag states */
+/* Drag states — !important outranks SortableJS-set inline styles applied during drag */
 .kanban-ghost {
   opacity: 0.35;
   background: var(--brand-3) !important;
@@ -783,6 +783,7 @@ a.link-card *,
 }
 
 /* Highlight pulse — matches assystant ticket-pulse */
+/* !important outranks .kanban-card[data-priority]:not([data-priority="none"]) which has higher specificity */
 .kanban-card.is-highlight { animation: ticket-pulse 1.6s ease-out; border-color: var(--accent) !important; }
 @keyframes ticket-pulse {
   0%   { box-shadow: 0 0 0 0 var(--brand-3); }
