@@ -1,75 +1,190 @@
-done - #1 - MySQL поддержка и возможность настроить DB - done (см. docs/DATABASE.md, driver-abstraction (вариант A): DriverInterface + Sqlite/Mysql drivers, Schema DSL для миграций, все 36 миграций переведены на DSL, репы и snapshot-уровень портируемы, CI-матрица sqlite + mysql 8.0, convention-тест против регрессий)
+# TODO
 
-done - #2 - Внешнее АПИ для сторонних систем, которое дублирует возможности менеджера и Сотрудника (и привязано к ним же - вместе с юзером должен создаваться апи токен - апи через авторизацию, с возможностью токен отозвать/заменить) - нужен интерфейс АПИ (для возможного взаимодействия с системой через MCP для Клода к примеру) - обусдить, спланировать, реализовать - done (см. docs/API.md, docs/openapi.yaml, /profile/tokens; 47 endpoints, 84 integration tests; MCP-bridge — phase 2, отдельный спек) (post-review fixes 2026-06-03: atomic rate-limiter, 404-not-403 leaks, setPin auth, unbiased token gen, voters cursor contract, method-aware drift check)
+Open and completed product items. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+for the codebase map and [.dev-notes/superpowers/specs/](.dev-notes/superpowers/specs/)
+for the audit-driven cleanup plan referenced in `#9` below.
 
-done - #3 - Реализовать версии системы + простое обновление с Гитхаб ветки мейн если есть тег версии (полное обновление всех файлов кроме пользовательских (сторедж, БД фалы и тд)) - раздел в настройках с проверкой обновления при заходе на дашборд + карточка на дашборде (под тулбаром, тонкая как банер с уведомлением о новой версии, если она есть) - гитхад репозиторий будет публичный - и лучше чтобы урл источника гитхаба был в енв - done (см. docs/UPDATES.md, шаги 1-7 в main, бейдж в топбаре, Settings → Updates с историей, бекапами и Restore, авто-сноcп + откат при ошибке, ретенция UPDATE_BACKUP_KEEP)
-done - #4 - Проверить мобильную версию всего воркспейса - исправить, адаптировать очень дотошно (через плейврайт проверяй все отступы, удобство использование, расположение элементов - очень критично) - done
-done - #5 - добавить на форму авторизации галочку Запомнить меня. При нажатой галочке надо держать сессию юзера 30 дней, без отметки - держим сессию сутки - done
-done - #6 - на базе функционала форм создать функционал "Голосования" - то есть та же механика, конструктор голосований, но конечная страница будет требовать сперва ввести контакт и только потом юзер может проголосовать (в остальном механика подобна формам), единственное только то, что голосование можно прикрепить к проекту (не создать из него новый) и только когда голосование закрыто - можно создать из него таску в этом проекте с результатами. + раздел голосований один, нет отдельного в меню (типа ответы, или проголосовавшие), раздел с теми кто проголосовал только внутри открытого голосования в админке (после того как голосование в статусе "Активно" - его нельзя редактировать, а первым что видет админ в разделе - это статистика по ответам, а если статус Черновик то вместо статистики - возможность редаткировать). А рядом таба - проголосовавшие, чтобы увидеть емейлы (или телефон, это поле контакта настраиваемое). По факту голосование это тот же конструктор формы, но сразу при создании предустановлены поля "Емеил" и "Радио" с вариантами ответов. - done
-done - #7 - В сайдбаре отдельным пунктом надо сделать раздел Интеграции - это выпадающий список (субменю), в который надо перенести Формы, Голосования и Линки - done
-done - #8 - Создать функционал Шорт линки, суть такова, как когда-то было в гугл линках, мы делаем линку прокси, которая перенаправялет юзера на указанный адрес и учитывает статистику переходов (уникальные переходы, клики, на первом этапе достаточно) - done
+## Done
 
-#9 - Необходимо провести рефакторинг и чистоту кода для упаковки продукта, с документацией в папке docs (для разработчиков), с отдельными мд файлами на каждую важную сущность
+- **#1 — MySQL support + configurable DB.** Driver abstraction (`DriverInterface`
+  + `SqliteDriver`/`MysqlDriver`), Schema DSL for migrations, all 36 migrations
+  ported to the DSL, repos and snapshot layer portable, CI matrix sqlite +
+  mysql 8.0, convention test guarding regressions. See
+  [docs/DATABASE.md](docs/DATABASE.md).
+- **#2 — Public API for third-party systems.** Mirrors the workspace surface
+  for Manager/Employee accounts, per-user API tokens that can be revoked or
+  rotated; designed so future MCP bridges (e.g. Claude) can plug in. 47
+  endpoints, 84 integration tests; MCP bridge is phase 2. See
+  [docs/API.md](docs/API.md), [docs/openapi.yaml](docs/openapi.yaml),
+  `/profile/tokens`. Post-review fixes 2026-06-03: atomic rate-limiter,
+  401-not-403 leaks, `setPin` auth, unbiased token gen, voters cursor
+  contract, method-aware drift check.
+- **#3 — App versioning + one-click update from a GitHub main branch tag.**
+  Updates every file except user data (storage / DB / uploads). Settings tab
+  with check-on-dashboard banner, public GitHub source URL configurable via
+  env. See [docs/UPDATES.md](docs/UPDATES.md): steps 1–7 in `main`, topbar
+  badge, Settings → Updates with history, backups and Restore, automatic
+  snapshot + rollback on error, retention via `UPDATE_BACKUP_KEEP`.
+- **#4 — Mobile audit of the entire workspace.** All breakpoints, spacing,
+  affordances and element order verified via Playwright.
+- **#5 — "Remember me" checkbox on login.** Checked: keep the session for 30
+  days. Unchecked: 24 hours.
+- **#6 — Polls module built on the Forms engine.** Same builder mechanic; the
+  public page collects a contact field before letting the user vote.
+  A poll attaches to a project (it cannot spawn a new one) and only once
+  closed can it be converted into a project task with the result summary.
+  Single sidebar section (no separate "responses"/"voters" entries); voters
+  list lives inside an open poll's admin view. Once Active, a poll is
+  read-only — admin sees response stats; while Draft, the builder shows
+  instead of stats. A "Voters" tab beside it shows emails/phone (contact
+  field is configurable). Functionally a Forms builder with pre-seeded
+  Email + Radio (answer options) fields.
+- **#7 — Sidebar "Integrations" submenu.** Houses Forms, Polls and Links as
+  one collapsible group.
+- **#8 — Short Links.** A proxy-style link service like classic Google links:
+  redirects to a target URL and records click stats (unique visits + total
+  clicks).
+- **#11 — SQLite → MySQL migrator.** For projects that outgrow SQLite, an
+  admin (Compass → Migrate to MySQL) can move the dataset over: connection
+  test, plan with row counts, synchronous copy in batches of 500, AUTO_INCREMENT
+  reset, sanity check, verify endpoint after the `.env` edit. The SQLite
+  file is never touched — rollback = revert `.env`.
 
-  #9.2 - **Полный аудит 2026-06-03 + план исправлений: [docs/superpowers/specs/2026-06-03-todo-9-audit-and-cleanup-plan.md](docs/superpowers/specs/2026-06-03-todo-9-audit-and-cleanup-plan.md)**
-  73 находки в 3-х параллельных ревью (backend/frontend/tests-docs-ops), сгруппировано в 3 волны:
-  - done - **9.1a (must-fix, ~3 дня):** security holes (S-1/S-2/S-4), a11y (V-1/V-2), packaging breakage (O-1/O-2), CI gaps, JS i18n + silent catches, SECURITY/DEPLOYMENT docs — done, tag v1.2.0 (+ v1.2.1 hot-fix for CSP). See .dev-notes/follow-ups/wave-9-1a.md.
-  - done - **9.1b (should-fix, ~5 дней):** architecture cleanup — done, tag v1.3.0. Split index.php → Bootstrap/Container,Events,Routes; DI re-entry guard; ApiKernel regex routes; 22 controllers to constructor-injection via Factory; Validator + Log services; Repository @return annotations; ActivityLog assoc-array; HtmlSanitizer hard-requires ext-dom; APP_SECRET split; Updater cleanup logging; CSP nonce prep; kanban.js → 3 modules; ui-fields.js + FormBuilder class; app.css → 8 layered files; .btn--variant BEM; modal focus trap; withButtonBusy; inline field errors; mobile breakpoints; test fill-in (+27 unit, +10 e2e); -577KB assets (FA brands dropped, Quill lazy-loaded, fonts preloaded); .dev-notes/ relocation; .env.example parity test; package.json MIT; errors.log size cap + activity_log prune; bin/check-env.php; 64 unused i18n keys pruned.
-  - **9.1c (nice-to-have, ~2 дня):** continuous polish backlog
+## Open
 
-  #9.1 - Чек-лист по итогам аудита кода (2026-06-02) — superseded by #9.2 above (статус каждого пункта зафиксирован в новом spec'е: fixed/still-applies/expanded):
+### #9 — Refactor and code-quality pass for productisation
 
-  Архитектура / структурный долг:
-    - Constructor injection в контроллерах: убрать App::make() из тел методов, передавать зависимости через __construct (~20 контроллеров, см. ProjectController:43-80, TaskController:47-61)
-    - Вынести event listeners из public/index.php:92-165 (74 строки inline-замыканий) в отдельный system/Events/Listeners.php или фабрику
-    - View contracts: уйти от extract($data, EXTR_SKIP) в шаблонах к типизированным DTO или хотя бы документированным контрактам шаблонов (опечатка в ключе сейчас молча исчезает)
-    - Централизовать валидацию POST-запросов: общий валидатор с error collection вместо разбросанных trim() + if ('' === $x) return 422 (повторяется в каждом POST-экшене)
-    - Кэшировать asset_version в памяти на бутстрапе (сейчас SELECT на каждом asset_url() в helpers.php:49-55, ~12 хитов БД на рендер страницы)
-    - Структурированное логирование: единый ErrorLogger service вместо разбросанных error_log() (EventBus, PublicFormController, PublicLinkController и др.)
-    - Repository: добавить возвращаемые типы (array|null) на findById и т.п. — нужно для статического анализа
-    - DI-контейнер: явная фаза boot с проверкой графа зависимостей вместо неявного порядка регистрации в index.php:45-81
+Documentation per important entity lives in `docs/`. Status is now tracked
+in [.dev-notes/superpowers/specs/2026-06-03-todo-9-audit-and-cleanup-plan.md](.dev-notes/superpowers/specs/2026-06-03-todo-9-audit-and-cleanup-plan.md)
+(2026-06-03 full audit, 73 findings across three parallel reviews —
+backend/frontend/tests-docs-ops). Grouped into three waves:
 
-  Безопасность (из аудита):
-    - HtmlSanitizer: требовать DOMDocument как обязательное расширение ИЛИ санитайзить при сохранении (а не при рендере) — закрывает деградацию до strip_tags на task description (views/tasks/show.php:44)
-    - X-Forwarded-For: документировать требование trusted reverse proxy + env-флаг для отключения парсинга XFF (PublicFormController:148-149, ShortLinkVisitRepository:65-71) — иначе спуфится rate-limit и unique-visitors
-    - SessionManager:16 — добавить явный chmod($dir, 0700) после mkdir (сейчас зависит от umask)
-    - Отделить FORM_ANTI_BOT_SECRET от LOGIN_HASH (с обратной совместимостью через fallback)
-    - CSP style-src 'unsafe-inline' (public/index.php:16): вынести динамические inline-стили в CSS-переменные через data-атрибуты, потом убрать unsafe-inline
-    - LinkController:100 — json_decode silently → []; вернуть 400 с понятной ошибкой клиенту
-    - Опционально: тумблер скрытия рефереров в статистике коротких ссылок
+- **done — 9.1a (must-fix, ~3 days):** security holes (S-1/S-2/S-4),
+  a11y (V-1/V-2), packaging breakage (O-1/O-2), CI gaps, JS i18n + silent
+  catches, SECURITY/DEPLOYMENT docs. Shipped, tag `v1.2.0` (+ `v1.2.1`
+  hot-fix for CSP). See [.dev-notes/superpowers/follow-ups/wave-9-1a.md](.dev-notes/superpowers/follow-ups/wave-9-1a.md).
+- **done — 9.1b (should-fix, ~5 days):** architecture cleanup. Shipped,
+  tag `v1.3.0`. Split `index.php` → `Bootstrap/Container,Events,Routes`;
+  DI re-entry guard; ApiKernel regex routes; 22 controllers to
+  constructor-injection via Factory; Validator + Log services; Repository
+  `@return` annotations; ActivityLog assoc-array; HtmlSanitizer hard-requires
+  ext-dom; `APP_SECRET` split; Updater cleanup logging; CSP nonce prep;
+  kanban.js → 3 modules; `ui-fields.js` + `FormBuilder` class; `app.css`
+  → 8 layered files; `.btn--variant` BEM; modal focus trap; `withButtonBusy`;
+  inline field errors; mobile breakpoints; test fill-in (+27 unit, +10 e2e);
+  −577 KB assets (FA brands dropped, Quill lazy-loaded, fonts preloaded);
+  `.dev-notes/` relocation; `.env.example` parity test; `package.json` MIT;
+  `errors.log` size cap + `activity_log` prune; `bin/check-env.php`;
+  64 unused i18n keys pruned.
+- **9.1c (nice-to-have, ~2 days):** continuous polish backlog (in flight).
 
-  Качество кода (frontend):
-    - form-builder.js: переписать в класс (TDZ-комментарий на line 30 — след пережитого бага)
-    - Разбить большие модули по concern: kanban.js (652 LOC), ui.js (411), form-builder.js (316)
-    - Silent catch {}: показывать toast/баннер при API-ошибках (kanban lazy-load, form save и пр.)
-    - ARIA / focus management: единый паттерн для модалок и live-регионов асинхронных обновлений
-    - app.css (4894 LOC): разбить на слои (palette, components, pages), когда дисциплина одного файла начнёт давать сбои
+### #10 — Setup wizard for new installs
 
-  Тесты:
-    - TelegramNotifier: unit-тест на цепочку event → notification → HTTP POST
-    - FileUploader: edge cases (размер, MIME-фильтр, directory traversal guards)
-    - RolePolicy: полная матрица разрешений (canCreateProject, canEditTask, canManageForms/Polls/Links)
-    - API-слой: отдельный test_api.php для /api/projects/{id}/columns/{id}/tasks и т.п.
-    - Markdown / HtmlSanitizer: сложные вложенные структуры, edge-case ссылок и кода
-    - Dark theme persistence: e2e-тест переключения и сохранения через reload
-    - Мобильные брейкпоинты: визуальные ассерты на узких viewport-ах (не только скриншоты)
-    - Решить с root playwright.config.ts (port 8000, stale) — удалить или смерджить с tests/e2e/playwright.config.ts (port 8001)
-    - Подумать про замену hand-rolled тест-раннера на стандартный (Pest/PHPUnit), если кодовая база растёт за 7-8 KLOC
+A small `install` step on first boot that walks an admin through:
+- Database choice (SQLite vs MySQL connection params)
+- Admin user creation
+- `LOGIN_HASH` setup (also storable / toggleable from DB, exposed in
+  Platform settings)
 
-  Документация (под #9 «отдельный md на сущность»):
-    - docs/ARCHITECTURE.md: request flow, DI/контейнер, репозитории, сервисный слой, event bus
-    - docs/API.md: контракты публичных эндпоинтов (/api/*), формат ошибок
-    - docs/FRONTEND.md: карта JS-модулей, паттерн взаимодействия с API, эскейпинг, dark theme
-    - docs/TESTING.md: устройство hand-rolled runner, Playwright config, как добавить тест
-    - docs/SECURITY.md: модель угроз, CSP, CSRF, дедуп IP-хэшем, антибот, политика ролей
-    - docs/DEPLOYMENT.md: make package, права на data/, требования к PHP-расширениям (DOMDocument, finfo, PDO sqlite)
-    - TODO.md: перевести смешанный русско-английский на единый язык (или вынести стратегические эпики в отдельный roadmap)
+Goal: zero-friction first run on a client's server.
 
-  Чистка репозитория:
-    - Удалить data.backup-pre-migrate-refactor/ (592 KB legacy backup в репо)
-    - i18n паритет: добавить forms_data.brand_tag в system/i18n/pl.php и system/i18n/uk.php (EN 478 ключей, PL/UK 477)
-    - Закоммитить готовую фичу short-links (сейчас в working tree — 95% complete, протестирована)
+---
 
-#10 - необходимо сделать инсталятор проекта - визард (выбор БД, создание админа, хеша админа (можем его хранить и настраивать еще и с БД, там же можем его отключить, это в настройках платформы должно быть)). То есть это небольшой файл с этапами разворачивания проекта на сервере клиента, для удобства первого запуска.
+## Historic checklist (2026-06-02 audit)
 
-done - #11 - нужен мигратор с sqlite в mysql БД (после #1) - это нужно для того чтобы если проект стартовал на sqlite но со временем разросся, то можно было бы автоматически перевести проект на mysql через настройки в админке (отдельный раздел в Компас) - done (Compass → Migrate to MySQL: тест коннекта, план с row counts, синхронная копия батчами по 500, reset AUTO_INCREMENT, sanity-check, эндпоинт verify после правки .env; SQLite-файл не трогается — откат = вернуть .env)
+Superseded by `#9.2` above — each item's status is captured in the new spec
+(fixed / still-applies / expanded). Kept for traceability:
+
+### Architecture / structural debt
+- Constructor injection in controllers: drop `App::make()` inside method
+  bodies, take deps via `__construct` (~20 controllers,
+  see `ProjectController:43-80`, `TaskController:47-61`).
+- Extract event listeners from `public/index.php:92-165` (74 lines of inline
+  closures) into a dedicated `system/Events/Listeners.php` or factory.
+- View contracts: move away from `extract($data, EXTR_SKIP)` toward typed
+  DTOs (or at least documented template contracts) — typos in a key
+  silently disappear today.
+- Centralise POST validation: a shared validator with error collection
+  instead of scattered `trim()` + `if ('' === $x) return 422` (repeated in
+  every POST action).
+- Cache `asset_version` in memory at bootstrap (currently one SELECT per
+  `asset_url()` call in `helpers.php:49-55`, ~12 DB hits per render).
+- Structured logging: a single `ErrorLogger` service replacing scattered
+  `error_log()` (EventBus, PublicFormController, PublicLinkController…).
+- Repositories: add return types (`array|null`) on `findById` etc — needed
+  for static analysis.
+- DI container: an explicit boot phase with dependency-graph validation
+  instead of the implicit registration order in `index.php:45-81`.
+
+### Security (from the audit)
+- HtmlSanitizer: require `DOMDocument` as a hard prerequisite OR sanitize
+  on save (not on render) — closes the silent fall-back to `strip_tags` on
+  task description (`views/tasks/show.php:44`).
+- X-Forwarded-For: document the trusted-reverse-proxy requirement + env flag
+  to disable XFF parsing (`PublicFormController:148-149`,
+  `ShortLinkVisitRepository:65-71`); otherwise rate-limit and
+  unique-visitor counters spoof.
+- `SessionManager:16` — add an explicit `chmod($dir, 0700)` after `mkdir`
+  (today the mode depends on umask).
+- Split `FORM_ANTI_BOT_SECRET` away from `LOGIN_HASH` (with a fallback for
+  backward compatibility).
+- CSP `style-src 'unsafe-inline'` (`public/index.php:16`): move dynamic
+  inline styles into CSS variables via data-attributes, then drop
+  `unsafe-inline`.
+- `LinkController:100` — `json_decode` silently returns `[]`; return `400`
+  with a clear client-side error instead.
+- Optional: a toggle that hides referrer columns in short-link stats.
+
+### Frontend code quality
+- `form-builder.js`: rewrite as a class (the TDZ comment on line 30 is a
+  scar from a real bug).
+- Split large modules by concern: `kanban.js` (652 LOC), `ui.js` (411),
+  `form-builder.js` (316).
+- Silent `catch {}` blocks: surface API errors via toast/banner (kanban
+  lazy-load, form save, …).
+- ARIA / focus management: a single pattern for modals and live regions
+  driving async updates.
+- `app.css` (4894 LOC): split into layers (palette → components → pages)
+  the moment the single-file discipline starts to slip.
+
+### Tests
+- TelegramNotifier: unit test for the event → notification → HTTP POST
+  chain.
+- FileUploader: edge cases (size, MIME filter, directory-traversal
+  guards).
+- RolePolicy: complete permission matrix (`canCreateProject`,
+  `canEditTask`, `canManageForms/Polls/Links`).
+- API layer: a dedicated `test_api.php` for
+  `/api/projects/{id}/columns/{id}/tasks` and friends.
+- Markdown / HtmlSanitizer: complex nested structures, link and code edge
+  cases.
+- Dark-theme persistence: e2e test for toggle + reload.
+- Mobile breakpoints: visual assertions at narrow viewports (beyond
+  screenshots).
+- Decide the fate of root `playwright.config.ts` (port 8000, stale) —
+  delete it or merge into `tests/e2e/playwright.config.ts` (port 8001).
+- Consider migrating off the hand-rolled test runner to Pest/PHPUnit if
+  the codebase grows past 7–8 KLOC.
+
+### Documentation (per `#9` "an md per entity")
+- `docs/ARCHITECTURE.md`: request flow, DI/container, repositories,
+  service layer, event bus.
+- `docs/API.md`: public endpoint contracts (`/api/*`), error format.
+- `docs/FRONTEND.md`: JS module map, API-interaction pattern, escaping,
+  dark theme.
+- `docs/TESTING.md`: hand-rolled runner internals, Playwright config, how
+  to add a test.
+- `docs/SECURITY.md`: threat model, CSP, CSRF, IP-hash dedup, anti-bot,
+  role policy.
+- `docs/DEPLOYMENT.md`: `make package`, `data/` permissions, required PHP
+  extensions (DOMDocument, finfo, PDO sqlite).
+- `TODO.md`: pick a single language (or carve strategic epics into a
+  separate roadmap).
+
+### Repo cleanup
+- Remove `data.backup-pre-migrate-refactor/` (592 KB legacy backup in the
+  repo).
+- i18n parity: add `forms_data.brand_tag` to `system/i18n/pl.php` and
+  `system/i18n/uk.php` (EN 478 keys, PL/UK 477).
+- Commit the finished short-links feature (currently in working tree —
+  95% complete, tested).
