@@ -33,6 +33,16 @@ final class Container
         App::singleton('tasks',    fn() => new \App\Repository\TaskRepository(App::make('db')));
         App::singleton('task_links', fn() => new \App\Repository\TaskLinkRepository(App::make('db')));
         App::singleton('settings',  fn() => new \App\Repository\SettingsRepository(App::make('db')));
+        // Per-request memo of the asset cache-buster. Lives as a DI singleton
+        // so App::reset() (called at the top of every request) refreshes it,
+        // and a single page render does one SELECT instead of N (one per
+        // <script>/<link> emitted by views).
+        App::singleton('asset_version', function () {
+            $v = '';
+            try { $v = App::make('settings')->get('asset_version', ''); }
+            catch (\Throwable $_) {}
+            return new class($v) { public function __construct(public readonly string $value) {} };
+        });
         App::singleton('forms',     fn() => new \App\Repository\FormRepository(App::make('db')));
         App::singleton('form_submissions', fn() => new \App\Repository\FormSubmissionRepository(App::make('db')));
         App::singleton('short_links',       fn() => new \App\Repository\ShortLinkRepository(App::make('db')));

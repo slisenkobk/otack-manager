@@ -18,10 +18,7 @@ final class Factory
     public static function make(string $controller, Renderer $view, ?array $user): object
     {
         return match ($controller) {
-            'Smoke'      => new SmokeController(
-                $view, $user,
-                App::make('csrf'),
-            ),
+            'Smoke'      => new SmokeController($view, $user),
             'PublicLink' => new PublicLinkController(
                 $view, $user,
                 App::make('short_links'),

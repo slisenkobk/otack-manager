@@ -56,7 +56,14 @@ $csrf  = new Csrf($store);
 Container::register($store, $csrf, $session);
 
 SchemaBootstrap::$legacyMarkerDir = APP_ROOT . '/data/.schema';
-Migrations::run(App::make('schema'));
+try {
+    Migrations::run(App::make('schema'));
+} catch (\App\Database\MigrationsLockUnavailable $_) {
+    // Another php-fpm worker holds the migration lock — it'll commit shortly
+    // and the next request sees the up-to-date schema. Continuing here against
+    // the previously-committed schema is the right call: 500-ing every
+    // concurrent boot during a deploy would be far worse UX.
+}
 
 Events::register();
 

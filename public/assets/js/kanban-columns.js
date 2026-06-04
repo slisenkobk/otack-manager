@@ -5,13 +5,14 @@
 // ./ui-fields.js so projects/users modals can share the same primitives.
 
 import { api, UI } from './ui.js';
-import { logSilent, t } from './utils.js';
+import { logSilent, t, loadSortable } from './utils.js';
 import { buildField, buildColorPickerField } from './ui-fields.js';
 
-export function initColumnSortable(root) {
+export async function initColumnSortable(root) {
   const projectId = +root.dataset.projectId;
   if (!projectId) return;
-  window.Sortable.create(root, {
+  const Sortable = await loadSortable();
+  Sortable.create(root, {
     animation: 150,
     handle: '.kanban-col__drag',
     draggable: '.kanban-col',

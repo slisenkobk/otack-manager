@@ -1,11 +1,11 @@
 import { api, UI } from './ui.js';
 import { logSilent, t, withButtonBusy } from './utils.js';
 
-const titleEl = document.querySelector('.task-title');
-const sidebar = document.querySelector('.task-sidebar');
-if (!sidebar) {
-  // not on a task page
-} else {
+(() => {
+  const titleEl = document.querySelector('.task-title');
+  const sidebar = document.querySelector('.task-sidebar');
+  if (!sidebar) return; // not on a task page
+
   const taskId = sidebar.dataset.taskId;
   const projectId = sidebar.dataset.projectId;
 
@@ -321,4 +321,4 @@ if (!sidebar) {
       } catch (e) { logSilent(e, 'task-page.promoteToProject'); }
     });
   });
-}
+})();

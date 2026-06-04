@@ -63,6 +63,8 @@ $localeNames = locale_display_names();
 
     <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 18px;"><?= e(t('settings.section.workspace_hint', ['fallback' => 'Otack Manager'])) ?></p>
 
+    <fieldset class="field-group">
+      <legend class="field-group__legend"><?= e(t('settings.tab.workspace')) ?></legend>
     <div class="form-grid form-grid--2">
       <div class="field">
         <label for="f-app-name"><?= e(t('settings.field.app_name')) ?></label>
@@ -136,12 +138,26 @@ $localeNames = locale_display_names();
         </div>
         <p class="muted" style="font-size:12px;color:var(--ink-3);margin:8px 0 0;"><?= e(t('settings.field.default_locale_hint')) ?></p>
       </div>
+
+      <div class="field form-grid__span">
+        <label for="f-project-palette"><?= e(t('settings.field.project_palette')) ?></label>
+        <input id="f-project-palette" class="input" type="text" name="project_palette"
+               value="<?= e($values['project_palette'] ?? '') ?>"
+               placeholder="EA580C,5A4E3F,2563EB,…"
+               pattern="^[0-9A-Fa-f]{6}(\s*,\s*[0-9A-Fa-f]{6})*$">
+        <p class="muted" style="font-size:12px;color:var(--ink-3);margin:6px 0 0;">
+          <?= e(t('settings.field.project_palette_hint')) ?>
+        </p>
+      </div>
     </div>
+    </fieldset>
 
   <?php elseif ($currentTab === 'contact'): ?>
 
     <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 18px;"><?= e(t('settings.section.contact_hint')) ?></p>
 
+    <fieldset class="field-group">
+      <legend class="field-group__legend"><?= e(t('settings.tab.contact')) ?></legend>
     <div class="form-grid form-grid--2">
       <div class="field">
         <label for="f-contact-company-name"><?= e(t('settings.field.company_name')) ?></label>
@@ -170,6 +186,7 @@ $localeNames = locale_display_names();
       </div>
       <input type="hidden" id="contact-default-text-hidden" name="contact_default_text" value="<?= e($values['contact_default_text'] ?? '') ?>">
     </div>
+    </fieldset>
 
   <?php endif; ?>
 

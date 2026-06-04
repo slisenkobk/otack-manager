@@ -80,3 +80,24 @@ export async function withButtonBusy(btn, fn) {
     btn.removeAttribute('aria-busy');
   }
 }
+
+// AS-4: lazy-load Sortable from /assets/vendor/sortable.min.js. The pages
+// that need it (projects/show.php, forms/builder.php) used to ship the
+// 44 KB library as a synchronous <script> tag in <head> which blocked
+// first paint. Now those views no longer load it directly — callers
+// `await loadSortable()` right before they touch `Sortable.create(...)`.
+// Repeated calls share a single in-flight Promise; once resolved we
+// re-resolve from `window.Sortable` for free.
+let sortablePromise = null;
+export function loadSortable() {
+  if (window.Sortable) return Promise.resolve(window.Sortable);
+  if (sortablePromise) return sortablePromise;
+  sortablePromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = '/assets/vendor/sortable.min.js';
+    s.onload  = () => resolve(window.Sortable);
+    s.onerror = () => { sortablePromise = null; reject(new Error('Failed to load Sortable')); };
+    document.head.appendChild(s);
+  });
+  return sortablePromise;
+}

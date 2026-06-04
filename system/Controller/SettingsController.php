@@ -21,6 +21,11 @@ final class SettingsController extends BaseController
     public const KEYS = [
         'app_name'              => ['label' => 'App name',           'default' => ''],
         'app_color'             => ['label' => 'Brand color',        'default' => ''],
+        // Comma-separated #RRGGBB list (no leading `#`). The new-project
+        // modal picks a random colour from this set when an admin hasn't
+        // chosen one explicitly. Keep the legacy hardcoded palette as the
+        // built-in default — empty value falls back to that.
+        'project_palette'       => ['label' => 'Project color palette', 'default' => 'EA580C,5A4E3F,2563EB,CA8A04,4D6840,6D28D9,DC2626,0891B2,9333EA,0F766E'],
         'timezone'              => ['label' => 'Timezone',           'default' => 'Europe/Kyiv'],
         'default_locale'        => ['label' => 'Default language',   'default' => 'en'],
         'contact_company_name'  => ['label' => 'Company name',       'default' => ''],
@@ -129,6 +134,19 @@ final class SettingsController extends BaseController
                 // Accept #RRGGBB only — input type=color always sends 7 chars.
                 if (!preg_match('/^#[0-9a-f]{6}$/i', $val)) continue;
                 $val = strtolower($val);
+            }
+            if ($k === 'project_palette' && $val !== '') {
+                // Comma-separated #RRGGBB without leading `#`; tolerate spaces,
+                // case-insensitive. Reject everything else so a fat-fingered
+                // value can't make the new-project picker render garbage.
+                $cleaned = [];
+                foreach (preg_split('/\s*,\s*/', $val) as $hex) {
+                    $hex = ltrim($hex, '#');
+                    if (preg_match('/^[0-9a-f]{6}$/i', $hex)) {
+                        $cleaned[] = strtoupper($hex);
+                    }
+                }
+                $val = $cleaned ? implode(',', $cleaned) : '';
             }
             if ($k === 'default_locale') {
                 if (!in_array($val, available_locales(), true)) continue;

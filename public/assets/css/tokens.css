@@ -102,58 +102,13 @@
 
 /* ─── §1 Layer D — Dark theme palette ────────────────────────
    Token-level inversion. Every semantic role above still resolves
-   correctly because we only swap the leaf palette values. Activate
-   via `<html data-theme="dark">` (server-rendered from cookie) or
-   automatically via `prefers-color-scheme: dark` when no explicit
-   theme is chosen. */
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    /* PAPER inverted — deep warm graphite stack */
-    --paper:     #1A1612;
-    --paper-2:   #221D17;
-    --paper-3:   #2D2620;
-    --paper-4:   #3A3128;
-
-    /* INK inverted — cream stack for text */
-    --ink:       #F5F2EC;
-    --ink-2:     #D7CFBF;
-    --ink-3:     #A89A85;
-    --ink-4:     #7A6E5C;
-
-    /* RULE — dark warm dividers */
-    --rule:      #3A3128;
-    --rule-2:    #4A3F33;
-    --rule-3:    #5A4E3F;
-
-    /* BRAND — warm orange slightly punchier on dark */
-    --brand:     #EA580C;
-    --brand-2:   #FB7837;
-    --brand-3:   #3D2014;
-    --brand-4:   #4F2A1B;
-    --brand-pop: #FB7837;
-
-    /* SEMANTIC TONES — solid stays, tint becomes deep version */
-    --green:     #7AA068;  --green-tint:   #1E2A18;
-    --red:       #D4604F;  --red-tint:     #2E1814;
-    --blue:      #5A92C5;  --blue-tint:    #172836;
-    --yellow:    #E0A93A;  --yellow-tint:  #2C2110;
-    --teal:      #5BAFAF;  --teal-tint:    #14302F;
-    --purple:    #9D7BB5;  --purple-tint:  #221A2C;
-    --magenta:   #C5688A;  --magenta-tint: #2A141E;
-    --brown:     #B07C58;  --brown-tint:   #2A1D14;
-    --olive:     #99A85A;  --olive-tint:   #1E2410;
-    --indigo:    #7A6FC2;  --indigo-tint:  #1A1730;
-
-    /* Component surface overrides */
-    --topbar-bg:    rgba(26, 22, 18, 0.85);
-    --surface-soft: #221D17;
-    --auth-page-bg: #1A1612;
-
-    color-scheme: dark;
-  }
-}
-/* Manual override — duplicated rule body so cascade works regardless of OS */
+   correctly because we only swap the leaf palette values. Activated
+   solely by `<html data-theme="dark">` — either server-rendered from
+   the `theme` cookie or filled in by `public/assets/js/theme-init.js`
+   (which reads `prefers-color-scheme` for the cookie='auto' case
+   before the stylesheet evaluates). The historical duplicate
+   `@media (prefers-color-scheme: dark)` block was removed in CSS-6
+   — a single rule body now wins regardless of OS preference. */
 :root[data-theme="dark"] {
   --paper:     #1A1612;
   --paper-2:   #221D17;

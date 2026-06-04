@@ -1,4 +1,4 @@
-.PHONY: help setup serve dev test unit api e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package package-check migrate
+.PHONY: help setup serve dev test unit api e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package package-check migrate test-clean
 
 PORT ?= 8000
 SERVER_PID := /tmp/otack-server.pid
@@ -110,7 +110,7 @@ unit-mysql:
 	docker stop $$CID >/dev/null; \
 	exit $$STATUS
 
-e2e:
+e2e: test-clean
 	npx playwright test
 
 e2e-ui:
@@ -129,10 +129,21 @@ reset: confirm-destruct
 	@echo "Dev DB wiped — next request creates fresh schema"
 
 reset-test: confirm-destruct
-	rm -f data/app.test.sqlite
-	rm -rf data/.schema.test
-	rm -rf public/uploads-test
-	@echo "Test DB + uploads wiped"
+	rm -f data/app.test.sqlite data/app.test.sqlite-wal data/app.test.sqlite-shm
+	rm -f data/app.api-test.sqlite data/app.api-test.sqlite-wal data/app.api-test.sqlite-shm
+	rm -rf data/.schema.test public/uploads-test
+	@mkdir -p public/uploads-test
+	@echo "Test DB + schema + uploads reset."
+
+# Lower-friction cleanup used by `make e2e` — no password gate. Removes
+# Playwright artifacts and per-suite SQLite DBs so consecutive runs start
+# from a clean disk; safe to invoke ad hoc.
+test-clean:
+	@rm -rf test-results/ .playwright/
+	@rm -f data/app.test.sqlite data/app.test.sqlite-wal data/app.test.sqlite-shm
+	@rm -f data/app.api-test.sqlite data/app.api-test.sqlite-wal data/app.api-test.sqlite-shm
+	@rm -rf data/.schema.test
+	@echo "Test artifacts cleared."
 
 reset-uploads: confirm-destruct
 	rm -rf public/uploads/*

@@ -39,7 +39,9 @@ if ($canFormsSb) {
     <a class="nav-item<?= ($activeNav ?? '') === 'projects' ? ' nav-item--active' : '' ?>" href="/projects">
       <span class="nav-item__marker"><i class="fa-solid fa-folder"></i></span>
       <span><?= e(t('nav.projects')) ?></span>
-      <span class="nav-item__count"><?= (int)$projectsCount ?></span>
+      <?php if ($projectsCount > 0): ?>
+        <span class="nav-item__count"><?= (int)$projectsCount ?></span>
+      <?php endif; ?>
     </a>
     <?php if ($canFormsSb):
       // Integrations submenu wraps forms/forms-data/polls/links. Auto-open when

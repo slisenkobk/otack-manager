@@ -286,6 +286,9 @@ return [
     'forms_data.all_forms'          => 'All forms',
     'forms_data.empty'              => 'No submissions yet.',
     'forms_data.all_statuses'       => 'All statuses',
+    // Deliberate en-only: this is the product brand baked into the Forms UI
+    // footer. Translating it would mislabel the product. Whitelisted in the
+    // i18n parity test (tests/unit/test_i18n_parity.php).
     'forms_data.brand_tag'          => 'Otack Manager',
 
     // Statuses (form submissions)
@@ -341,6 +344,8 @@ return [
     'settings.section.workspace_hint' => 'Brand name appears in the sidebar, page titles, public forms, and email subjects. Leave empty to fall back to ":fallback".',
     'settings.section.contact_hint'   => 'Shown on the footer of every public Form (users can override per submission).',
     'settings.field.app_name'         => 'App name',
+    'settings.field.project_palette'      => 'Project color palette',
+    'settings.field.project_palette_hint' => 'Comma-separated 6-digit hex codes (no leading "#") used when a new project is created without an explicit color. Leave empty to fall back to the built-in palette.',
     'settings.field.brand_color'      => 'Brand color',
     'settings.field.brand_color_title' => 'Drives logo, accents, links, focus ring, favicon.',
     'settings.field.brand_color_aria' => 'Brand color',

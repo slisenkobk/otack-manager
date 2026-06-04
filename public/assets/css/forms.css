@@ -524,3 +524,17 @@ body.public-form {
   font-size: 12px;
   margin-top: 4px;
 }
+
+/* V-9: fieldset/legend grouping for long admin forms. Visually a thin
+   heading above a stack of fields, semantically a screen-reader group. The
+   browser's default fieldset border/padding is reset so this slots into
+   the existing field-grid layouts without visual collision. */
+.field-group { border: 0; padding: 0; margin: 0 0 24px; }
+.field-group__legend {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--ink-3, var(--text-muted));
+  margin-bottom: 10px;
+  padding: 0;
+}

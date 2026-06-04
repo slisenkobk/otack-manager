@@ -1,6 +1,10 @@
 <?php
-// Theme preference: cookie 'theme' ∈ {light,dark,auto}. 'auto' (or unset)
-// falls back to prefers-color-scheme — handled purely in CSS.
+// Theme preference: cookie 'theme' ∈ {light,dark,auto}. Explicit choices
+// (light/dark) get rendered as `data-theme="…"` here; 'auto' (or unset)
+// leaves the attribute off so theme-init.js (loaded synchronously in
+// <head> below) can stamp it from `prefers-color-scheme` before CSS
+// evaluates. CSS-6 dropped the `@media` block that used to handle this
+// purely in CSS, so JS is now the single source of truth.
 $themePref = $_COOKIE['theme'] ?? 'auto';
 if (!in_array($themePref, ['light', 'dark', 'auto'], true)) $themePref = 'auto';
 $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
@@ -15,6 +19,8 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/manrope-400.woff2" crossorigin>
 <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/manrope-500.woff2" crossorigin>
 <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/jetbrainsmono-400.woff2" crossorigin>
+<?php // Synchronous in <head> so data-theme is stamped on <html> BEFORE the CSS below evaluates — prevents a light/dark flash for users with cookie=auto. See public/assets/js/theme-init.js. ?>
+<script src="/assets/js/theme-init.js"></script>
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/tokens.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/base.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/layout.css')) ?>">
@@ -37,6 +43,14 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 ?>
 <meta name="i18n-locales" content="<?= e(json_encode($localeMeta)) ?>">
 <meta name="i18n-locale"  content="<?= e(user_locale()) ?>">
+<?php
+  // Project-creation palette: admin-configurable via Settings → Workspace.
+  // Comma-separated hex without `#`. projects.js reads this attribute and
+  // picks a random colour; falls back to a built-in default if absent.
+  $__palette = \App\App::make('settings')->get('project_palette',
+      'EA580C,5A4E3F,2563EB,CA8A04,4D6840,6D28D9,DC2626,0891B2,9333EA,0F766E');
+?>
+<meta name="project-palette" content="<?= e($__palette) ?>">
 </head>
 <body>
 <div class="shell" data-shell>
@@ -63,8 +77,14 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
   }
 ?>
 <script type="application/json" id="i18n-js"><?= json_encode($__jsLocale, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
-<script type="module" src="<?= e(asset_url('/assets/js/ui.js')) ?>"></script>
-<script type="module" src="<?= e(asset_url('/assets/js/wysiwyg.js')) ?>"></script>
-<script type="module" src="<?= e(asset_url('/assets/js/sidebar-groups.js')) ?>"></script>
+<?php // Three site-wide modules: load without the asset_version query so the URL
+      // matches what page-level modules use when they `import './ui.js'`. ES
+      // modules dedup by URL — keeping them on the same canonical path is what
+      // lets us drop the old `window.__otack*Init` guards. These files change
+      // rarely; production deploys that touch them should bust browser cache
+      // via the HTTP layer (nginx ETag / Cache-Control) rather than `?v=`. ?>
+<script type="module" src="/assets/js/ui.js"></script>
+<script type="module" src="/assets/js/wysiwyg.js"></script>
+<script type="module" src="/assets/js/sidebar-groups.js"></script>
 </body>
 </html>

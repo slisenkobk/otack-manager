@@ -82,20 +82,20 @@ function tryInit() {
   document.querySelectorAll('[data-quill]').forEach(initQuill);
 }
 
-if (!window.__otackQuillInit) {
-  window.__otackQuillInit = true;
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', tryInit);
-  } else {
-    tryInit();
-  }
-  // Catch [data-quill] elements that get inserted dynamically (modals,
-  // kanban quick-edit, etc.) — mirrors the custom-select observer in ui.js.
-  new MutationObserver((muts) => {
-    muts.forEach((m) => m.addedNodes.forEach((n) => {
-      if (!(n instanceof HTMLElement)) return;
-      if (n.matches?.('[data-quill]')) initQuill(n);
-      n.querySelectorAll?.('[data-quill]').forEach(initQuill);
-    }));
-  }).observe(document.body, { childList: true, subtree: true });
+// wysiwyg.js is loaded ONCE per page from layouts/main.php with a
+// query-less URL; no other modules `import './wysiwyg.js'`, so ES-module
+// dedup keeps this top-level block running exactly once.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', tryInit);
+} else {
+  tryInit();
 }
+// Catch [data-quill] elements that get inserted dynamically (modals,
+// kanban quick-edit, etc.) — mirrors the custom-select observer in ui.js.
+new MutationObserver((muts) => {
+  muts.forEach((m) => m.addedNodes.forEach((n) => {
+    if (!(n instanceof HTMLElement)) return;
+    if (n.matches?.('[data-quill]')) initQuill(n);
+    n.querySelectorAll?.('[data-quill]').forEach(initQuill);
+  }));
+}).observe(document.body, { childList: true, subtree: true });

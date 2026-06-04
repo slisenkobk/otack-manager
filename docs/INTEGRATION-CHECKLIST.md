@@ -24,16 +24,23 @@ it with [`docs/API.md`](API.md) for the full reference.
       `Content-Type: multipart/form-data`
 - [ ] HTTPS in production (mandatory)
 - [ ] Smoke test passed: `GET /me` returns `200` + identity JSON
+- [ ] Client knows there are no idempotency keys; retries on `POST` may create
+      duplicates. Use natural keys client-side (`external_id` / hash of
+      payload) to deduplicate.
 
 ## Hardening
 - [ ] Client retries on `429` using the `Retry-After` header value
 - [ ] Client maps the `error` code field to logic (NOT `message`)
 - [ ] Logs redact the `Authorization` header
 - [ ] You have a documented runbook for token compromise (revoke + reissue)
+- [ ] Client subscribes to schema changes by polling
+      `GET /api/v1/openapi.yaml` weekly and diffing against the last seen hash
 
 ## Operations
 - [ ] You paginate using cursors (`next_cursor` / `after`), not full lists
 - [ ] You poll on intervals that stay under 60 req/min/token
 - [ ] You have an alert for repeated 4xx/5xx from the API
+- [ ] You alert on `5xx` rates AND on `4xx` codes that indicate auth drift
+      (`401` spikes — typically rotated-but-unredeployed tokens)
 - [ ] You have a documented integration owner (the person who rotates the
       token annually and on team changes)
