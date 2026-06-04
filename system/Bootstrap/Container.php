@@ -21,6 +21,15 @@ final class Container
 {
     public static function register(array &$sessionStore, Csrf $csrf, SessionManager $session): void
     {
+        // Overlay config.json on top of .env so App::env() picks up wizard
+        // values. ConfigStore re-validates against ALLOWED_KEYS on read, so
+        // a tampered file cannot inject arbitrary env vars.
+        $overlay = (new \App\Service\ConfigStore())->load();
+        foreach ($overlay as $k => $v) {
+            $_ENV[$k] = $v;
+            putenv("$k=$v");
+        }
+
         App::singleton('db',     fn() => Connection::openFromEnv());
         App::singleton('driver', fn() => Connection::driverFor(App::make('db')));
         App::singleton('schema', fn() => new SchemaBootstrap(App::make('db')));
