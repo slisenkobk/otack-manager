@@ -108,13 +108,29 @@ $cmd = '/usr/bin/env ' . implode(' ', array_map('escapeshellarg', $env))
      . ' ' . escapeshellarg($root . '/public/index.php')
      . ' > /tmp/otack-api-test-server.log 2>&1 & echo $!';
 $pid = (int)trim(shell_exec($cmd));
-register_shutdown_function(function () use ($pid) {
+$killServer = function () use ($pid) {
     if ($pid > 0 && function_exists('posix_kill')) {
         @posix_kill($pid, 15);
     } else {
         @shell_exec("kill $pid 2>/dev/null");
     }
-});
+};
+register_shutdown_function($killServer);
+
+// Catch Ctrl+C / SIGTERM so the php -S child doesn't outlive the runner.
+// register_shutdown_function does not fire on uncaught signals, hence
+// pcntl handlers in addition. ext-pcntl is CLI-only and may be absent on
+// minimal containers — both branches skip cleanly if unavailable. (T-11)
+if (function_exists('pcntl_signal') && function_exists('pcntl_async_signals')) {
+    pcntl_async_signals(true);
+    $signalHandler = function (int $sig) use ($killServer) {
+        $killServer();
+        exit(128 + $sig);
+    };
+    pcntl_signal(SIGINT, $signalHandler);
+    pcntl_signal(SIGTERM, $signalHandler);
+    pcntl_signal(SIGHUP, $signalHandler);
+}
 
 // Wait for the server to come up.
 for ($i = 0; $i < 50; $i++) {
