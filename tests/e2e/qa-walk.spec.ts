@@ -102,16 +102,21 @@ test('1.2 logout', async ({ page }) => {
 });
 
 test('1.3 wrong password 5x → throttled on 6th', async ({ page }) => {
+  // Use a separate non-admin email so the DB-backed throttle row created
+  // here (keyed on sha256(lowercased email) — see Wave-A S-1 fix) does NOT
+  // block the real admin login in 1.4. The throttle still fires identically
+  // for any 5+ failed attempts on the same address.
+  const target = 'throttle-probe@qa.test';
   for (let i = 0; i < 5; i++) {
     await page.goto('/login');
-    await page.fill('input[name=email]', 'admin@qa.test');
+    await page.fill('input[name=email]', target);
     await page.fill('input[name=password]', 'wrongpassword');
     await page.locator('button.submit[type=submit], button.submit').first().click();
     await expect(page).toHaveURL('/login');
   }
   // 6th attempt should be throttled
   await page.goto('/login');
-  await page.fill('input[name=email]', 'admin@qa.test');
+  await page.fill('input[name=email]', target);
   await page.fill('input[name=password]', 'wrongpassword');
   await page.locator('button.submit[type=submit], button.submit').first().click();
   await expect(page).toHaveURL('/login');
@@ -124,7 +129,10 @@ test('1.3 wrong password 5x → throttled on 6th', async ({ page }) => {
 });
 
 test('1.4 login with correct password after throttle', async ({ page }) => {
-  // Throttle is session-based, new page = new session
+  // 1.3 throttled `throttle-probe@qa.test`, not the real admin, so this
+  // login should sail through. (Pre-Wave-A this comment said "throttle is
+  // session-based" — that was true until the DB-backed throttle landed in
+  // S-1; 1.3's email switch is the new mitigation.)
   await page.goto('/login');
   await page.fill('input[name=email]', 'admin@qa.test');
   await page.fill('input[name=password]', 'password123');
