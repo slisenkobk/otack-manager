@@ -53,6 +53,26 @@
 }
 .tag .x:hover { color: var(--danger); }
 
+/* Tag-picker chip — visual override on top of base `.tag`. Renders the
+   tag in a softer pill shape with the tag colour at ~20% alpha (the `33`
+   suffix on the hex string supplied via `data-bg`); colour text stays
+   on `--ink` so light/dark backgrounds both read. Wave 9.1e Task 3 moved
+   the static parts off `style=""` for CSP nonce-only. */
+.tag.tag-picker__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: var(--bg, var(--paper-3));
+  color: var(--ink);
+  border: none;
+  border-radius: 999px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: .05em;
+  text-transform: none;
+}
+
 /* Tag picker dropdown */
 .tag-picker {
   position: relative;
@@ -1430,4 +1450,330 @@ pre.copyable.copyable--flash {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+/* ─── §21 Wave 9.1e — admin/compass + updates static-style sweep ───
+   Static inline styles → semantic classes (CSP nonce-only prep). */
+
+/* Grid layout for compass cache tiles. */
+.compass-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-6);
+}
+/* Cache-stat counter highlight — `--alert` colours the number in the
+   accent when there are stale rows to act on; `--ok` keeps it muted.
+   Used inside the i18n-interpolated `<strong>` tags on the cache page
+   so the conditional sits in a class name (Wave 9.1e Task 3). */
+.cache-stat--alert { color: var(--accent); }
+.cache-stat--ok    { color: var(--text-2); }
+
+/* Compass logs page */
+.compass-logs-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-6);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+.compass-logs-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.compass-logs-filter-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.compass-level-select { min-width: 160px; }
+.compass-logs-empty   { padding: var(--space-12) 0; text-align: center; }
+.compass-log-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.compass-log-entry {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--paper);
+}
+.compass-log-entry__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: var(--space-3) var(--space-4);
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--rule);
+}
+.compass-log-entry__time {
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+/* Log-level pill — uppercase mono label sitting in the entry head.
+   `.compass-log-entry__level--error` is set for ERROR/FATAL lines and
+   tints the text in the accent colour for quick scanning. */
+.compass-log-entry__level {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.compass-log-entry__level--error { color: var(--accent); }
+.compass-log-entry__body {
+  margin: 0;
+  padding: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-2);
+}
+
+/* Compass migrations — small caps badges (status column). */
+.compass-meta-strong         { color: var(--text-2); font-weight: 600; }
+.compass-meta-strong--accent { color: var(--accent);  font-weight: 600; }
+.compass-status-badge {
+  color: var(--text-2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.compass-status-badge--accent {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Table cell with right-aligned numeric/status content. */
+.table-cell--num-right {
+  padding: var(--space-3) var(--space-4);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Compass stats — "last migration" sidebar metadata. */
+.compass-last-migration-label {
+  font-size: 11px;
+  margin: 0 0 2px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.compass-last-migration-time {
+  font-size: 12px;
+  margin: 2px 0 0;
+}
+
+/* DB-migrate wizard. */
+.db-migrate-subtitle {
+  font-size: 13px;
+  margin: 0 0 var(--space-6);
+}
+.db-migrate-callout {
+  padding: 12px 14px;
+  background: #f3faf4;
+  border: 1px solid #c8e6c9;
+  border-radius: 6px;
+}
+.db-migrate-plan       { margin-bottom: 18px; }
+.db-migrate-table-cell { font-family: var(--font-mono); font-size: 13px; }
+.db-migrate-target-heading {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--ink-3);
+  margin: 24px 0 8px;
+}
+.field--full           { grid-column: 1 / -1; }
+.db-migrate-actions {
+  margin-top: 18px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.db-migrate-run-result { margin-top: 18px; display: none; }
+.db-migrate-env-block {
+  background: var(--paper-3, #0f0f0f0a);
+  padding: 12px 14px;
+  border-radius: 6px;
+  overflow: auto;
+  font-size: 12px;
+}
+.db-migrate-verify-row {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+}
+.db-migrate-verify-result {
+  font-size: 13px;
+  align-self: center;
+}
+
+/* Updates tab — current version + check-now rows. */
+.updates-current-line { margin: 0; font-size: 18px; }
+.updates-check-line {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.updates-intro     { margin: 0 0 8px; font-size: 15px; }
+.updates-duration  { font-size: 12px; color: var(--ink-3); margin: 0 0 14px; }
+
+/* ─── Wave 9.1e — tasks/projects static-style sweep (Group B) ─── */
+
+/* Full-width sidebar CTA — recurring pattern: promote-to-project,
+   delete-task, delete-project. Sits at the bottom of the sidebar with a
+   small top margin so it never collides with the field above. */
+.btn--block-cta {
+  width: 100%;
+  margin-top: 9px;
+  padding: 8px;
+  font-size: 12px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+/* Icon variant — tighter letter-spacing so the icon + label center
+   cleanly inside an inline-flex row. */
+.btn--block-cta--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  letter-spacing: .08em;
+}
+/* "delete" button right below another CTA tightens up the gap. */
+.btn--block-cta--tight { margin-top: 5px; }
+
+/* Right-hand cluster inside a .page-actions bar (search + new-project
+   button on /projects). */
+.page-actions__right {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* ─── Wave 9.1e — polls + tags + forms-data static-style sweep (Group D) ─── */
+
+/* /polls list page — page-actions row that combines a left search-field
+   with a right cluster of status-filter pills + "New poll" button. The
+   listing variant differs from the default .page-actions in that it
+   space-betweens its children and adds the standard bottom margin. */
+.page-actions--listing {
+  margin-bottom: var(--space-8);
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* Right cluster inside .page-actions--listing: status pills + CTA. */
+.polls-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.polls-filters__pills {
+  display: flex;
+  gap: 4px;
+}
+
+/* /forms-data list page — page-actions row where the entire row is the
+   filters form (no right CTA). Left-aligned with the standard bottom
+   margin. */
+.page-actions--filters {
+  margin-bottom: var(--space-8);
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+/* Card meta-line under the title on the polls-index card — the small
+   12 px ink-3 strip that holds the status pill + "n votes" caption. */
+.card__meta-line {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin: 2px 0 0;
+}
+
+/* Submission-tile (/forms-data list card) — the .ini avatar uses a
+   lighter ink shade than the default .ini so the envelope icon reads as
+   "submission" rather than "person". */
+.ini--ink-2 { background: var(--ink-2); }
+
+/* Bottom-pinned card-row inside a submission tile so the status pill +
+   "open →" arrow always sit at the card bottom regardless of preview
+   length. */
+.card-row--push-bottom { margin-top: auto; }
+
+/* Submission detail (/forms-data/{id}) — small ink-3 back link at the
+   top of the page. Lower contrast than .builder-toolbar__back; sits
+   inline inside .page-actions--inline. */
+.submission-back-link {
+  color: var(--ink-3);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+/* Spacing variants for submission-card content — recurring micro-layout
+   for the "Or pick a project" picker + the secondary "Create task" CTA
+   that sits directly under the project picker. */
+.submission-card__pick-project { margin-top: var(--space-4); }
+.submission-card__cta--tight   { margin-top: var(--space-3); }
+
+/* Tag groups (/admin/tags) — each scope (project/task) renders as a
+   <details> block with an uppercase summary heading and a count chip. */
+.tags-search { max-width: 360px; margin-bottom: var(--space-8); }
+.tag-group   { margin-bottom: 32px; }
+.tag-group__title {
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 12px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tag-group__chevron { font-size: 10px; }
+.tag-group__count {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+/* ─── /polls/{id} (poll show) static-style sweep ─── */
+
+/* Status + votes line under the poll title. */
+.poll-show__status-line { margin: 0 0 8px; }
+/* Public-URL chip on the show page sits below the description with a
+   small top margin (the form-card__url default has no top margin so we
+   layer this modifier on top). */
+.poll-show__url { margin-top: 12px; }
+/* Tabs strip on the show page needs a bit of breathing room before the
+   first builder-panel. */
+.project-tabs--spaced { margin-bottom: var(--space-6, 16px); }
+/* Right-aligned action row at the bottom of the "Project" tab panel. */
+.poll-show__actions-end {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+/* Centred wrapper for the "Load more voters" button. */
+.poll-show__load-more {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
 }

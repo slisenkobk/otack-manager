@@ -75,7 +75,7 @@ $localeNames = locale_display_names();
             <span class="data-table__meta-time"><?= fmt_date($u['created_at']) ?></span>
           </td>
           <td class="data-table__cell--actions">
-            <div style="display:inline-flex;gap:6px;" data-actions>
+            <div class="user-actions" data-actions>
               <?php if ($u['status'] === 'pending'): ?>
                 <button class="btn--secondary" data-action="approve" type="button" title="<?= e(t('users.action.approve')) ?>">
                   <i class="fa-solid fa-check"></i> <?= e(t('users.action.approve')) ?>

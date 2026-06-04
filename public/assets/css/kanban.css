@@ -90,11 +90,35 @@
 .kanban-sort-toggle:hover { color: var(--text); border-color: var(--ink-3); }
 .kanban-sort-toggle[data-sort="priority"] { color: var(--accent); border-color: var(--accent); }
 
-/* Editable inline titles (task title / project title) */
+/* Editable inline titles (task title / project title) — Wave 9.1e Task 3
+   moved the static typography off `style=""` so we can run CSP nonce-only. */
+.task-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  margin: 0;
+  outline: none;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed transparent;
+}
+.project-title {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+  outline: none;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed transparent;
+  flex: 1;
+  min-width: 0;
+}
+.task-title.is-editable,
+.project-title.is-editable { cursor: text; }
 .task-title.is-editable:hover,
-.project-title.is-editable:hover { border-bottom-color: var(--rule-2) !important; }
+.project-title.is-editable:hover { border-bottom-color: var(--rule-2); }
 .task-title.is-editable:focus,
-.project-title.is-editable:focus { border-bottom-color: var(--accent) !important; }
+.project-title.is-editable:focus { border-bottom-color: var(--accent); }
 
 /* Column — full height of kanban row, internal scroll */
 .kanban-col {
@@ -136,7 +160,7 @@
 .kanban-col__dot {
   width: 8px; height: 8px;
   border-radius: 50%;
-  background: var(--col, var(--rule-2));
+  background: var(--bg, var(--rule-2));
   flex-shrink: 0;
 }
 
@@ -254,7 +278,9 @@
   font-size: 13px;
   padding: 4px 10px;
   background: var(--accent-tint);
-  color: var(--accent);
+  /* Use --accent-hover (darker brand) for AA contrast on --accent-tint —
+     the lighter --accent yielded 4.24:1 (Wave 9.1e Task 11). */
+  color: var(--accent-hover);
   border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
@@ -302,7 +328,7 @@
 .kanban-card__counts { display: flex; gap: var(--space-5); }
 .kanban-card__counts i { margin-right: 3px; }
 
-/* Drag states */
+/* Drag states — !important outranks SortableJS-set inline styles applied during drag */
 .kanban-ghost {
   opacity: 0.35;
   background: var(--brand-3) !important;
@@ -716,6 +742,8 @@ a.link-card *,
   border-radius: 50%;
   flex-shrink: 0;
 }
+/* When a colour is supplied via `data-bg` (dynamic-style.js bridges to --bg) */
+.col-dot[data-bg], .dot[data-bg] { background: var(--bg, var(--ink-3)); }
 .status-dot--active   { background: var(--green); box-shadow: 0 0 0 2px rgba(77, 104, 64, .18); }
 .status-dot--planning { background: var(--blue);  box-shadow: 0 0 0 2px rgba(46, 90, 136, .18); }
 .status-dot--under_review { background: var(--yellow); box-shadow: 0 0 0 2px rgba(181, 135, 30, .18); }
@@ -742,6 +770,8 @@ a.link-card *,
   transition: border-color var(--duration) var(--ease);
 }
 .color-swatch:hover { border-color: var(--ink-3); }
+/* Background filled via `data-bg` (dynamic-style.js → --bg) */
+.color-swatch[data-bg] { background: var(--bg); }
 .color-swatch input[type="color"] {
   position: absolute;
   inset: -4px;
@@ -755,6 +785,7 @@ a.link-card *,
 }
 
 /* Highlight pulse — matches assystant ticket-pulse */
+/* !important outranks .kanban-card[data-priority]:not([data-priority="none"]) which has higher specificity */
 .kanban-card.is-highlight { animation: ticket-pulse 1.6s ease-out; border-color: var(--accent) !important; }
 @keyframes ticket-pulse {
   0%   { box-shadow: 0 0 0 0 var(--brand-3); }
@@ -845,3 +876,54 @@ a.link-card *,
   box-shadow: 0 0 0 3px var(--focus-ring-alpha);
 }
 .kanban-card__due { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ─── Wave 9.1e — tasks/projects static-style sweep (Group B) ───
+   Static inline styles → semantic classes (CSP nonce-only prep). */
+
+/* Task header — spacing below the title block (was inline margin). */
+.task-header { margin: 0 0 24px; }
+
+/* Sub-status badge row above the task title. */
+.task-sub-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+/* Linked-tasks panel header sits flush against the section padding. */
+.overview-panel__head--linked { padding: 0 0 var(--space-6); }
+
+/* Sidebar shell shared by task-detail + project-overview. The base
+   .task-sidebar / .project-sidebar selectors used to be empty hooks; the
+   border/padding/background were carried inline. */
+.task-sidebar,
+.project-sidebar {
+  border: 1px solid var(--rule);
+  padding: 18px;
+  background: var(--paper);
+  border-radius: var(--radius-xs);
+}
+
+/* "Created by … / timestamp" metadata block at the bottom of the
+   task sidebar. */
+.entity-meta-block {
+  border-top: 1px solid var(--rule);
+  padding-top: 6px;
+  margin-top: 9px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.entity-meta-block strong { color: var(--ink-2); }
+.entity-meta-block__time {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+}
+
+/* Project overview — header row (avatar + editable title). */
+.project-overview__header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}

@@ -1,5 +1,12 @@
 # Wave 9.1a — known follow-ups
 
+## STATUS: RESOLVED in Wave 9.1e (v1.4.0)
+
+All items deferred from Wave 9.1a were either closed inside the 9.1a-d
+sequence or explicitly out-of-scope per the original audit spec. The
+final blocker (S-6 CSP `'unsafe-inline'` for styles) shipped in
+`v1.4.0`. TODO #9 is closed — see [TODO.md](../../../TODO.md#9-—-refactor-and-code-quality-pass-for-productisation).
+
 Items discovered during execution that were intentionally NOT fixed inline
 (scope of the wave was closed). Tracked here so they don't get lost.
 

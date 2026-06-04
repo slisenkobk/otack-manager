@@ -14,7 +14,7 @@ if (!empty($currentForm)) {
 }
 $currentStatusLabel = $statusLabels[$currentStatus] ?? '';
 ?>
-<div class="page-actions" style="margin-bottom:var(--space-8);justify-content:flex-start;gap:10px;">
+<div class="page-actions page-actions--filters">
   <form method="get" action="/forms-data" class="forms-data-filters">
     <div class="search-field search-field--with-submit m-0">
       <i class="fa-solid fa-magnifying-glass muted fz-12"></i>
@@ -92,7 +92,7 @@ $currentStatusLabel = $statusLabels[$currentStatus] ?? '';
         <span class="corner-tag">S-<?= (int)$r['id'] ?></span>
         <span class="corner-meta"><?= fmt_datetime($r['created_at']) ?></span>
         <div class="card-head">
-          <div class="ini" style="background: var(--ink-2);"><i class="fa-solid fa-envelope-open-text" style="color:var(--paper);font-size:14px;"></i></div>
+          <div class="ini ini--ink-2"><i class="fa-solid fa-envelope-open-text text-paper fz-14"></i></div>
           <div class="flex-1-min">
             <h3 class="name"><?= e($r['form_title']) ?></h3>
           </div>
@@ -100,7 +100,7 @@ $currentStatusLabel = $statusLabels[$currentStatus] ?? '';
         <?php if ($preview !== ''): ?>
           <p class="card__desc"><?= e(mb_strimwidth($preview, 0, 140, '…')) ?></p>
         <?php endif; ?>
-        <div class="card-row" style="margin-top:auto;">
+        <div class="card-row card-row--push-bottom">
           <span class="status status--<?= e($r['status']) ?>"><?= e($statusLabels[$r['status']] ?? $r['status']) ?></span>
           <span class="share-link"><?= e(t('common.open')) ?> <span class="arr">&#8594;</span></span>
         </div>

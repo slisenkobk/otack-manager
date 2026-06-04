@@ -10,7 +10,7 @@ $statusLabels = [
 $converted = in_array($sub['status'], ['converted_task', 'converted_project'], true);
 ?>
 <div class="page-actions page-actions--inline u-mb-space-8">
-  <a href="/forms-data" style="color:var(--ink-3);text-decoration:none;font-size:12px;"><i class="fa-solid fa-arrow-left"></i> All submissions</a>
+  <a href="/forms-data" class="submission-back-link"><i class="fa-solid fa-arrow-left"></i> All submissions</a>
   <span class="status status--<?= e($sub['status']) ?>"><?= e($statusLabels[$sub['status']] ?? $sub['status']) ?></span>
 </div>
 
@@ -113,11 +113,11 @@ $converted = in_array($sub['status'], ['converted_task', 'converted_project'], t
         <button type="button" class="btn btn--primary submit submission-card__cta" data-action="convert-project">
           <i class="fa-solid fa-folder-plus"></i> New project
         </button>
-        <div class="field" style="margin-top:var(--space-4);">
+        <div class="field submission-card__pick-project">
           <label class="fz-12 text-ink-3">Or pick a project for a new task</label>
           <div class="custom-select" data-custom-select<?= count($projects) > 6 ? ' data-custom-select-search' : '' ?>>
             <button type="button" class="custom-select__btn">
-              <span class="custom-select__label" style="color:var(--ink-3);">— pick project —</span>
+              <span class="custom-select__label text-ink-3">— pick project —</span>
               <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
             </button>
             <div class="custom-select__pop" hidden>
@@ -139,7 +139,7 @@ $converted = in_array($sub['status'], ['converted_task', 'converted_project'], t
             <input type="hidden" data-task-project value="">
           </div>
         </div>
-        <button type="button" class="btn--secondary submission-card__cta" style="margin-top:var(--space-3);" data-action="convert-task">
+        <button type="button" class="btn--secondary submission-card__cta submission-card__cta--tight" data-action="convert-task">
           <i class="fa-solid fa-list-check"></i> Create task
         </button>
       </div>

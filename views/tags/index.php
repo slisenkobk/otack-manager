@@ -1,4 +1,4 @@
-<form method="get" action="/admin/tags" class="kanban-search kanban-search--with-submit" style="max-width:360px;margin-bottom:var(--space-8);">
+<form method="get" action="/admin/tags" class="kanban-search kanban-search--with-submit tags-search">
   <i class="fa-solid fa-magnifying-glass"></i>
   <input class="input input--inline" name="q" placeholder="<?= e(t('tags.search_placeholder')) ?>" value="<?= e($query ?? '') ?>" data-tag-search>
   <button type="submit" class="kanban-search__submit" aria-label="<?= e(t('common.search')) ?>"><i class="fa-solid fa-arrow-right"></i></button>
@@ -13,18 +13,18 @@ $scopeLabels = ['project' => t('tags.project_tags'), 'task' => t('tags.task_tags
 foreach ($scopeLabels as $scope => $label):
     if (empty($byScope[$scope])) continue;
 ?>
-  <details open style="margin-bottom:32px;">
-    <summary style="font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);cursor:pointer;padding:8px 0;border-bottom:1px solid var(--rule);margin-bottom:12px;list-style:none;display:flex;align-items:center;gap:8px;">
-      <i class="fa-solid fa-chevron-down" style="font-size:10px;"></i>
+  <details open class="tag-group">
+    <summary class="tag-group__title">
+      <i class="fa-solid fa-chevron-down tag-group__chevron"></i>
       <?= e($label) ?>
-      <span style="font-size:11px;font-weight:400;color:var(--ink-3);">(<?= count($byScope[$scope]) ?>)</span>
+      <span class="tag-group__count">(<?= count($byScope[$scope]) ?>)</span>
     </summary>
     <div class="tag-chip-row">
       <?php foreach ($byScope[$scope] as $tag):
         $usage = $usages[(int)$tag['id']] ?? ['project_count' => 0, 'task_count' => 0];
       ?>
         <article class="card tag-chip" data-tag-id="<?= (int)$tag['id'] ?>" data-tag-row>
-          <label class="color-swatch tag-swatch tag-chip__swatch" title="<?= e(t('tags.change_color')) ?>" style="background: <?= e($tag['color']) ?>;">
+          <label class="color-swatch tag-swatch tag-chip__swatch" title="<?= e(t('tags.change_color')) ?>" data-bg="<?= e($tag['color']) ?>">
             <input type="color" class="tag-color-input" value="<?= e($tag['color']) ?>">
           </label>
           <span class="tag-name tag-chip__name" contenteditable="true" spellcheck="false"

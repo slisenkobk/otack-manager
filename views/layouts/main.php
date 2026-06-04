@@ -65,6 +65,12 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 <?php require APP_ROOT . '/views/partials/toast-root.php'; ?>
 <?php require APP_ROOT . '/views/partials/lightbox-root.php'; ?>
 <script type="module" src="<?= e(asset_url('/assets/js/theme.js')) ?>"></script>
+<?php // Dynamic style bridge — copies `data-bg` / `data-tag-color` / `data-width-pct`
+      // / `data-height-pct` / `data-color` onto inline CSS properties via
+      // `el.style.setProperty(...)`. CSP `style-src` does not govern these JS
+      // writes, so it's the carrier for per-row colour/width values that used
+      // to be emitted as `style=""`. See Wave 9.1e Task 3 / S-6 prep. ?>
+<script type="module" src="<?= e(asset_url('/assets/js/dynamic-style.js')) ?>"></script>
 <?php
   // JS i18n channel: emit only the js.* slice of the current catalog onto
   // window.__t so client modules call t('js.toast.saved') instead of

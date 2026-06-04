@@ -21,7 +21,7 @@
   /* INK (warm dark text, 4 steps) */
   --ink:       #1A1612;
   --ink-2:     #5A4E3F;
-  --ink-3:     #8B7C68;
+  --ink-3:     #7A6B57; /* darkened from #8B7C68 for WCAG AA 4.5:1 on --paper-2 (Wave 9.1e Task 11) */
   --ink-4:     #A89A85;
 
   /* RULE (subtle dividers, 3 steps) */

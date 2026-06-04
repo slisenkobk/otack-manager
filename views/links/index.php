@@ -28,17 +28,17 @@
             <h3 class="name"><?= e($l['title'] ?: $l['slug']) ?></h3>
           </div>
         </div>
-        <p class="card__desc" style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><?= e($l['target_url']) ?></p>
+        <p class="card__desc link-card__target"><?= e($l['target_url']) ?></p>
         <div class="form-card__url" data-stop>
           <i class="fa-solid fa-link"></i>
           <span class="form-card__url-text"><?= e($publicUrl) ?></span>
           <button type="button" class="form-card__url-copy" data-action="copy-link" data-url="<?= e($publicUrl) ?>" data-stop title="<?= e(t('links.copy_link')) ?>"><i class="fa-regular fa-copy"></i></button>
         </div>
-        <div class="link-card__stats" style="display:flex;gap:14px;font-size:12px;color:var(--ink-3);margin-top:8px;">
+        <div class="link-card__stats">
           <span><strong class="text-ink"><?= (int)$s['total'] ?></strong> <?= e(t('links.stat.total')) ?></span>
           <span><strong class="text-ink"><?= (int)$s['unique'] ?></strong> <?= e(t('links.stat.unique')) ?></span>
           <?php if ($isDisabled): ?>
-            <span class="badge badge--muted" style="margin-left:auto;"><?= e(t('links.status.disabled')) ?></span>
+            <span class="badge badge--muted link-card__disabled-badge"><?= e(t('links.status.disabled')) ?></span>
           <?php endif; ?>
         </div>
         <div class="card-row">

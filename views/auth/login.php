@@ -18,11 +18,11 @@
         <div class="field__error"><?= e(t('errors.' . $fieldErrors['password'], t('errors.required'))) ?></div>
       <?php endif; ?>
     </div>
-    <label class="remember-me" style="margin-top:18px;display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);cursor:pointer;">
+    <label class="remember-me auth-remember-me">
       <input type="checkbox" name="remember" value="1">
       <?= e(t('auth.remember_me')) ?>
     </label>
-    <button class="submit" type="submit" style="margin-top:18px;width:100%;"><?= e(t('auth.sign_in_arrow')) ?></button>
+    <button class="submit auth-submit" type="submit"><?= e(t('auth.sign_in_arrow')) ?></button>
   </form>
   <p class="text-13-ink-2-mt-18">
     <?= e(t('auth.new_here')) ?> <a class="text-brand-underline" href="/register"><?= e(t('auth.create_account')) ?></a>

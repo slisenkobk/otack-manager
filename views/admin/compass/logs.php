@@ -13,7 +13,7 @@ $entries    = array_slice($entries, 0, $displayCap);
 <?php include APP_ROOT . '/views/partials/compass-tabs.php'; ?>
 <div class="brief brief--wide">
 
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-6);margin-bottom:var(--space-6);flex-wrap:wrap;">
+  <div class="compass-logs-head">
     <div>
       <h2 class="fz-20 fw-600 u-mb-space-2"><?= e(t('compass.logs.heading')) ?></h2>
       <p class="muted fz-13 m-0">
@@ -24,10 +24,10 @@ $entries    = array_slice($entries, 0, $displayCap);
         <?php if ($level !== ''): ?>· <?= t('compass.logs.filter', ['level' => '<code>' . e($level) . '</code>']) ?><?php endif; ?>
       </p>
     </div>
-    <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;">
-      <form method="get" action="/admin/compass/logs" style="display:flex;align-items:center;gap:var(--space-3);">
+    <div class="compass-logs-toolbar">
+      <form method="get" action="/admin/compass/logs" class="compass-logs-filter-form">
         <label for="compass-level" class="muted fz-13"><?= e(t('compass.logs.level')) ?></label>
-        <select id="compass-level" name="level" class="input" style="min-width:160px;" data-compass-auto-submit>
+        <select id="compass-level" name="level" class="input compass-level-select" data-compass-auto-submit>
           <?php foreach ($levels as $val => $label): ?>
             <option value="<?= e($val) ?>"<?= $level === $val ? ' selected' : '' ?>><?= e($label) ?></option>
           <?php endforeach; ?>
@@ -45,20 +45,19 @@ $entries    = array_slice($entries, 0, $displayCap);
   </div>
 
   <?php if (!$entries): ?>
-    <p class="muted" style="padding:var(--space-12) 0;text-align:center;"><?= e(t('compass.logs.empty')) ?></p>
+    <p class="muted compass-logs-empty"><?= e(t('compass.logs.empty')) ?></p>
   <?php else: ?>
-    <ol style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:var(--space-3);">
+    <ol class="compass-log-list">
     <?php foreach ($entries as $entry):
       $lvlLower = strtolower($entry['level']);
       $isError = str_contains($lvlLower, 'error') || str_contains($lvlLower, 'fatal');
-      $tagColor = $isError ? 'var(--accent)' : 'var(--text-2)';
     ?>
-      <li style="border:1px solid var(--rule);border-radius:var(--radius-sm);overflow:hidden;background:var(--paper);">
-        <header style="display:flex;justify-content:space-between;align-items:baseline;padding:var(--space-3) var(--space-4);background:var(--paper-2);border-bottom:1px solid var(--rule);">
-          <span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;color:<?= e($tagColor) ?>;"><?= e($entry['level']) ?></span>
-          <span class="muted" style="font-size:11px;font-family:var(--font-mono);"><?= e($entry['time']) ?></span>
+      <li class="compass-log-entry">
+        <header class="compass-log-entry__head">
+          <span class="compass-log-entry__level<?= $isError ? ' compass-log-entry__level--error' : '' ?>"><?= e($entry['level']) ?></span>
+          <span class="muted compass-log-entry__time"><?= e($entry['time']) ?></span>
         </header>
-        <pre style="margin:0;padding:var(--space-4);font-family:var(--font-mono);font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-all;color:var(--text-2);"><?= e(rtrim($entry['body'])) ?></pre>
+        <pre class="compass-log-entry__body"><?= e(rtrim($entry['body'])) ?></pre>
       </li>
     <?php endforeach; ?>
     </ol>

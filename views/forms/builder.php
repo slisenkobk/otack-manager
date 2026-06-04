@@ -139,7 +139,7 @@ foreach (($projects ?? []) as $p) {
         <input id="f-task-title-template" class="input" type="text" data-task-title-template
                value="<?= e($taskTitleTemplate) ?>"
                placeholder="<?= e(t('forms.integration.task_title_placeholder')) ?>">
-        <p class="muted" style="font-size:11px;color:var(--ink-3);margin:6px 0 0;">
+        <p class="muted builder-template-hint">
           <?= t('forms.integration.task_title_hint', [
               'formName'    => '<code>{formName}</code>',
               'submission'  => '<code>{submission.id}</code>',

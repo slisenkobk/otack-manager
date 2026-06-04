@@ -18,7 +18,7 @@ $fieldErrors  = $fieldErrors ?? [];
     <label for="project-color-text"><?= e(t('projects.form.color')) ?></label>
     <div class="color-picker-row">
       <input type="text" class="input" name="color" id="project-color-text" value="<?= e($initialColor) ?>" maxlength="7">
-      <label class="color-swatch" style="background: <?= e($initialColor) ?>;">
+      <label class="color-swatch" data-bg="<?= e($initialColor) ?>">
         <input type="color" id="project-color-picker" value="<?= e($initialColor) ?>">
       </label>
     </div>

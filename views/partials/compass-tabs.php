@@ -18,8 +18,7 @@ $tabs = [
       </a>
     <?php endforeach; ?>
   </div>
-  <a href="/admin/settings" class="btn btn--secondary btn--sm page-head__btn"
-     style="text-decoration:none;display:inline-flex;align-items:center;gap:var(--space-2);">
+  <a href="/admin/settings" class="btn btn--secondary btn--sm page-head__btn">
     <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
     <?= e(t('compass.back_to_settings')) ?>
   </a>

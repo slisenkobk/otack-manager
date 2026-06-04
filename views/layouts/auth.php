@@ -28,7 +28,7 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 <meta name="csrf-token" content="<?= e($csrfToken ?? '') ?>">
 </head>
 <body class="auth-page">
-<main style="min-height:100vh;display:grid;place-items:center;padding:40px;">
+<main class="auth-page__main">
   <div class="w-full max-w-440">
     <?= $content ?>
   </div>

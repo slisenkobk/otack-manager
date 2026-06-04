@@ -64,7 +64,7 @@ $isDisabled = (int)$link['is_disabled'] === 1;
         <h3 class="link-stats__heading"><?= e(t('links.stats.daily_30')) ?></h3>
         <div class="link-stats__bars">
           <?php foreach ($byDay as $d): $h = $maxDay > 0 ? max(2, (int)round($d['total'] / $maxDay * 100)) : 2; ?>
-            <span class="link-stats__bar" style="height:<?= $h ?>%;" title="<?= e($d['date']) ?>: <?= (int)$d['total'] ?> (<?= (int)$d['unique'] ?> unique)"></span>
+            <span class="link-stats__bar" data-height-pct="<?= (int)$h ?>" title="<?= e($d['date']) ?>: <?= (int)$d['total'] ?> (<?= (int)$d['unique'] ?> unique)"></span>
           <?php endforeach; ?>
         </div>
         <div class="link-stats__bars-axis">
@@ -90,7 +90,7 @@ $isDisabled = (int)$link['is_disabled'] === 1;
 
   <section class="builder-panel">
     <h2 class="builder-panel__title"><?= e(t('links.danger.title')) ?></h2>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <div class="link-danger__actions">
       <button type="button" class="btn--secondary" data-action="toggle-link">
         <i class="fa-solid <?= $isDisabled ? 'fa-toggle-off' : 'fa-toggle-on' ?>"></i>
         <span data-toggle-label><?= e($isDisabled ? t('links.action.enable') : t('links.action.disable')) ?></span>

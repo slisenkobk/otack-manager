@@ -6,20 +6,19 @@ $statusLabels = [
     'closed' => t('polls.status.closed'),
 ];
 ?>
-<div class="page-actions" style="margin-bottom:var(--space-8);justify-content:space-between;gap:10px;flex-wrap:wrap;">
+<div class="page-actions page-actions--listing">
   <form method="get" action="/polls" class="search-field search-field--with-submit m-0">
     <i class="fa-solid fa-magnifying-glass muted fz-12"></i>
     <input class="input input--inline" name="q" placeholder="<?= e(t('polls.search_placeholder')) ?>" value="<?= e($query ?? '') ?>">
     <?php if (!empty($status)): ?><input type="hidden" name="status" value="<?= e($status) ?>"><?php endif; ?>
     <button type="submit" class="search-field__submit" aria-label="<?= e(t('common.search')) ?>"><i class="fa-solid fa-arrow-right"></i></button>
   </form>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-    <div style="display:flex;gap:4px;">
+  <div class="polls-filters">
+    <div class="polls-filters__pills">
       <?php foreach ($statusLabels as $code => $label): ?>
         <?php $isActive = ($status ?? '') === $code; ?>
         <a href="<?= e($code === '' ? '/polls' : '/polls?status=' . $code) ?>"
-           class="btn btn--small <?= $isActive ? 'btn--primary' : 'btn--ghost' ?>"
-           style="text-decoration:none;"><?= e($label) ?></a>
+           class="btn btn--small no-underline <?= $isActive ? 'btn--primary' : 'btn--ghost' ?>"><?= e($label) ?></a>
       <?php endforeach; ?>
     </div>
     <a href="/polls/new" class="btn btn--secondary no-underline">+ <?= e(t('polls.new_poll')) ?></a>
@@ -46,7 +45,7 @@ $statusLabels = [
           <div class="ini bg-accent"><i class="fa-solid fa-square-poll-vertical text-paper fz-16"></i></div>
           <div class="flex-1-min">
             <h3 class="name"><?= e($p['title']) ?></h3>
-            <p class="muted" style="font-size:12px;color:var(--ink-3);margin:2px 0 0;">
+            <p class="muted card__meta-line">
               <span class="poll-status poll-status--<?= e($statusKey) ?>"><?= e(t('polls.status.' . $statusKey)) ?></span>
               · <?= e(t('polls.votes_count', ['n' => $voteCount])) ?>
             </p>

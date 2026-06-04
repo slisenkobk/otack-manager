@@ -33,21 +33,21 @@ $hasMore   = count($voters) < (int)$total;
 
   <section class="builder-panel">
     <h2 class="builder-panel__title"><?= e($poll['title']) ?></h2>
-    <p style="margin:0 0 8px;">
+    <p class="poll-show__status-line">
       <span class="poll-status poll-status--<?= e($statusKey) ?>"><?= e(t('polls.status.' . $statusKey)) ?></span>
       · <?= e(t('polls.votes_count', ['n' => $total])) ?>
     </p>
     <?php if (!empty($poll['description'])): ?>
       <div class="poll-show__description"><?= $poll['description'] ?></div>
     <?php endif; ?>
-    <div class="form-card__url" style="margin-top:12px;">
+    <div class="form-card__url poll-show__url">
       <i class="fa-solid fa-link"></i>
       <span class="form-card__url-text"><?= e($publicUrl) ?></span>
       <button type="button" class="form-card__url-copy" data-action="copy-url" data-url="<?= e($publicUrl) ?>" title="<?= e(t('polls.copy_link')) ?>"><i class="fa-regular fa-copy"></i></button>
     </div>
   </section>
 
-  <div class="project-tabs" style="margin-bottom:var(--space-6, 16px);">
+  <div class="project-tabs project-tabs--spaced">
     <a class="project-tab<?= $tab === 'stats'   ? ' project-tab--active' : '' ?>" href="/polls/<?= $pollId ?>?tab=stats"><?= e(t('polls.stats_title')) ?></a>
     <a class="project-tab<?= $tab === 'voters'  ? ' project-tab--active' : '' ?>" href="/polls/<?= $pollId ?>?tab=voters"><?= e(t('polls.voters_title')) ?> · <?= (int)$total ?></a>
     <a class="project-tab<?= $tab === 'project' ? ' project-tab--active' : '' ?>" href="/polls/<?= $pollId ?>?tab=project"><?= e(t('polls.project_tab_title')) ?></a>
@@ -66,7 +66,7 @@ $hasMore   = count($voters) < (int)$total;
                 <span class="poll-stats__count"><?= (int)$row['count'] ?> · <?= e($row['pct']) ?>%</span>
               </div>
               <div class="poll-stats__bar">
-                <div class="poll-stats__bar-fill" style="width: <?= e(min(100, max(0, (float)$row['pct']))) ?>%"></div>
+                <div class="poll-stats__bar-fill" data-width-pct="<?= e(min(100, max(0, (float)$row['pct']))) ?>"></div>
               </div>
             </div>
           <?php endforeach; ?>
@@ -100,7 +100,7 @@ $hasMore   = count($voters) < (int)$total;
           <input type="hidden" data-poll-project-input value="<?= e((string)($poll['project_id'] ?? '')) ?>">
         </div>
       </div>
-      <div style="margin-top:12px;display:flex;justify-content:flex-end;">
+      <div class="poll-show__actions-end">
         <button type="button" class="btn btn--primary submit" data-action="save-project">
           <i class="fa-solid fa-check"></i> <?= e(t('polls.project_save')) ?>
         </button>
@@ -130,7 +130,7 @@ $hasMore   = count($voters) < (int)$total;
           </tbody>
         </table>
         <?php if ($hasMore): ?>
-          <div style="margin-top:12px;display:flex;justify-content:center;">
+          <div class="poll-show__load-more">
             <button type="button" class="btn--secondary load-more-voters"
                     data-offset="<?= count($voters) ?>">
               <i class="fa-solid fa-chevron-down"></i> <?= e(t('polls.voters_load_more')) ?>

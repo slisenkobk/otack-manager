@@ -7,7 +7,7 @@ $hours = (int)round($sessions['lifetime_seconds'] / 3600);
 <?php include APP_ROOT . '/views/partials/compass-tabs.php'; ?>
 <div class="brief brief--wide">
 
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--space-6);">
+  <div class="compass-cards-grid">
 
     <section class="compass-card">
       <h3 class="compass-card__title">
@@ -17,7 +17,7 @@ $hours = (int)round($sessions['lifetime_seconds'] / 3600);
       <p class="m-0 fz-14">
         <?= t('compass.cache.sessions.stats', [
             'total' => '<strong>' . (int)$sessions['total'] . '</strong>',
-            'stale' => '<strong style="color:' . ($sessions['stale'] > 0 ? 'var(--accent)' : 'var(--text-2)') . ';">' . (int)$sessions['stale'] . '</strong>',
+            'stale' => '<strong class="' . ($sessions['stale'] > 0 ? 'cache-stat--alert' : 'cache-stat--ok') . '">' . (int)$sessions['stale'] . '</strong>',
             'bytes' => '<span class="muted">' . e(human_bytes((int)$sessions['stale_bytes'])) . '</span>',
         ]) ?>
       </p>
@@ -41,7 +41,7 @@ $hours = (int)round($sessions['lifetime_seconds'] / 3600);
       <p class="m-0 fz-14">
         <?= t('compass.cache.uploads.stats', [
             'total'  => '<strong>' . (int)$uploads['total'] . '</strong>',
-            'orphan' => '<strong style="color:' . ($uploads['orphan'] > 0 ? 'var(--accent)' : 'var(--text-2)') . ';">' . (int)$uploads['orphan'] . '</strong>',
+            'orphan' => '<strong class="' . ($uploads['orphan'] > 0 ? 'cache-stat--alert' : 'cache-stat--ok') . '">' . (int)$uploads['orphan'] . '</strong>',
             'bytes'  => '<span class="muted">' . e(human_bytes((int)$uploads['orphan_bytes'])) . '</span>',
         ]) ?>
       </p>
@@ -67,7 +67,7 @@ $hours = (int)round($sessions['lifetime_seconds'] / 3600);
       <p class="m-0 fz-14">
         <?= t('compass.cache.activity_log.stats', [
             'total' => '<strong>' . (int)$activity['total'] . '</strong>',
-            'stale' => '<strong style="color:' . ($activity['stale'] > 0 ? 'var(--accent)' : 'var(--text-2)') . ';">' . (int)$activity['stale'] . '</strong>',
+            'stale' => '<strong class="' . ($activity['stale'] > 0 ? 'cache-stat--alert' : 'cache-stat--ok') . '">' . (int)$activity['stale'] . '</strong>',
             'days'  => (int)$activity['keep_days'],
         ]) ?>
       </p>

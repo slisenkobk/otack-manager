@@ -11,7 +11,7 @@ $meta['links'] = $meta['links'] ?? 0;
     <?php if ($tags): ?>
       <span class="backlog__tags">
         <?php foreach (array_slice($tags, 0, 3) as $tag): ?>
-          <span class="tag" style="--tag: <?= e($tag['color']) ?>; --tag-bg: <?= e($tag['color']) ?>22;"><?= e($tag['name']) ?></span>
+          <span class="tag" data-tag-color="<?= e($tag['color']) ?>"><?= e($tag['name']) ?></span>
         <?php endforeach; ?>
       </span>
     <?php endif; ?>

@@ -104,7 +104,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit firefox
       - name: Run Playwright suite
         run: npx playwright test
       - if: failure()

@@ -10,7 +10,7 @@ $installedAt = $currentVersion['installed_at'] ?? null;
 <section class="updates-section" data-updates-section>
   <div class="updates-card">
     <h3 class="updates-card__title"><?= e(t('updates.section.current')) ?></h3>
-    <p style="margin:0;font-size:18px;">
+    <p class="updates-current-line">
       <strong><?= e(app_name()) ?></strong>
       <span class="updates-version">v<?= e($current) ?></span>
     </p>
@@ -23,7 +23,7 @@ $installedAt = $currentVersion['installed_at'] ?? null;
 
   <div class="updates-card">
     <h3 class="updates-card__title"><?= e(t('updates.section.check')) ?></h3>
-    <p style="margin:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <p class="updates-check-line">
       <span class="muted" data-last-check-label>
         <?php if ($checkedAt): ?>
           <?= e(t('updates.last_check', ['when' => fmt_datetime(date('c', $checkedAt))])) ?>
@@ -42,7 +42,7 @@ $installedAt = $currentVersion['installed_at'] ?? null;
     <div data-update-status class="mt-14">
       <?php if ($hasUpdate): ?>
         <p class="m-0">
-          <span class="poll-status poll-status--active" style="background:#e6f4ea;color:#1e6f3a;">
+          <span class="poll-status poll-status--active">
             <?= e(t('updates.available_label', ['version' => 'v' . $available])) ?>
           </span>
         </p>
@@ -66,13 +66,13 @@ $installedAt = $currentVersion['installed_at'] ?? null;
     ?>
     <div class="updates-card updates-card--accent">
       <h3 class="updates-card__title"><?= e(t('updates.section.update_available')) ?></h3>
-      <p style="margin:0 0 8px;font-size:15px;">
+      <p class="updates-intro">
         <?= e(t('updates.update_intro', [
           'from' => 'v' . $current,
           'to'   => 'v' . $available,
         ])) ?>
       </p>
-      <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 14px;">
+      <p class="muted updates-duration">
         <?= e($durationHint) ?>
       </p>
       <form method="post" action="/admin/updates/run" data-update-form>
@@ -154,7 +154,7 @@ $installedAt = $currentVersion['installed_at'] ?? null;
                   <form method="post"
                         action="/admin/updates/restore/<?= (int)$b['id'] ?>"
                         data-restore-form
-                        style="display:inline;">
+                        class="d-inline">
                     <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
                     <button type="button" class="btn btn--ghost btn--sm" data-action="run-restore"
                             data-confirm-title="<?= e(t('updates.restore.confirm_title')) ?>"

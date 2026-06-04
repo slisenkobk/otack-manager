@@ -32,7 +32,7 @@ $emailMsg = isset($fieldErrors['email'])
         <div class="field__error"><?= e(t('errors.' . $fieldErrors['password'], t('errors.required'))) ?></div>
       <?php endif; ?>
     </div>
-    <button class="submit" type="submit" style="margin-top:22px;width:100%;"><?= e(t('auth.create_account_arrow')) ?></button>
+    <button class="submit auth-submit auth-submit--tight" type="submit"><?= e(t('auth.create_account_arrow')) ?></button>
   </form>
   <p class="text-13-ink-2-mt-18">
     <?= e(t('auth.already_registered')) ?> <a class="text-brand-underline" href="/login"><?= e(t('auth.sign_in')) ?></a>

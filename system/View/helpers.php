@@ -485,6 +485,23 @@ function csp_nonce(): string
 }
 
 /**
+ * Emit a `style="…"` attribute WITH the per-request CSP nonce so it
+ * survives the post-S-6 `style-src 'self' 'nonce-X'` directive.
+ * Use sparingly — most cases should be a class. Reserved for genuinely
+ * dynamic styles (user-picked colors, progress widths, etc.).
+ *
+ * The CSS body is HTML-attribute-escaped so the attribute stays
+ * well-formed, but no CSS-level validation is performed — callers must
+ * validate user-controlled fragments themselves (e.g. hex-color regex)
+ * to prevent CSS injection.
+ */
+function inline_style(string $css): string
+{
+    $css = str_replace(["\n", "\r"], ' ', $css);
+    return 'style="' . e($css) . '" nonce="' . e(csp_nonce()) . '"';
+}
+
+/**
  * Inline <style> that re-bases the brand palette (and its dark-theme pair)
  * onto the user-chosen color from settings. Empty when no override is set
  * — letting the design-system defaults from tokens.css apply unchanged.
@@ -494,7 +511,7 @@ function app_brand_style_tag(): string
 {
     $c = app_color();
     if ($c === null) return '';
-    return '<style>' .
+    return '<style nonce="' . e(csp_nonce()) . '">' .
         ':root{' .
             '--brand:' . $c . ';' .
             '--brand-2:color-mix(in srgb,' . $c . ' 78%,#000 22%);' .

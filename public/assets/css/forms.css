@@ -525,6 +525,41 @@ body.public-form {
   margin-top: 4px;
 }
 
+/* Auth: "remember me" row sits between the password field and the
+   submit button. Inline-flex so the checkbox and label hug each other. */
+.auth-remember-me {
+  margin-top: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+/* Auth: full-width submit on the login/register `.brief` cards. The
+   global `.submit` rule is inline-flex with content-width sizing, so
+   this modifier widens it and lifts it off the previous control. */
+.auth-submit { margin-top: 18px; width: 100%; }
+.auth-submit--tight { margin-top: 22px; }
+/* Auth: pending-approval screen (after sign-up while a moderator
+   reviews the account). One-off icon-headline-paragraph stack — kept
+   visually centred by `.text-center` on `.brief`. */
+.auth-pending__icon {
+  font-size: 48px;
+  color: var(--brand);
+  margin-bottom: 18px;
+}
+.auth-pending__title {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+.auth-pending__body {
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
 /* V-9: fieldset/legend grouping for long admin forms. Visually a thin
    heading above a stack of fields, semantically a screen-reader group. The
    browser's default fieldset border/padding is reset so this slots into
@@ -537,4 +572,83 @@ body.public-form {
   color: var(--ink-3, var(--text-muted));
   margin-bottom: 10px;
   padding: 0;
+}
+
+/* ─── Wave 9.1e Group D — builder-panel hint variants ───────────
+   .builder-hint already covers the standard "12 px ink-3 hint that sits
+   under a field" case (margin-top:10px). These two add the inverse-flow
+   pattern (hint appears above the next block) for the polls / forms
+   public-URL and integration-template captions. */
+.builder-panel__hint {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin: 0 0 12px;
+}
+/* Tighter 11 px variant used for the task-title-template helper line
+   inside the forms-builder integration panel. */
+.builder-template-hint {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin: 6px 0 0;
+}
+
+/* ─── Wave 9.1e Group E — tag-picker shell + profile/settings actions ─── */
+
+/* Tag-picker chip row — flex row of .tag pills used to display the
+   currently-attached tags above the search input. */
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* Inline "×" button inside a tag-picker chip — un-styled native button
+   that lets the user detach the tag. */
+.tag-picker__chip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-3);
+  padding: 0;
+  font-size: 10px;
+}
+/* Wrapper around the "+ Add tag" search input. Owns the position-
+   relative so the absolute-positioned dropdown can anchor below it. */
+.tag-input-wrap {
+  margin-top: 8px;
+  position: relative;
+  width: 100%;
+}
+/* Tag-picker search input is intentionally smaller than the default
+   form .input — it sits inline next to attached chips. */
+.tag-picker__input { font-size: 13px; }
+/* Tag-picker dropdown — visibility toggled inline by JS
+   (display:block / 'none'), so we own the cosmetic bits only and start
+   hidden in CSS. */
+.tag-picker__dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: var(--z-dropdown);
+  margin-top: 4px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-pop);
+}
+
+/* /profile/tokens "Create token" form bottom-bar — tighter "Create"
+   button row sitting directly under the form-grid. */
+.profile-form__actions--mt-8 { margin-top: var(--space-8); }
+
+/* /admin/settings bottom Save row — single primary button with the
+   standard form gutter; matches the visual rhythm of .profile-form__
+   actions but is wider than .profile-form__actions's wrap. */
+.settings-form__actions {
+  margin-top: 22px;
+  display: flex;
+  gap: 10px;
 }

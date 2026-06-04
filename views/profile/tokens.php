@@ -50,7 +50,7 @@ function _token_epoch_fmt(?int $ts): string {
                placeholder="<?= e(t('api_tokens.placeholder_expires')) ?>">
       </div>
     </div>
-    <div class="profile-form__actions" style="margin-top:var(--space-8);">
+    <div class="profile-form__actions profile-form__actions--mt-8">
       <button class="btn btn--primary submit" type="submit">
         <i class="fa-solid fa-plus"></i> <?= e(t('api_tokens.create')) ?>
       </button>
@@ -107,7 +107,7 @@ function _token_epoch_fmt(?int $ts): string {
                 <?php if ($status === 'active'): ?>
                   <form method="post"
                         action="/profile/tokens/<?= (int)$tok['id'] ?>/revoke"
-                        style="display:inline;"
+                        class="d-inline"
                         data-confirm="<?= e(t('api_tokens.confirm_revoke')) ?>"
                         data-confirm-label="<?= e(t('api_tokens.revoke')) ?>">
                     <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">

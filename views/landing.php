@@ -118,6 +118,7 @@ header('Content-Type: text/html; charset=utf-8');
     display: flex;
     align-items: center;
     gap: 14px;
+    margin-top: 32px;
     padding-top: 20px;
     border-top: 1px solid var(--rule);
     font-family: var(--font-mono);
@@ -128,6 +129,7 @@ header('Content-Type: text/html; charset=utf-8');
     font-weight: 600;
     position: relative;
   }
+  .lede--last { margin-bottom: 0; }
   .meta__dot {
     width: 8px;
     height: 8px;
@@ -170,8 +172,8 @@ header('Content-Type: text/html; charset=utf-8');
     </div>
     <h1><?= t('landing.h1', ['app' => '<em>' . e(app_name()) . '</em>']) ?></h1>
     <p><?= e(t('landing.body_1')) ?></p>
-    <p style="margin-bottom:0;"><?= e(t('landing.body_2')) ?></p>
-    <div class="meta" style="margin-top:32px;">
+    <p class="lede--last"><?= e(t('landing.body_2')) ?></p>
+    <div class="meta">
       <span class="meta__dot"></span>
       <span><?= e(t('landing.tag_restricted')) ?></span>
       <span class="meta__sep">·</span>

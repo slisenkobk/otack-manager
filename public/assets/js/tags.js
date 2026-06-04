@@ -97,16 +97,18 @@ document.querySelectorAll('.tag-picker').forEach(picker => {
   }
 
   function appendChip(t) {
+    // Match the PHP server-render in views/partials/tag-picker.php so the
+    // dynamic-style bridge picks up `data-bg` (with the 33-alpha suffix)
+    // via MutationObserver and `.tag-picker__chip` carries the layout.
     const span       = document.createElement('span');
-    span.className   = 'tag';
+    span.className   = 'tag tag-picker__chip';
     span.dataset.tagId = t.id;
-    span.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:3px 8px;background:' +
-      (t.color || '#8B7C68') + '33;color:var(--ink);border-radius:999px;font-size:11px;font-family:var(--font-mono);letter-spacing:.05em;';
+    span.dataset.bg  = (t.color || '#8B7C68') + '33';
     span.textContent = t.name + ' ';
     const btn        = document.createElement('button');
     btn.type         = 'button';
+    btn.className    = 'tag-picker__chip-remove';
     btn.dataset.action = 'remove-tag';
-    btn.style.cssText  = 'background:none;border:none;cursor:pointer;color:var(--ink-3);padding:0;font-size:10px;';
     const i          = document.createElement('i');
     i.className      = 'fa-solid fa-xmark';
     btn.appendChild(i);
