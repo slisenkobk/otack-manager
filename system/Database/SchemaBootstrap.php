@@ -15,6 +15,8 @@ final class SchemaBootstrap
 
     public function __construct(private \PDO $pdo) {}
 
+    public function pdo(): \PDO { return $this->pdo; }
+
     public function beginImmediate(): void
     {
         // SQLite has BEGIN IMMEDIATE (acquires the reserved lock upfront

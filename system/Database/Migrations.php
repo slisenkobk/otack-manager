@@ -15,6 +15,11 @@ final class Migrations
 
     /**
      * Returns the list of newly-applied migration names (empty when up to date).
+     *
+     * On MySQL, takes a named advisory lock (GET_LOCK) before the BEGIN so
+     * concurrent php-fpm worker boots serialise on the lock instead of
+     * racing past the empty schema_migrations table. SQLite's BEGIN IMMEDIATE
+     * provides the equivalent guarantee — single-writer at the file level.
      */
     public static function run(SchemaBootstrap $boot, ?string $dir = null): array
     {
@@ -22,6 +27,18 @@ final class Migrations
         $files = glob($dir . '/*.php') ?: [];
         if (!$files) return [];
         sort($files);
+
+        $pdo    = $boot->pdo();
+        $driver = Connection::driverFor($pdo)?->name() ?? 'sqlite';
+        if ($driver === 'mysql') {
+            $got = (int)$pdo->query("SELECT GET_LOCK('otack_migrations', 30)")->fetchColumn();
+            // 0 = waited 30s and gave up; NULL = error. Either way another
+            // worker is mid-apply; bail out — once it finishes, our boot has
+            // already proceeded with a stale appliedSet snapshot but the
+            // applied set inside the lock is authoritative for the lock
+            // holder, and any subsequent boot will see the rows committed.
+            if ($got !== 1) return [];
+        }
 
         $boot->beginImmediate();
         $applied = [];
@@ -43,6 +60,11 @@ final class Migrations
         } catch (\Throwable $e) {
             $boot->rollBack();
             throw $e;
+        } finally {
+            if ($driver === 'mysql') {
+                try { $pdo->query("SELECT RELEASE_LOCK('otack_migrations')"); }
+                catch (\Throwable $_) {}
+            }
         }
         return $applied;
     }

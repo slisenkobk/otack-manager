@@ -183,6 +183,18 @@ filename order, skipping any whose basename (sans `.php`) is already in
 `schema_migrations`. Filenames are permanent once shipped — fix-forward only.
 See [MIGRATIONS.md](MIGRATIONS.md) for the full ruleset.
 
+**Concurrent boot serialisation.** SQLite's `BEGIN IMMEDIATE` takes a reserved
+write-lock on the database file, so concurrent first-hits race on the file
+lock and lose the race deterministically. MySQL's `START TRANSACTION` is
+weaker — multiple php-fpm workers booting against an empty
+`schema_migrations` table could each see "nothing applied" and try to apply
+the same `CREATE TABLE`s, blowing up on duplicate-key DDL errors. To avoid
+that, `Migrations::run()` takes a named advisory lock
+(`GET_LOCK('otack_migrations', 30)`) before the BEGIN on MySQL and releases
+it in a `finally`. Workers that fail to acquire within 30 s return an empty
+list — by the time they finish waiting, the holder has committed, and the
+caller can re-resolve `appliedSet()` on the next code path that needs it.
+
 ## 8. Event bus
 
 [`EventBus`](../system/Service/EventBus.php) is a synchronous in-process
