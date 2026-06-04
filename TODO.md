@@ -76,7 +76,24 @@ backend/frontend/tests-docs-ops). Grouped into three waves:
   `.dev-notes/` relocation; `.env.example` parity test; `package.json` MIT;
   `errors.log` size cap + `activity_log` prune; `bin/check-env.php`;
   64 unused i18n keys pruned.
-- **9.1c (nice-to-have, ~2 days):** continuous polish backlog (in flight).
+- **done — 9.1c (nice-to-have, ~2 days):** continuous polish backlog. Shipped,
+  tag `v1.3.2`. asset_version DI memo (C-4); MySQL `GET_LOCK` migration lock
+  (A-6); `SmokeController::hello` removed (K-3); 5 `__otack*Init` guards
+  dropped after canonicalising ui.js/wysiwyg.js URLs (J-5); `task-page.js`
+  IIFE-wrapped with early return (J-9); ui.js split into ui-modal /
+  ui-fetch / ui-bootstrap façade (J-6); dark theme dedup via `theme-init.js`
+  no-flash + single `[data-theme="dark"]` block (CSS-6); 0-count
+  `Projects` badge hidden (V-7); fieldset/legend on admin/settings tabs
+  (V-9); brand_tag i18n exemption documented (I-2); admin-configurable
+  `project_palette` (I-4); Sortable lazy-loaded via `loadSortable()`
+  (-44 KB on non-kanban first paint, AS-4); dark-theme persistence
+  e2e + auto-emulation tests (T-8); `TODO.md` translated to English
+  (D-5); `INTEGRATION-CHECKLIST.md` idempotency + schema-poll +
+  401-alert bullets (D-6); `docs/TESTING.md` created with runner
+  cutover threshold (O-7); `make test-clean` + `make e2e` auto-clear
+  (CL-2); `reset-test` covers api-test sqlite + WAL/SHM (CL-3); CSS-4
+  `!important` audit deferred behind CSS-5 sweep — see
+  `.dev-notes/superpowers/follow-ups/wave-9-1c.md`.
 
 ### #10 — Setup wizard for new installs
 
