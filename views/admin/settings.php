@@ -46,9 +46,8 @@ $localeNames = locale_display_names();
       </a>
     <?php endif; ?>
   </div>
-  <a href="/admin/compass" class="btn btn--secondary btn--sm page-head__btn"
-     title="<?= e(t('settings.compass_hint')) ?>"
-     style="text-decoration:none;display:inline-flex;align-items:center;gap:var(--space-2);">
+  <a href="/admin/compass" class="btn btn--secondary btn--sm page-head__btn page-head__btn--icon-link"
+     title="<?= e(t('settings.compass_hint')) ?>">
     <i class="fa-solid fa-compass" aria-hidden="true"></i>
     <?= e(t('settings.compass_link')) ?>
   </a>
@@ -190,7 +189,7 @@ $localeNames = locale_display_names();
 
   <?php endif; ?>
 
-    <div style="margin-top:22px;display:flex;gap:10px;">
+    <div class="settings-form__actions">
       <button class="btn btn--primary submit" type="submit"><?= e(t('settings.save_button')) ?></button>
     </div>
 </form>

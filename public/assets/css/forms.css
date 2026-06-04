@@ -591,3 +591,64 @@ body.public-form {
   color: var(--ink-3);
   margin: 6px 0 0;
 }
+
+/* ─── Wave 9.1e Group E — tag-picker shell + profile/settings actions ─── */
+
+/* Tag-picker chip row — flex row of .tag pills used to display the
+   currently-attached tags above the search input. */
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* Inline "×" button inside a tag-picker chip — un-styled native button
+   that lets the user detach the tag. */
+.tag-picker__chip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-3);
+  padding: 0;
+  font-size: 10px;
+}
+/* Wrapper around the "+ Add tag" search input. Owns the position-
+   relative so the absolute-positioned dropdown can anchor below it. */
+.tag-input-wrap {
+  margin-top: 8px;
+  position: relative;
+  width: 100%;
+}
+/* Tag-picker search input is intentionally smaller than the default
+   form .input — it sits inline next to attached chips. */
+.tag-picker__input { font-size: 13px; }
+/* Tag-picker dropdown — visibility toggled inline by JS
+   (display:block / 'none'), so we own the cosmetic bits only and start
+   hidden in CSS. */
+.tag-picker__dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: var(--z-dropdown);
+  margin-top: 4px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-pop);
+}
+
+/* /profile/tokens "Create token" form bottom-bar — tighter "Create"
+   button row sitting directly under the form-grid. */
+.profile-form__actions--mt-8 { margin-top: var(--space-8); }
+
+/* /admin/settings bottom Save row — single primary button with the
+   standard form gutter; matches the visual rhythm of .profile-form__
+   actions but is wider than .profile-form__actions's wrap. */
+.settings-form__actions {
+  margin-top: 22px;
+  display: flex;
+  gap: 10px;
+}

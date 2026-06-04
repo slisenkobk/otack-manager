@@ -1,13 +1,12 @@
 <?php $canEdit = $canEdit ?? false; ?>
 <div class="tag-picker" data-scope="<?= e($scope) ?>" data-entity-type="<?= e($entityType) ?>" data-entity-id="<?= (int)$entityId ?>">
-  <div class="tag-chips" style="display:flex;flex-wrap:wrap;gap:6px;">
+  <div class="tag-chips">
     <?php foreach ($current as $t): ?>
-      <span class="tag" data-tag-id="<?= (int)$t['id'] ?>"
+      <span class="tag tag-picker__chip" data-tag-id="<?= (int)$t['id'] ?>"
             style="display:inline-flex;align-items:center;gap:6px;padding:3px 8px;background:<?= e($t['color']) ?>33;color:var(--ink);border-radius:999px;font-size:11px;font-family:var(--font-mono);letter-spacing:.05em;">
         <?= e($t['name']) ?>
         <?php if ($canEdit): ?>
-          <button type="button" data-action="remove-tag"
-                  style="background:none;border:none;cursor:pointer;color:var(--ink-3);padding:0;font-size:10px;">
+          <button type="button" class="tag-picker__chip-remove" data-action="remove-tag">
             <i class="fa-solid fa-xmark"></i>
           </button>
         <?php endif; ?>
@@ -15,10 +14,9 @@
     <?php endforeach; ?>
   </div>
   <?php if ($canEdit): ?>
-    <div class="tag-input-wrap" style="margin-top:8px;position:relative;width:100%;">
-      <input class="input" type="text" placeholder="+ Add tag&hellip;" data-tag-search style="font-size:13px;width:100%;display:block;">
-      <div class="dropdown" data-tag-dropdown
-           style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--paper);border:1px solid var(--rule);max-height:240px;overflow-y:auto;z-index:var(--z-dropdown);margin-top:4px;border-radius:var(--radius-sm);box-shadow:var(--shadow-pop);"></div>
+    <div class="tag-input-wrap">
+      <input class="input tag-picker__input" type="text" placeholder="+ Add tag&hellip;" data-tag-search>
+      <div class="dropdown tag-picker__dropdown" data-tag-dropdown></div>
       <input type="hidden" data-all-tags value="<?= e(json_encode(array_values($all))) ?>">
     </div>
   <?php endif; ?>

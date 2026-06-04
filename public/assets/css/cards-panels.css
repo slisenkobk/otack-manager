@@ -163,6 +163,16 @@ h1.display em {
   margin-bottom: var(--space-3);
   white-space: nowrap;
 }
+/* Modifier for page-head buttons that are <a> tags rendered with a
+   leading icon — strips the underline and applies inline-flex spacing
+   so the icon + label center cleanly (used by /admin/settings →
+   /admin/compass link). */
+.page-head__btn--icon-link {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 /* .brief corner-tag removed — was a literal "Otack Manager" string that
    ignored white-label. If we ever want a brand chip back, render it from
    PHP using app_name() rather than baking it into a pseudo-element. */
@@ -874,4 +884,123 @@ h1.display em {
 }
 /* Centred wrapper for the activity-feed "Load more" button. */
 .activity-load-more { margin-top: 12px; text-align: center; }
+
+/* ─── Wave 9.1e Group E — members / attachments / links / users ─── */
+
+/* Members list inside a project's "Members" panel — vertically stacked
+   chip rows; each row is its own pill with avatar + name + remove. */
+.members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.member-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.member-chip__name {
+  flex: 1;
+  font-size: 13px;
+}
+/* "Remove member" button — inherits .btn-icon look but with no border
+   and a transparent background so it doesn't compete with the row. */
+.member-chip__remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-3);
+}
+
+/* "+ Add member" wrap below the list — anchors the absolute dropdown. */
+.member-add {
+  margin-top: 12px;
+  position: relative;
+}
+/* Floating member-search dropdown — opened/closed via JS toggling
+   inline display:block / display:none, so we own the cosmetic bits
+   only; visibility is JS-controlled. Initial state hidden via CSS. */
+.member-add__dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  max-height: 260px;
+  overflow-y: auto;
+  z-index: var(--z-dropdown);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
+}
+
+/* Attachment-list "+ Attach files" row at the bottom of the panel. */
+.attach-upload { margin-top: 16px; }
+.attach-upload__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.attach-upload__hint {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-left: 12px;
+}
+
+/* Link-card (/links list) tweaks — single-line ellipsised target URL
+   under the title, and the stats strip + "disabled" badge at the
+   bottom of the card body. */
+.link-card__target {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.link-card__stats {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-top: 8px;
+}
+.link-card__disabled-badge { margin-left: auto; }
+
+/* Bottom action cluster of the /links/{id} "Danger" panel — two
+   secondary buttons that wrap on narrow widths. */
+.link-danger__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Admin /users/{id} top profile card — avatar + email/role block side-
+   by-side. Differs from .profile-card__body--personal (grid) by being a
+   simple inline-flex row. */
+.profile-card__body--user-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+}
+.profile-card__user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* /users index — inline-flex action cluster (approve / view / edit /
+   block / delete) inside the last table cell. */
+.user-actions {
+  display: inline-flex;
+  gap: 6px;
+}
 

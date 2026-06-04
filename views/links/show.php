@@ -90,7 +90,7 @@ $isDisabled = (int)$link['is_disabled'] === 1;
 
   <section class="builder-panel">
     <h2 class="builder-panel__title"><?= e(t('links.danger.title')) ?></h2>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <div class="link-danger__actions">
       <button type="button" class="btn--secondary" data-action="toggle-link">
         <i class="fa-solid <?= $isDisabled ? 'fa-toggle-off' : 'fa-toggle-on' ?>"></i>
         <span data-toggle-label><?= e($isDisabled ? t('links.action.enable') : t('links.action.disable')) ?></span>

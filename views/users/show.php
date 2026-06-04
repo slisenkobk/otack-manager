@@ -42,9 +42,9 @@ foreach ($apiTokens as $tok) {
 
 <section class="brief brief--wide profile-card">
   <h2 class="profile-card__title"><?= e($user['name']) ?></h2>
-  <div class="profile-card__body" style="display:flex;align-items:center;gap:var(--space-6);margin-top:var(--space-6);">
+  <div class="profile-card__body profile-card__body--user-summary">
     <?= user_avatar_html((int)$user['id'], $user['name'], $user['avatar'] ?? null, 'lg') ?>
-    <div style="display:flex;flex-direction:column;gap:4px;min-width:0;">
+    <div class="profile-card__user-info">
       <div class="data-table__sub" data-user-email><?= e($user['email']) ?></div>
       <div class="muted fz-12">
         <?= e($roleLabels[$user['role']] ?? $user['role']) ?>
@@ -70,7 +70,7 @@ foreach ($apiTokens as $tok) {
               action="/users/<?= (int)$user['id'] ?>/tokens/revoke-all"
               data-confirm="<?= e(t('api_tokens.confirm_revoke_all')) ?>"
               data-confirm-label="<?= e(t('api_tokens.revoke_all')) ?>"
-              style="margin:0;">
+              class="m-0">
           <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
           <button type="submit" class="btn--danger" data-action="revoke-all-tokens">
             <i class="fa-solid fa-ban"></i> <?= e(t('api_tokens.revoke_all')) ?>
@@ -120,7 +120,7 @@ foreach ($apiTokens as $tok) {
                 <?php if ($status === 'active'): ?>
                   <form method="post"
                         action="/users/<?= (int)$user['id'] ?>/tokens/<?= (int)$tok['id'] ?>/revoke"
-                        style="display:inline;"
+                        class="d-inline"
                         data-confirm="<?= e(t('api_tokens.confirm_revoke')) ?>"
                         data-confirm-label="<?= e(t('api_tokens.revoke')) ?>">
                     <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
