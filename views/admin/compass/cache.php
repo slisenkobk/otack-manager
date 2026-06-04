@@ -3,16 +3,14 @@
 //         $uploads{total,orphan,orphan_bytes},
 //         $assetVersion, $csrfToken
 $hours = (int)round($sessions['lifetime_seconds'] / 3600);
-$card = 'background:var(--paper);border:1px solid var(--rule);border-radius:var(--radius);padding:var(--space-8);display:flex;flex-direction:column;gap:var(--space-4);';
-$cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:center;gap:var(--space-3);';
 ?>
 <?php include APP_ROOT . '/views/partials/compass-tabs.php'; ?>
 <div class="brief brief--wide">
 
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--space-6);">
 
-    <section style="<?= e($card) ?>">
-      <h3 style="<?= e($cardTitle) ?>">
+    <section class="compass-card">
+      <h3 class="compass-card__title">
         <i class="fa-solid fa-clock-rotate-left text-text-2" aria-hidden="true"></i>
         <?= e(t('compass.cache.sessions')) ?>
       </h3>
@@ -35,8 +33,8 @@ $cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:c
       </div>
     </section>
 
-    <section style="<?= e($card) ?>">
-      <h3 style="<?= e($cardTitle) ?>">
+    <section class="compass-card">
+      <h3 class="compass-card__title">
         <i class="fa-solid fa-folder-open text-text-2" aria-hidden="true"></i>
         <?= e(t('compass.cache.uploads')) ?>
       </h3>
@@ -61,8 +59,8 @@ $cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:c
       </div>
     </section>
 
-    <section style="<?= e($card) ?>">
-      <h3 style="<?= e($cardTitle) ?>">
+    <section class="compass-card">
+      <h3 class="compass-card__title">
         <i class="fa-solid fa-list-ul text-text-2" aria-hidden="true"></i>
         <?= e(t('compass.cache.activity_log')) ?>
       </h3>
@@ -87,8 +85,8 @@ $cardTitle = 'font-size:15px;font-weight:600;margin:0;display:flex;align-items:c
       </div>
     </section>
 
-    <section style="<?= e($card) ?>">
-      <h3 style="<?= e($cardTitle) ?>">
+    <section class="compass-card">
+      <h3 class="compass-card__title">
         <i class="fa-solid fa-rotate text-text-2" aria-hidden="true"></i>
         <?= e(t('compass.cache.assets')) ?>
       </h3>

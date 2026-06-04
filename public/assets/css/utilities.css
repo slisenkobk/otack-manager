@@ -1412,3 +1412,22 @@ pre.copyable.copyable--flash {
 .min-w-0        { min-width: 0; }
 .max-w-none     { max-width: none; }
 .max-w-440      { max-width: 440px; }
+
+/* Compass cache page card (was inlined via PHP variables) */
+.compass-card {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.compass-card__title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
