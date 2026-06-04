@@ -100,7 +100,7 @@ foreach ($boardColumns as $c) {
   <script type="module" src="<?= e(asset_url('/assets/js/kanban.js')) ?>"></script>
 <?php elseif ($currentTab === 'backlog'): ?>
   <?php if (!$backlogCol): ?>
-    <p style="color:var(--text-muted);"><?= e(t('projects.backlog.no_column')) ?></p>
+    <p class="muted"><?= e(t('projects.backlog.no_column')) ?></p>
   <?php else: ?>
     <div class="backlog" data-project-id="<?= (int)$project['id'] ?>" data-column-id="<?= (int)$backlogCol['id'] ?>">
       <form class="backlog__add" data-quickadd-trigger data-column-id="<?= (int)$backlogCol['id'] ?>" autocomplete="off"
@@ -139,7 +139,7 @@ foreach ($boardColumns as $c) {
 <?php else: ?>
   <div class="project-overview" data-project-id="<?= (int)$project['id'] ?>">
     <div>
-      <div class="project-overview__header" style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+      <div class="project-overview__header">
         <?php if (!empty($canEdit)): ?>
           <label class="project-avatar-edit" title="<?= e(t('projects.overview.color_title')) ?>">
             <div class="ini project-avatar" style="width:44px;height:44px;font-size:14px;background: <?= e($project['color'] ?? '#1A1612') ?>;flex-shrink:0;">
@@ -201,8 +201,7 @@ foreach ($boardColumns as $c) {
         </div>
       </section>
     </div>
-    <aside class="project-sidebar"
-           style="border:1px solid var(--rule);padding:18px;background:var(--paper);border-radius:4px;">
+    <aside class="project-sidebar">
       <h3 class="section-strong-label"><?= e(t('projects.overview.details')) ?></h3>
 
       <?php if (!empty($canEdit)): ?>
@@ -253,8 +252,7 @@ foreach ($boardColumns as $c) {
       </div>
 
       <?php if (!empty($canEdit)): ?>
-        <button class="btn--danger" type="button" data-action="delete-project"
-                style="margin-top:9px;width:100%;padding:8px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;">
+        <button class="btn--danger btn--block-cta" type="button" data-action="delete-project">
           <?= e(t('projects.overview.delete_btn')) ?>
         </button>
       <?php endif; ?>

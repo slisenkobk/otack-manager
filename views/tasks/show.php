@@ -18,9 +18,9 @@
       <span class="task-header__id task-header__id--inline"><?= e(t('tasks.id_prefix', ['id' => (int)$task['id']])) ?></span>
     </p>
 
-    <div class="task-header" style="margin:0 0 24px;">
+    <div class="task-header">
       <?php if (!empty($task['sub_status'])): ?>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div class="task-sub-status-row">
           <span class="sub-status sub-status--<?= e($task['sub_status']) ?>" data-task-sub-status>
             <?= e($task['sub_status'] === 'reopened' ? t('tasks.sub_status.reopened') : t('tasks.sub_status.returned')) ?>
           </span>
@@ -105,7 +105,7 @@
       </footer>
 
       <div class="overview-panel__section overview-panel__section--cream overview-panel--links" data-linked-tasks data-task-id="<?= (int)$task['id'] ?>">
-        <header class="overview-panel__head" style="padding:0 0 var(--space-6);">
+        <header class="overview-panel__head overview-panel__head--linked">
           <h2 class="overview-panel__title"><?= e(t('tasks.related')) ?></h2>
           <?php if ($canEdit): ?>
             <button class="btn--ghost fz-12" type="button" data-action="add-link">
@@ -144,8 +144,7 @@
     </section>
   </main>
 
-  <aside class="task-sidebar" data-task-id="<?= (int)$task['id'] ?>" data-project-id="<?= (int)$project['id'] ?>"
-         style="border:1px solid var(--rule);padding:18px;background:var(--paper);border-radius:4px;">
+  <aside class="task-sidebar" data-task-id="<?= (int)$task['id'] ?>" data-project-id="<?= (int)$project['id'] ?>">
     <h3 class="section-strong-label"><?= e(t('projects.overview.details')) ?></h3>
 
     <div class="field mb-7">
@@ -254,21 +253,19 @@
       ?>
     </div>
 
-    <div style="border-top:1px solid var(--rule);padding-top:6px;margin-top:9px;font-size:11px;color:var(--ink-3);">
-      <div><?= e(t('tasks.created_by')) ?> <strong style="color:var(--ink-2);"><?= e($createdBy['name'] ?? t('tasks.unknown_user')) ?></strong></div>
-      <div style="margin-top:4px;font-family:var(--font-mono);"><?= fmt_datetime($task['created_at']) ?></div>
+    <div class="entity-meta-block">
+      <div><?= e(t('tasks.created_by')) ?> <strong><?= e($createdBy['name'] ?? t('tasks.unknown_user')) ?></strong></div>
+      <div class="entity-meta-block__time"><?= fmt_datetime($task['created_at']) ?></div>
     </div>
 
     <?php if (!empty($canCreateProject)): ?>
-      <button class="btn--ghost" type="button" data-action="promote-to-project"
-              style="margin-top:9px;width:100%;padding:8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+      <button class="btn--ghost btn--block-cta btn--block-cta--icon" type="button" data-action="promote-to-project">
         <i class="fa-solid fa-up-right-from-square"></i> <?= e(t('tasks.promote_to_project')) ?>
       </button>
     <?php endif; ?>
 
     <?php if (!empty($canEditTask)): ?>
-      <button class="btn--danger" type="button" data-action="delete-task"
-              style="margin-top:5px;width:100%;padding:8px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;">
+      <button class="btn--danger btn--block-cta btn--block-cta--tight" type="button" data-action="delete-task">
         <?= e(t('tasks.delete_btn')) ?>
       </button>
     <?php endif; ?>

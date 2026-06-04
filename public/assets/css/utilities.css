@@ -1591,3 +1591,36 @@ pre.copyable.copyable--flash {
 }
 .updates-intro     { margin: 0 0 8px; font-size: 15px; }
 .updates-duration  { font-size: 12px; color: var(--ink-3); margin: 0 0 14px; }
+
+/* ─── Wave 9.1e — tasks/projects static-style sweep (Group B) ─── */
+
+/* Full-width sidebar CTA — recurring pattern: promote-to-project,
+   delete-task, delete-project. Sits at the bottom of the sidebar with a
+   small top margin so it never collides with the field above. */
+.btn--block-cta {
+  width: 100%;
+  margin-top: 9px;
+  padding: 8px;
+  font-size: 12px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+/* Icon variant — tighter letter-spacing so the icon + label center
+   cleanly inside an inline-flex row. */
+.btn--block-cta--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  letter-spacing: .08em;
+}
+/* "delete" button right below another CTA tightens up the gap. */
+.btn--block-cta--tight { margin-top: 5px; }
+
+/* Right-hand cluster inside a .page-actions bar (search + new-project
+   button on /projects). */
+.page-actions__right {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
