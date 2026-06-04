@@ -300,6 +300,7 @@ final class InstallController extends BaseController
         Response::html($this->render('install/security', [
             'flash'           => $req->query['flash'] ?? null,
             'detectedAppUrl'  => $this->detectedAppUrl(),
+            'form'            => [],
         ], 'security'));
     }
 
@@ -307,23 +308,35 @@ final class InstallController extends BaseController
     {
         if ($this->gateBlocked()) { $this->deny404(); return; }
 
-        $url = trim((string)($req->post['app_url'] ?? ''));
+        $url           = trim((string)($req->post['app_url'] ?? ''));
+        $enableLogin   = !empty($req->post['enable_login_hash']);
+        $formState     = ['enable_login_hash' => $enableLogin];
+
         if ($url === '' || !preg_match('#^https?://#i', $url)) {
-            Response::redirect('/install/security?flash=' . rawurlencode(t('install.error.invalid_input')));
+            // Render directly (not redirect) so the form keeps user state —
+            // login-hash checkbox tick and the URL they typed both survive.
+            Response::html($this->render('install/security', [
+                'flash'           => t('install.error.invalid_input'),
+                'detectedAppUrl'  => $url !== '' ? $url : $this->detectedAppUrl(),
+                'form'            => $formState,
+            ], 'security'));
             return;
         }
         $writes = [
             'APP_SECRET' => bin2hex(random_bytes(32)),
             'APP_URL'    => $url,
         ];
-        if (!empty($req->post['enable_login_hash'])) {
+        if ($enableLogin) {
             $writes['LOGIN_HASH'] = bin2hex(random_bytes(8));
         }
         try {
             $this->config->set($writes);
         } catch (\InvalidArgumentException $e) {
-            $msg = t('install.error.config_write', ['msg' => $e->getMessage()]);
-            Response::redirect('/install/security?flash=' . rawurlencode($msg));
+            Response::html($this->render('install/security', [
+                'flash'           => t('install.error.config_write', ['msg' => $e->getMessage()]),
+                'detectedAppUrl'  => $url,
+                'form'            => $formState,
+            ], 'security'));
             return;
         }
         Response::redirect('/install/integrations');
@@ -377,9 +390,12 @@ final class InstallController extends BaseController
             'telegram'     => $this->config->get('TG_BOT_TOKEN') !== null,
             'sign_in_url'  => $signInUrl,
         ];
-        // Stash for the done-page one-shot render.
-        $session = $this->session;
-        $session->store['__install_done_summary'] = $summary;
+        // Stash for the done-page one-shot render. The `session` singleton in
+        // Container.php is an anonymous class wrapper around $_SESSION with a
+        // single public `store` property held by reference — so writing
+        // through `$session->store` IS the canonical API here. Don't reach
+        // for SessionManager::storage() — it isn't injected.
+        $this->session->store['__install_done_summary'] = $summary;
 
         $this->settings->set('installed_at', gmdate('Y-m-d\TH:i:s\Z'));
         Response::redirect('/install/done');
@@ -389,12 +405,11 @@ final class InstallController extends BaseController
     {
         // Special case: the done page is the ONLY /install/* URL allowed to
         // render once installed_at IS set — it's the post-stamp summary. Read
-        // the one-shot summary from the session; if it isn't there (someone
-        // hit /install/done directly after install), fall back to a generated
-        // summary from current state.
-        $session = $this->session;
-        $summary = $session->store['__install_done_summary'] ?? null;
-        unset($session->store['__install_done_summary']);
+        // the one-shot summary from the session bucket; if it isn't there
+        // (someone hit /install/done directly after install), fall back to a
+        // generated summary from current state.
+        $summary = $this->session->store['__install_done_summary'] ?? null;
+        unset($this->session->store['__install_done_summary']);
 
         if ($summary === null) {
             // Direct hit on /install/done after the wizard finished — refuse.

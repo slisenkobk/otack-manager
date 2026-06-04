@@ -201,10 +201,13 @@ final class CompassController extends BaseController
         $tgMask  = $tgToken !== ''
             ? 'bot****' . substr($tgToken, -4)
             : '';
+        // LOGIN_HASH is 16 hex chars (8 random bytes). Exposing the last 4
+        // would cut the effective key space of the /login?hash= URL gate
+        // from 16^16 to 16^12 — meaningful against a brute-forcer. Render
+        // a fixed placeholder; the value is shown ONLY on first
+        // generation (one-shot toast) and never again.
         $loginHash = $values['LOGIN_HASH'] ?? '';
-        $loginHashMask = $loginHash !== ''
-            ? '****' . substr($loginHash, -4)
-            : '';
+        $loginHashMask = $loginHash !== '' ? '••••••••••••••••' : '';
         $driver = Connection::driverFor($this->db)?->name() ?? 'sqlite';
 
         $this->renderTab('platform', t('compass.tab.platform'), [

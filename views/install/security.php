@@ -1,6 +1,7 @@
 <?php
-$flash  = $flash ?? null;
-$appUrl = $detectedAppUrl ?? '';
+$flash       = $flash ?? null;
+$appUrl      = $detectedAppUrl ?? '';
+$loginHashOn = !empty($form['enable_login_hash']);
 ?>
 <div class="install-card">
   <h2 class="install-heading"><?= e(t('install.security.heading')) ?></h2>
@@ -13,7 +14,7 @@ $appUrl = $detectedAppUrl ?? '';
     <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
 
     <label class="install-checkbox">
-      <input type="checkbox" name="enable_login_hash" value="1">
+      <input type="checkbox" name="enable_login_hash" value="1"<?= $loginHashOn ? ' checked' : '' ?>>
       <span>
         <strong><?= e(t('install.security.login_hash_label')) ?></strong>
         <small class="install-hint"><?= e(t('install.security.login_hash_hint')) ?></small>
