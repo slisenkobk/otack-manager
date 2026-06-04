@@ -28,6 +28,35 @@ php -v
 php -m | egrep -i 'pdo|dom|fileinfo|mbstring|curl'
 ```
 
+## 1.5. `data/config.json` (wizard-managed overlay)
+
+From v1.5.0 onwards, install-time and operator-tweakable configuration
+can live in `data/config.json` instead of `.env`. The setup wizard
+(/install on a fresh box) writes this file; the Compass → Platform
+Settings tab edits it post-install. Precedence:
+
+    data/config.json  >  $_ENV (from .env or shell)  >  defaults
+
+The file is JSON, mode 0600, owned by the web user. Allowed keys are
+a strict allow-list (see [`system/Service/ConfigStore.php`](../system/Service/ConfigStore.php) ALLOWED_KEYS).
+Operators may edit it by hand, but values are re-validated on read —
+malformed entries silently fall back to `.env` / defaults rather than
+being trusted.
+
+Required filesystem permissions on a fresh box:
+- `data/` must be writable by the web user (already required for
+  SQLite and uploads).
+- After the wizard runs, `data/config.json` will be mode 0600. If
+  shared-filesystem requirements force a different mode, the boot
+  log will warn but the app will still work.
+
+To opt out of the wizard (advanced operators preferring `.env`):
+- Leave `data/config.json` absent.
+- Set `LOGIN_HASH`, `APP_SECRET`, etc. in `.env` as before.
+- Pre-seed an admin via `SEED_DEFAULT_ADMIN_EMAIL` /
+  `SEED_DEFAULT_ADMIN_PASSWORD_HASH`. The wizard gate skips when an
+  admin already exists.
+
 ## 2. Filesystem layout
 
 The shipped tarball expands to a top-level directory containing:
