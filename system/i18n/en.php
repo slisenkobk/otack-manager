@@ -344,6 +344,8 @@ return [
     'settings.section.workspace_hint' => 'Brand name appears in the sidebar, page titles, public forms, and email subjects. Leave empty to fall back to ":fallback".',
     'settings.section.contact_hint'   => 'Shown on the footer of every public Form (users can override per submission).',
     'settings.field.app_name'         => 'App name',
+    'settings.field.project_palette'      => 'Project color palette',
+    'settings.field.project_palette_hint' => 'Comma-separated 6-digit hex codes (no leading "#") used when a new project is created without an explicit color. Leave empty to fall back to the built-in palette.',
     'settings.field.brand_color'      => 'Brand color',
     'settings.field.brand_color_title' => 'Drives logo, accents, links, focus ring, favicon.',
     'settings.field.brand_color_aria' => 'Brand color',

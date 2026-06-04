@@ -337,6 +337,8 @@ return [
     'settings.section.workspace_hint' => 'Nazwa marki pojawia się w pasku bocznym, tytułach stron, formularzach publicznych i tematach e-maili. Pozostaw puste, aby użyć „:fallback”.',
     'settings.section.contact_hint'   => 'Wyświetlane w stopce każdego publicznego formularza (użytkownicy mogą nadpisać dla pojedynczego zgłoszenia).',
     'settings.field.app_name'         => 'Nazwa aplikacji',
+    'settings.field.project_palette'      => 'Paleta kolorów projektów',
+    'settings.field.project_palette_hint' => 'Sześciocyfrowe kody hex oddzielone przecinkami (bez wiodącego „#”). Używane, gdy projekt jest tworzony bez wybranego koloru. Zostaw puste, aby użyć wbudowanej palety.',
     'settings.field.brand_color'      => 'Kolor marki',
     'settings.field.brand_color_title' => 'Wpływa na logo, akcenty, linki, obwódki focus i favicon.',
     'settings.field.brand_color_aria' => 'Kolor marki',

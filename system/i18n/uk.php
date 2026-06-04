@@ -338,6 +338,8 @@ return [
     'settings.section.workspace_hint' => 'Назва бренду з’являється у бічній панелі, заголовках сторінок, публічних формах і темах листів. Залиште порожнім, щоб використати «:fallback».',
     'settings.section.contact_hint'   => 'Показується у футері кожної публічної форми (можна перевизначити для окремого надсилання).',
     'settings.field.app_name'         => 'Назва застосунку',
+    'settings.field.project_palette'      => 'Палітра кольорів проєктів',
+    'settings.field.project_palette_hint' => 'Шестизначні hex-коди через кому (без «#»). Використовуються, коли проєкт створюється без вибраного кольору. Залиште порожнім, щоб використати вбудовану палітру.',
     'settings.field.brand_color'      => 'Колір бренду',
     'settings.field.brand_color_title' => 'Впливає на лого, акценти, посилання, обведення focus та favicon.',
     'settings.field.brand_color_aria' => 'Колір бренду',
