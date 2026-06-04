@@ -4,7 +4,7 @@
   <p style="color:var(--ink-2);font-size:15px;line-height:1.55;">
     <?= e(t('auth.pending_body')) ?>
   </p>
-  <form method="post" action="/logout" style="margin-top:24px;">
+  <form method="post" action="/logout" class="mt-24">
     <input type="hidden" name="_csrf" value="<?= e($csrfToken ?? '') ?>">
     <button class="btn--ghost" type="submit"><?= e(t('auth.sign_out')) ?></button>
   </form>

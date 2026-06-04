@@ -1,6 +1,6 @@
 <div class="dashboard-page">
 
-<section class="hero" style="margin-bottom:16px;">
+<section class="hero mb-16">
   <h1 class="display" style="font-weight:700;"><?= t('dashboard.greeting', ['name' => '<span style="color:var(--brand);">' . e($user['name']) . '</span>']) ?></h1>
   <p class="mono" style="margin-top:12px;font-size:12px;letter-spacing:.15em;color:var(--ink-3);text-transform:uppercase;">
     <?= e(t('dashboard.summary_line', [
@@ -55,9 +55,9 @@ $sparkClosed = $spark($trend['closed'] ?? []);
   </div>
 </section>
 
-<section style="margin-bottom:16px;">
+<section class="mb-16">
   <div class="section-head">
-    <div class="title"><?= t('dashboard.my_tasks', ['highlight' => '<span style="color:var(--brand);font-weight:600;">' . e(t('dashboard.my_tasks_highlight')) . '</span>']) ?></div>
+    <div class="title"><?= t('dashboard.my_tasks', ['highlight' => '<span class="text-brand fw-600">' . e(t('dashboard.my_tasks_highlight')) . '</span>']) ?></div>
     <div class="rule"></div>
     <div class="meta"><?= e(tn('open.count', (int)$stats['my_tasks'], ['n' => (int)$stats['my_tasks']])) ?></div>
   </div>
@@ -72,13 +72,13 @@ $sparkClosed = $spark($trend['closed'] ?? []);
         <a class="card" href="/tasks/<?= (int)$tk['id'] ?>" style="text-decoration:none;color:inherit;min-height:130px;">
           <span class="corner-tag"><?= e(t('tasks.id_prefix', ['id' => (int)$tk['id']])) ?></span>
           <span class="corner-meta"><?= e($tk['column_name']) ?></span>
-          <div style="margin-top:24px;">
+          <div class="mt-24">
             <div style="font-weight:600;font-size:15px;line-height:1.3;"><?= e($tk['title']) ?></div>
             <div class="mono muted" style="font-size:10px;color:var(--ink-3);margin-top:6px;letter-spacing:.1em;text-transform:uppercase;"><?= e($tk['project_name']) ?></div>
           </div>
           <div class="card-row">
             <?php if (!empty($tk['due_date'])): ?>
-              <span class="mono" style="font-size:10px;color:var(--ink-3);"><?= fmt_date($tk['due_date']) ?></span>
+              <span class="mono fz-10 text-ink-3"><?= fmt_date($tk['due_date']) ?></span>
             <?php else: ?>
               <span></span>
             <?php endif; ?>
@@ -90,9 +90,9 @@ $sparkClosed = $spark($trend['closed'] ?? []);
   <?php endif; ?>
 </section>
 
-<section style="margin-bottom:16px;">
+<section class="mb-16">
   <div class="section-head">
-    <div class="title"><?= t('dashboard.recent_projects', ['highlight' => '<span style="color:var(--brand);font-weight:600;">' . e(t('dashboard.recent_projects_highlight')) . '</span>']) ?></div>
+    <div class="title"><?= t('dashboard.recent_projects', ['highlight' => '<span class="text-brand fw-600">' . e(t('dashboard.recent_projects_highlight')) . '</span>']) ?></div>
     <div class="rule"></div>
     <div class="section-head__actions">
       <a class="meta meta--action" href="/projects?new=1"><?= e(t('common.new')) ?> <span class="arr">&#8594;</span></a>
@@ -109,7 +109,7 @@ $sparkClosed = $spark($trend['closed'] ?? []);
   <?php else: ?>
     <div class="cards-row">
       <?php foreach ($recentProjects as $i => $p): ?>
-        <a class="card" href="/projects/<?= (int)$p['id'] ?>" style="text-decoration:none;color:inherit;">
+        <a class="card no-underline-inherit" href="/projects/<?= (int)$p['id'] ?>">
           <span class="corner-tag"><?= e(t('projects.label.id', ['id' => (int)$p['id']])) ?></span>
           <span class="corner-meta"><?= fmt_date($p['updated_at']) ?></span>
           <div class="card-head">
@@ -138,7 +138,7 @@ $sparkClosed = $spark($trend['closed'] ?? []);
 
 <section>
   <div class="section-head">
-    <div class="title"><?= t('dashboard.recent_activity', ['highlight' => '<span style="color:var(--brand);font-weight:600;">' . e(t('dashboard.recent_activity_highlight')) . '</span>']) ?></div>
+    <div class="title"><?= t('dashboard.recent_activity', ['highlight' => '<span class="text-brand fw-600">' . e(t('dashboard.recent_activity_highlight')) . '</span>']) ?></div>
     <div class="rule"></div>
   </div>
   <?php if (!$recentActivity): ?>

@@ -7,7 +7,7 @@
     <?php endforeach; ?>
   </div>
   <div style="display:flex;gap:12px;align-items:center;">
-    <form method="get" action="/projects" class="kanban-search kanban-search--with-submit" style="margin:0;">
+    <form method="get" action="/projects" class="kanban-search kanban-search--with-submit m-0">
       <input type="hidden" name="status" value="<?= e($status ?? 'active') ?>">
       <i class="fa-solid fa-magnifying-glass"></i>
       <input class="input input--inline" name="q" placeholder="<?= e(t('projects.search_placeholder')) ?>" value="<?= e($query ?? '') ?>" data-project-search>
@@ -41,7 +41,7 @@
 <?php else: ?>
   <div class="cards-row">
     <?php foreach ($projects as $i => $p): ?>
-      <a class="card<?= !empty($p['pinned_at']) ? ' is-pinned' : '' ?>" href="/projects/<?= (int)$p['id'] ?>" data-project-id="<?= (int)$p['id'] ?>" style="text-decoration:none;color:inherit;">
+      <a class="card<?= !empty($p['pinned_at']) ? ' is-pinned' : '' ?> no-underline-inherit" href="/projects/<?= (int)$p['id'] ?>" data-project-id="<?= (int)$p['id'] ?>">
         <span class="corner-tag"><?= e(t('projects.label.id', ['id' => (int)$p['id']])) ?></span>
         <span class="corner-meta"><?= fmt_date($p['updated_at']) ?></span>
         <button type="button" class="card-pin<?= !empty($p['pinned_at']) ? ' is-on' : '' ?>" data-action="toggle-pin" aria-label="<?= e(t('projects.pin_aria')) ?>">

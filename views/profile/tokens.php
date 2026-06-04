@@ -36,7 +36,7 @@ function _token_epoch_fmt(?int $ts): string {
 
 <section class="brief brief--wide profile-card">
   <h2 class="profile-card__title"><?= e(t('api_tokens.create')) ?></h2>
-  <form method="post" action="/profile/tokens" class="profile-form" style="margin-top:var(--space-6);">
+  <form method="post" action="/profile/tokens" class="profile-form u-mt-space-6">
     <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
     <div class="form-grid form-grid--2">
       <div class="field">
@@ -62,11 +62,11 @@ function _token_epoch_fmt(?int $ts): string {
   <h2 class="profile-card__title"><?= e(t('api_tokens.title')) ?></h2>
 
   <?php if (!$tokens): ?>
-    <div class="empty-state" style="margin-top:var(--space-6);">
+    <div class="empty-state u-mt-space-6">
       <p class="empty-state__text"><?= e(t('api_tokens.empty_state')) ?></p>
     </div>
   <?php else: ?>
-    <div class="data-table-wrap" style="margin-top:var(--space-6);">
+    <div class="data-table-wrap u-mt-space-6">
       <table class="data-table">
         <thead>
           <tr>
@@ -89,7 +89,7 @@ function _token_epoch_fmt(?int $ts): string {
             <tr data-token-row data-token-id="<?= (int)$tok['id'] ?>">
               <td data-token-name><?= e($tok['name']) ?></td>
               <td>
-                <span class="mono" style="font-size:11px;color:var(--ink-3);"><?= e($tok['prefix']) ?>…</span>
+                <span class="mono fz-11 text-ink-3"><?= e($tok['prefix']) ?>…</span>
               </td>
               <td>
                 <span class="data-table__meta-time"><?= e(_token_epoch_fmt((int)$tok['created_at'])) ?></span>

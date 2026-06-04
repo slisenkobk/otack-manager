@@ -18,14 +18,14 @@ $emailMsg = isset($fieldErrors['email'])
         <div class="field__error"><?= e(t('errors.' . $fieldErrors['name'], t('errors.required'))) ?></div>
       <?php endif; ?>
     </div>
-    <div class="field<?= isset($fieldErrors['email']) ? ' field--invalid' : '' ?>" style="margin-top:14px;">
+    <div class="field<?= isset($fieldErrors['email']) ? ' field--invalid' : '' ?> mt-14">
       <label for="f-email"><?= e(t('field.email')) ?></label>
       <input id="f-email" class="input" type="email" name="email" required>
       <?php if ($emailMsg !== null): ?>
         <div class="field__error"><?= e($emailMsg) ?></div>
       <?php endif; ?>
     </div>
-    <div class="field<?= isset($fieldErrors['password']) ? ' field--invalid' : '' ?>" style="margin-top:14px;">
+    <div class="field<?= isset($fieldErrors['password']) ? ' field--invalid' : '' ?> mt-14">
       <label for="f-password"><?= e(t('field.password_min8')) ?></label>
       <input id="f-password" class="input" type="password" name="password" minlength="8" required>
       <?php if (isset($fieldErrors['password'])): ?>

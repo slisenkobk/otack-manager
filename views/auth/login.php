@@ -11,7 +11,7 @@
         <div class="field__error"><?= e(t('errors.' . $fieldErrors['email'], t('errors.required'))) ?></div>
       <?php endif; ?>
     </div>
-    <div class="field<?= isset($fieldErrors['password']) ? ' field--invalid' : '' ?>" style="margin-top:14px;">
+    <div class="field<?= isset($fieldErrors['password']) ? ' field--invalid' : '' ?> mt-14">
       <label for="f-password"><?= e(t('field.password')) ?></label>
       <input id="f-password" class="input" type="password" name="password" required>
       <?php if (isset($fieldErrors['password'])): ?>

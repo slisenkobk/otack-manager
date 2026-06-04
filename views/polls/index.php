@@ -7,8 +7,8 @@ $statusLabels = [
 ];
 ?>
 <div class="page-actions" style="margin-bottom:var(--space-8);justify-content:space-between;gap:10px;flex-wrap:wrap;">
-  <form method="get" action="/polls" class="search-field search-field--with-submit" style="margin:0;">
-    <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted);font-size:12px;"></i>
+  <form method="get" action="/polls" class="search-field search-field--with-submit m-0">
+    <i class="fa-solid fa-magnifying-glass muted fz-12"></i>
     <input class="input input--inline" name="q" placeholder="<?= e(t('polls.search_placeholder')) ?>" value="<?= e($query ?? '') ?>">
     <?php if (!empty($status)): ?><input type="hidden" name="status" value="<?= e($status) ?>"><?php endif; ?>
     <button type="submit" class="search-field__submit" aria-label="<?= e(t('common.search')) ?>"><i class="fa-solid fa-arrow-right"></i></button>
@@ -22,7 +22,7 @@ $statusLabels = [
            style="text-decoration:none;"><?= e($label) ?></a>
       <?php endforeach; ?>
     </div>
-    <a href="/polls/new" class="btn btn--secondary" style="text-decoration:none;">+ <?= e(t('polls.new_poll')) ?></a>
+    <a href="/polls/new" class="btn btn--secondary no-underline">+ <?= e(t('polls.new_poll')) ?></a>
   </div>
 </div>
 
@@ -43,8 +43,8 @@ $statusLabels = [
         <span class="corner-tag">P-<?= (int)$p['id'] ?></span>
         <span class="corner-meta"><?= fmt_date($p['created_at']) ?></span>
         <div class="card-head">
-          <div class="ini" style="background: var(--accent);"><i class="fa-solid fa-square-poll-vertical" style="color:var(--paper);font-size:16px;"></i></div>
-          <div style="flex:1;min-width:0;">
+          <div class="ini bg-accent"><i class="fa-solid fa-square-poll-vertical text-paper fz-16"></i></div>
+          <div class="flex-1-min">
             <h3 class="name"><?= e($p['title']) ?></h3>
             <p class="muted" style="font-size:12px;color:var(--ink-3);margin:2px 0 0;">
               <span class="poll-status poll-status--<?= e($statusKey) ?>"><?= e(t('polls.status.' . $statusKey)) ?></span>
@@ -68,7 +68,7 @@ $statusLabels = [
               <a href="<?= e($publicUrl) ?>" target="_blank" rel="noopener" class="btn--ghost" data-stop title="<?= e(t('polls.open_public')) ?>"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
             <?php endif; ?>
             <button type="button" class="btn--ghost" data-action="duplicate-poll" data-stop title="<?= e(t('polls.duplicate_title')) ?>"><i class="fa-regular fa-clone"></i></button>
-            <button type="button" class="btn--ghost" data-action="delete-poll" data-stop title="<?= e(t('common.delete')) ?>" style="color:var(--accent);"><i class="fa-solid fa-trash"></i></button>
+            <button type="button" class="btn--ghost text-accent" data-action="delete-poll" data-stop title="<?= e(t('common.delete')) ?>"><i class="fa-solid fa-trash"></i></button>
           </div>
           <span class="share-link"><?= e($statusKey === 'draft' ? t('common.edit') : t('polls.open_admin')) ?> <span class="arr">&#8594;</span></span>
         </div>

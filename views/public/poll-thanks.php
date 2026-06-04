@@ -44,7 +44,7 @@ $customMessage = isset($poll['success_message']) ? trim((string)$poll['success_m
     <?php else: ?>
       <i class="fa-solid fa-circle-check"></i>
       <?php if ($customMessage !== ''): ?>
-        <p style="white-space:pre-line"><?= e($customMessage) ?></p>
+        <p class="whitespace-pre-line"><?= e($customMessage) ?></p>
       <?php else: ?>
         <h1><?= e(t('public_poll.thanks_title')) ?></h1>
         <p><?= e(t('public_poll.thanks_body')) ?></p>

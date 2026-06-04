@@ -3,7 +3,7 @@
 ?>
 <?php include APP_ROOT . '/views/partials/compass-tabs.php'; ?>
 <div class="brief brief--wide" data-db-migrate-wizard data-current-driver="<?= e($currentDriver) ?>">
-  <h2 style="font-size:20px;font-weight:600;margin:0 0 var(--space-2);">
+  <h2 class="fz-20 fw-600 u-mb-space-2">
     <?= e(t('compass.db_migrate.heading')) ?>
   </h2>
   <p class="muted" style="font-size:13px;margin:0 0 var(--space-6);">
@@ -28,7 +28,7 @@
             'size'   => human_bytes((int)$plan['file_bytes']),
           ])) ?>
         </p>
-        <table class="voters-table" style="margin-top:8px;">
+        <table class="voters-table mt-8">
           <thead>
             <tr>
               <th><?= e(t('compass.db_migrate.col_table')) ?></th>
@@ -50,7 +50,7 @@
     <h3 style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink-3);margin:24px 0 8px;">
       <?= e(t('compass.db_migrate.target_heading')) ?>
     </h3>
-    <form data-form="connect" class="form-grid form-grid--2" style="margin:0;">
+    <form data-form="connect" class="form-grid form-grid--2 m-0">
       <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
       <div class="field">
         <label for="f-db-host"><?= e(t('compass.db_migrate.field_host')) ?></label>
@@ -90,7 +90,7 @@
       </button>
     </div>
 
-    <div data-test-result style="margin-top:14px;"></div>
+    <div data-test-result class="mt-14"></div>
 
     <div data-run-result style="margin-top:18px;display:none;">
       <h3 style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink-3);margin:0 0 8px;">

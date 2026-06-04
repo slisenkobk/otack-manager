@@ -1,6 +1,6 @@
 <div class="page-actions" style="margin-bottom:var(--space-8);justify-content:space-between;gap:10px;">
-  <form method="get" action="/users" class="search-field search-field--with-submit" style="margin:0;">
-    <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted);font-size:12px;"></i>
+  <form method="get" action="/users" class="search-field search-field--with-submit m-0">
+    <i class="fa-solid fa-magnifying-glass muted fz-12"></i>
     <input class="input input--inline" name="q" placeholder="<?= e(t('users.search_placeholder')) ?>" value="<?= e($query ?? '') ?>" data-user-search>
     <button type="submit" class="search-field__submit" aria-label="<?= e(t('common.search')) ?>"><i class="fa-solid fa-arrow-right"></i></button>
   </form>
@@ -62,14 +62,14 @@ $localeNames = locale_display_names();
                 <input type="hidden" data-role-select value="<?= e($u['role']) ?>">
               </div>
             <?php else: ?>
-              <span class="mono" style="font-size:11px;color:var(--ink-3);"><?= e($roleLabels[$u['role']] ?? $u['role']) ?></span>
+              <span class="mono fz-11 text-ink-3"><?= e($roleLabels[$u['role']] ?? $u['role']) ?></span>
             <?php endif; ?>
           </td>
           <td>
             <span class="status<?= $u['status'] === 'approved' ? ' is-ready' : '' ?>"><?= e(t('status.user.' . $u['status'])) ?></span>
           </td>
           <td>
-            <span class="mono" style="font-size:11px;color:var(--ink-3);"><?= e($localeNames[$u['locale'] ?? 'en'] ?? ($u['locale'] ?? 'en')) ?></span>
+            <span class="mono fz-11 text-ink-3"><?= e($localeNames[$u['locale'] ?? 'en'] ?? ($u['locale'] ?? 'en')) ?></span>
           </td>
           <td>
             <span class="data-table__meta-time"><?= fmt_date($u['created_at']) ?></span>

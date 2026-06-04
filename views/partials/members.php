@@ -6,7 +6,7 @@
         <?= user_avatar_html((int)$m['id'], $m['name'], $m['avatar'] ?? null, 'sm') ?>
         <div style="flex:1;font-size:13px;">
           <?= e($m['name']) ?>
-          <span class="muted" style="font-size:10px;color:var(--ink-3);"><?= e($m['role']) ?></span>
+          <span class="muted fz-10 text-ink-3"><?= e($m['role']) ?></span>
         </div>
         <?php if ($canEdit && $m['role'] !== 'owner'): ?>
           <button type="button" class="btn-icon" data-action="remove-member" data-user-id="<?= (int)$m['id'] ?>"

@@ -34,7 +34,7 @@ foreach ($apiTokens as $tok) {
 }
 ?>
 
-<div class="page-actions" style="margin-bottom:var(--space-8);">
+<div class="page-actions u-mb-space-8">
   <a class="btn--secondary" href="/users">
     <i class="fa-solid fa-arrow-left"></i> <?= e(t('nav.users')) ?>
   </a>
@@ -46,7 +46,7 @@ foreach ($apiTokens as $tok) {
     <?= user_avatar_html((int)$user['id'], $user['name'], $user['avatar'] ?? null, 'lg') ?>
     <div style="display:flex;flex-direction:column;gap:4px;min-width:0;">
       <div class="data-table__sub" data-user-email><?= e($user['email']) ?></div>
-      <div class="muted" style="font-size:12px;">
+      <div class="muted fz-12">
         <?= e($roleLabels[$user['role']] ?? $user['role']) ?>
         · <?= e(t('status.user.' . $user['status'])) ?>
         · <?= e($localeNames[$user['locale'] ?? 'en'] ?? ($user['locale'] ?? 'en')) ?>
@@ -60,12 +60,12 @@ foreach ($apiTokens as $tok) {
   <p class="muted profile-card__hint"><?= e(t('api_tokens.admin_no_value_note')) ?></p>
 
   <?php if (!$apiTokens): ?>
-    <div class="empty-state" style="margin-top:var(--space-6);">
+    <div class="empty-state u-mt-space-6">
       <p class="empty-state__text"><?= e(t('api_tokens.admin_empty_state')) ?></p>
     </div>
   <?php else: ?>
     <?php if ($activeCount > 0): ?>
-      <div class="profile-form__actions" style="margin-top:var(--space-6);">
+      <div class="profile-form__actions u-mt-space-6">
         <form method="post"
               action="/users/<?= (int)$user['id'] ?>/tokens/revoke-all"
               data-confirm="<?= e(t('api_tokens.confirm_revoke_all')) ?>"
@@ -79,7 +79,7 @@ foreach ($apiTokens as $tok) {
       </div>
     <?php endif; ?>
 
-    <div class="data-table-wrap" style="margin-top:var(--space-6);">
+    <div class="data-table-wrap u-mt-space-6">
       <table class="data-table">
         <thead>
           <tr>
@@ -102,7 +102,7 @@ foreach ($apiTokens as $tok) {
             <tr data-token-row data-token-id="<?= (int)$tok['id'] ?>">
               <td data-token-name><?= e($tok['name']) ?></td>
               <td>
-                <span class="mono" style="font-size:11px;color:var(--ink-3);"><?= e($tok['prefix']) ?>…</span>
+                <span class="mono fz-11 text-ink-3"><?= e($tok['prefix']) ?>…</span>
               </td>
               <td>
                 <span class="data-table__meta-time"><?= e($tokenEpoch((int)$tok['created_at'])) ?></span>

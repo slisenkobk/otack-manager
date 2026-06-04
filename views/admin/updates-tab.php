@@ -15,7 +15,7 @@ $installedAt = $currentVersion['installed_at'] ?? null;
       <span class="updates-version">v<?= e($current) ?></span>
     </p>
     <?php if ($installedAt): ?>
-      <p class="muted" style="font-size:12px;color:var(--ink-3);margin:6px 0 0;">
+      <p class="muted field-hint--tight">
         <?= e(t('updates.installed_at', ['when' => fmt_datetime($installedAt)])) ?>
       </p>
     <?php endif; ?>
@@ -39,20 +39,20 @@ $installedAt = $currentVersion['installed_at'] ?? null;
       </button>
     </p>
 
-    <div data-update-status style="margin-top:14px;">
+    <div data-update-status class="mt-14">
       <?php if ($hasUpdate): ?>
-        <p style="margin:0;">
+        <p class="m-0">
           <span class="poll-status poll-status--active" style="background:#e6f4ea;color:#1e6f3a;">
             <?= e(t('updates.available_label', ['version' => 'v' . $available])) ?>
           </span>
         </p>
-        <p class="muted" style="font-size:12px;color:var(--ink-3);margin:8px 0 0;">
+        <p class="muted field-hint--tight2">
           <?= e(t('updates.available_hint')) ?>
         </p>
       <?php elseif ($available !== null && $available === $current): ?>
-        <p class="muted" style="margin:0;font-size:13px;"><?= e(t('updates.up_to_date')) ?></p>
+        <p class="muted m-0 fz-13"><?= e(t('updates.up_to_date')) ?></p>
       <?php elseif ($checkedAt === null): ?>
-        <p class="muted" style="margin:0;font-size:13px;"><?= e(t('updates.no_check_yet')) ?></p>
+        <p class="muted m-0 fz-13"><?= e(t('updates.no_check_yet')) ?></p>
       <?php endif; ?>
     </div>
   </div>
@@ -96,7 +96,7 @@ $installedAt = $currentVersion['installed_at'] ?? null;
   <div class="updates-card">
     <h3 class="updates-card__title"><?= e(t('updates.section.history')) ?></h3>
     <?php if (!$versionHistory): ?>
-      <p class="muted" style="margin:0;font-size:13px;"><?= e(t('updates.history_empty')) ?></p>
+      <p class="muted m-0 fz-13"><?= e(t('updates.history_empty')) ?></p>
     <?php else: ?>
       <table class="voters-table">
         <thead>
@@ -124,7 +124,7 @@ $installedAt = $currentVersion['installed_at'] ?? null;
   <div class="updates-card">
     <h3 class="updates-card__title"><?= e(t('updates.section.backups')) ?></h3>
     <?php if (!$backups): ?>
-      <p class="muted" style="margin:0;font-size:13px;"><?= e(t('updates.backups_empty')) ?></p>
+      <p class="muted m-0 fz-13"><?= e(t('updates.backups_empty')) ?></p>
     <?php else: ?>
       <table class="voters-table">
         <thead>
@@ -149,7 +149,7 @@ $installedAt = $currentVersion['installed_at'] ?? null;
               <td><?= e(t('updates.kind.' . (string)$b['kind'])) ?></td>
               <td>
                 <?php if ($isPruned): ?>
-                  <span class="muted" style="font-size:12px;"><?= e(t('updates.backup_pruned')) ?></span>
+                  <span class="muted fz-12"><?= e(t('updates.backup_pruned')) ?></span>
                 <?php else: ?>
                   <form method="post"
                         action="/admin/updates/restore/<?= (int)$b['id'] ?>"

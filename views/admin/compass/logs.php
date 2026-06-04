@@ -15,8 +15,8 @@ $entries    = array_slice($entries, 0, $displayCap);
 
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-6);margin-bottom:var(--space-6);flex-wrap:wrap;">
     <div>
-      <h2 style="font-size:20px;font-weight:600;margin:0 0 var(--space-2);"><?= e(t('compass.logs.heading')) ?></h2>
-      <p class="muted" style="font-size:13px;margin:0;">
+      <h2 class="fz-20 fw-600 u-mb-space-2"><?= e(t('compass.logs.heading')) ?></h2>
+      <p class="muted fz-13 m-0">
         <?= e(t('compass.logs.meta', [
             'size' => human_bytes((int)$logSize),
             'n'    => count($entries),
@@ -26,7 +26,7 @@ $entries    = array_slice($entries, 0, $displayCap);
     </div>
     <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;">
       <form method="get" action="/admin/compass/logs" style="display:flex;align-items:center;gap:var(--space-3);">
-        <label for="compass-level" class="muted" style="font-size:13px;"><?= e(t('compass.logs.level')) ?></label>
+        <label for="compass-level" class="muted fz-13"><?= e(t('compass.logs.level')) ?></label>
         <select id="compass-level" name="level" class="input" style="min-width:160px;" data-compass-auto-submit>
           <?php foreach ($levels as $val => $label): ?>
             <option value="<?= e($val) ?>"<?= $level === $val ? ' selected' : '' ?>><?= e($label) ?></option>
@@ -38,7 +38,7 @@ $entries    = array_slice($entries, 0, $displayCap);
               data-compass-confirm="<?= e(t('compass.logs.clear.confirm')) ?>"
               data-compass-confirm-label="<?= e(t('compass.logs.clear')) ?>"
               <?= (int)$logSize === 0 ? 'disabled' : '' ?>>
-        <i class="fa-solid fa-trash" aria-hidden="true" style="margin-right:var(--space-2);"></i>
+        <i class="fa-solid fa-trash mr-space-2" aria-hidden="true"></i>
         <?= e(t('compass.logs.clear')) ?>
       </button>
     </div>

@@ -37,13 +37,13 @@
       <header class="overview-panel__head">
         <h2 class="overview-panel__title"><?= e(t('tasks.description')) ?></h2>
         <?php if (!empty($canEditTask)): ?>
-          <button class="btn--ghost" type="button" data-action="edit-description" style="font-size:12px;"><?= e(t('common.edit')) ?></button>
+          <button class="btn--ghost fz-12" type="button" data-action="edit-description"><?= e(t('common.edit')) ?></button>
         <?php endif; ?>
       </header>
       <div class="overview-panel__body rich-text task-description-rendered">
         <?= $task['description'] ? \App\Service\LinkPreview::enhance((string)$task['description']) : '<em class="overview-panel__empty">' . e(t('tasks.no_description')) . '</em>' ?>
       </div>
-      <div class="overview-panel__body task-description-editor" style="display:none;">
+      <div class="overview-panel__body task-description-editor d-none">
         <div class="wysiwyg-host">
           <div class="wysiwyg-editor"
                data-quill
@@ -108,7 +108,7 @@
         <header class="overview-panel__head" style="padding:0 0 var(--space-6);">
           <h2 class="overview-panel__title"><?= e(t('tasks.related')) ?></h2>
           <?php if ($canEdit): ?>
-            <button class="btn--ghost" type="button" data-action="add-link" style="font-size:12px;">
+            <button class="btn--ghost fz-12" type="button" data-action="add-link">
               <i class="fa-solid fa-plus"></i> <?= e(t('tasks.add_link')) ?>
             </button>
           <?php endif; ?>
@@ -148,8 +148,8 @@
          style="border:1px solid var(--rule);padding:18px;background:var(--paper);border-radius:4px;">
     <h3 style="font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.15em;color:var(--ink-3);margin:0 0 8px;"><?= e(t('projects.overview.details')) ?></h3>
 
-    <div class="field" style="margin-bottom:7px;">
-      <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;"><?= e(t('projects.overview.status')) ?></label>
+    <div class="field mb-7">
+      <label class="section-label"><?= e(t('projects.overview.status')) ?></label>
       <?php
         $currentCol = null;
         foreach ($columns as $c) { if ((int)$c['id'] === (int)$task['column_id']) { $currentCol = $c; break; } }
@@ -172,8 +172,8 @@
       </div>
     </div>
 
-    <div class="field" style="margin-bottom:7px;">
-      <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;"><?= e(t('tasks.assignee')) ?></label>
+    <div class="field mb-7">
+      <label class="section-label"><?= e(t('tasks.assignee')) ?></label>
       <?php
         $currentAssignee = null;
         foreach ($members as $m) {
@@ -207,13 +207,13 @@
       </div>
     </div>
 
-    <div class="field" style="margin-bottom:7px;">
-      <label for="f-task-due-date" style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;"><?= e(t('tasks.due_date')) ?></label>
+    <div class="field mb-7">
+      <label for="f-task-due-date" class="section-label"><?= e(t('tasks.due_date')) ?></label>
       <input id="f-task-due-date" class="input" type="date" data-field="due_date" value="<?= e($task['due_date'] ?? '') ?>">
     </div>
 
-    <div class="field" style="margin-bottom:7px;">
-      <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;"><?= e(t('tasks.priority')) ?></label>
+    <div class="field mb-7">
+      <label class="section-label"><?= e(t('tasks.priority')) ?></label>
       <?php
         $prioOpts = [
             'none'   => t('tasks.priority.none'),
@@ -242,8 +242,8 @@
       </div>
     </div>
 
-    <div class="field" style="margin-bottom:7px;">
-      <label style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;"><?= e(t('tasks.tags')) ?></label>
+    <div class="field mb-7">
+      <label class="section-label"><?= e(t('tasks.tags')) ?></label>
       <?php
         $scope      = 'task';
         $entityType = 'task';

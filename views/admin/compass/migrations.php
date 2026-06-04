@@ -8,8 +8,8 @@ $total = count($status);
 
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-8);margin-bottom:var(--space-6);flex-wrap:wrap;">
     <div>
-      <h2 style="font-size:20px;font-weight:600;margin:0 0 var(--space-2);"><?= e(t('compass.migrations.heading')) ?></h2>
-      <p class="muted" style="font-size:13px;margin:0;">
+      <h2 class="fz-20 fw-600 u-mb-space-2"><?= e(t('compass.migrations.heading')) ?></h2>
+      <p class="muted fz-13 m-0">
         <?php if ($pendingCount > 0): ?>
           <span style="color:var(--accent);font-weight:600;"><?= e(t('compass.migrations.pending', ['n' => (int)$pendingCount])) ?></span> ·
         <?php else: ?>
@@ -23,7 +23,7 @@ $total = count($status);
             data-compass-confirm="<?= e(t('compass.migrations.run_confirm')) ?>"
             data-compass-confirm-label="<?= e(t('compass.migrations.run_button')) ?>"
             <?= $pendingCount === 0 ? 'disabled' : '' ?>>
-      <i class="fa-solid fa-play" aria-hidden="true" style="margin-right:var(--space-2);"></i>
+      <i class="fa-solid fa-play mr-space-2" aria-hidden="true"></i>
       <?= e(t('compass.migrations.run_pending')) ?>
     </button>
   </div>
@@ -39,7 +39,7 @@ $total = count($status);
     <tbody>
     <?php foreach ($status as $row): ?>
       <tr style="border-bottom:1px solid var(--rule);">
-        <td style="padding:var(--space-3) var(--space-4);"><code style="font-size:12px;"><?= e($row['name']) ?></code></td>
+        <td style="padding:var(--space-3) var(--space-4);"><code class="fz-12"><?= e($row['name']) ?></code></td>
         <td style="padding:var(--space-3) var(--space-4);" class="muted">
           <?= $row['applied'] && isset($appliedAt[$row['name']]) ? e($appliedAt[$row['name']]) : '—' ?>
         </td>

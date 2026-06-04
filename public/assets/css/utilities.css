@@ -1228,3 +1228,116 @@ pre.copyable.copyable--flash {
     justify-content: flex-start;
   }
 }
+
+/* ─── §20 CSS-5 sweep utility classes (added in Wave 9.1d) ───────
+   Lifted from the top-30 inline-style patterns across views/. Naming
+   stays terse / Tailwind-ish for one-off swaps; semantic component
+   styles live in cards-panels.css / forms.css. */
+
+/* Margins (px-named — additional to the existing .mt-8/16/24/32 set) */
+.m-0       { margin: 0; }
+.mt-4      { margin-top: 4px; }
+.mt-6      { margin-top: 6px; }
+.mt-14     { margin-top: 14px; }
+.mt-18     { margin-top: 18px; }
+.mt-22     { margin-top: 22px; }
+.mt-28     { margin-top: 28px; }
+.mb-7      { margin-bottom: 7px; }
+.mb-16     { margin-bottom: 16px; }
+.mr-space-2 { margin-right: var(--space-2); }
+
+/* Font-sizes */
+.fz-10  { font-size: 10px; }
+.fz-11  { font-size: 11px; }
+.fz-12  { font-size: 12px; }
+.fz-13  { font-size: 13px; }
+.fz-14  { font-size: 14px; }
+.fz-15  { font-size: 15px; }
+.fz-16  { font-size: 16px; }
+.fz-20  { font-size: 20px; }
+.fz-24  { font-size: 24px; }
+.fz-32  { font-size: 32px; }
+
+/* Font-weights */
+.fw-600 { font-weight: 600; }
+.fw-700 { font-weight: 700; }
+
+/* Colors (token-bound — re-use the existing palette) */
+.text-accent { color: var(--accent); }
+.text-brand  { color: var(--brand); }
+.text-paper  { color: var(--paper); }
+.text-ink-2  { color: var(--ink-2); }
+.text-ink-3  { color: var(--ink-3); }
+.text-text-2 { color: var(--text-2); }
+.text-muted-strong { color: var(--text-muted); }
+
+/* Text utilities */
+.no-underline           { text-decoration: none; }
+.no-underline-inherit   { text-decoration: none; color: inherit; }
+.text-center            { text-align: center; }
+.uppercase-label        { text-transform: uppercase; letter-spacing: .1em; }
+
+/* Display / layout */
+.d-none           { display: none; }
+.d-inline         { display: inline; }
+.d-inline-block   { display: inline-block; }
+.flex-1-min       { flex: 1; min-width: 0; }
+
+/* Composed hints / labels — these patterns repeated ≥8× in views. */
+.field-hint {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin: 0 0 16px;
+}
+.field-hint--tight  { margin: 6px 0 0; font-size: 12px; color: var(--ink-3); }
+.field-hint--tight2 { margin: 8px 0 0; font-size: 12px; color: var(--ink-3); }
+.field-hint--top    { margin: 0 0 18px; font-size: 12px; color: var(--ink-3); }
+
+.section-label {
+  font-size: 11px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+
+/* Big numeric display (hero metric / counters) */
+.metric-display {
+  font-family: var(--font-mono);
+  font-size: 96px;
+  font-weight: 700;
+  color: var(--brand);
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+/* Empty-state placeholder (was .empty-state pattern with 60px padding) */
+.empty-state--simple { text-align: center; padding: 60px 20px; }
+
+/* CTA underline link (used on empty-state pages) */
+.cta-underline {
+  display: inline-block;
+  margin-top: 24px;
+  color: var(--brand);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Small inline icon-text pair (e.g. role badge) */
+.inline-icon-text {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Pass-2 add-ons */
+.u-mb-space-2     { margin-bottom: var(--space-2); }
+.u-mb-space-8     { margin-bottom: var(--space-8); }
+.u-mt-space-6     { margin-top: var(--space-6); }
+.whitespace-pre-line { white-space: pre-line; }
+.bg-accent        { background: var(--accent); }
+.page-section-title {
+  /* Was inlined as `font-size:24px;font-weight:600;margin:16px 0 8px;` on
+     section headers inside compass / admin pages. */
+  margin: 16px 0 8px;
+}

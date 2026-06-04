@@ -58,7 +58,7 @@ $readOnly      = $readOnly ?? false; // disables per-item delete button and the 
     <div style="margin-top:16px;">
       <label class="btn--secondary" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;">
         <i class="fa-solid fa-paperclip"></i> <?= e(t('attach.attach_files')) ?>
-        <input type="file" multiple style="display:none;" data-attach-input>
+        <input type="file" multiple data-attach-input class="d-none">
       </label>
       <span class="muted" style="font-size:12px;color:var(--ink-3);margin-left:12px;">
         <?= e(t('attach.size_hint')) ?>

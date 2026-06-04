@@ -99,7 +99,7 @@ foreach (($projects ?? []) as $p) {
 
   <section class="builder-panel" data-integration>
     <h2 class="builder-panel__title"><?= e(t('forms.integration.title')) ?></h2>
-    <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('forms.integration.hint')) ?></p>
+    <p class="muted field-hint"><?= e(t('forms.integration.hint')) ?></p>
 
     <div class="builder-grid">
       <div class="field">
@@ -152,7 +152,7 @@ foreach (($projects ?? []) as $p) {
 
   <section class="builder-panel">
     <h2 class="builder-panel__title"><?= e(t('forms.contact_block')) ?></h2>
-    <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('forms.contact_hint')) ?></p>
+    <p class="muted field-hint"><?= e(t('forms.contact_hint')) ?></p>
     <div class="contact-grid" data-footer>
       <?php foreach ([
         'company' => [t('forms.contact.company'),   'company_name', 'text'],
@@ -177,7 +177,7 @@ foreach (($projects ?? []) as $p) {
 
   <section class="builder-panel">
     <h2 class="builder-panel__title"><?= e(t('forms.success.section_title')) ?></h2>
-    <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 16px;"><?= e(t('forms.success.hint')) ?></p>
+    <p class="muted field-hint"><?= e(t('forms.success.hint')) ?></p>
     <div class="field">
       <label for="f-success-message"><?= e(t('forms.success.label')) ?></label>
       <textarea id="f-success-message" class="textarea" rows="3"
