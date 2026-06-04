@@ -4,6 +4,9 @@
 // POSTs to the matching endpoint, then toasts the server-returned `message`
 // (already translated) and reloads.
 
+import { api, UI } from './ui.js';
+import { logSilent, withButtonBusy } from './utils.js';
+
 const ACTIONS = {
   'clear-sessions': {
     url: '/admin/compass/cache/sessions/clear',
@@ -40,14 +43,13 @@ async function runAction(btn) {
   });
   if (!ok) return;
 
-  btn.disabled = true;
-  try {
-    const data = await api(spec.url, { method: 'POST' });
-    UI.toast(data.message || 'OK', 'success');
-    setTimeout(() => window.location.reload(), 600);
-  } catch (err) {
-    btn.disabled = false;
-  }
+  await withButtonBusy(btn, async () => {
+    try {
+      const data = await api(spec.url, { method: 'POST' });
+      UI.toast(data.message || 'OK', 'success');
+      setTimeout(() => window.location.reload(), 600);
+    } catch (e) { logSilent(e, 'compass.runAction'); }
+  });
 }
 
 async function runMigrations(btn) {
@@ -57,14 +59,13 @@ async function runMigrations(btn) {
   const ok = await UI.confirm(confirmText, { confirmLabel, danger: false });
   if (!ok) return;
 
-  btn.disabled = true;
-  try {
-    const data = await api('/admin/compass/migrations/run', { method: 'POST' });
-    UI.toast(data.message || 'OK', 'success');
-    setTimeout(() => window.location.reload(), 600);
-  } catch (err) {
-    btn.disabled = false;
-  }
+  await withButtonBusy(btn, async () => {
+    try {
+      const data = await api('/admin/compass/migrations/run', { method: 'POST' });
+      UI.toast(data.message || 'OK', 'success');
+      setTimeout(() => window.location.reload(), 600);
+    } catch (e) { logSilent(e, 'compass.runMigrations'); }
+  });
 }
 
 document.querySelectorAll('[data-compass-action]').forEach(btn => {

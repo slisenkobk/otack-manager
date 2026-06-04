@@ -1,4 +1,5 @@
 import { api } from './ui.js';
+import { logSilent, withButtonBusy } from './utils.js';
 
 const ICONS = {
   'comment.created':     'fa-regular fa-comment',
@@ -58,9 +59,8 @@ function renderActivityRow(a) {
 
 const btn = document.querySelector('.load-more-activity');
 if (btn) {
-  btn.addEventListener('click', async () => {
+  btn.addEventListener('click', () => withButtonBusy(btn, async () => {
     const offset = parseInt(btn.dataset.offset, 10) || 10;
-    btn.disabled = true;
     try {
       const res = await api('/api/activity?offset=' + offset);
       const list = document.getElementById('activity-list');
@@ -68,13 +68,9 @@ if (btn) {
         for (const item of res.items) list.appendChild(renderActivityRow(item));
       }
       btn.dataset.offset = String(offset + 10);
-      if (!res.has_more) {
-        btn.parentElement?.remove();
-      } else {
-        btn.disabled = false;
-      }
-    } catch {
-      btn.disabled = false;
-    }
-  });
+      // When there's nothing left, drop the button entirely. The helper
+      // re-enables it on exit, but we removed the parent first — harmless.
+      if (!res.has_more) btn.parentElement?.remove();
+    } catch (e) { logSilent(e, 'dashboard.loadMoreActivity'); }
+  }));
 }

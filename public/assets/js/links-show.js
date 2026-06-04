@@ -1,5 +1,5 @@
 import { api, UI } from './ui.js';
-import { logSilent, t } from './utils.js';
+import { logSilent, t, withButtonBusy } from './utils.js';
 
 const root = document.querySelector('[data-link-edit]');
 if (root) {
@@ -17,11 +17,12 @@ if (root) {
       target.focus();
       return;
     }
-    btn.disabled = true;
-    try {
-      await api('/links/' + id, { method: 'POST', body: JSON.stringify(payload) });
-      UI.toast(t('js.toast.link_saved'), 'success');
-    } catch (e) { logSilent(e, 'links-show.save'); } finally { btn.disabled = false; }
+    await withButtonBusy(btn, async () => {
+      try {
+        await api('/links/' + id, { method: 'POST', body: JSON.stringify(payload) });
+        UI.toast(t('js.toast.link_saved'), 'success');
+      } catch (e) { logSilent(e, 'links-show.save'); }
+    });
   });
 
   const copyBtn = root.querySelector('[data-action=copy-url]');
@@ -33,15 +34,16 @@ if (root) {
   const rotateBtn = root.querySelector('[data-action=rotate-url]');
   if (rotateBtn) rotateBtn.addEventListener('click', async () => {
     if (!await UI.confirm(t('js.confirm.rotate_slug'), { danger: true, confirmLabel: 'Rotate' })) return;
-    rotateBtn.disabled = true;
-    try {
-      const res = await api('/links/' + id + '/rotate-slug', { method: 'POST' });
-      if (res?.url) {
-        urlText.textContent = res.url;
-        if (urlLink) urlLink.href = res.url;
-      }
-      UI.toast(t('js.toast.new_url_generated'), 'success');
-    } catch (e) { logSilent(e, 'links-show.rotateSlug'); } finally { rotateBtn.disabled = false; }
+    await withButtonBusy(rotateBtn, async () => {
+      try {
+        const res = await api('/links/' + id + '/rotate-slug', { method: 'POST' });
+        if (res?.url) {
+          urlText.textContent = res.url;
+          if (urlLink) urlLink.href = res.url;
+        }
+        UI.toast(t('js.toast.new_url_generated'), 'success');
+      } catch (e) { logSilent(e, 'links-show.rotateSlug'); }
+    });
   });
 
   const toggleBtn = root.querySelector('[data-action=toggle-link]');
