@@ -771,6 +771,14 @@ h1.display em {
   border-radius: var(--radius-sm);
   letter-spacing: -0.02em;
 }
+/* Per-project tint supplied via `data-bg` (dynamic-style.js → --bg). */
+.ini[data-bg] { background: var(--bg, var(--ink)); }
+/* Larger avatar variant used on the project overview header. */
+.project-avatar--lg {
+  width: 44px;
+  height: 44px;
+  font-size: 14px;
+}
 .card .name {
   font-family: var(--font-sans);
   font-weight: 600;

@@ -53,6 +53,26 @@
 }
 .tag .x:hover { color: var(--danger); }
 
+/* Tag-picker chip — visual override on top of base `.tag`. Renders the
+   tag in a softer pill shape with the tag colour at ~20% alpha (the `33`
+   suffix on the hex string supplied via `data-bg`); colour text stays
+   on `--ink` so light/dark backgrounds both read. Wave 9.1e Task 3 moved
+   the static parts off `style=""` for CSP nonce-only. */
+.tag.tag-picker__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: var(--bg, var(--paper-3));
+  color: var(--ink);
+  border: none;
+  border-radius: 999px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: .05em;
+  text-transform: none;
+}
+
 /* Tag picker dropdown */
 .tag-picker {
   position: relative;
@@ -1441,6 +1461,12 @@ pre.copyable.copyable--flash {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--space-6);
 }
+/* Cache-stat counter highlight — `--alert` colours the number in the
+   accent when there are stale rows to act on; `--ok` keeps it muted.
+   Used inside the i18n-interpolated `<strong>` tags on the cache page
+   so the conditional sits in a class name (Wave 9.1e Task 3). */
+.cache-stat--alert { color: var(--accent); }
+.cache-stat--ok    { color: var(--text-2); }
 
 /* Compass logs page */
 .compass-logs-head {
@@ -1490,6 +1516,17 @@ pre.copyable.copyable--flash {
   font-size: 11px;
   font-family: var(--font-mono);
 }
+/* Log-level pill — uppercase mono label sitting in the entry head.
+   `.compass-log-entry__level--error` is set for ERROR/FATAL lines and
+   tints the text in the accent colour for quick scanning. */
+.compass-log-entry__level {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.compass-log-entry__level--error { color: var(--accent); }
 .compass-log-entry__body {
   margin: 0;
   padding: var(--space-4);

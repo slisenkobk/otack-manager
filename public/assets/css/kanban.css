@@ -90,11 +90,35 @@
 .kanban-sort-toggle:hover { color: var(--text); border-color: var(--ink-3); }
 .kanban-sort-toggle[data-sort="priority"] { color: var(--accent); border-color: var(--accent); }
 
-/* Editable inline titles (task title / project title) */
+/* Editable inline titles (task title / project title) — Wave 9.1e Task 3
+   moved the static typography off `style=""` so we can run CSP nonce-only. */
+.task-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  margin: 0;
+  outline: none;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed transparent;
+}
+.project-title {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+  outline: none;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed transparent;
+  flex: 1;
+  min-width: 0;
+}
+.task-title.is-editable,
+.project-title.is-editable { cursor: text; }
 .task-title.is-editable:hover,
-.project-title.is-editable:hover { border-bottom-color: var(--rule-2) !important; }
+.project-title.is-editable:hover { border-bottom-color: var(--rule-2); }
 .task-title.is-editable:focus,
-.project-title.is-editable:focus { border-bottom-color: var(--accent) !important; }
+.project-title.is-editable:focus { border-bottom-color: var(--accent); }
 
 /* Column — full height of kanban row, internal scroll */
 .kanban-col {
@@ -136,7 +160,7 @@
 .kanban-col__dot {
   width: 8px; height: 8px;
   border-radius: 50%;
-  background: var(--col, var(--rule-2));
+  background: var(--bg, var(--rule-2));
   flex-shrink: 0;
 }
 
@@ -716,6 +740,8 @@ a.link-card *,
   border-radius: 50%;
   flex-shrink: 0;
 }
+/* When a colour is supplied via `data-bg` (dynamic-style.js bridges to --bg) */
+.col-dot[data-bg], .dot[data-bg] { background: var(--bg, var(--ink-3)); }
 .status-dot--active   { background: var(--green); box-shadow: 0 0 0 2px rgba(77, 104, 64, .18); }
 .status-dot--planning { background: var(--blue);  box-shadow: 0 0 0 2px rgba(46, 90, 136, .18); }
 .status-dot--under_review { background: var(--yellow); box-shadow: 0 0 0 2px rgba(181, 135, 30, .18); }
@@ -742,6 +768,8 @@ a.link-card *,
   transition: border-color var(--duration) var(--ease);
 }
 .color-swatch:hover { border-color: var(--ink-3); }
+/* Background filled via `data-bg` (dynamic-style.js → --bg) */
+.color-swatch[data-bg] { background: var(--bg); }
 .color-swatch input[type="color"] {
   position: absolute;
   inset: -4px;
