@@ -75,6 +75,34 @@ try {
 
 Events::register();
 
+// Install wizard gate (TODO #10). Behind a feature flag during the
+// rollout so existing .env installs aren't disturbed mid-deploy.
+// Default flips to true in step 7 of the implementation plan.
+$gateEnabled = filter_var(\App\App::env('INSTALL_GATE_ENABLED', 'false'), FILTER_VALIDATE_BOOLEAN);
+if ($gateEnabled) {
+    // Parse path so `?foo=bar` and `#frag` don't bleed into the prefix
+    // match — otherwise `/install-extra` would silently match `/install`.
+    $reqPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    $bypassPrefixes = ['/assets/'];
+    $bypassExact    = ['/favicon.ico', '/robots.txt', '/manifest.webmanifest'];
+    $isStatic = in_array($reqPath, $bypassExact, true);
+    foreach ($bypassPrefixes as $p) {
+        if (str_starts_with($reqPath, $p)) { $isStatic = true; break; }
+    }
+    $isInstall = $reqPath === '/install' || str_starts_with($reqPath, '/install/');
+    if (!$isStatic) {
+        if (\App\Service\InstallGate::isInstallRequired(\App\App::make('db'))) {
+            if (!$isInstall) {
+                header('Location: /install');
+                exit;
+            }
+        } elseif ($isInstall) {
+            http_response_code(404);
+            exit;
+        }
+    }
+}
+
 // Slide the remember-me window forward on every authenticated request: each
 // page view bumps the cookie expiry to "now + 30 days" so an active user
 // stays signed in indefinitely; an inactive one ages out naturally.

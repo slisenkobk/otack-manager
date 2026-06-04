@@ -82,6 +82,19 @@ final class UserRepository {
         return $stmt->fetchAll();
     }
 
+    /**
+     * Count users whose role is 'admin' AND status is 'approved'.
+     * Used by InstallGate to decide whether the wizard should fire.
+     */
+    public function countApprovedAdmins(): int
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT COUNT(*) FROM users WHERE role = 'admin' AND status = 'approved'"
+        );
+        $stmt->execute();
+        return (int)$stmt->fetchColumn();
+    }
+
     public function countAll(string $query = ''): int {
         if ($query !== '') {
             $like = '%' . mb_strtolower($query) . '%';
