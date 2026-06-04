@@ -363,7 +363,13 @@
   background: var(--prio, var(--ink-3));
   flex-shrink: 0;
 }
-[data-priority="none"] .priority-dot {
+/* "none" dashed-ring — scoped to known wrappers so the rule doesn't bleed
+   through .custom-select[data-priority="none"] into nested option dots
+   that carry their own data-priority="low|medium|high|urgent". */
+.kanban-card[data-priority="none"] .priority-dot,
+.kanban-card__prio[data-priority="none"] .priority-dot,
+.custom-select__opt[data-priority="none"] .priority-dot,
+.custom-select[data-priority="none"] > .custom-select__btn .priority-dot {
   background: transparent;
   border: 1px dashed var(--ink-3);
   box-sizing: border-box;

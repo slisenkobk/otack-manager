@@ -28,22 +28,24 @@
             'size'   => human_bytes((int)$plan['file_bytes']),
           ])) ?>
         </p>
-        <table class="voters-table mt-8">
-          <thead>
-            <tr>
-              <th><?= e(t('compass.db_migrate.col_table')) ?></th>
-              <th><?= e(t('compass.db_migrate.col_rows')) ?></th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($plan['tables'] as $row): ?>
-              <tr>
-                <td class="db-migrate-table-cell"><?= e($row['name']) ?></td>
-                <td><?= (int)$row['rows'] ?></td>
+        <div class="data-table-wrap mt-8">
+          <table class="data-table">
+            <thead>
+              <tr class="table-head-row">
+                <th class="table-cell--strong"><?= e(t('compass.db_migrate.col_table')) ?></th>
+                <th class="table-cell--strong-right"><?= e(t('compass.db_migrate.col_rows')) ?></th>
               </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              <?php foreach ($plan['tables'] as $row): ?>
+                <tr class="border-rule-bottom">
+                  <td><code class="fz-12 table-cell"><?= e($row['name']) ?></code></td>
+                  <td class="table-cell--num-right"><?= number_format((int)$row['rows']) ?></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
       </div>
     <?php endif; ?>
 

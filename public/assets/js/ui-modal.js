@@ -45,7 +45,11 @@ export const UI = {
     const actionsEl = node.querySelector('.modal-actions');
     actions.forEach(a => {
       const b = document.createElement('button');
-      b.className = a.variant || 'btn--secondary';
+      // BEM modifiers (btn--ghost / btn--danger / btn--secondary / btn--primary)
+      // require the base `.btn` for padding/min-height/typography. Legacy
+      // `submit` is a self-contained alias and stays as-is.
+      const variant = a.variant || 'btn--secondary';
+      b.className = variant.startsWith('btn--') ? ('btn ' + variant) : variant;
       b.textContent = a.label;
       b.addEventListener('click', () => a.onClick && a.onClick(close));
       actionsEl.appendChild(b);

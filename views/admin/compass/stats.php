@@ -27,26 +27,28 @@ foreach ($db['tables'] as $t) if ($t['rows'] >= 0) $totalRows += $t['rows'];
     <?php endif; ?>
   </div>
 
-  <table class="data-table">
-    <thead>
-      <tr class="table-head-row">
-        <th class="table-cell--strong"><?= e(t('compass.db.col.table')) ?></th>
-        <th class="table-cell--strong-right"><?= e(t('compass.db.col.rows')) ?></th>
-      </tr>
-    </thead>
-    <tbody>
-    <?php foreach ($db['tables'] as $tb): ?>
-      <tr class="border-rule-bottom">
-        <td><code class="fz-12 table-cell"><?= e($tb['name']) ?></code></td>
-        <td class="table-cell--num-right">
-          <?php if ($tb['rows'] < 0): ?>
-            <span class="muted"><?= e(t('compass.db.error')) ?></span>
-          <?php else: ?>
-            <?= number_format((int)$tb['rows']) ?>
-          <?php endif; ?>
-        </td>
-      </tr>
-    <?php endforeach; ?>
-    </tbody>
-  </table>
+  <div class="data-table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr class="table-head-row">
+          <th class="table-cell--strong"><?= e(t('compass.db.col.table')) ?></th>
+          <th class="table-cell--strong-right"><?= e(t('compass.db.col.rows')) ?></th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php foreach ($db['tables'] as $tb): ?>
+        <tr class="border-rule-bottom">
+          <td><code class="fz-12 table-cell"><?= e($tb['name']) ?></code></td>
+          <td class="table-cell--num-right">
+            <?php if ($tb['rows'] < 0): ?>
+              <span class="muted"><?= e(t('compass.db.error')) ?></span>
+            <?php else: ?>
+              <?= number_format((int)$tb['rows']) ?>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
 </div>

@@ -28,32 +28,34 @@ $total = count($status);
     </button>
   </div>
 
-  <table class="data-table">
-    <thead>
-      <tr class="table-head-row">
-        <th class="table-cell--strong"><?= e(t('compass.migrations.col.migration')) ?></th>
-        <th class="table-cell--strong"><?= e(t('compass.migrations.col.applied_at')) ?></th>
-        <th class="table-cell--strong-right"><?= e(t('compass.migrations.col.status')) ?></th>
-      </tr>
-    </thead>
-    <tbody>
-    <?php foreach ($status as $row): ?>
-      <tr class="border-rule-bottom">
-        <td><code class="fz-12 table-cell"><?= e($row['name']) ?></code></td>
-        <td class="muted table-cell">
-          <?= $row['applied'] && isset($appliedAt[$row['name']]) ? e($appliedAt[$row['name']]) : '—' ?>
-        </td>
-        <td class="table-cell text-right">
-          <?php if ($row['applied']): ?>
-            <span class="compass-status-badge"><?= e(t('compass.migrations.applied_badge')) ?></span>
-          <?php else: ?>
-            <span class="compass-status-badge compass-status-badge--accent"><?= e(t('compass.migrations.pending_badge')) ?></span>
-          <?php endif; ?>
-        </td>
-      </tr>
-    <?php endforeach; ?>
-    </tbody>
-  </table>
+  <div class="data-table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr class="table-head-row">
+          <th class="table-cell--strong"><?= e(t('compass.migrations.col.migration')) ?></th>
+          <th class="table-cell--strong"><?= e(t('compass.migrations.col.applied_at')) ?></th>
+          <th class="table-cell--strong-right"><?= e(t('compass.migrations.col.status')) ?></th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php foreach ($status as $row): ?>
+        <tr class="border-rule-bottom">
+          <td><code class="fz-12 table-cell"><?= e($row['name']) ?></code></td>
+          <td class="muted table-cell">
+            <?= $row['applied'] && isset($appliedAt[$row['name']]) ? e($appliedAt[$row['name']]) : '—' ?>
+          </td>
+          <td class="table-cell text-right">
+            <?php if ($row['applied']): ?>
+              <span class="compass-status-badge"><?= e(t('compass.migrations.applied_badge')) ?></span>
+            <?php else: ?>
+              <span class="compass-status-badge compass-status-badge--accent"><?= e(t('compass.migrations.pending_badge')) ?></span>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <script type="module" src="<?= e(asset_url('/assets/js/compass.js')) ?>"></script>

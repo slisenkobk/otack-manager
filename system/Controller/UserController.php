@@ -55,6 +55,12 @@ final class UserController extends BaseController {
         $csrfToken = $this->csrfToken();
         $apiTokens = $this->apiTokens->listForUser($id);
 
+        // One-time plaintext reveal after an admin-initiated token creation.
+        // Drained on first render so a refresh hides it.
+        $s = &$this->session();
+        $oneTime = $s['flash_token_once'] ?? null;
+        unset($s['flash_token_once']);
+
         $sidebar = $this->view->render('partials/sidebar', [
             'user' => $this->user, 'activeNav' => 'users', 'csrfToken' => $csrfToken,
         ]);
@@ -70,10 +76,44 @@ final class UserController extends BaseController {
                 'user'      => $user,
                 'apiTokens' => $apiTokens,
                 'csrfToken' => $csrfToken,
+                'oneTime'   => $oneTime,
                 'success'   => $this->consumeFlash('flash_success'),
                 'error'     => $this->consumeFlash('flash_error'),
             ]),
         ]));
+    }
+
+    public function createToken(Request $req, array $params): void {
+        $userId = (int)($params['id'] ?? 0);
+        $target = $this->users->findById($userId);
+        if (!$target) { Response::notFound(); return; }
+
+        $name = trim((string)($req->post['name'] ?? ''));
+        if ($name === '') {
+            $this->flash('flash_error', t('api_tokens.error_name_required'));
+            Response::redirect('/users/' . $userId); return;
+        }
+        $expiresRaw = trim((string)($req->post['expires_at'] ?? ''));
+        $expiresAt  = null;
+        if ($expiresRaw !== '') {
+            // strtotime returns false on garbage; treat that as "no expiry" so
+            // a typo doesn't 500 the whole submission.
+            $ts = strtotime($expiresRaw);
+            if ($ts !== false && $ts > time()) {
+                $expiresAt = (int)$ts;
+            }
+        }
+        $created = $this->apiTokens->create($userId, $name, $expiresAt);
+
+        // One-time reveal: plaintext is flashed to the admin's session so
+        // show() can render it once and clear it. Mirrors the self-serve
+        // flow in ProfileController::tokensCreate.
+        $s = &$this->session();
+        $s['flash_token_once'] = [
+            'name'  => $name,
+            'token' => $created['token'],
+        ];
+        Response::redirect('/users/' . $userId);
     }
 
     public function revokeToken(Request $req, array $params): void {

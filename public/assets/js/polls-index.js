@@ -115,7 +115,7 @@ function renderVoterRow(v) {
   const tr  = document.createElement('tr');
   const td1 = document.createElement('td'); td1.textContent = v.contact || '';
   const td2 = document.createElement('td'); td2.textContent = v.choice_label || v.choice_key || '';
-  const td3 = document.createElement('td'); td3.className = 'voters-table__when';
+  const td3 = document.createElement('td'); td3.className = 'data-table__meta-time';
   td3.textContent = fmtDateTime(v.created_at);
   tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
   return tr;

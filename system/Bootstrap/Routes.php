@@ -57,6 +57,7 @@ final class Routes
         $router->post('/users/{id}/block', 'User@block');
         $router->post('/users/{id}/role', 'User@setRole');
         $router->post('/users/{id}/delete', 'User@delete');
+        $router->post('/users/{id}/tokens', 'User@createToken');
         $router->post('/users/{id}/tokens/{tid}/revoke', 'User@revokeToken');
         $router->post('/users/{id}/tokens/revoke-all', 'User@revokeAllTokens');
 

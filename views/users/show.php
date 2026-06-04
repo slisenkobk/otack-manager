@@ -55,7 +55,70 @@ foreach ($apiTokens as $tok) {
   </div>
 </section>
 
-<section class="brief brief--wide profile-card" data-admin-tokens>
+<?php if (!empty($oneTime) && !empty($oneTime['token'])): ?>
+  <section class="brief brief--wide profile-card api-tokens-reveal u-mt-space-6" data-token-reveal>
+    <h2 class="profile-card__title"><?= e(t('api_tokens.created_once')) ?></h2>
+    <p class="muted profile-card__hint">
+      <?= e(t('api_tokens.copy_now')) ?>
+      <?php if (!empty($oneTime['name'])): ?>
+        — <strong><?= e($oneTime['name']) ?></strong>
+      <?php endif; ?>
+    </p>
+    <pre class="copyable api-tokens-reveal__code" data-copy="<?= e($oneTime['token']) ?>" title="<?= e(t('api_tokens.copy_now')) ?>"><?= e($oneTime['token']) ?></pre>
+  </section>
+<?php endif; ?>
+
+<section class="brief brief--wide profile-card u-mt-space-6" data-admin-create-token>
+  <h2 class="profile-card__title"><?= e(t('api_tokens.admin_create_title')) ?></h2>
+  <p class="muted profile-card__hint"><?= e(t('api_tokens.admin_create_hint')) ?></p>
+  <form method="post" action="/users/<?= (int)$user['id'] ?>/tokens" class="profile-form u-mt-space-6">
+    <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
+    <div class="form-grid form-grid--2">
+      <div class="field">
+        <label for="f-token-name"><?= e(t('api_tokens.col_name')) ?></label>
+        <input id="f-token-name" class="input" type="text" name="name" required
+               placeholder="<?= e(t('api_tokens.placeholder_name')) ?>">
+      </div>
+      <div class="field">
+        <label><?= e(t('api_tokens.col_expires')) ?></label>
+        <?php
+          $expiresOpts = [
+              '+7 days'   => t('api_tokens.expires_7'),
+              '+30 days'  => t('api_tokens.expires_30'),
+              '+60 days'  => t('api_tokens.expires_60'),
+              '+90 days'  => t('api_tokens.expires_90'),
+              '+365 days' => t('api_tokens.expires_365'),
+              ''          => t('api_tokens.expires_never'),
+          ];
+          $expiresDefault = '+30 days';
+        ?>
+        <div class="custom-select" data-custom-select>
+          <button type="button" class="custom-select__btn">
+            <span class="custom-select__label"><?= e($expiresOpts[$expiresDefault]) ?></span>
+            <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
+          </button>
+          <div class="custom-select__pop" hidden>
+            <div class="custom-select__opts">
+              <?php foreach ($expiresOpts as $optVal => $optLabel): ?>
+                <div class="custom-select__opt<?= $optVal === $expiresDefault ? ' is-selected' : '' ?>" data-value="<?= e($optVal) ?>">
+                  <span class="custom-select__opt-label"><?= e($optLabel) ?></span>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <input type="hidden" name="expires_at" value="<?= e($expiresDefault) ?>">
+        </div>
+      </div>
+    </div>
+    <div class="profile-form__actions profile-form__actions--mt-8">
+      <button class="btn btn--primary submit" type="submit">
+        <i class="fa-solid fa-plus"></i> <?= e(t('api_tokens.create')) ?>
+      </button>
+    </div>
+  </form>
+</section>
+
+<section class="brief brief--wide profile-card u-mt-space-6" data-admin-tokens>
   <h2 class="profile-card__title"><?= e(t('api_tokens.admin_section_title')) ?></h2>
   <p class="muted profile-card__hint"><?= e(t('api_tokens.admin_no_value_note')) ?></p>
 

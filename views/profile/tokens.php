@@ -45,9 +45,34 @@ function _token_epoch_fmt(?int $ts): string {
                placeholder="<?= e(t('api_tokens.placeholder_name')) ?>">
       </div>
       <div class="field">
-        <label for="f-token-expires"><?= e(t('api_tokens.col_expires')) ?></label>
-        <input id="f-token-expires" class="input" type="text" name="expires_at"
-               placeholder="<?= e(t('api_tokens.placeholder_expires')) ?>">
+        <label><?= e(t('api_tokens.col_expires')) ?></label>
+        <?php
+          $expiresOpts = [
+              '+7 days'   => t('api_tokens.expires_7'),
+              '+30 days'  => t('api_tokens.expires_30'),
+              '+60 days'  => t('api_tokens.expires_60'),
+              '+90 days'  => t('api_tokens.expires_90'),
+              '+365 days' => t('api_tokens.expires_365'),
+              ''          => t('api_tokens.expires_never'),
+          ];
+          $expiresDefault = '+30 days';
+        ?>
+        <div class="custom-select" data-custom-select>
+          <button type="button" class="custom-select__btn">
+            <span class="custom-select__label"><?= e($expiresOpts[$expiresDefault]) ?></span>
+            <i class="fa-solid fa-chevron-down custom-select__chevron"></i>
+          </button>
+          <div class="custom-select__pop" hidden>
+            <div class="custom-select__opts">
+              <?php foreach ($expiresOpts as $optVal => $optLabel): ?>
+                <div class="custom-select__opt<?= $optVal === $expiresDefault ? ' is-selected' : '' ?>" data-value="<?= e($optVal) ?>">
+                  <span class="custom-select__opt-label"><?= e($optLabel) ?></span>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <input type="hidden" name="expires_at" value="<?= e($expiresDefault) ?>">
+        </div>
       </div>
     </div>
     <div class="profile-form__actions profile-form__actions--mt-8">

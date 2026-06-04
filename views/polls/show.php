@@ -107,16 +107,16 @@ $hasMore   = count($voters) < (int)$total;
       </div>
     </section>
   <?php else: ?>
-    <section class="builder-panel">
-      <?php if (!$voters): ?>
-        <p class="muted"><?= e(t('polls.voters_empty')) ?></p>
-      <?php else: ?>
-        <table class="voters-table" data-voters-table data-poll-id="<?= $pollId ?>">
+    <?php if (!$voters): ?>
+      <p class="muted"><?= e(t('polls.voters_empty')) ?></p>
+    <?php else: ?>
+      <div class="data-table-wrap">
+        <table class="data-table" data-voters-table data-poll-id="<?= $pollId ?>">
           <thead>
             <tr>
-              <th><?= e(t('polls.voters_col_contact')) ?></th>
-              <th><?= e(t('polls.voters_col_choice')) ?></th>
-              <th class="voters-table__when"><?= e(t('polls.voters_col_when')) ?></th>
+              <th class="table-cell--strong"><?= e(t('polls.voters_col_contact')) ?></th>
+              <th class="table-cell--strong"><?= e(t('polls.voters_col_choice')) ?></th>
+              <th class="table-cell--strong"><?= e(t('polls.voters_col_when')) ?></th>
             </tr>
           </thead>
           <tbody data-voters-tbody>
@@ -124,21 +124,21 @@ $hasMore   = count($voters) < (int)$total;
               <tr>
                 <td><?= e((string)$v['contact']) ?></td>
                 <td><?= e((string)($v['choice_label'] ?? $v['choice_key'])) ?></td>
-                <td class="voters-table__when"><?= e(fmt_datetime($v['created_at'])) ?></td>
+                <td class="data-table__meta-time"><?= e(fmt_datetime($v['created_at'])) ?></td>
               </tr>
             <?php endforeach; ?>
           </tbody>
         </table>
-        <?php if ($hasMore): ?>
-          <div class="poll-show__load-more">
-            <button type="button" class="btn btn--secondary load-more-voters"
-                    data-offset="<?= count($voters) ?>">
-              <i class="fa-solid fa-chevron-down"></i> <?= e(t('polls.voters_load_more')) ?>
-            </button>
-          </div>
-        <?php endif; ?>
+      </div>
+      <?php if ($hasMore): ?>
+        <div class="poll-show__load-more">
+          <button type="button" class="btn btn--secondary load-more-voters"
+                  data-offset="<?= count($voters) ?>">
+            <i class="fa-solid fa-chevron-down"></i> <?= e(t('polls.voters_load_more')) ?>
+          </button>
+        </div>
       <?php endif; ?>
-    </section>
+    <?php endif; ?>
   <?php endif; ?>
 
 </div>

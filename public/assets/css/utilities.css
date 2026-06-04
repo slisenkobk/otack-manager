@@ -1097,29 +1097,6 @@
 .pf-radio:hover { border-color: var(--accent, #8B7C68); }
 .pf-radio input[type=radio] { margin: 0; accent-color: var(--accent, #8B7C68); }
 
-.voters-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.voters-table th,
-.voters-table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--rule, #e6e2d8);
-  text-align: left;
-  vertical-align: middle;
-}
-.voters-table th {
-  font-weight: 600;
-  color: var(--ink-3, #666);
-  text-transform: uppercase;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-}
-.voters-table__when { color: var(--ink-3, #666); white-space: nowrap; }
-@media (max-width: 560px) {
-  .voters-table__when { display: none; }
-}
 
 /* ─── Sidebar: collapsible groups (Integrations) ─────────────────────────
    The group lives inside .nav-group so it inherits the existing label/padding;
@@ -1450,6 +1427,22 @@ pre.copyable.copyable--flash {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+/* Compass platform page lays compass-cards directly inside a brief--wide
+   wrapper. Give that wrapper a column flex with gap so the cards don't
+   sit flush against each other. */
+.brief--wide:has(> .compass-card) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+/* Forms inside a compass-card stack labels + button row without any
+   spacing by default (form is a plain block). Match the card's gap so
+   each field gets breathing room. */
+.compass-card form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 /* ─── §21 Wave 9.1e — admin/compass + updates static-style sweep ───
