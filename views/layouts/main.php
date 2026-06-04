@@ -70,7 +70,7 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
       // `el.style.setProperty(...)`. CSP `style-src` does not govern these JS
       // writes, so it's the carrier for per-row colour/width values that used
       // to be emitted as `style=""`. See Wave 9.1e Task 3 / S-6 prep. ?>
-<script type="module" src="/assets/js/dynamic-style.js"></script>
+<script type="module" src="<?= e(asset_url('/assets/js/dynamic-style.js')) ?>"></script>
 <?php
   // JS i18n channel: emit only the js.* slice of the current catalog onto
   // window.__t so client modules call t('js.toast.saved') instead of
