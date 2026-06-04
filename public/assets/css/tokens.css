@@ -21,7 +21,11 @@
   /* INK (warm dark text, 4 steps) */
   --ink:       #1A1612;
   --ink-2:     #5A4E3F;
-  --ink-3:     #7A6B57; /* darkened from #8B7C68 for WCAG AA 4.5:1 on --paper-2 (Wave 9.1e Task 11) */
+  --ink-3:     #6F614B; /* darkened from #7A6B57 — firefox subpixel rendering reports
+                           an effective fg slightly lighter than the CSS value, dropping
+                           contrast below AA on --paper-2 (axe sees ~#7E6F5B/#F5F2EC =
+                           4.34:1, fails). This shade gives ~5.3:1 on --paper-2 with
+                           comfortable margin for any cross-browser rendering drift. */
   --ink-4:     #A89A85;
 
   /* RULE (subtle dividers, 3 steps) */
