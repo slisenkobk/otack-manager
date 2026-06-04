@@ -15,6 +15,8 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/manrope-400.woff2" crossorigin>
 <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/manrope-500.woff2" crossorigin>
 <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/jetbrainsmono-400.woff2" crossorigin>
+<?php // Synchronous in <head> so data-theme is stamped on <html> BEFORE the CSS below evaluates — prevents a light/dark flash for users with cookie=auto. See public/assets/js/theme-init.js. ?>
+<script src="/assets/js/theme-init.js"></script>
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/tokens.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/base.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/layout.css')) ?>">
