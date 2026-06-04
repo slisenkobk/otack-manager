@@ -7,7 +7,7 @@ $hours = (int)round($sessions['lifetime_seconds'] / 3600);
 <?php include APP_ROOT . '/views/partials/compass-tabs.php'; ?>
 <div class="brief brief--wide">
 
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--space-6);">
+  <div class="compass-cards-grid">
 
     <section class="compass-card">
       <h3 class="compass-card__title">

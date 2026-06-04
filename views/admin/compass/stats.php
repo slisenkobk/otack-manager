@@ -20,9 +20,9 @@ foreach ($db['tables'] as $t) if ($t['rows'] >= 0) $totalRows += $t['rows'];
     </div>
     <?php if ($db['last_migration']): ?>
       <div class="text-right">
-        <p class="muted" style="font-size:11px;margin:0 0 2px;text-transform:uppercase;letter-spacing:.05em;"><?= e(t('compass.db.last_migration')) ?></p>
+        <p class="muted compass-last-migration-label"><?= e(t('compass.db.last_migration')) ?></p>
         <code class="fz-12"><?= e($db['last_migration']['name']) ?></code>
-        <p class="muted" style="font-size:12px;margin:2px 0 0;"><?= e(t('compass.db.last_migration_at', ['time' => $db['last_migration']['applied_at']])) ?></p>
+        <p class="muted compass-last-migration-time"><?= e(t('compass.db.last_migration_at', ['time' => $db['last_migration']['applied_at']])) ?></p>
       </div>
     <?php endif; ?>
   </div>
@@ -38,7 +38,7 @@ foreach ($db['tables'] as $t) if ($t['rows'] >= 0) $totalRows += $t['rows'];
     <?php foreach ($db['tables'] as $tb): ?>
       <tr class="border-rule-bottom">
         <td><code class="fz-12 table-cell"><?= e($tb['name']) ?></code></td>
-        <td style="padding:var(--space-3) var(--space-4);text-align:right;font-variant-numeric:tabular-nums;">
+        <td class="table-cell--num-right">
           <?php if ($tb['rows'] < 0): ?>
             <span class="muted"><?= e(t('compass.db.error')) ?></span>
           <?php else: ?>

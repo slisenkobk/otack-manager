@@ -1431,3 +1431,151 @@ pre.copyable.copyable--flash {
   align-items: center;
   gap: var(--space-3);
 }
+
+/* ─── §21 Wave 9.1e — admin/compass + updates static-style sweep ───
+   Static inline styles → semantic classes (CSP nonce-only prep). */
+
+/* Grid layout for compass cache tiles. */
+.compass-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-6);
+}
+
+/* Compass logs page */
+.compass-logs-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-6);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+.compass-logs-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.compass-logs-filter-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.compass-level-select { min-width: 160px; }
+.compass-logs-empty   { padding: var(--space-12) 0; text-align: center; }
+.compass-log-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.compass-log-entry {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--paper);
+}
+.compass-log-entry__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: var(--space-3) var(--space-4);
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--rule);
+}
+.compass-log-entry__time {
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.compass-log-entry__body {
+  margin: 0;
+  padding: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-2);
+}
+
+/* Compass migrations — small caps badges (status column). */
+.compass-meta-strong         { color: var(--text-2); font-weight: 600; }
+.compass-meta-strong--accent { color: var(--accent);  font-weight: 600; }
+.compass-status-badge {
+  color: var(--text-2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.compass-status-badge--accent {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Table cell with right-aligned numeric/status content. */
+.table-cell--num-right {
+  padding: var(--space-3) var(--space-4);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Compass stats — "last migration" sidebar metadata. */
+.compass-last-migration-label {
+  font-size: 11px;
+  margin: 0 0 2px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.compass-last-migration-time {
+  font-size: 12px;
+  margin: 2px 0 0;
+}
+
+/* DB-migrate wizard. */
+.db-migrate-subtitle {
+  font-size: 13px;
+  margin: 0 0 var(--space-6);
+}
+.db-migrate-callout {
+  padding: 12px 14px;
+  background: #f3faf4;
+  border: 1px solid #c8e6c9;
+  border-radius: 6px;
+}
+.db-migrate-plan       { margin-bottom: 18px; }
+.db-migrate-table-cell { font-family: var(--font-mono); font-size: 13px; }
+.db-migrate-target-heading {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--ink-3);
+  margin: 24px 0 8px;
+}
+.field--full           { grid-column: 1 / -1; }
+.db-migrate-actions {
+  margin-top: 18px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.db-migrate-run-result { margin-top: 18px; display: none; }
+.db-migrate-env-block {
+  background: var(--paper-3, #0f0f0f0a);
+  padding: 12px 14px;
+  border-radius: 6px;
+  overflow: auto;
+  font-size: 12px;
+}
+.db-migrate-verify-row {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+}
+.db-migrate-verify-result {
+  font-size: 13px;
+  align-self: center;
+}

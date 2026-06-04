@@ -6,18 +6,18 @@
   <h2 class="fz-20 fw-600 u-mb-space-2">
     <?= e(t('compass.db_migrate.heading')) ?>
   </h2>
-  <p class="muted" style="font-size:13px;margin:0 0 var(--space-6);">
+  <p class="muted db-migrate-subtitle">
     <?= e(t('compass.db_migrate.subtitle')) ?>
   </p>
 
   <?php if ($currentDriver !== 'sqlite'): ?>
-    <p style="padding:12px 14px;background:#f3faf4;border:1px solid #c8e6c9;border-radius:6px;">
+    <p class="db-migrate-callout">
       <?= e(t('compass.db_migrate.already_on_mysql')) ?>
     </p>
   <?php else: ?>
 
     <?php if ($plan): ?>
-      <div style="margin-bottom:18px;">
+      <div class="db-migrate-plan">
         <h3 class="section-strong-label--alt">
           <?= e(t('compass.db_migrate.plan_heading')) ?>
         </h3>
@@ -38,7 +38,7 @@
           <tbody>
             <?php foreach ($plan['tables'] as $row): ?>
               <tr>
-                <td style="font-family:var(--font-mono);font-size:13px;"><?= e($row['name']) ?></td>
+                <td class="db-migrate-table-cell"><?= e($row['name']) ?></td>
                 <td><?= (int)$row['rows'] ?></td>
               </tr>
             <?php endforeach; ?>
@@ -47,7 +47,7 @@
       </div>
     <?php endif; ?>
 
-    <h3 style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink-3);margin:24px 0 8px;">
+    <h3 class="db-migrate-target-heading">
       <?= e(t('compass.db_migrate.target_heading')) ?>
     </h3>
     <form data-form="connect" class="form-grid form-grid--2 m-0">
@@ -68,13 +68,13 @@
         <label for="f-db-user"><?= e(t('compass.db_migrate.field_user')) ?></label>
         <input id="f-db-user" class="input" type="text" name="user" autocomplete="off">
       </div>
-      <div class="field" style="grid-column:1/-1;">
+      <div class="field field--full">
         <label for="f-db-password"><?= e(t('compass.db_migrate.field_password')) ?></label>
         <input id="f-db-password" class="input" type="password" name="password" autocomplete="new-password">
       </div>
     </form>
 
-    <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;">
+    <div class="db-migrate-actions">
       <button type="button" class="btn btn--secondary" data-action="test">
         <i class="fa-solid fa-plug-circle-check" aria-hidden="true"></i>
         <?= e(t('compass.db_migrate.test_button')) ?>
@@ -92,18 +92,18 @@
 
     <div data-test-result class="mt-14"></div>
 
-    <div data-run-result style="margin-top:18px;display:none;">
+    <div data-run-result class="db-migrate-run-result">
       <h3 class="section-strong-label--alt">
         <?= e(t('compass.db_migrate.next_steps_heading')) ?>
       </h3>
       <p class="muted text-13-mb-10"><?= e(t('compass.db_migrate.next_steps_body')) ?></p>
-      <pre data-env-block style="background:var(--paper-3,#0f0f0f0a);padding:12px 14px;border-radius:6px;overflow:auto;font-size:12px;"></pre>
-      <div style="margin-top:14px;display:flex;gap:10px;">
+      <pre data-env-block class="db-migrate-env-block"></pre>
+      <div class="db-migrate-verify-row">
         <button type="button" class="btn btn--secondary" data-action="verify">
           <i class="fa-solid fa-check" aria-hidden="true"></i>
           <?= e(t('compass.db_migrate.verify_button')) ?>
         </button>
-        <span data-verify-result class="muted" style="font-size:13px;align-self:center;"></span>
+        <span data-verify-result class="muted db-migrate-verify-result"></span>
       </div>
     </div>
 
