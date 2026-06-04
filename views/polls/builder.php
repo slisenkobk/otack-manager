@@ -55,7 +55,7 @@ foreach (($projects ?? []) as $p) {
   <?php if ($poll): ?>
     <section class="builder-panel">
       <h2 class="builder-panel__title"><?= e(t('polls.public_url')) ?></h2>
-      <p class="muted" style="font-size:12px;color:var(--ink-3);margin:0 0 12px;"><?= e(t('polls.public_url_hint_draft')) ?></p>
+      <p class="muted builder-panel__hint"><?= e(t('polls.public_url_hint_draft')) ?></p>
       <div class="public-url-row" data-public-url-row data-poll-id="<?= (int)$poll['id'] ?>">
         <a class="public-url-row__url" data-public-url href="<?= e(\abs_url('/p/' . $poll['hash'])) ?>" target="_blank" rel="noopener">
           <i class="fa-solid fa-link"></i>

@@ -1624,3 +1624,119 @@ pre.copyable.copyable--flash {
   gap: 12px;
   align-items: center;
 }
+
+/* ─── Wave 9.1e — polls + tags + forms-data static-style sweep (Group D) ─── */
+
+/* /polls list page — page-actions row that combines a left search-field
+   with a right cluster of status-filter pills + "New poll" button. The
+   listing variant differs from the default .page-actions in that it
+   space-betweens its children and adds the standard bottom margin. */
+.page-actions--listing {
+  margin-bottom: var(--space-8);
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* Right cluster inside .page-actions--listing: status pills + CTA. */
+.polls-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.polls-filters__pills {
+  display: flex;
+  gap: 4px;
+}
+
+/* /forms-data list page — page-actions row where the entire row is the
+   filters form (no right CTA). Left-aligned with the standard bottom
+   margin. */
+.page-actions--filters {
+  margin-bottom: var(--space-8);
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+/* Card meta-line under the title on the polls-index card — the small
+   12 px ink-3 strip that holds the status pill + "n votes" caption. */
+.card__meta-line {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin: 2px 0 0;
+}
+
+/* Submission-tile (/forms-data list card) — the .ini avatar uses a
+   lighter ink shade than the default .ini so the envelope icon reads as
+   "submission" rather than "person". */
+.ini--ink-2 { background: var(--ink-2); }
+
+/* Bottom-pinned card-row inside a submission tile so the status pill +
+   "open →" arrow always sit at the card bottom regardless of preview
+   length. */
+.card-row--push-bottom { margin-top: auto; }
+
+/* Submission detail (/forms-data/{id}) — small ink-3 back link at the
+   top of the page. Lower contrast than .builder-toolbar__back; sits
+   inline inside .page-actions--inline. */
+.submission-back-link {
+  color: var(--ink-3);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+/* Spacing variants for submission-card content — recurring micro-layout
+   for the "Or pick a project" picker + the secondary "Create task" CTA
+   that sits directly under the project picker. */
+.submission-card__pick-project { margin-top: var(--space-4); }
+.submission-card__cta--tight   { margin-top: var(--space-3); }
+
+/* Tag groups (/admin/tags) — each scope (project/task) renders as a
+   <details> block with an uppercase summary heading and a count chip. */
+.tags-search { max-width: 360px; margin-bottom: var(--space-8); }
+.tag-group   { margin-bottom: 32px; }
+.tag-group__title {
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 12px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tag-group__chevron { font-size: 10px; }
+.tag-group__count {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+/* ─── /polls/{id} (poll show) static-style sweep ─── */
+
+/* Status + votes line under the poll title. */
+.poll-show__status-line { margin: 0 0 8px; }
+/* Public-URL chip on the show page sits below the description with a
+   small top margin (the form-card__url default has no top margin so we
+   layer this modifier on top). */
+.poll-show__url { margin-top: 12px; }
+/* Tabs strip on the show page needs a bit of breathing room before the
+   first builder-panel. */
+.project-tabs--spaced { margin-bottom: var(--space-6, 16px); }
+/* Right-aligned action row at the bottom of the "Project" tab panel. */
+.poll-show__actions-end {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+/* Centred wrapper for the "Load more voters" button. */
+.poll-show__load-more {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+}

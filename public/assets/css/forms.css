@@ -573,3 +573,21 @@ body.public-form {
   margin-bottom: 10px;
   padding: 0;
 }
+
+/* ─── Wave 9.1e Group D — builder-panel hint variants ───────────
+   .builder-hint already covers the standard "12 px ink-3 hint that sits
+   under a field" case (margin-top:10px). These two add the inverse-flow
+   pattern (hint appears above the next block) for the polls / forms
+   public-URL and integration-template captions. */
+.builder-panel__hint {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin: 0 0 12px;
+}
+/* Tighter 11 px variant used for the task-title-template helper line
+   inside the forms-builder integration panel. */
+.builder-template-hint {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin: 6px 0 0;
+}
