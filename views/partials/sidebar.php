@@ -71,7 +71,9 @@ if ($canFormsSb) {
           <a class="nav-item<?= ($activeNav ?? '') === 'forms-data' ? ' nav-item--active' : '' ?>" href="/forms-data">
             <span class="nav-item__marker"><i class="fa-solid fa-inbox"></i></span>
             <span><?= e(t('nav.forms_data')) ?></span>
-            <span class="nav-item__count<?= $newSubmissionsCount > 0 ? ' nav-item__count--accent' : '' ?>"><?= $newSubmissionsCount ?></span>
+            <?php if ($newSubmissionsCount > 0): ?>
+              <span class="nav-item__count nav-item__count--accent"><?= (int)$newSubmissionsCount ?></span>
+            <?php endif; ?>
           </a>
           <a class="nav-item<?= ($activeNav ?? '') === 'polls' ? ' nav-item--active' : '' ?>" href="/polls">
             <span class="nav-item__marker"><i class="fa-solid fa-square-poll-vertical"></i></span>

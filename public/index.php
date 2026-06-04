@@ -126,7 +126,15 @@ if ($gateEnabled) {
         $installed = (new \App\Repository\SettingsRepository($pdo))->get('installed_at', '') !== '';
         if ($installed) {
             if ($isInstall && $reqPath !== '/install/done') {
+                // 404 with an explicit body + content-length so firefox / curl
+                // terminate the connection promptly. Bare http_response_code()
+                // + exit emits no body and Firefox waits the full keep-alive
+                // window before reporting the status.
+                $body = '<!doctype html><meta charset="utf-8"><title>404</title><h1>404</h1><p>Install wizard is not available.</p>';
                 http_response_code(404);
+                header('Content-Type: text/html; charset=utf-8');
+                header('Content-Length: ' . strlen($body));
+                echo $body;
                 exit;
             }
         } elseif (\App\Service\InstallGate::isInstallRequired($pdo)) {
@@ -134,6 +142,7 @@ if ($gateEnabled) {
             // request to the wizard.
             if (!$isInstall) {
                 header('Location: /install');
+                header('Content-Length: 0');
                 exit;
             }
         }
