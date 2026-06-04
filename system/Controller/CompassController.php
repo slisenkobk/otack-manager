@@ -8,6 +8,7 @@ use App\Http\Request;
 use App\Http\Response;
 use App\Repository\ActivityLogRepository;
 use App\Service\CompassService;
+use App\Service\ConfigStore;
 use App\Service\DbMigrator;
 use App\Service\EventBus;
 use App\Service\Log;
@@ -180,6 +181,125 @@ final class CompassController extends BaseController
             'user'     => trim((string)($req->post['user']     ?? '')),
             'password' => (string)($req->post['password']      ?? ''),
         ];
+    }
+
+    // ─── Platform Settings tab (TODO #10, Task 5) ────────────────────────────
+
+    /**
+     * GET /admin/compass/platform — render the post-install settings editor.
+     * Shares the ConfigStore overlay (data/config.json) with the install
+     * wizard so admins can edit the same surface (LOGIN_HASH, APP_SECRET,
+     * APP_URL, TRUSTED_PROXIES, Telegram, updates) without re-running the
+     * wizard. Secrets are masked on the way out — the raw token/hash is
+     * never echoed back to the form.
+     */
+    public function platform(Request $req, array $params = []): void
+    {
+        $config = new ConfigStore();
+        $values = $config->load();
+        $tgToken = $values['TG_BOT_TOKEN'] ?? '';
+        $tgMask  = $tgToken !== ''
+            ? 'bot****' . substr($tgToken, -4)
+            : '';
+        $loginHash = $values['LOGIN_HASH'] ?? '';
+        $loginHashMask = $loginHash !== ''
+            ? '****' . substr($loginHash, -4)
+            : '';
+        $driver = Connection::driverFor($this->db)?->name() ?? 'sqlite';
+
+        $this->renderTab('platform', t('compass.tab.platform'), [
+            'config' => [
+                'APP_URL'                => $values['APP_URL'] ?? '',
+                'TRUSTED_PROXIES'        => $values['TRUSTED_PROXIES'] ?? '',
+                'LOGIN_HASH_SET'         => $loginHash !== '',
+                'LOGIN_HASH_MASK'        => $loginHashMask,
+                'APP_SECRET_SET'         => isset($values['APP_SECRET']),
+                'TG_BOT_TOKEN_MASK'      => $tgMask,
+                'TG_CHAT_ID'             => $values['TG_CHAT_ID'] ?? '',
+                'UPDATE_ENABLED'         => ($values['UPDATE_ENABLED'] ?? 'true') === 'true',
+                'UPDATE_CHECK_INTERVAL'  => (int)($values['UPDATE_CHECK_INTERVAL'] ?? 3600),
+                'UPDATE_BACKUP_KEEP'     => (int)($values['UPDATE_BACKUP_KEEP'] ?? 5),
+            ],
+            'driver'  => $driver,
+            'saved'   => (string)($req->query['saved'] ?? ''),
+            'flash'   => (string)($req->query['flash'] ?? ''),
+        ]);
+    }
+
+    /**
+     * POST /admin/compass/platform — process one section's form.
+     * Section is dispatched on the hidden `section` field; each branch
+     * writes through ConfigStore (which re-validates) then redirects back
+     * with `?saved=<section>` so the GET handler can flash a confirmation.
+     */
+    public function updatePlatform(Request $req, array $params = []): void
+    {
+        $config = new ConfigStore();
+        $section = (string)($req->post['section'] ?? '');
+        try {
+            switch ($section) {
+                case 'auth':
+                    if (!empty($req->post['enable_login_hash'])) {
+                        $config->set(['LOGIN_HASH' => bin2hex(random_bytes(8))]);
+                    } else {
+                        $config->unset(['LOGIN_HASH']);
+                    }
+                    break;
+                case 'rotate-app-secret':
+                    $config->set(['APP_SECRET' => bin2hex(random_bytes(32))]);
+                    break;
+                case 'urls':
+                    $writes = ['APP_URL' => trim((string)($req->post['app_url'] ?? ''))];
+                    $tp = trim((string)($req->post['trusted_proxies'] ?? ''));
+                    if ($tp !== '') {
+                        $writes['TRUSTED_PROXIES'] = $tp;
+                    } else {
+                        $config->unset(['TRUSTED_PROXIES']);
+                    }
+                    $config->set($writes);
+                    break;
+                case 'telegram':
+                    $writes = [];
+                    $token = trim((string)($req->post['tg_bot_token'] ?? ''));
+                    $chat  = trim((string)($req->post['tg_chat_id']   ?? ''));
+                    // Skip writes when the field still holds the masked value
+                    // we rendered (bot****XXXX) — that means the admin didn't
+                    // touch it and we'd otherwise overwrite the real token with
+                    // garbage.
+                    if ($token !== '' && !str_starts_with($token, 'bot****')) {
+                        $writes['TG_BOT_TOKEN'] = $token;
+                    }
+                    if ($chat !== '') {
+                        $writes['TG_CHAT_ID'] = $chat;
+                    }
+                    if (!empty($writes)) {
+                        $config->set($writes);
+                    }
+                    break;
+                case 'updates':
+                    $config->set([
+                        'UPDATE_ENABLED'        => !empty($req->post['update_enabled']) ? 'true' : 'false',
+                        'UPDATE_CHECK_INTERVAL' => (int)($req->post['update_check_interval'] ?? 3600),
+                        'UPDATE_BACKUP_KEEP'    => (int)($req->post['update_backup_keep']    ?? 5),
+                    ]);
+                    break;
+                default:
+                    Response::redirect('/admin/compass/platform?flash=' . rawurlencode('Unknown section: ' . $section));
+                    return;
+            }
+        } catch (\InvalidArgumentException $e) {
+            Response::redirect('/admin/compass/platform?flash=' . rawurlencode($e->getMessage()));
+            return;
+        }
+
+        $summary = t('platform.audit.section_saved', ['section' => $section]);
+        $this->auditAndNotify(
+            'compass.platform.update',
+            $summary,
+            ['section' => $section],
+            $summary,
+        );
+        Response::redirect('/admin/compass/platform?saved=' . rawurlencode($section));
     }
 
     // ─── POST actions ────────────────────────────────────────────────────────

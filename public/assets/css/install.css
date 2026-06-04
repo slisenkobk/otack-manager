@@ -1,0 +1,141 @@
+/* Install wizard (TODO #10).
+ *
+ * Standalone CSS for /install/*. The layout reuses base + forms + cards-panels
+ * so the visual language matches the auth pages; this file only adds the
+ * step-list chrome, the fieldset cards, and the few one-off bits the wizard
+ * needs that don't generalise to the rest of the app.
+ */
+
+.install-page { min-height: 100vh; }
+
+.install-wrap {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--space-12, 24px) var(--space-6, 16px);
+}
+
+.install-header { margin-bottom: var(--space-10, 20px); }
+.install-title  {
+  margin: 0 0 var(--space-6, 16px) 0;
+  font-size: var(--fz-display, 28px);
+  line-height: 1.2;
+  font-weight: 600;
+  color: var(--text, #111);
+}
+
+.install-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4, 12px);
+  font-size: var(--fz-small, 13px);
+  color: var(--text-muted, #6b6b6b);
+}
+.install-steps__item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.install-steps__index { font-variant-numeric: tabular-nums; opacity: 0.6; }
+.install-steps__item.is-done    { color: var(--text-2, #444); }
+.install-steps__item.is-current { color: var(--accent, var(--brand, #c2410c)); font-weight: 600; }
+
+.install-body { }
+
+.install-card {
+  background: var(--paper, #fff);
+  border: 1px solid var(--rule, #e7e2dc);
+  border-radius: 12px;
+  padding: var(--space-10, 20px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.install-heading {
+  margin: 0 0 var(--space-6, 16px) 0;
+  font-size: var(--fz-h2, 20px);
+  font-weight: 600;
+}
+
+.install-lede {
+  margin: 0 0 var(--space-8, 18px) 0;
+  color: var(--text-2, #444);
+  line-height: 1.5;
+}
+
+.install-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted, #6b6b6b);
+  font-size: var(--fz-small, 13px);
+  line-height: 1.4;
+}
+
+.install-form { display: block; }
+
+.install-cta { min-width: 180px; }
+
+.install-fieldset {
+  border: 1px solid var(--rule, #e7e2dc);
+  border-radius: 10px;
+  padding: var(--space-8, 18px);
+  margin: 0 0 var(--space-8, 18px) 0;
+}
+.install-fieldset__legend {
+  padding: 0 var(--space-4, 8px);
+  font-weight: 600;
+  color: var(--text, #111);
+}
+
+.install-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4, 12px);
+}
+
+.install-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4, 10px);
+  cursor: pointer;
+}
+.install-checkbox input[type=checkbox] { margin-top: 4px; }
+.install-checkbox > span { display: flex; flex-direction: column; }
+
+.install-actions {
+  display: flex;
+  gap: var(--space-4, 12px);
+  flex-wrap: wrap;
+}
+
+.install-alert {
+  border-radius: 8px;
+  padding: var(--space-4, 10px) var(--space-6, 14px);
+  margin-bottom: var(--space-6, 16px);
+  font-size: var(--fz-small, 13px);
+}
+.install-alert--error {
+  background: color-mix(in srgb, var(--accent, #c2410c) 8%, transparent);
+  color: var(--accent, #c2410c);
+  border: 1px solid color-mix(in srgb, var(--accent, #c2410c) 30%, transparent);
+}
+
+.install-summary {
+  list-style: none;
+  margin: var(--space-8, 18px) 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 6px);
+}
+.install-summary li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: var(--space-3, 8px) 0;
+  border-bottom: 1px dashed var(--rule, #e7e2dc);
+  font-size: var(--fz-small, 13px);
+}
+.install-summary li:last-child { border-bottom: none; }
+.install-summary__key { color: var(--text-muted, #6b6b6b); }

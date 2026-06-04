@@ -82,6 +82,54 @@ final class UserRepository {
         return $stmt->fetchAll();
     }
 
+    /**
+     * Insert a wizard-created admin (role=admin, status=approved) directly.
+     * Unlike create(), this does not depend on "first ever user" logic —
+     * the install wizard may run against a database that has been re-seeded
+     * with members but no admin (e.g. after an operator manually deleted the
+     * only admin). Returns the new row's id; throws on duplicate email.
+     */
+    public function createAdmin(string $name, string $email, string $hash): int {
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO users (email, password_hash, name, role, status, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $stmt->execute([$email, $hash, $name, 'admin', 'approved', $now]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Return the earliest approved admin row (by created_at ASC, id ASC as
+     * tie-breaker). Used by the install wizard's final summary screen to
+     * surface the just-created sign-in email. Returns null when there is no
+     * approved admin yet — the InstallGate predicate uses countApprovedAdmins()
+     * for the boolean check; this method is the row accessor.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function firstApprovedAdmin(): ?array {
+        $stmt = $this->pdo->prepare(
+            "SELECT * FROM users WHERE role = 'admin' AND status = 'approved'
+             ORDER BY created_at ASC, id ASC LIMIT 1"
+        );
+        $stmt->execute();
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * Count users whose role is 'admin' AND status is 'approved'.
+     * Used by InstallGate to decide whether the wizard should fire.
+     */
+    public function countApprovedAdmins(): int
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT COUNT(*) FROM users WHERE role = 'admin' AND status = 'approved'"
+        );
+        $stmt->execute();
+        return (int)$stmt->fetchColumn();
+    }
+
     public function countAll(string $query = ''): int {
         if ($query !== '') {
             $like = '%' . mb_strtolower($query) . '%';

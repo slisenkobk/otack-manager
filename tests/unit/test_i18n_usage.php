@@ -67,6 +67,11 @@ it('no unused i18n keys (modulo documented dynamic prefixes)', function () {
         'api_tokens.status_',
         'updates.kind.',
         'updates.source.',
+        // Install wizard step labels — built as `'install.step.' . $key`
+        // in views/layouts/install.php where $key ∈ {db, admin, security,
+        // integrations, done}. The welcome step doesn't have a label here
+        // (the step list is hidden on /install itself).
+        'install.step.',
     ];
 
     // Static exemptions — keep tiny; each entry needs documentation above.

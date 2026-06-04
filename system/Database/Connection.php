@@ -79,6 +79,21 @@ final class Connection
         return self::$driverFor[$pdo] ?? null;
     }
 
+    /**
+     * Clear the static driver map held by this class. Used after the install
+     * wizard mutates DB_DSN so the next openFromEnv() call doesn't accidentally
+     * resurrect a driver instance bound to a stale PDO. Tests also call this
+     * between fixtures to keep instances isolated.
+     *
+     * Note: callers that also cache a PDO via the DI container (App::singleton('db'))
+     * must additionally clear that singleton — typically via App::reset() —
+     * because Connection itself holds no PDO singleton, only the driver WeakMap.
+     */
+    public static function reset(): void
+    {
+        self::$driverFor = null;
+    }
+
     // ─── internals ──────────────────────────────────────────────────────
 
     private static function resolveDriver(string $dsnOrPath, array $config): DriverInterface

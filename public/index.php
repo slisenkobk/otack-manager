@@ -75,6 +75,74 @@ try {
 
 Events::register();
 
+// Install wizard gate (TODO #10). Behind a feature flag during the
+// rollout so existing .env installs aren't disturbed mid-deploy.
+// Default flips to true in step 7 of the implementation plan.
+//
+// The flag is honoured from two sources so the e2e suite can toggle the
+// gate per-spec without restarting the webServer:
+//   1. INSTALL_GATE_ENABLED env var — production / dev opt-in
+//   2. INSTALL_GATE_FLAG_FILE — a marker-file path (relative to APP_ROOT or
+//      absolute) that, when present, forces the gate on. Specs that need
+//      the gate create the marker in beforeAll and delete in afterAll.
+$gateEnabled = filter_var(\App\App::env('INSTALL_GATE_ENABLED', 'false'), FILTER_VALIDATE_BOOLEAN);
+if (!$gateEnabled) {
+    $flagFile = (string)\App\App::env('INSTALL_GATE_FLAG_FILE', '');
+    if ($flagFile !== '') {
+        $resolved = ($flagFile[0] === '/' || (strlen($flagFile) > 1 && $flagFile[1] === ':'))
+            ? $flagFile
+            : APP_ROOT . '/' . ltrim($flagFile, '/');
+        if (is_file($resolved)) $gateEnabled = true;
+    }
+}
+if ($gateEnabled) {
+    // Parse path so `?foo=bar` and `#frag` don't bleed into the prefix
+    // match — otherwise `/install-extra` would silently match `/install`.
+    $reqPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    // Reject path-traversal sequences before any prefix matching — both raw
+    // and percent-encoded forms. Without this, `/install/../admin/settings`
+    // would set $isInstall=true (str_starts_with('/install/...', '/install/'))
+    // and slip past the gate even though the router would then normalise the
+    // path to `/admin/settings`. parse_url does NOT decode %XX sequences, so
+    // we check both literal `..` segments and the encoded variants.
+    $rawForCheck = strtolower($reqPath);
+    if (str_contains($rawForCheck, '/..') || str_contains($rawForCheck, '%2e%2e')) {
+        http_response_code(400);
+        exit;
+    }
+    $bypassPrefixes = ['/assets/'];
+    $bypassExact    = ['/favicon.ico', '/robots.txt', '/manifest.webmanifest'];
+    $isStatic = in_array($reqPath, $bypassExact, true);
+    foreach ($bypassPrefixes as $p) {
+        if (str_starts_with($reqPath, $p)) { $isStatic = true; break; }
+    }
+    $isInstall = $reqPath === '/install' || str_starts_with($reqPath, '/install/');
+    if (!$isStatic) {
+        $pdo = \App\App::make('db');
+        // "Wizard finished" = settings.installed_at is set. Once stamped, all
+        // /install/* paths 404 (the /install/done exception below renders a
+        // session-bucketed summary one-shot — the controller itself returns
+        // 404 once that bucket is empty).
+        $installed = (new \App\Repository\SettingsRepository($pdo))->get('installed_at', '') !== '';
+        if ($installed) {
+            if ($isInstall && $reqPath !== '/install/done') {
+                http_response_code(404);
+                exit;
+            }
+        } elseif (\App\Service\InstallGate::isInstallRequired($pdo)) {
+            // No admin yet AND not yet installed — push every non-install
+            // request to the wizard.
+            if (!$isInstall) {
+                header('Location: /install');
+                exit;
+            }
+        }
+        // Else: admin exists but installed_at not yet stamped — we're MID-WIZARD
+        // (e.g. between the admin step and the integrations step). Let the
+        // request through; InstallController handles its own state.
+    }
+}
+
 // Slide the remember-me window forward on every authenticated request: each
 // page view bumps the cookie expiry to "now + 30 days" so an active user
 // stays signed in indefinitely; an inactive one ages out naturally.
@@ -159,8 +227,13 @@ $publicPosts = ['/login', '/register'];
 $isFormPath = str_starts_with($req->path, '/f/');
 $isShortLinkPath = $req->method === 'GET' && str_starts_with($req->path, '/s/');
 $isPollPath = str_starts_with($req->path, '/p/');
-$isPublic = ($req->method === 'GET'  && (in_array($req->path, $publicGets, true)  || $isFormPath || $isShortLinkPath || $isPollPath))
-         || ($req->method === 'POST' && (in_array($req->path, $publicPosts, true) || $isFormPath || $isPollPath));
+// Install wizard (TODO #10) lives at /install/*; the wizard runs before any
+// admin exists, so AuthGuard would loop us back to /login. Skipping the guard
+// is safe because InstallController self-gates via InstallGate (404 once an
+// admin exists).
+$isInstallPath = $req->path === '/install' || str_starts_with($req->path, '/install/');
+$isPublic = ($req->method === 'GET'  && (in_array($req->path, $publicGets, true)  || $isFormPath || $isShortLinkPath || $isPollPath || $isInstallPath))
+         || ($req->method === 'POST' && (in_array($req->path, $publicPosts, true) || $isFormPath || $isPollPath || $isInstallPath));
 
 if ($req->method === 'POST' && !$isFormPath && !$isPollPath) {
     $token = $req->post['_csrf'] ?? $req->header('x-csrf-token');

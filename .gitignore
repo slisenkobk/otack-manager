@@ -20,3 +20,8 @@
 /data/app.api-test.sqlite
 /data/app.api-test.sqlite-wal
 /data/app.api-test.sqlite-shm
+
+# Wizard-managed env overlay (Task #10). Contains secrets — never commit.
+data/config.json
+data/config.json.tmp.*
+data/config.json.bak.*

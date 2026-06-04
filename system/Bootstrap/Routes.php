@@ -26,6 +26,22 @@ final class Routes
             $router->get('/ui-sandbox', 'Smoke@uiSandbox');
         }
 
+        // Install wizard (TODO #10). Gated by InstallGate in public/index.php
+        // when INSTALL_GATE_ENABLED=true and no admin yet; per-action 404s
+        // in InstallController also defend against direct hits after the
+        // wizard has finished.
+        $router->get ('/install',              'Install@welcome');
+        $router->post('/install/start',        'Install@start');
+        $router->get ('/install/db',           'Install@db');
+        $router->post('/install/db',           'Install@dbSubmit');
+        $router->get ('/install/admin',        'Install@admin');
+        $router->post('/install/admin',        'Install@adminSubmit');
+        $router->get ('/install/security',     'Install@security');
+        $router->post('/install/security',     'Install@securitySubmit');
+        $router->get ('/install/integrations', 'Install@integrations');
+        $router->post('/install/integrations', 'Install@integrationsSubmit');
+        $router->get ('/install/done',         'Install@done');
+
         $router->get('/login',    'Auth@loginForm');
         $router->post('/login',   'Auth@login');
         $router->get('/register', 'Auth@registerForm');
@@ -111,6 +127,8 @@ final class Routes
         $router->post('/admin/compass/db-migrate/test',         'Compass@dbMigrateTest');
         $router->post('/admin/compass/db-migrate/start',        'Compass@dbMigrateStart');
         $router->get('/admin/compass/db-migrate/verify',        'Compass@dbMigrateVerify');
+        $router->get('/admin/compass/platform',                 'Compass@platform');
+        $router->post('/admin/compass/platform',                'Compass@updatePlatform');
 
         $router->get('/forms', 'Form@index');
         $router->get('/forms/new', 'Form@builder');

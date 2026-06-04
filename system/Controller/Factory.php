@@ -87,6 +87,15 @@ final class Factory
                 App::make('activity'),
                 App::make('db'),
             ),
+            'Install'    => new InstallController(
+                $view, $user,
+                App::make('db'),
+                App::make('csrf'),
+                App::make('config_store'),
+                App::make('users'),
+                App::make('settings'),
+                App::make('session'),
+            ),
             'Auth'       => new AuthController(
                 $view, $user,
                 App::make('auth'),
