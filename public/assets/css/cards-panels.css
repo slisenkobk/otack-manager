@@ -771,8 +771,16 @@ h1.display em {
   border-radius: var(--radius-sm);
   letter-spacing: -0.02em;
 }
-/* Per-project tint supplied via `data-bg` (dynamic-style.js → --bg). */
-.ini[data-bg] { background: var(--bg, var(--ink)); }
+/* Per-project tint supplied via `data-bg` (dynamic-style.js → --bg).
+   The bridge also picks a luminance-aware foreground via --bg-fg so
+   vivid palette colours (orange, amber, teal) get dark initials and
+   dark slate colours keep white initials — keeps WCAG AA on the
+   initials regardless of the user's chosen project colour. Falls
+   back to --paper for browsers / no-JS — pre-1.5.x behaviour. */
+.ini[data-bg] {
+  background: var(--bg, var(--ink));
+  color: var(--bg-fg, var(--paper));
+}
 /* Larger avatar variant used on the project overview header. */
 .project-avatar--lg {
   width: 44px;
