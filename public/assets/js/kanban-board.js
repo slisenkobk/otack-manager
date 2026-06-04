@@ -8,7 +8,7 @@
 //   to functions that need it; we do NOT rely on a module-level `root` constant.
 
 import { api, UI } from './ui.js';
-import { logSilent, t } from './utils.js';
+import { logSilent, t, loadSortable } from './utils.js';
 import { applySort } from './kanban-toolbar.js';
 
 export function syncEmptyState(list) {
@@ -134,8 +134,9 @@ function buildCard(task) {
 
 // ─── Sortable drag/drop ───────────────────────────────────────────────────────
 
-export function initSortable(root, list) {
-  window.Sortable.create(list, {
+export async function initSortable(root, list) {
+  const Sortable = await loadSortable();
+  Sortable.create(list, {
     group: 'kanban',
     animation: 150,
     ghostClass: 'kanban-ghost',

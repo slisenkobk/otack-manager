@@ -1,5 +1,5 @@
 import { api, UI } from './ui.js';
-import { logSilent, t, withButtonBusy } from './utils.js';
+import { logSilent, t, withButtonBusy, loadSortable } from './utils.js';
 
 const FIELD_TYPES = [
   { value: 'text',     label: 'Text (single line)' },
@@ -89,20 +89,27 @@ class FormBuilder {
     this.fields.forEach((f, idx) => this.fieldsList.appendChild(this.buildFieldCard(f, idx)));
     if (this.fieldsHint) this.fieldsHint.hidden = this.fields.length > 0;
     // (Re)attach Sortable on every render so new cards become draggable.
+    // Sortable is lazy-loaded — kick the fetch but don't await it inside
+    // renderAll (synchronous DOM-paint stays prompt). When the library lands,
+    // the .then attaches drag handlers; until then, single-field forms
+    // render fine without drag (matches old behaviour).
     if (this.sortable) { this.sortable.destroy(); this.sortable = null; }
-    if (window.Sortable && this.fields.length > 1) {
-      this.sortable = window.Sortable.create(this.fieldsList, {
-        handle: '[data-drag-handle]',
-        animation: 150,
-        ghostClass: 'field-card--ghost',
-        chosenClass: 'field-card--dragging',
-        onEnd: (e) => {
-          if (e.oldIndex === e.newIndex) return;
-          const moved = this.fields.splice(e.oldIndex, 1)[0];
-          this.fields.splice(e.newIndex, 0, moved);
-          this.renderAll();
-        },
-      });
+    if (this.fields.length > 1) {
+      loadSortable().then(Sortable => {
+        if (this.sortable) return; // a re-render beat us — its own load will win
+        this.sortable = Sortable.create(this.fieldsList, {
+          handle: '[data-drag-handle]',
+          animation: 150,
+          ghostClass: 'field-card--ghost',
+          chosenClass: 'field-card--dragging',
+          onEnd: (e) => {
+            if (e.oldIndex === e.newIndex) return;
+            const moved = this.fields.splice(e.oldIndex, 1)[0];
+            this.fields.splice(e.newIndex, 0, moved);
+            this.renderAll();
+          },
+        });
+      }).catch(e => logSilent(e, 'form-builder.loadSortable'));
     }
     if (preserveScroll) {
       window.scrollTo(0, savedScrollY);

@@ -191,5 +191,5 @@ foreach (($projects ?? []) as $p) {
 
 <script type="application/json" id="builder-state-fields"><?= $fieldsJson ?></script>
 <script type="application/json" id="builder-state-footer"><?= $footerJson ?></script>
-<script src="/assets/vendor/sortable.min.js"></script>
+<?php // Sortable lazy-loaded by form-builder.js via loadSortable() — see utils.js (AS-4). ?>
 <script type="module" src="<?= e(asset_url('/assets/js/form-builder.js')) ?>"></script>

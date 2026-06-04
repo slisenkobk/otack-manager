@@ -96,7 +96,7 @@ foreach ($boardColumns as $c) {
     <?php endforeach; ?>
     <button type="button" class="btn--secondary add-column"><i class="fa-solid fa-plus"></i> <?= e(t('projects.kanban.add_column')) ?></button>
   </div>
-  <script src="/assets/vendor/sortable.min.js"></script>
+  <?php // Sortable is now lazy-loaded from kanban-board/columns/form-builder via loadSortable() in utils.js — drop the synchronous <script> tag to unblock first paint (-44 KB on non-kanban pages, deferred work on kanban itself). ?>
   <script type="module" src="<?= e(asset_url('/assets/js/kanban.js')) ?>"></script>
 <?php elseif ($currentTab === 'backlog'): ?>
   <?php if (!$backlogCol): ?>
