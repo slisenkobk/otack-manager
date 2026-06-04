@@ -286,6 +286,9 @@ return [
     'forms_data.all_forms'          => 'All forms',
     'forms_data.empty'              => 'No submissions yet.',
     'forms_data.all_statuses'       => 'All statuses',
+    // Deliberate en-only: this is the product brand baked into the Forms UI
+    // footer. Translating it would mislabel the product. Whitelisted in the
+    // i18n parity test (tests/unit/test_i18n_parity.php).
     'forms_data.brand_tag'          => 'Otack Manager',
 
     // Statuses (form submissions)
