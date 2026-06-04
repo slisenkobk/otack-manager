@@ -127,6 +127,8 @@ final class Routes
         $router->post('/admin/compass/db-migrate/test',         'Compass@dbMigrateTest');
         $router->post('/admin/compass/db-migrate/start',        'Compass@dbMigrateStart');
         $router->get('/admin/compass/db-migrate/verify',        'Compass@dbMigrateVerify');
+        $router->get('/admin/compass/platform',                 'Compass@platform');
+        $router->post('/admin/compass/platform',                'Compass@updatePlatform');
 
         $router->get('/forms', 'Form@index');
         $router->get('/forms/new', 'Form@builder');
