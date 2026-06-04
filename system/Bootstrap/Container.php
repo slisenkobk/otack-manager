@@ -62,6 +62,7 @@ final class Container
         App::singleton('app_backups',       fn() => new \App\Repository\AppBackupRepository(App::make('db')));
         App::singleton('updater',           fn() => new \App\Service\Updater(App::make('settings')));
         App::singleton('db_migrator',       fn() => new \App\Service\DbMigrator());
+        App::singleton('config_store',      fn() => new \App\Service\ConfigStore());
         App::singleton('hasher',  fn() => new \App\Auth\PasswordHasher());
         App::singleton('events',   fn() => new \App\Service\EventBus());
         App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));

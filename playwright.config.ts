@@ -36,6 +36,14 @@ export default defineConfig({
       SEED_DEFAULT_ADMIN_EMAIL: '',
       SEED_DEFAULT_ADMIN_PASSWORD_HASH: '',
       LOGIN_HASH: '',
+      // Install wizard (Task #10): isolate the ConfigStore overlay to a
+      // test-only file so the developer's data/config.json is never touched
+      // by Playwright runs. The wizard's redirect gate (INSTALL_GATE_ENABLED)
+      // is opted in PER-SPEC via a marker file (data/install-gate-on.test) —
+      // install.spec.ts creates it in beforeAll, removes in afterAll. Other
+      // specs leave the marker absent and the gate is inert.
+      INSTALL_GATE_FLAG_FILE: 'data/install-gate-on.test',
+      CONFIG_STORE_PATH: 'data/config.test.json',
     },
   },
 });

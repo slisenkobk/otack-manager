@@ -27,8 +27,31 @@ final class ConfigStore
     public function __construct(private string $path = '')
     {
         if ($this->path === '') {
+            // CONFIG_STORE_PATH (relative to APP_ROOT or absolute) lets the e2e
+            // suite isolate its overlay file from the developer's real
+            // data/config.json. Production leaves it unset and gets the
+            // canonical path.
+            $override = self::envRaw('CONFIG_STORE_PATH');
+            if ($override !== '') {
+                $this->path = self::isAbsolute($override)
+                    ? $override
+                    : APP_ROOT . '/' . ltrim($override, '/');
+                return;
+            }
             $this->path = APP_ROOT . '/data/config.json';
         }
+    }
+
+    private static function envRaw(string $k): string
+    {
+        if (isset($_ENV[$k])) return (string)$_ENV[$k];
+        $v = getenv($k);
+        return $v === false ? '' : (string)$v;
+    }
+
+    private static function isAbsolute(string $p): bool
+    {
+        return $p !== '' && ($p[0] === '/' || (strlen($p) > 1 && $p[1] === ':'));
     }
 
     public function exists(): bool { return is_file($this->path); }
