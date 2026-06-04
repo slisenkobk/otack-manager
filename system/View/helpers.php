@@ -511,7 +511,7 @@ function app_brand_style_tag(): string
 {
     $c = app_color();
     if ($c === null) return '';
-    return '<style>' .
+    return '<style nonce="' . e(csp_nonce()) . '">' .
         ':root{' .
             '--brand:' . $c . ';' .
             '--brand-2:color-mix(in srgb,' . $c . ' 78%,#000 22%);' .

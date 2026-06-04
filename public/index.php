@@ -16,15 +16,18 @@ use App\Bootstrap\{Container, Events, Routes};
 use App\Database\{Migrations, SchemaBootstrap};
 use App\Http\{Csrf, Request, Response};
 
-// Security headers. CSP `style-src` keeps `'unsafe-inline'` until the
-// Wave-C inline-style sweep removes the ~348 `style=""` attributes still
-// in views. Note: adding a `'nonce-…'` to this directive would silently
-// DISABLE `'unsafe-inline'` (per CSP spec — nonce-or-hash + unsafe-inline
-// is an OR-but-stricter-wins rule); a previous attempt to ship the nonce
-// additively broke every inline style in the app. `csp_nonce()` is kept
-// for future single-tag opt-in (e.g., once the brand <style> is the only
-// inline emitter, we can flip back).
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'");
+// Security headers. CSP `style-src` is nonce-only — `'unsafe-inline'`
+// dropped per S-6 (Wave 9.1e). All inline styles flow through either
+// `inline_style()` (PHP helper that stamps the per-request nonce) or
+// `data-*` attrs + `dynamic-style.js` (JS DOM-style mutations are not
+// governed by CSP `style-src`). The single inline `<style>` block from
+// `app_brand_style_tag()` carries the same nonce. Adding `'nonce-…'`
+// to a CSP directive automatically disables `'unsafe-inline'` per spec
+// — the explicit `'unsafe-inline'` removal here is belt-and-suspenders
+// for older browsers that don't fully implement the nonce-fallback
+// rule.
+$nonce = csp_nonce();
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'nonce-$nonce'; script-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'");
 header("X-Content-Type-Options: nosniff");
 header("Referrer-Policy: strict-origin-when-cross-origin");
 
