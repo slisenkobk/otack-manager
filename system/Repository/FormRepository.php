@@ -23,7 +23,7 @@ final class FormRepository
         ?string $taskTitleTemplate = null,
         ?string $successMessage = null
     ): int {
-        $now  = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now  = iso_now_utc();
         $hash = self::generateHash();
         // tiny retry on the off-chance of a hash collision
         for ($i = 0; $i < 5; $i++) {
@@ -61,7 +61,7 @@ final class FormRepository
             if (!$this->findByHash($hash)) break;
             $hash = self::generateHash();
         }
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $this->pdo->prepare('UPDATE forms SET hash = ?, updated_at = ? WHERE id = ?')
             ->execute([$hash, $now, $id]);
         return $hash;
@@ -81,7 +81,7 @@ final class FormRepository
         }
         if (!$set) return;
         $set[] = 'updated_at = ?';
-        $vals[] = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $vals[] = iso_now_utc();
         $vals[] = $id;
         $this->pdo->prepare('UPDATE forms SET ' . implode(', ', $set) . ' WHERE id = ?')->execute($vals);
     }

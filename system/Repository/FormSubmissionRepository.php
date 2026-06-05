@@ -9,7 +9,7 @@ final class FormSubmissionRepository
     public function __construct(private \PDO $pdo) {}
 
     public function create(int $formId, array $data, array $footer, ?string $remoteIp = null): int {
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $stmt = $this->pdo->prepare(
             'INSERT INTO form_submissions (form_id, data_json, footer_json, status, remote_ip, created_at, updated_at)
              VALUES (?, ?, ?, "new", ?, ?, ?)'
@@ -76,7 +76,7 @@ final class FormSubmissionRepository
 
     public function setStatus(int $id, string $status, ?int $taskId = null, ?int $projectId = null): void {
         if (!in_array($status, self::STATUSES, true)) return;
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         if ($taskId !== null || $projectId !== null) {
             $this->pdo->prepare(
                 'UPDATE form_submissions SET status = ?, converted_task_id = ?, converted_project_id = ?, updated_at = ? WHERE id = ?'
@@ -104,7 +104,7 @@ final class FormSubmissionRepository
             default   => [null, null],
         };
         if ($sqlUpdate === null) return 0;
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $stmt = $this->pdo->prepare(
             "UPDATE form_submissions
                 SET $sqlUpdate, status = 'new', updated_at = ?

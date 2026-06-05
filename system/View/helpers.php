@@ -281,6 +281,22 @@ function i18n_plural_form(string $locale, int $count): string
  * Falls back to UTC if the settings table hasn't been initialised yet
  * (early bootstrap, before migrations).
  */
+/**
+ * Canonical "now" stamp for DB storage — always UTC, ISO-8601 with
+ * microseconds, trailing literal Z. The whole codebase has converged on
+ * this format for stored timestamps (created_at / installed_at / …), so
+ * downstream parsers can rely on Z meaning UTC.
+ *
+ * NEVER format `(new \DateTimeImmutable())->format('...\Z')` directly —
+ * the no-arg constructor uses the SERVER timezone, but the literal `\Z`
+ * still labels the value as UTC, silently introducing a UTC-offset bug
+ * that the display layer (setTimezone(app_timezone())) then doubles.
+ */
+function iso_now_utc(): string
+{
+    return (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d\TH:i:s.u\Z');
+}
+
 function app_timezone(): \DateTimeZone
 {
     try {

@@ -19,7 +19,7 @@ final class AppVersionRepository
         if (!in_array($source, [self::SOURCE_INSTALL, self::SOURCE_UPDATE, self::SOURCE_RESTORE], true)) {
             throw new \InvalidArgumentException("Unknown source: $source");
         }
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $stmt = $this->pdo->prepare(
             'INSERT INTO app_versions (version, installed_at, source, applied_by, notes)
              VALUES (?, ?, ?, ?, ?)'

@@ -29,7 +29,7 @@ final class AppBackupRepository
         if (!in_array($kind, [self::KIND_AUTO, self::KIND_MANUAL], true)) {
             throw new \InvalidArgumentException("Unknown backup kind: $kind");
         }
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $stmt = $this->pdo->prepare(
             'INSERT INTO app_backups (version_from, version_to, created_at, code_path, db_snapshot, size_bytes, kind)
              VALUES (?, ?, ?, ?, ?, ?, ?)'
@@ -112,7 +112,7 @@ final class AppBackupRepository
     /** Mark a backup as pruned (on-disk artefacts are gone). Row stays. */
     public function markPruned(int $id): void
     {
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $this->pdo->prepare('UPDATE app_backups SET pruned_at = ? WHERE id = ?')
             ->execute([$now, $id]);
     }

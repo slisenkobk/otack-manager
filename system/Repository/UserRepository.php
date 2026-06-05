@@ -29,7 +29,7 @@ final class UserRepository {
                 'INSERT INTO users (email, password_hash, name, role, status, created_at)
                  VALUES (?, ?, ?, ?, ?, ?)'
             );
-            $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+            $now = iso_now_utc();
             $stmt->execute([$email, $hash, $name, $role, $status, $now]);
             $id = (int)$this->pdo->lastInsertId();
             $this->pdo->commit();
@@ -57,7 +57,7 @@ final class UserRepository {
     }
 
     public function touchLastLogin(int $id): void {
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $this->pdo->prepare('UPDATE users SET last_login_at = ? WHERE id = ?')->execute([$now, $id]);
     }
 
@@ -94,7 +94,7 @@ final class UserRepository {
             'INSERT INTO users (email, password_hash, name, role, status, created_at)
              VALUES (?, ?, ?, ?, ?, ?)'
         );
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $stmt->execute([$email, $hash, $name, 'admin', 'approved', $now]);
         return (int)$this->pdo->lastInsertId();
     }

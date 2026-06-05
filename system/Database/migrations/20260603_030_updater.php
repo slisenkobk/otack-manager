@@ -33,7 +33,7 @@ return function (Schema $schema): void {
     $pdo = $schema->pdo();
     $existing = (int)$pdo->query('SELECT COUNT(*) FROM app_versions')->fetchColumn();
     if ($existing === 0) {
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $version = defined('APP_VERSION') ? APP_VERSION : '0.0.0';
         $pdo->prepare(
             "INSERT INTO app_versions (version, installed_at, source, applied_by, notes)

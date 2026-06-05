@@ -38,7 +38,7 @@ final class ShortLinkRepository
 
     public function create(string $targetUrl, ?string $title, int $createdBy): int
     {
-        $now  = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now  = iso_now_utc();
         $slug = $this->generateUniqueSlug();
         $stmt = $this->pdo->prepare(
             'INSERT INTO short_links (slug, target_url, title, is_disabled, created_by, created_at, updated_at)
@@ -108,7 +108,7 @@ final class ShortLinkRepository
         }
         if (!$set) return;
         $set[] = 'updated_at = ?';
-        $vals[] = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $vals[] = iso_now_utc();
         $vals[] = $id;
         $this->pdo->prepare('UPDATE short_links SET ' . implode(', ', $set) . ' WHERE id = ?')->execute($vals);
     }
@@ -116,7 +116,7 @@ final class ShortLinkRepository
     public function rotateSlug(int $id): string
     {
         $slug = $this->generateUniqueSlug();
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $this->pdo->prepare('UPDATE short_links SET slug = ?, updated_at = ? WHERE id = ?')
             ->execute([$slug, $now, $id]);
         return $slug;

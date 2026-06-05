@@ -20,7 +20,7 @@ final class TaskRepository {
         $stmt->execute([$columnId]);
         $maxPos = (float)$stmt->fetch()['m'];
         $position = $maxPos + 1024.0;
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $ins = $this->pdo->prepare(
             'INSERT INTO tasks (project_id, column_id, title, description, position, assignee_id, due_date, created_by, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -222,13 +222,13 @@ final class TaskRepository {
         }
         if (!$set) return;
         $set[] = 'updated_at = ?';
-        $vals[] = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $vals[] = iso_now_utc();
         $vals[] = $id;
         $this->pdo->prepare('UPDATE tasks SET ' . implode(', ', $set) . ' WHERE id = ?')->execute($vals);
     }
 
     public function move(int $id, int $newColumnId, float $newPosition, ?string $subStatus = null, bool $clearSubStatus = false): void {
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         if ($subStatus !== null) {
             $this->pdo->prepare('UPDATE tasks SET column_id = ?, position = ?, sub_status = ?, updated_at = ? WHERE id = ?')
                 ->execute([$newColumnId, $newPosition, $subStatus, $now, $id]);

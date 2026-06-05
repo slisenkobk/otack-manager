@@ -23,7 +23,7 @@ final class PollVoteRepository
         ?string $remoteIp = null,
         ?string $userAgent = null
     ): array {
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         try {
             $stmt = $this->pdo->prepare(
                 'INSERT INTO poll_votes (poll_id, contact, contact_normalized, choice_key, remote_ip, user_agent, created_at)

@@ -20,7 +20,7 @@ final class ShortLinkVisitRepository
 
     public function log(int $linkId, ?string $ipHash, ?string $userAgent, ?string $referer): void
     {
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $ua  = $userAgent !== null ? mb_substr($userAgent, 0, 500) : null;
         $ref = $referer !== null ? mb_substr($referer, 0, 500) : null;
         $stmt = $this->pdo->prepare(

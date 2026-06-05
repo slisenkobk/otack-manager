@@ -14,7 +14,7 @@ final class ProjectRepository {
         $this->pdo->beginTransaction();
         try {
             $slug = $this->slugify($name);
-            $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+            $now = iso_now_utc();
             if (!$color || !preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
                 $color = self::PALETTE[array_rand(self::PALETTE)];
             }
@@ -53,7 +53,7 @@ final class ProjectRepository {
         }
         if (!$set) return;
         $set[] = 'updated_at = ?';
-        $vals[] = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $vals[] = iso_now_utc();
         $vals[] = $id;
         $this->pdo->prepare('UPDATE projects SET ' . implode(', ', $set) . ' WHERE id = ?')->execute($vals);
     }
@@ -79,7 +79,7 @@ final class ProjectRepository {
 
     public function setPinned(int $id, bool $pinned): void {
         if ($pinned) {
-            $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+            $now = iso_now_utc();
             $this->pdo->prepare('UPDATE projects SET pinned_at = ? WHERE id = ?')->execute([$now, $id]);
         } else {
             $this->pdo->prepare('UPDATE projects SET pinned_at = NULL WHERE id = ?')->execute([$id]);

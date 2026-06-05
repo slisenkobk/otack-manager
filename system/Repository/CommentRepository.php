@@ -13,7 +13,7 @@ final class CommentRepository
         string $body,
         ?int   $parentId = null
     ): int {
-        $now  = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now  = iso_now_utc();
         $stmt = $this->pdo->prepare(
             'INSERT INTO comments (entity_type, entity_id, user_id, body, parent_id, created_at)
              VALUES (?, ?, ?, ?, ?, ?)'

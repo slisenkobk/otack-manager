@@ -8,7 +8,7 @@ final class AttachmentRepository
 
     public function create(array $p): int
     {
-        $now  = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now  = iso_now_utc();
         $stmt = $this->pdo->prepare(
             'INSERT INTO attachments
                 (entity_type, entity_id, filename, original_name, mime, size, is_image, uploaded_by, created_at)

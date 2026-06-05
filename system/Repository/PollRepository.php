@@ -77,7 +77,7 @@ final class PollRepository
         ?int $projectId = null,
         ?string $successMessage = null
     ): int {
-        $now  = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now  = iso_now_utc();
         $hash = self::generateHash();
         for ($i = 0; $i < 5; $i++) {
             if (!$this->findByHash($hash)) break;
@@ -111,7 +111,7 @@ final class PollRepository
             if (!$this->findByHash($hash)) break;
             $hash = self::generateHash();
         }
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $this->pdo->prepare('UPDATE polls SET hash = ?, updated_at = ? WHERE id = ?')
             ->execute([$hash, $now, $id]);
         return $hash;
@@ -136,7 +136,7 @@ final class PollRepository
         }
         if (!$set) return;
         $set[] = 'updated_at = ?';
-        $vals[] = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $vals[] = iso_now_utc();
         $vals[] = $id;
         $this->pdo->prepare('UPDATE polls SET ' . implode(', ', $set) . ' WHERE id = ?')->execute($vals);
     }
@@ -149,7 +149,7 @@ final class PollRepository
      */
     public function activate(int $id): bool
     {
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $stmt = $this->pdo->prepare(
             'UPDATE polls SET status = ?, activated_at = ?, updated_at = ? WHERE id = ? AND status = ?'
         );
@@ -159,7 +159,7 @@ final class PollRepository
 
     public function close(int $id): bool
     {
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $stmt = $this->pdo->prepare(
             'UPDATE polls SET status = ?, closed_at = ?, updated_at = ? WHERE id = ? AND status = ?'
         );
@@ -169,7 +169,7 @@ final class PollRepository
 
     public function attachSummaryTask(int $id, int $taskId): void
     {
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $this->pdo->prepare('UPDATE polls SET summary_task_id = ?, updated_at = ? WHERE id = ?')
             ->execute([$taskId, $now, $id]);
     }
@@ -181,7 +181,7 @@ final class PollRepository
      */
     public function detachSummaryTask(int $taskId): int
     {
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         $stmt = $this->pdo->prepare(
             'UPDATE polls SET summary_task_id = NULL, updated_at = ? WHERE summary_task_id = ?'
         );

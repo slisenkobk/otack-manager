@@ -14,7 +14,7 @@ final class NotificationLogRepository {
             json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             $ok ? 1 : 0,
             $error,
-            (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z'),
+            iso_now_utc(),
         ]);
     }
 }

@@ -9,7 +9,7 @@ final class TaskLinkRepository {
     public function link(int $taskA, int $taskB, int $createdBy): bool {
         if ($taskA === $taskB) return false;
         [$a, $b] = $taskA < $taskB ? [$taskA, $taskB] : [$taskB, $taskA];
-        $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:s.u\Z');
+        $now = iso_now_utc();
         try {
             $this->pdo->prepare(
                 'INSERT INTO task_links (task_id, linked_task_id, created_by, created_at) VALUES (?, ?, ?, ?)'
