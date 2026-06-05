@@ -203,9 +203,12 @@ than `git pull` on the box.
 CLI fallback when the UI is unreachable:
 
 ```bash
-php bin/self-update.php --latest
-php bin/self-update.php 1.0.3
+php bin/self-update.php --check         # refresh cached payload; no install
+php bin/self-update.php --latest        # install highest available semver
+php bin/self-update.php 1.0.3           # install a specific version
 ```
+
+`--check` is the cron-friendly mode — admin keeps the install decision in the UI.
 
 The CLI script honours `UPDATE_ENABLED=false` and exits non-zero if it tries
 to write outside `APP_ROOT`.

@@ -21,6 +21,19 @@ final class Container
 {
     public static function register(array &$sessionStore, Csrf $csrf, SessionManager $session): void
     {
+        self::registerCore();
+        self::registerHttp($sessionStore, $csrf, $session);
+    }
+
+    /**
+     * HTTP-free service registrations — safe to call from CLI scripts
+     * (cron, deploy, bin/*.php). Skips `auth` / `csrf` / `session` /
+     * `session_manager` since those need a live HTTP request to be
+     * meaningful. Keeps the DB, settings, updater, repositories, and
+     * other plumbing every offline runner needs.
+     */
+    public static function registerCore(): void
+    {
         // Overlay config.json on top of .env so App::env() picks up wizard
         // values. ConfigStore re-validates against ALLOWED_KEYS on read, so
         // a tampered file cannot inject arbitrary env vars.
@@ -87,6 +100,15 @@ final class Container
             APP_ROOT . '/' . App::env('UPLOAD_DIR', 'public/uploads')
         ));
         App::singleton('login_throttle', fn() => new \App\Auth\LoginThrottle(App::make('db')));
+    }
+
+    /**
+     * Register the HTTP-coupled services (auth / csrf / session). Split
+     * out so CLI runners (Container::registerCore) can stay HTTP-free
+     * without duplicating the rest of the wiring.
+     */
+    public static function registerHttp(array &$sessionStore, Csrf $csrf, SessionManager $session): void
+    {
         App::singleton('auth',    function () use (&$sessionStore) {
             return new \App\Auth\AuthManager(
                 App::make('users'),

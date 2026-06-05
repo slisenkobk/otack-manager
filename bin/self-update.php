@@ -17,8 +17,11 @@ declare(strict_types=1);
  *   2 — update failed (pipeline ran rollback before exiting)
  *
  * Usage:
- *   php bin/self-update.php <version>         # e.g. 1.0.3
- *   php bin/self-update.php --latest          # pick the highest semver tag
+ *   php bin/self-update.php <version>         # e.g. 1.0.3 — install that exact tag
+ *   php bin/self-update.php --latest          # discover highest semver tag and install it
+ *   php bin/self-update.php --check           # discover only — refresh cache, never install
+ *                                              # (use from cron when admin should decide
+ *                                              #  whether/when to apply the update)
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -29,16 +32,42 @@ if (PHP_SAPI !== 'cli') {
 require dirname(__DIR__) . '/system/bootstrap.php';
 
 use App\App;
+use App\Bootstrap\Container;
 use App\Service\Updater;
+
+// HTTP-free container init — registers settings, updater, repositories
+// and DB driver without the session/csrf plumbing this CLI doesn't have.
+Container::registerCore();
 
 $arg = $argv[1] ?? '';
 if ($arg === '' || $arg === '-h' || $arg === '--help') {
-    fwrite(STDOUT, "Usage:\n  bin/self-update.php <version>\n  bin/self-update.php --latest\n");
+    fwrite(STDOUT, "Usage:\n  bin/self-update.php <version>\n  bin/self-update.php --latest\n  bin/self-update.php --check\n");
     exit($arg === '' ? 1 : 0);
 }
 
 /** @var Updater $updater */
 $updater = App::make('updater');
+
+if ($arg === '--check') {
+    // Discovery only — refresh the cached payload so the dashboard badge
+    // surfaces "Update available" without anyone having to load the page
+    // first. Never installs; the admin still decides via Settings → Updates.
+    try {
+        $payload = $updater->check();
+    } catch (\Throwable $e) {
+        fwrite(STDERR, "Check failed: " . $e->getMessage() . "\n");
+        exit(2);
+    }
+    if (empty($payload['available']) || empty($payload['has_update'])) {
+        fwrite(STDOUT, "Already up to date (v" . $payload['current'] . ")\n");
+    } else {
+        fwrite(STDOUT,
+            "Update available: v{$payload['available']} (current v{$payload['current']}) "
+            . "— install via Settings → Updates or `bin/self-update.php --latest`\n"
+        );
+    }
+    exit(0);
+}
 
 if ($arg === '--latest') {
     try {

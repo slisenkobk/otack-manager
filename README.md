@@ -152,8 +152,17 @@ Admin → Settings → **Updates** tab. Otack Manager checks the GitHub releases
 For shell-level updates when the UI is unreachable:
 
 ```bash
-php bin/self-update.php --latest        # check + install if newer
+php bin/self-update.php --check         # discover only — refresh the cached payload so
+                                        # the dashboard surfaces "update available" badge,
+                                        # never installs anything (safe for cron)
+php bin/self-update.php --latest        # discover + install the highest semver tag
 php bin/self-update.php 1.0.3           # install a specific version
+```
+
+The `--check` mode is the right shape for a periodic cron on shared hosting — admin keeps full control over WHEN to apply each update via Settings → Updates. Example hourly check:
+
+```
+0 * * * * /usr/local/bin/php /home/<you>/<app>/bin/self-update.php --check >> /home/<you>/logs/otack-updater.log 2>&1
 ```
 
 Disable the feature entirely with `UPDATE_ENABLED=false` in `.env` (useful when the appliance is updated via OS package manager). Full design notes in [docs/UPDATES.md](docs/UPDATES.md).
