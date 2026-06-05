@@ -111,7 +111,7 @@ if ($canFormsSb) {
   // Footer credit — always show the product name "Otack Manager", never the
   // white-labelled app_name(). This is the upstream copyright, not the
   // customer's branding.
-  $brandLink = '<a class="sidebar__foot-link" href="https://otack.eu" target="_blank" rel="noopener noreferrer">Otack Manager</a>';
+  $brandLink = '<a class="sidebar__foot-link" href="https://otack.eu" target="_blank" rel="noopener noreferrer">Otack</a>';
   $goupLink  = '<a class="sidebar__foot-link" href="https://goupspace.eu" target="_blank" rel="noopener noreferrer">Goup Space</a>';
   ?>
   <div class="sidebar__foot">

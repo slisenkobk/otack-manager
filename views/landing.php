@@ -181,6 +181,6 @@ header('Content-Type: text/html; charset=utf-8');
     </div>
   </article>
 </main>
-<div class="footer">Otack Manager Ecosystem · By Goup Space</div>
+<div class="footer">Otack Ecosystem · By Goup Space</div>
 </body>
 </html>
