@@ -11,7 +11,10 @@ $installedAt = $currentVersion['installed_at'] ?? null;
   <div class="updates-card">
     <h3 class="updates-card__title"><?= e(t('updates.section.current')) ?></h3>
     <p class="updates-current-line">
-      <strong><?= e(app_name()) ?></strong>
+      <?php // Always the upstream product name — the Updates tab is about
+            // what's being upgraded (Otack Manager from GitHub), not about
+            // the customer's white-label app name. ?>
+      <strong>Otack Manager</strong>
       <span class="updates-version">v<?= e($current) ?></span>
     </p>
     <?php if ($installedAt): ?>
