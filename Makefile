@@ -1,4 +1,4 @@
-.PHONY: help setup serve dev test unit api e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package package-check migrate test-clean
+.PHONY: help setup serve dev test unit api e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package package-check migrate test-clean wizard
 
 PORT ?= 8000
 SERVER_PID := /tmp/otack-server.pid
@@ -21,6 +21,7 @@ help:
 	@echo "  make e2e          — run Playwright E2E only"
 	@echo "  make e2e-ui       — run Playwright in UI mode"
 	@echo ""
+	@echo "  make wizard       — wipe DEV DB + sessions and start server with install gate ON"
 	@echo "  make reset        — wipe DEV SQLite + schema markers (fresh dev DB)"
 	@echo "  make reset-test   — wipe TEST SQLite + schema + uploads (E2E sandbox)"
 	@echo "  make reset-uploads — wipe all DEV uploaded files"
@@ -127,6 +128,25 @@ reset: confirm-destruct
 	rm -f data/app.sqlite
 	rm -rf data/.schema
 	@echo "Dev DB wiped — next request creates fresh schema"
+
+# Walk the install wizard from scratch. Wipes the dev DB *and* the
+# session store (a stale admin cookie would otherwise mask the gate),
+# then starts the server in the foreground with INSTALL_GATE_ENABLED=true.
+# SEED_DEFAULT_ADMIN_EMAIL/PASSWORD_HASH are blanked so the seed-admin
+# migration (20260525_020_seed_default_admin) doesn't re-create an
+# approved admin on the fresh schema — which would otherwise satisfy the
+# gate's "0 approved admins" check and skip the wizard.
+# Ctrl+C to stop; `make reset` afterwards if you want to revert to an
+# empty DB without the gate.
+wizard: confirm-destruct
+	rm -f data/app.sqlite
+	rm -rf data/.schema
+	rm -rf data/sessions/*
+	@echo "Dev DB + sessions wiped — starting server with install gate ON"
+	INSTALL_GATE_ENABLED=true \
+	SEED_DEFAULT_ADMIN_EMAIL= \
+	SEED_DEFAULT_ADMIN_PASSWORD_HASH= \
+	php -S localhost:$(PORT) -t public public/index.php
 
 reset-test: confirm-destruct
 	rm -f data/app.test.sqlite data/app.test.sqlite-wal data/app.test.sqlite-shm

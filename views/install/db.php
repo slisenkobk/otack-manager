@@ -6,7 +6,7 @@
     <div class="install-alert install-alert--error"><?= e($flash) ?></div>
   <?php endif; ?>
 
-  <form method="post" action="/install/db" class="install-form install-db-form">
+  <form method="post" action="/install/db" class="install-form install-db-form" autocomplete="off">
     <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
 
     <fieldset class="install-fieldset">
@@ -37,14 +37,14 @@
       <div class="install-grid-2 mt-14">
         <div class="field">
           <label for="f-user"><?= e(t('install.db.user')) ?></label>
-          <input id="f-user" class="input" name="user">
+          <input id="f-user" class="input" name="user" autocomplete="off" data-1p-ignore data-lpignore="true">
         </div>
         <div class="field">
           <label for="f-password"><?= e(t('install.db.password')) ?></label>
-          <input id="f-password" class="input" type="password" name="password" autocomplete="off">
+          <input id="f-password" class="input" type="password" name="password" autocomplete="new-password" data-1p-ignore data-lpignore="true">
         </div>
       </div>
-      <button type="submit" name="driver" value="mysql" data-driver="mysql" class="btn btn--ghost mt-14">
+      <button type="submit" name="driver" value="mysql" data-driver="mysql" class="btn btn--secondary mt-14">
         <?= e(t('install.db.test')) ?>
       </button>
     </fieldset>

@@ -29,6 +29,7 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/forms.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/cards-panels.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/utilities.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/modal-toast.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/install.css')) ?>">
 <?= app_brand_style_tag() ?>
 <meta name="csrf-token" content="<?= e($csrfToken ?? '') ?>">
@@ -57,5 +58,17 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
     </section>
   </div>
 </main>
+<?php require APP_ROOT . '/views/partials/toast-root.php'; ?>
+<?php
+  // JS i18n channel — the Done step's click-to-copy on the sign-in URL
+  // calls t('js.toast.copied') / t('js.toast.copy_failed_manual'), so we
+  // need the same window.__t bridge auth/main layouts ship.
+  $__jsLocale = [];
+  foreach (i18n_catalog() as $__k => $__v) {
+      if (is_string($__v) && str_starts_with($__k, 'js.')) $__jsLocale[$__k] = $__v;
+  }
+?>
+<script type="application/json" id="i18n-js"><?= json_encode($__jsLocale, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
+<script type="module" src="/assets/js/ui.js"></script>
 </body>
 </html>

@@ -383,12 +383,16 @@ final class InstallController extends BaseController
         $admin     = $this->users->firstApprovedAdmin();
         $loginHash = $this->config->get('LOGIN_HASH');
         $signInUrl = '/login' . ($loginHash !== null ? ('?hash=' . rawurlencode($loginHash)) : '');
+        $appUrl    = rtrim((string)$this->config->get('APP_URL', ''), '/');
         $summary = [
-            'db'           => $this->config->get('DB_DSN') !== null ? 'MySQL' : 'SQLite',
-            'admin_email'  => $admin['email'] ?? '',
-            'login_hash'   => $loginHash !== null,
-            'telegram'     => $this->config->get('TG_BOT_TOKEN') !== null,
-            'sign_in_url'  => $signInUrl,
+            'db'              => $this->config->get('DB_DSN') !== null ? 'MySQL' : 'SQLite',
+            'admin_email'     => $admin['email'] ?? '',
+            'login_hash'      => $loginHash !== null,
+            'telegram'        => $this->config->get('TG_BOT_TOKEN') !== null,
+            'sign_in_url'     => $signInUrl,
+            // Absolute URL surfaced on the Done page so the admin can bookmark
+            // it — without the hash query the /login route returns 404.
+            'sign_in_url_abs' => $appUrl !== '' ? $appUrl . $signInUrl : $signInUrl,
         ];
         // Stash for the done-page one-shot render. The `session` singleton in
         // Container.php is an anonymous class wrapper around $_SESSION with a
@@ -408,8 +412,13 @@ final class InstallController extends BaseController
         // the one-shot summary from the session bucket; if it isn't there
         // (someone hit /install/done directly after install), fall back to a
         // generated summary from current state.
+        // Keep the summary sticky for the session — `unset()` here would 404
+        // on refresh (gateBlocked() returns true once installed_at is set, so
+        // the fallback path can't re-render). The bucket falls off naturally
+        // when the session expires or the admin signs in. Same-session refresh
+        // shows the same data; a different browser hitting /install/done has
+        // no bucket and falls through to the gateBlocked() deny below.
         $summary = $this->session->store['__install_done_summary'] ?? null;
-        unset($this->session->store['__install_done_summary']);
 
         if ($summary === null) {
             // Direct hit on /install/done after the wizard finished — refuse.
@@ -417,12 +426,15 @@ final class InstallController extends BaseController
             if ($this->gateBlocked()) { $this->deny404(); return; }
             $admin     = $this->users->firstApprovedAdmin();
             $loginHash = $this->config->get('LOGIN_HASH');
+            $signInUrl = '/login' . ($loginHash !== null ? ('?hash=' . rawurlencode($loginHash)) : '');
+            $appUrl    = rtrim((string)$this->config->get('APP_URL', ''), '/');
             $summary = [
-                'db'           => $this->config->get('DB_DSN') !== null ? 'MySQL' : 'SQLite',
-                'admin_email'  => $admin['email'] ?? '',
-                'login_hash'   => $loginHash !== null,
-                'telegram'     => $this->config->get('TG_BOT_TOKEN') !== null,
-                'sign_in_url'  => '/login' . ($loginHash !== null ? ('?hash=' . rawurlencode($loginHash)) : ''),
+                'db'              => $this->config->get('DB_DSN') !== null ? 'MySQL' : 'SQLite',
+                'admin_email'     => $admin['email'] ?? '',
+                'login_hash'      => $loginHash !== null,
+                'telegram'        => $this->config->get('TG_BOT_TOKEN') !== null,
+                'sign_in_url'     => $signInUrl,
+                'sign_in_url_abs' => $appUrl !== '' ? $appUrl . $signInUrl : $signInUrl,
             ];
         }
         Response::html($this->render('install/done', ['summary' => $summary], 'done'));

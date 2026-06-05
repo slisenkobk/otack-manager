@@ -21,7 +21,16 @@
     </li>
   </ul>
 
+  <?php if (!empty($summary['login_hash'])): ?>
+    <div class="install-alert install-alert--warn">
+      <p class="m-0 fw-600"><?= e(t('install.done.login_hash_url_label')) ?></p>
+      <p class="muted m-0 fz-13"><?= e(t('install.done.login_hash_url_warn')) ?></p>
+      <pre class="copyable install-login-url" data-copy="<?= e($summary['sign_in_url_abs']) ?>" title="<?= e(t('install.done.copy_hint')) ?>"><?= e($summary['sign_in_url_abs']) ?></pre>
+    </div>
+  <?php endif; ?>
+
   <a href="<?= e($summary['sign_in_url']) ?>" class="btn btn--primary install-cta">
     <?= e(t('install.done.sign_in')) ?>
   </a>
 </div>
+<script type="module" src="<?= e(asset_url('/assets/js/api-tokens.js')) ?>"></script>

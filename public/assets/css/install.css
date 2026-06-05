@@ -120,6 +120,23 @@
   color: var(--accent, #c2410c);
   border: 1px solid color-mix(in srgb, var(--accent, #c2410c) 30%, transparent);
 }
+/* Warn variant — used on the Done page to surface the generated /login
+   hash URL with a save-this-now hint. Calmer than --error but still
+   weighted enough that the URL doesn't get missed in the summary. */
+.install-alert--warn {
+  background: color-mix(in srgb, var(--yellow, #b5871e) 7%, transparent);
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--yellow, #b5871e) 35%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 6px);
+}
+/* Inside the yellow Done-step callout, the copyable URL block sits on a
+   slightly tinted background. Inherits cursor:copy + hover + flash from
+   the base `pre.copyable` rule in utilities.css. */
+.install-alert--warn .install-login-url {
+  background: var(--paper);
+}
 
 .install-summary {
   list-style: none;

@@ -75,25 +75,33 @@ try {
 
 Events::register();
 
-// Install wizard gate (TODO #10). Behind a feature flag during the
-// rollout so existing .env installs aren't disturbed mid-deploy.
-// Default flips to true in step 7 of the implementation plan.
+// Install wizard gate (TODO #10).
 //
-// The flag is honoured from two sources so the e2e suite can toggle the
-// gate per-spec without restarting the webServer:
+// Honoured from two sources so the e2e suite can toggle the gate per-spec
+// without restarting the web server:
 //   1. INSTALL_GATE_ENABLED env var — production / dev opt-in
 //   2. INSTALL_GATE_FLAG_FILE — a marker-file path (relative to APP_ROOT or
 //      absolute) that, when present, forces the gate on. Specs that need
 //      the gate create the marker in beforeAll and delete in afterAll.
-$gateEnabled = filter_var(\App\App::env('INSTALL_GATE_ENABLED', 'false'), FILTER_VALIDATE_BOOLEAN);
-if (!$gateEnabled) {
-    $flagFile = (string)\App\App::env('INSTALL_GATE_FLAG_FILE', '');
-    if ($flagFile !== '') {
-        $resolved = ($flagFile[0] === '/' || (strlen($flagFile) > 1 && $flagFile[1] === ':'))
-            ? $flagFile
-            : APP_ROOT . '/' . ltrim($flagFile, '/');
-        if (is_file($resolved)) $gateEnabled = true;
-    }
+//
+// Default for INSTALL_GATE_ENABLED is `true` so a freshly uploaded
+// shared-hosting install (no .env, no DB) auto-fires the wizard on the
+// first hit. The InstallGate predicate is strict — both `settings.installed_at`
+// empty AND zero approved admins — so established installs short-circuit
+// at the predicate and never see a wizard redirect.
+//
+// Test isolation: when INSTALL_GATE_FLAG_FILE is set (Playwright config
+// points it at `data/install-gate-on.test`), the default flips to `false`
+// so unrelated specs aren't redirected; install.spec.ts creates the marker
+// in beforeAll to opt the gate back on for its scope.
+$flagFile = (string)\App\App::env('INSTALL_GATE_FLAG_FILE', '');
+$defaultGate = $flagFile === '' ? 'true' : 'false';
+$gateEnabled = filter_var(\App\App::env('INSTALL_GATE_ENABLED', $defaultGate), FILTER_VALIDATE_BOOLEAN);
+if (!$gateEnabled && $flagFile !== '') {
+    $resolved = ($flagFile[0] === '/' || (strlen($flagFile) > 1 && $flagFile[1] === ':'))
+        ? $flagFile
+        : APP_ROOT . '/' . ltrim($flagFile, '/');
+    if (is_file($resolved)) $gateEnabled = true;
 }
 if ($gateEnabled) {
     // Parse path so `?foo=bar` and `#frag` don't bleed into the prefix

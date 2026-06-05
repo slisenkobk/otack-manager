@@ -25,17 +25,81 @@ Server-rendered, no SPA, no Composer dependencies. Runs on SQLite by default, wi
 - For MySQL deployments: MySQL **8.0+**; the in-app migrator uses `mysqldump` / `mysql` from PATH for snapshots
 - Node.js 18+ (only for running Playwright E2E)
 
-## Setup
+## Shared hosting — upload & install
+
+No SSH, no `composer`, no build step. Drop files, open the URL, follow the wizard.
+
+**1. Build the deploy archive** (one-time, on your laptop):
+
+```bash
+make package    # writes /tmp/otack-tasks-deploy.tar.gz
+```
+
+The archive contains exactly what the host needs at runtime:
+
+```
+.env.example          template — the wizard writes data/config.json instead
+.htaccess             root: blocks /data/, /.env, /system from the web
+LICENSE
+README.md
+bin/                  CLI scripts (migrate.php, self-update.php, check-env.php)
+data/                 empty — SQLite file, sessions, error log land here at runtime
+docs/                 reference docs (safe to keep or delete on the host)
+public/               front controller + all CSS/JS/images (DocumentRoot)
+  ├── index.php       single entry point
+  ├── assets/         CSS, JS, fonts, icons
+  ├── uploads/        empty — user uploads land here at runtime
+  └── .htaccess       routes everything that isn't a real file to index.php
+system/               PHP code (controllers, repositories, services, bootstrap)
+views/                templates
+```
+
+Excluded on purpose: `.env`, `Makefile`, `tests/`, `node_modules/`, `package*.json`, `playwright.config.ts`, the local SQLite DB, sessions, error log, dev notes, git metadata. None of these are needed by the running app.
+
+Prefer to upload manually (no `make package`)? Copy the eight items above and skip the rest — same result.
+
+**2. Upload to the host.** Via the control panel's file manager (cPanel, DirectAdmin, Plesk…) or any SFTP client. Two layouts are supported:
+
+| Hosting layout | Where to extract |
+|---|---|
+| DocumentRoot **is** the app root (most shared plans) | Extract into the root; point Apache/nginx at `public/` as the new DocumentRoot if the panel allows it. |
+| DocumentRoot is **fixed** (often `public_html/`) and can't be moved | Extract one level above DocumentRoot, then symlink `public_html → ../otack/public`, or copy `public/*` into `public_html/` and edit the bundled `.htaccess` so it still routes to `../system`. |
+
+Make these paths **writable by PHP** (typically `chmod 770` or `775`, owner = the FPM/CGI user):
+
+- `data/` — SQLite file, sessions, error log
+- `public/uploads/` — user uploads
+
+Keep `data/` and `.env` **outside** any web-accessible path. The bundled `.htaccess` files block them on Apache; on nginx, deny `^/data/` and `^/\.env`.
+
+**3. Open the site.** With no `.env` on disk the app boots in install mode and `GET /` redirects to `/install`. The wizard walks 6 steps:
+
+1. **Welcome** — sanity check.
+2. **Database** — SQLite (default, zero-config) or MySQL DSN + credentials. The wizard probes the connection and applies migrations.
+3. **Admin** — name, email, password for the first admin.
+4. **Security** — optional `/login` URL-hash gate; APP_SECRET is generated automatically.
+5. **Integrations** — Telegram bot token + chat id (optional, can be skipped or added later in Compass).
+6. **Done** — settings are persisted to `data/config.json` (which overlays `.env`), `installed_at` is stamped, the wizard is sealed for subsequent visits.
+
+You're then bounced to `/login`. Done — no shell required at any step.
+
+**Subsequent edits to the configuration** live in **Compass → Platform** (admin only). The wizard never re-fires after `installed_at` is set; if you really need to start over, delete `data/config.json` AND clear `settings.installed_at`.
+
+## Local development
 
 ```bash
 cp .env.example .env
 # Edit .env — at minimum set APP_URL and (optionally) the Telegram bot vars.
-php -S localhost:8000 -t public public/index.php
+make serve              # or: php -S localhost:8000 -t public public/index.php
 ```
 
-Open <http://localhost:8000>. The first user to register becomes the admin automatically. Subsequent self-registrations land in `/pending` until approved at `/users`.
+Open <http://localhost:8000>. On a fresh DB the install wizard fires the same way as on shared hosting; if you'd rather skip it for a sandbox, seed an admin via `SEED_DEFAULT_ADMIN_EMAIL` / `SEED_DEFAULT_ADMIN_PASSWORD_HASH` in `.env`.
 
-A default admin can also be seeded via `SEED_DEFAULT_ADMIN_EMAIL` / `SEED_DEFAULT_ADMIN_PASSWORD_HASH` in `.env`.
+To walk the wizard end-to-end on demand (wipes the dev DB + sessions, then starts the server with the gate forced on and the seed-admin blanked):
+
+```bash
+make wizard
+```
 
 ## Database
 

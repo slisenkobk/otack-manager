@@ -36,20 +36,15 @@ document.querySelectorAll('.card[data-project-id] [data-action="toggle-pin"]').f
 // feels light-weight (same modal shell as the new-user flow). Labels travel
 // in data-attributes on the trigger so the modal stays in the user's locale
 // without us building a parallel JS i18n catalogue.
-// Project colour picker. Reads from <meta name="project-palette"> which the
-// layout fills from the `project_palette` setting (Settings → Workspace).
-// Built-in default kicks in when admin clears the setting or the meta is
-// missing (e.g. on an older render path).
+// Project colour picker — single built-in palette, kept in sync with the
+// server-side ProjectRepository::PALETTE constant. No admin-configurable
+// setting any more; the workspace settings panel doesn't expose this.
+const PROJECT_PALETTE = [
+  '#EA580C', '#5A4E3F', '#2563EB', '#CA8A04', '#4D6840',
+  '#6D28D9', '#DC2626', '#0891B2', '#9333EA', '#0F766E',
+];
 function pickPaletteColor() {
-  const meta = document.querySelector('meta[name="project-palette"]');
-  const list = (meta?.content || '').split(',')
-    .map(s => s.trim().replace(/^#/, ''))
-    .filter(s => /^[0-9a-f]{6}$/i.test(s));
-  const palette = list.length
-    ? list.map(h => '#' + h.toUpperCase())
-    : ['#EA580C', '#5A4E3F', '#2563EB', '#CA8A04', '#4D6840',
-       '#6D28D9', '#DC2626', '#0891B2', '#9333EA', '#0F766E'];
-  return palette[Math.floor(Math.random() * palette.length)];
+  return PROJECT_PALETTE[Math.floor(Math.random() * PROJECT_PALETTE.length)];
 }
 
 function openProjectModal(trigger) {

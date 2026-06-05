@@ -8,7 +8,7 @@ header('Content-Type: text/html; charset=utf-8');
 <title>Otack Manager</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<style>
+<style nonce="<?= e(csp_nonce()) ?>">
   :root {
     --paper:        #F5F0E6;
     --paper-2:      #ECE3D0;

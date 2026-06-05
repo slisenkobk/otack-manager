@@ -138,16 +138,6 @@ $localeNames = locale_display_names();
         <p class="muted field-hint--tight2"><?= e(t('settings.field.default_locale_hint')) ?></p>
       </div>
 
-      <div class="field form-grid__span">
-        <label for="f-project-palette"><?= e(t('settings.field.project_palette')) ?></label>
-        <input id="f-project-palette" class="input" type="text" name="project_palette"
-               value="<?= e($values['project_palette'] ?? '') ?>"
-               placeholder="EA580C,5A4E3F,2563EB,…"
-               pattern="^[0-9A-Fa-f]{6}(\s*,\s*[0-9A-Fa-f]{6})*$">
-        <p class="muted field-hint--tight">
-          <?= e(t('settings.field.project_palette_hint')) ?>
-        </p>
-      </div>
     </div>
     </fieldset>
 

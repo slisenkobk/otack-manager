@@ -43,14 +43,6 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 ?>
 <meta name="i18n-locales" content="<?= e(json_encode($localeMeta)) ?>">
 <meta name="i18n-locale"  content="<?= e(user_locale()) ?>">
-<?php
-  // Project-creation palette: admin-configurable via Settings → Workspace.
-  // Comma-separated hex without `#`. projects.js reads this attribute and
-  // picks a random colour; falls back to a built-in default if absent.
-  $__palette = \App\App::make('settings')->get('project_palette',
-      'EA580C,5A4E3F,2563EB,CA8A04,4D6840,6D28D9,DC2626,0891B2,9333EA,0F766E');
-?>
-<meta name="project-palette" content="<?= e($__palette) ?>">
 </head>
 <body>
 <div class="shell" data-shell>

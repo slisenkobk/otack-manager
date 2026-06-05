@@ -6,16 +6,18 @@
     <div class="install-alert install-alert--error"><?= e($flash) ?></div>
   <?php endif; ?>
 
-  <form method="post" action="/install/integrations" class="install-form">
+  <form method="post" action="/install/integrations" class="install-form" autocomplete="off">
     <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
 
     <div class="field">
       <label for="f-tg-token"><?= e(t('install.integrations.tg_token')) ?></label>
-      <input id="f-tg-token" class="input" type="password" name="tg_token" autocomplete="off">
+      <input id="f-tg-token" class="input" type="password" name="tg_token"
+             autocomplete="new-password" data-1p-ignore data-lpignore="true">
     </div>
     <div class="field mt-14">
       <label for="f-tg-chat"><?= e(t('install.integrations.tg_chat_id')) ?></label>
-      <input id="f-tg-chat" class="input" name="tg_chat_id" pattern="-?\d+">
+      <input id="f-tg-chat" class="input" name="tg_chat_id" pattern="-?\d+"
+             autocomplete="off" data-1p-ignore data-lpignore="true">
     </div>
 
     <div class="install-actions mt-14">
