@@ -113,7 +113,7 @@ $installedAt = $currentVersion['installed_at'] ?? null;
               <tr>
                 <td><span class="updates-version">v<?= e((string)$v['version']) ?></span></td>
                 <td><?= e(t('updates.source.' . (string)$v['source'])) ?></td>
-                <td class="data-table__meta-time"><?= e(fmt_datetime($v['installed_at'])) ?></td>
+                <td class="data-table__meta-time"><?= e(fmt_datetime_full($v['installed_at'])) ?></td>
                 <td><?= e($v['applied_by_name'] ?? '—') ?></td>
               </tr>
             <?php endforeach; ?>
@@ -147,7 +147,7 @@ $installedAt = $currentVersion['installed_at'] ?? null;
                   <span class="updates-version">v<?= e((string)$b['version_from']) ?></span>
                   → <span class="updates-version">v<?= e((string)$b['version_to']) ?></span>
                 </td>
-                <td class="data-table__meta-time"><?= e(fmt_datetime($b['created_at'])) ?></td>
+                <td class="data-table__meta-time"><?= e(fmt_datetime_full($b['created_at'])) ?></td>
               <td><?= e(fmt_size((int)$b['size_bytes'])) ?></td>
               <td><?= e(t('updates.kind.' . (string)$b['kind'])) ?></td>
               <td>

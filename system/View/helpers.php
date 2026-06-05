@@ -317,6 +317,23 @@ function fmt_datetime(?string $iso): string
         : $d->format('d.m.Y H:i');
 }
 
+/**
+ * Like fmt_datetime() but always returns `d.m.Y H:i` — never collapses
+ * to bare time on same-day events. Use in audit / history tables where
+ * "21:08" alone is ambiguous (was it today? yesterday? last month?).
+ */
+function fmt_datetime_full(?string $iso): string
+{
+    if (!$iso) return '';
+    try {
+        return (new \DateTimeImmutable($iso))
+            ->setTimezone(app_timezone())
+            ->format('d.m.Y H:i');
+    } catch (\Throwable $e) {
+        return '';
+    }
+}
+
 /** Deterministic OKLCH-ish hue per user id → stable colored avatar background. */
 function user_color(int $id): string
 {

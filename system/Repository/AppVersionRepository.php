@@ -29,6 +29,25 @@ final class AppVersionRepository
     }
 
     /**
+     * Re-insert an audit row with its original `installed_at` preserved.
+     * Used by Updater::restore() to re-attach history rows that lived in
+     * the pre-restore DB but vanished when the DB snapshot was rolled
+     * back — without this, restoring to v1.5.0 would also wipe the v1.5.1
+     * "update" row that was recorded between snapshot and restore.
+     */
+    public function reattach(string $version, string $installedAt, string $source, ?int $appliedBy, ?string $notes): void
+    {
+        if (!in_array($source, [self::SOURCE_INSTALL, self::SOURCE_UPDATE, self::SOURCE_RESTORE], true)) {
+            throw new \InvalidArgumentException("Unknown source: $source");
+        }
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO app_versions (version, installed_at, source, applied_by, notes)
+             VALUES (?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$version, $installedAt, $source, $appliedBy, $notes]);
+    }
+
+    /**
      * Newest first. limit caps at 200 just to bound the History table render.
      *
      * @return list<array<string,mixed>>

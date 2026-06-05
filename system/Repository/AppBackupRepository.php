@@ -38,6 +38,32 @@ final class AppBackupRepository
         return (int)$this->pdo->lastInsertId();
     }
 
+    /**
+     * Re-insert an audit row with its original `created_at` and `pruned_at`
+     * preserved. Used by Updater::restore() to re-attach the v1.5.0→v1.5.1
+     * backup row (and any other newer rows) after the DB snapshot has
+     * rolled the table back to its pre-update state.
+     */
+    public function reattach(
+        string $versionFrom,
+        string $versionTo,
+        string $createdAt,
+        string $codePath,
+        ?string $dbSnapshot,
+        int $sizeBytes,
+        string $kind,
+        ?string $prunedAt
+    ): void {
+        if (!in_array($kind, [self::KIND_AUTO, self::KIND_MANUAL], true)) {
+            throw new \InvalidArgumentException("Unknown backup kind: $kind");
+        }
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO app_backups (version_from, version_to, created_at, code_path, db_snapshot, size_bytes, kind, pruned_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$versionFrom, $versionTo, $createdAt, $codePath, $dbSnapshot, $sizeBytes, $kind, $prunedAt]);
+    }
+
     /** @return array<string,mixed>|null */
     public function findById(int $id): ?array
     {

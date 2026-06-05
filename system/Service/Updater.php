@@ -276,10 +276,25 @@ final class Updater
             // the admin should be able to re-restore the same backup later.
             $this->applyRestoreSwap($codeSnap, $preRestoreDir . '/removed');
 
+            // Capture the audit log BEFORE the DB rollback wipes it. The
+            // snapshot was taken at update-time, so it predates any rows we
+            // recorded between then and now (the v1.5.0→v1.5.1 update row
+            // itself, and this very backup's audit row). Without this we'd
+            // lose them when restoreDbFromSnapshot() runs the older state in.
+            $preRestoreVersions = $versions->listRecent(200);
+            $preRestoreBackups  = $backups->listAll();
+
             // Swap DB. The helper delegates to the driver's snapshot
             // adapter (SQLite: cp+sidecar housekeeping; MySQL: mysql restore).
             if ($dbSnap !== null) {
                 $this->restoreDbFromSnapshot($dbSnap);
+            }
+
+            // Re-attach audit rows that the rollback dropped. Cutoff is the
+            // newest installed_at / created_at that survived in the restored
+            // DB — anything newer in the pre-restore set is what we lost.
+            if ($dbSnap !== null) {
+                $this->reattachAuditRows($preRestoreVersions, $preRestoreBackups);
             }
 
             // Record. Use the version we restored TO (= what the user is
@@ -578,6 +593,54 @@ final class Updater
             throw new \RuntimeException('No DB driver bound — cannot restore');
         }
         $driver->snapshotFor($pdo)->restoreFrom($snapPath);
+    }
+
+    /**
+     * Walk the captured pre-restore audit rows and re-insert anything that
+     * the rolled-back DB no longer has. "Anything" = rows whose timestamp
+     * is strictly newer than the newest surviving row in the restored DB.
+     * Preserves original timestamps, sources, and applied_by ids so the
+     * History/Backups tables read chronologically end-to-end.
+     */
+    private function reattachAuditRows(array $preVersions, array $preBackups): void
+    {
+        /** @var \App\Repository\AppVersionRepository $versions */
+        $versions = App::make('app_versions');
+        /** @var \App\Repository\AppBackupRepository $backups */
+        $backups = App::make('app_backups');
+
+        $currentVer = $versions->current();
+        $verCutoff = (string)($currentVer['installed_at'] ?? '');
+        foreach ($preVersions as $row) {
+            if ((string)$row['installed_at'] <= $verCutoff) continue;
+            $versions->reattach(
+                (string)$row['version'],
+                (string)$row['installed_at'],
+                (string)$row['source'],
+                isset($row['applied_by']) ? (int)$row['applied_by'] : null,
+                isset($row['notes']) && $row['notes'] !== null ? (string)$row['notes'] : null
+            );
+        }
+
+        $existingBackups = $backups->listAll();
+        $bakCutoff = '';
+        foreach ($existingBackups as $b) {
+            $ts = (string)($b['created_at'] ?? '');
+            if ($ts > $bakCutoff) $bakCutoff = $ts;
+        }
+        foreach ($preBackups as $row) {
+            if ((string)$row['created_at'] <= $bakCutoff) continue;
+            $backups->reattach(
+                (string)$row['version_from'],
+                (string)$row['version_to'],
+                (string)$row['created_at'],
+                (string)$row['code_path'],
+                isset($row['db_snapshot']) && $row['db_snapshot'] !== null ? (string)$row['db_snapshot'] : null,
+                (int)$row['size_bytes'],
+                (string)$row['kind'],
+                isset($row['pruned_at']) && $row['pruned_at'] !== null ? (string)$row['pruned_at'] : null
+            );
+        }
     }
 
     private function downloadTarball(string $owner, string $repo, string $version, string $dest): void
