@@ -73,6 +73,9 @@ final class Container
         App::singleton('poll_votes',        fn() => new \App\Repository\PollVoteRepository(App::make('db')));
         App::singleton('app_versions',      fn() => new \App\Repository\AppVersionRepository(App::make('db')));
         App::singleton('app_backups',       fn() => new \App\Repository\AppBackupRepository(App::make('db')));
+        App::singleton('knowledge_pages',      fn() => new \App\Repository\KnowledgePageRepository(App::make('db')));
+        App::singleton('knowledge_categories', fn() => new \App\Repository\KnowledgeCategoryRepository(App::make('db')));
+        App::singleton('knowledge_versions',   fn() => new \App\Repository\KnowledgePageVersionRepository(App::make('db')));
         App::singleton('updater',           fn() => new \App\Service\Updater(App::make('settings')));
         App::singleton('db_migrator',       fn() => new \App\Service\DbMigrator());
         App::singleton('config_store',      fn() => new \App\Service\ConfigStore());

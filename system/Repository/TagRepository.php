@@ -92,6 +92,33 @@ final class TagRepository {
         return $stmt->fetchAll();
     }
 
+    // ─── Knowledge page <-> tag pivot ──────────────────────────────
+    // Mirrors the task/project pivots so /knowledge listings can JOIN
+    // through a single map table. scope must always be 'knowledge_page'
+    // — the controller enforces that when minting tags for this surface.
+
+    public function attachToKnowledgePage(int $pageId, int $tagId): void {
+        $stmt = $this->pdo->prepare('SELECT 1 FROM knowledge_page_tag_map WHERE page_id = ? AND tag_id = ?');
+        $stmt->execute([$pageId, $tagId]);
+        if ($stmt->fetchColumn()) return;
+        $this->pdo->prepare('INSERT INTO knowledge_page_tag_map (page_id, tag_id) VALUES (?, ?)')
+            ->execute([$pageId, $tagId]);
+    }
+
+    public function detachFromKnowledgePage(int $pageId, int $tagId): void {
+        $this->pdo->prepare('DELETE FROM knowledge_page_tag_map WHERE page_id = ? AND tag_id = ?')
+            ->execute([$pageId, $tagId]);
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function listForKnowledgePage(int $pageId): array {
+        $stmt = $this->pdo->prepare(
+            'SELECT t.* FROM tags t INNER JOIN knowledge_page_tag_map m ON m.tag_id = t.id WHERE m.page_id = ? ORDER BY t.name ASC'
+        );
+        $stmt->execute([$pageId]);
+        return $stmt->fetchAll();
+    }
+
     /** @return list<array<string,mixed>> */
     public function listAll(): array {
         $stmt = $this->pdo->query('SELECT * FROM tags ORDER BY scope ASC, name ASC');

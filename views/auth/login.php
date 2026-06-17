@@ -8,14 +8,16 @@
       <label for="f-email"><?= e(t('field.email')) ?></label>
       <input id="f-email" class="input" type="email" name="email" required autofocus>
       <?php if (isset($fieldErrors['email'])): ?>
-        <div class="field__error"><?= e(t('errors.' . $fieldErrors['email'], t('errors.required'))) ?></div>
+        <?php $emailKey = 'errors.' . $fieldErrors['email']; $emailMsg = t($emailKey); ?>
+        <div class="field__error"><?= e($emailMsg === $emailKey ? t('errors.required') : $emailMsg) ?></div>
       <?php endif; ?>
     </div>
     <div class="field<?= isset($fieldErrors['password']) ? ' field--invalid' : '' ?> mt-14">
       <label for="f-password"><?= e(t('field.password')) ?></label>
       <input id="f-password" class="input" type="password" name="password" required>
       <?php if (isset($fieldErrors['password'])): ?>
-        <div class="field__error"><?= e(t('errors.' . $fieldErrors['password'], t('errors.required'))) ?></div>
+        <?php $pwKey = 'errors.' . $fieldErrors['password']; $pwMsg = t($pwKey); ?>
+        <div class="field__error"><?= e($pwMsg === $pwKey ? t('errors.required') : $pwMsg) ?></div>
       <?php endif; ?>
     </div>
     <label class="remember-me auth-remember-me">

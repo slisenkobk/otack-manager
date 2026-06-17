@@ -2,8 +2,60 @@
 declare(strict_types=1);
 namespace App\Service;
 
+/**
+ * Markdown rendering. Two surfaces:
+ *
+ *  - `render()` — hand-rolled minimal parser used by comments. Inputs
+ *    are short, the grammar is intentionally limited (bold / inline
+ *    code / bullet+ordered lists / links), and we want zero extra
+ *    surface area to attack. Pre-escapes the whole string first.
+ *
+ *  - `renderRich()` — full CommonMark-ish rendering for Knowledge-base
+ *    pages via vendored Parsedown 1.7.4 (system/vendor/Parsedown.php).
+ *    Safe-mode + setMarkupEscaped(true) on Parsedown, then a defence-
+ *    in-depth pass through HtmlSanitizer. Use this for any longer-form
+ *    Markdown surface where headings / blockquotes / fenced code /
+ *    tables matter.
+ */
 final class Markdown
 {
+    private static ?\Parsedown $rich = null;
+
+    /**
+     * Full-fat Markdown for the Knowledge base. Safe to render
+     * untrusted user-supplied Markdown: Parsedown safeMode strips raw
+     * HTML and blocks `javascript:` URLs, and HtmlSanitizer runs the
+     * resulting HTML through the same allow-list we use for Quill
+     * output everywhere else.
+     */
+    public static function renderRich(string $md): string
+    {
+        if (trim($md) === '') return '';
+        if (self::$rich === null) {
+            require_once dirname(__DIR__) . '/vendor/Parsedown.php';
+            $p = new \Parsedown();
+            $p->setSafeMode(true);
+            // Belt-and-braces — even in safe mode Parsedown may emit
+            // inline HTML in some edge cases. setMarkupEscaped() forces
+            // it to escape every `<`/`>` that wasn't produced by
+            // Parsedown's own grammar.
+            $p->setMarkupEscaped(true);
+            self::$rich = $p;
+        }
+        // Parsedown 1.7.4 has implicit-nullable signatures that trigger
+        // E_DEPRECATED warnings on PHP 8.3+. They're harmless (output
+        // is correct), and the upstream class is in long-running 2.x
+        // refactor — silence at the call site rather than patch the
+        // vendored file.
+        $prev = error_reporting(error_reporting() & ~E_DEPRECATED);
+        try {
+            $html = self::$rich->text($md);
+        } finally {
+            error_reporting($prev);
+        }
+        return HtmlSanitizer::cleanRich($html);
+    }
+
     public static function render(string $src): string
     {
         $src = htmlspecialchars($src, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');

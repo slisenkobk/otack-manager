@@ -180,6 +180,28 @@ final class Routes
         $router->post('/api/admin/tags/{id}', 'TagAdmin@update');
         $router->post('/api/admin/tags/{id}/delete', 'TagAdmin@delete');
 
+        $router->get ('/knowledge',                              'Knowledge@index');
+        $router->get ('/knowledge/new',                          'Knowledge@newForm');
+        $router->post('/knowledge',                              'Knowledge@create');
+        // /knowledge/preview must come BEFORE the {slug} routes — the router
+        // matches in declaration order and "preview" would otherwise be
+        // captured as a slug. Same trick we use for /knowledge/new above.
+        $router->post('/knowledge/preview',                      'Knowledge@preview');
+        $router->get ('/knowledge/{slug}',                       'Knowledge@show');
+        $router->get ('/knowledge/{slug}/edit',                  'Knowledge@editForm');
+        $router->post('/knowledge/{slug}',                       'Knowledge@update');
+        $router->post('/knowledge/{slug}/delete',                'Knowledge@delete');
+        $router->post('/knowledge/{slug}/snapshot',              'Knowledge@snapshot');
+        $router->get ('/knowledge/{slug}/versions',              'Knowledge@versionsList');
+        $router->get ('/knowledge/{slug}/versions/{vid}',        'Knowledge@versionShow');
+        $router->post('/knowledge/{slug}/comments',              'Knowledge@commentCreate');
+        $router->post('/knowledge/{slug}/comments/{cid}/delete', 'Knowledge@commentDelete');
+
+        $router->get ('/admin/knowledge/categories',             'Knowledge@categoriesIndex');
+        $router->post('/admin/knowledge/categories',             'Knowledge@categoryCreate');
+        $router->post('/admin/knowledge/categories/{id}',        'Knowledge@categoryRename');
+        $router->post('/admin/knowledge/categories/{id}/delete', 'Knowledge@categoryDelete');
+
         $router->post('/api/columns', 'Column@create');
         $router->post('/api/columns/{id}', 'Column@update');
         $router->post('/api/columns/{id}/delete', 'Column@delete');

@@ -88,6 +88,11 @@ if ($canFormsSb) {
         </div>
       </div>
     <?php endif; ?>
+    <a class="nav-item<?= ($activeNav ?? '') === 'knowledge' ? ' nav-item--active' : '' ?>" href="/knowledge">
+      <span class="nav-item__marker"><i class="fa-solid fa-book-open"></i></span>
+      <span><?= e(t('nav.knowledge')) ?></span>
+      <span></span>
+    </a>
     <?php if ($isAdminSb): ?>
       <a class="nav-item<?= ($activeNav ?? '') === 'users' ? ' nav-item--active' : '' ?>" href="/users">
         <span class="nav-item__marker"><i class="fa-solid fa-users"></i></span>
