@@ -53,7 +53,53 @@ final class Markdown
         } finally {
             error_reporting($prev);
         }
+        $html = self::addHeadingAnchors($html);
         return HtmlSanitizer::cleanRich($html);
+    }
+
+    /**
+     * Post-process Parsedown output to give every <h1>..<h6> a stable id
+     * derived from its text content — enables in-page anchor links and
+     * Table-of-Contents pointers in wiki articles.
+     *
+     * Algorithm: slugify text content, dedupe with -2/-3 suffixes per
+     * document so multiple headings with the same text still get unique
+     * targets. Existing `id="…"` attributes are left alone — authors who
+     * hand-craft anchors win.
+     */
+    private static function addHeadingAnchors(string $html): string
+    {
+        $seen = [];
+        return preg_replace_callback(
+            '#<(h[1-6])(\s[^>]*)?>(.*?)</\1>#is',
+            static function (array $m) use (&$seen): string {
+                $tag    = $m[1];
+                $attrs  = $m[2] ?? '';
+                $inner  = $m[3];
+                if (stripos($attrs, ' id=') !== false) {
+                    return $m[0];
+                }
+                $text = trim(strip_tags($inner));
+                $slug = self::slugifyHeading($text);
+                if ($slug === '') return $m[0];
+                $base = $slug;
+                $n = 2;
+                while (isset($seen[$slug])) { $slug = $base . '-' . $n; $n++; }
+                $seen[$slug] = true;
+                return '<' . $tag . $attrs . ' id="' . htmlspecialchars($slug, ENT_QUOTES, 'UTF-8') . '">' . $inner . '</' . $tag . '>';
+            },
+            $html
+        ) ?? $html;
+    }
+
+    private static function slugifyHeading(string $text): string
+    {
+        $text = mb_strtolower($text, 'UTF-8');
+        // Drop everything that isn't a Unicode letter, digit or space/dash.
+        $text = preg_replace('/[^\p{L}\p{N}\s\-]+/u', '', $text) ?? '';
+        $text = preg_replace('/\s+/u', '-', trim($text)) ?? '';
+        $text = preg_replace('/-+/u', '-', $text) ?? '';
+        return trim($text, '-');
     }
 
     public static function render(string $src): string

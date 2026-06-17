@@ -53,6 +53,11 @@ echo !empty($error) ? flash_meta($error, 'error') : '';
   <?php endif; ?>
 
   <div class="field knowledge-editor__field">
+    <div class="knowledge-editor__editor-label">
+      <i class="fa-solid fa-book-open"></i>
+      <strong><?= e(t('knowledge.editor.label')) ?></strong>
+      <span class="muted fz-12"><?= e(t('knowledge.editor.label_hint')) ?></span>
+    </div>
     <div class="knowledge-editor__tabs">
       <button type="button" class="knowledge-editor__tab is-active" data-editor-tab="edit">
         <?= e(t('knowledge.editor.tab_edit')) ?>
@@ -60,6 +65,28 @@ echo !empty($error) ? flash_meta($error, 'error') : '';
       <button type="button" class="knowledge-editor__tab" data-editor-tab="preview">
         <?= e(t('knowledge.editor.tab_preview')) ?>
       </button>
+    </div>
+    <div class="knowledge-editor__toolbar" role="toolbar" aria-label="<?= e(t('knowledge.toolbar.aria')) ?>" data-editor-toolbar>
+      <button type="button" class="knowledge-editor__tool" data-md="undo" title="<?= e(t('knowledge.toolbar.undo')) ?>"><i class="fa-solid fa-rotate-left"></i></button>
+      <button type="button" class="knowledge-editor__tool" data-md="redo" title="<?= e(t('knowledge.toolbar.redo')) ?>"><i class="fa-solid fa-rotate-right"></i></button>
+      <span class="knowledge-editor__tool-sep" aria-hidden="true"></span>
+      <button type="button" class="knowledge-editor__tool" data-md="h1" title="<?= e(t('knowledge.toolbar.h1')) ?>"><span class="knowledge-editor__tool-label">H1</span></button>
+      <button type="button" class="knowledge-editor__tool" data-md="h2" title="<?= e(t('knowledge.toolbar.h2')) ?>"><span class="knowledge-editor__tool-label">H2</span></button>
+      <button type="button" class="knowledge-editor__tool" data-md="h3" title="<?= e(t('knowledge.toolbar.h3')) ?>"><span class="knowledge-editor__tool-label">H3</span></button>
+      <span class="knowledge-editor__tool-sep" aria-hidden="true"></span>
+      <button type="button" class="knowledge-editor__tool" data-md="bold" title="<?= e(t('knowledge.toolbar.bold')) ?>"><i class="fa-solid fa-bold"></i></button>
+      <button type="button" class="knowledge-editor__tool" data-md="italic" title="<?= e(t('knowledge.toolbar.italic')) ?>"><i class="fa-solid fa-italic"></i></button>
+      <button type="button" class="knowledge-editor__tool" data-md="strike" title="<?= e(t('knowledge.toolbar.strike')) ?>"><i class="fa-solid fa-strikethrough"></i></button>
+      <span class="knowledge-editor__tool-sep" aria-hidden="true"></span>
+      <button type="button" class="knowledge-editor__tool" data-md="ul" title="<?= e(t('knowledge.toolbar.ul')) ?>"><i class="fa-solid fa-list-ul"></i></button>
+      <button type="button" class="knowledge-editor__tool" data-md="ol" title="<?= e(t('knowledge.toolbar.ol')) ?>"><i class="fa-solid fa-list-ol"></i></button>
+      <button type="button" class="knowledge-editor__tool" data-md="quote" title="<?= e(t('knowledge.toolbar.quote')) ?>"><i class="fa-solid fa-quote-right"></i></button>
+      <span class="knowledge-editor__tool-sep" aria-hidden="true"></span>
+      <button type="button" class="knowledge-editor__tool" data-md="link" title="<?= e(t('knowledge.toolbar.link')) ?>"><i class="fa-solid fa-link"></i></button>
+      <button type="button" class="knowledge-editor__tool" data-md="code" title="<?= e(t('knowledge.toolbar.code')) ?>"><i class="fa-solid fa-code"></i></button>
+      <button type="button" class="knowledge-editor__tool" data-md="codeblock" title="<?= e(t('knowledge.toolbar.codeblock')) ?>"><i class="fa-solid fa-file-code"></i></button>
+      <button type="button" class="knowledge-editor__tool" data-md="hr" title="<?= e(t('knowledge.toolbar.hr')) ?>"><i class="fa-solid fa-minus"></i></button>
+      <button type="button" class="knowledge-editor__tool" data-md="table" title="<?= e(t('knowledge.toolbar.table')) ?>"><i class="fa-solid fa-table"></i></button>
     </div>
     <div class="knowledge-editor__panes">
       <textarea id="f-body" class="input knowledge-editor__textarea" name="body_md" rows="22"

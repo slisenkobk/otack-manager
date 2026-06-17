@@ -154,8 +154,31 @@ it('Markdown::renderRich sanitises raw HTML and dangerous links', function () {
         "# Title\n\n<script>alert(1)</script>\n\n[bad](javascript:1) [ok](https://example.com)\n"
     );
     assert_true(!str_contains($out, '<script>'));
-    assert_true(str_contains($out, '<h1>Title</h1>'));
+    // Headings now carry a slugified id="…" emitted by addHeadingAnchors;
+    // assert text-content presence + id, not exact tag spelling.
+    assert_true((bool)preg_match('#<h1 id="title">Title</h1>#', $out));
     assert_true(str_contains($out, 'https://example.com'));
     // javascript: link gets href stripped by HtmlSanitizer
     assert_true(!preg_match('/href="javascript/i', $out));
+});
+
+it('Markdown::renderRich emits unique anchor ids for repeated headings', function () {
+    $out = \App\Service\Markdown::renderRich(
+        "## Foo\n\n## Foo\n\n## Foo bar\n"
+    );
+    assert_true(str_contains($out, 'id="foo"'));
+    assert_true(str_contains($out, 'id="foo-2"'));
+    assert_true(str_contains($out, 'id="foo-bar"'));
+});
+
+it('Markdown::renderRich keeps Cyrillic anchors in id slugs', function () {
+    $out = \App\Service\Markdown::renderRich("## Зміст\n");
+    assert_true(str_contains($out, 'id="зміст"'));
+});
+
+it('HtmlSanitizer::cleanRich allows fragment-only anchor href for TOC links', function () {
+    $out = \App\Service\HtmlSanitizer::cleanRich(
+        '<p><a href="#section-1">jump</a></p>'
+    );
+    assert_true(str_contains($out, 'href="#section-1"'));
 });

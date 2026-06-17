@@ -46,6 +46,16 @@ final class HtmlSanitizer
         'img' => ['src', 'alt', 'title'],
         'th'  => ['align', 'colspan', 'rowspan'],
         'td'  => ['align', 'colspan', 'rowspan'],
+        // Heading anchors emitted by Markdown::addHeadingAnchors() so
+        // wiki articles can link to their own sections. id values are
+        // pre-slugified PHP-side so injection through this attr would
+        // need to pre-poison the rendered HTML before it reaches us.
+        'h1'  => ['id'],
+        'h2'  => ['id'],
+        'h3'  => ['id'],
+        'h4'  => ['id'],
+        'h5'  => ['id'],
+        'h6'  => ['id'],
     ];
 
     public static function clean(string $html): string
@@ -165,10 +175,13 @@ final class HtmlSanitizer
                 $removeAttrs[] = $name;
                 continue;
             }
-            // Sanitise href: only http/https/mailto allowed
+            // Sanitise href: only http/https/mailto/in-page fragment.
+            // Fragment-only links (#section-name) are the backbone of
+            // wiki Tables-of-Contents — they can't navigate off-site so
+            // they're safe.
             if ($name === 'href') {
                 $val = trim($attr->value);
-                if (!preg_match('/^(https?:\/\/|mailto:)/i', $val)) {
+                if (!preg_match('/^(https?:\/\/|mailto:|#)/i', $val)) {
                     $removeAttrs[] = $name;
                 }
             }

@@ -19,15 +19,18 @@
 .knowledge-rail {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-6);
   position: sticky;
   top: var(--space-6);
+  padding-right: var(--space-3);
 }
+/* Bare rail panels — Wiki-style sidebar lives on the page background
+   instead of nested cards. Just a thin separator rule above the
+   heading + breathing-room padding below. */
 .knowledge-rail__panel {
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-md);
-  padding: var(--space-5);
+  background: transparent;
+  border: none;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -38,8 +41,15 @@
   letter-spacing: var(--ls-mono-strong);
   text-transform: uppercase;
   color: var(--text-muted);
-  margin: 0;
-  padding: 0;
+  margin: 0 0 var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--rule);
+}
+/* First rail panel (search) doesn't get the dividing rule on top. */
+.knowledge-rail > .knowledge-rail__panel:first-child .knowledge-rail__heading,
+.knowledge-rail__panel:first-child > .knowledge-rail__heading {
+  border-top: none;
+  padding-top: 0;
 }
 .knowledge-rail__form { display: flex; align-items: center; gap: var(--space-2); margin: 0; }
 .knowledge-rail__form .input { flex: 1 1 auto; min-width: 0; }
@@ -71,28 +81,44 @@
   flex-direction: column;
   gap: 2px;
 }
+/* Wiki-style category link: prefix bullet (CSS-generated), text-only
+   active state (bold + accent color) — no full-row background fill. */
 .knowledge-rail__link {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  color: var(--text);
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  color: var(--text-2);
   text-decoration: none;
-  font-size: 13px;
-  transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+  font-size: 14px;
+  line-height: 1.4;
+  transition: color var(--duration) var(--ease);
 }
-.knowledge-rail__link:hover { background: var(--paper-2); }
+.knowledge-rail__link::before {
+  content: "›";
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  font-size: 13px;
+  flex-shrink: 0;
+  transition: color var(--duration) var(--ease);
+}
+.knowledge-rail__link:hover { color: var(--text); }
+.knowledge-rail__link:hover::before { color: var(--accent); }
 .knowledge-rail__link.is-active {
-  background: var(--ink);
-  color: var(--paper);
+  color: var(--accent);
+  font-weight: 600;
+}
+.knowledge-rail__link.is-active::before {
+  content: "›";
+  color: var(--accent);
 }
 .knowledge-rail__count {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: var(--ls-mono);
-  opacity: 0.6;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 /* Right column — docs list */
@@ -337,12 +363,89 @@
 .knowledge-editor__field { gap: 0; }
 .knowledge-editor__hint { margin-top: var(--space-3); }
 
+/* Label strip above the tabs — "Wiki Markdown editor" so the user is
+   never confused that this is a generic textarea. Top edge of the
+   editor-box; tabs/toolbar/textarea share the same left+right rule
+   below so the whole stack reads as one panel. */
+.knowledge-editor__editor-label {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-bottom: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  font-size: 13px;
+  color: var(--text);
+}
+.knowledge-editor__editor-label i { color: var(--accent); }
+.knowledge-editor__editor-label .muted { font-size: 11px; }
+/* Vertical side rules so label → tabs → toolbar → textarea read as one
+   bordered column. Tabs already carry their own bottom-border (the
+   accent underline). */
+.knowledge-editor__tabs { border-left: 1px solid var(--rule); border-right: 1px solid var(--rule); }
+
 .knowledge-editor__tabs {
   display: flex;
   gap: 0;
   border-bottom: 1px solid var(--rule);
   margin-bottom: 0;
 }
+
+/* Markdown toolbar — narrow row of icon buttons between the Edit/Preview
+   tabs and the textarea. Only visible on the Edit tab; the JS hides it
+   when Preview is showing (toggled via the textarea/preview hidden
+   states; we hide on preview via :has() fallback below). */
+.knowledge-editor__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-top: none;
+  border-bottom: none;
+}
+.knowledge-editor__tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 var(--space-3);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease), border-color var(--duration) var(--ease);
+}
+.knowledge-editor__tool:hover {
+  background: var(--paper);
+  color: var(--text);
+  border-color: var(--rule);
+}
+.knowledge-editor__tool:active { transform: translateY(1px); }
+.knowledge-editor__tool-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: var(--ls-mono);
+}
+.knowledge-editor__tool-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--rule);
+  margin: 0 var(--space-2);
+  flex-shrink: 0;
+}
+/* Hide toolbar when preview is shown (textarea is hidden in preview mode). */
+.knowledge-editor__panes:has([data-editor-preview]:not([hidden])) ~ .knowledge-editor__hint,
+.knowledge-editor__field:has([data-editor-preview]:not([hidden])) .knowledge-editor__toolbar { display: none; }
 .knowledge-editor__tab {
   background: transparent;
   border: none;

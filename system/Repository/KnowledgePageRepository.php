@@ -105,7 +105,15 @@ final class KnowledgePageRepository
         $args  = [];
         if ($categoryId !== null) { $where[] = 'p.category_id = ?'; $args[] = $categoryId; }
         if ($q !== '') {
-            $where[] = '(LOWER(p.title) LIKE ? OR LOWER(p.body_md) LIKE ?)';
+            // Unicode-aware case-insensitive substring match. On SQLite we
+            // use the mb_lower() UDF registered in SqliteDriver::postConnect;
+            // built-in LOWER() folds only ASCII so Cyrillic/Polish-diacritic
+            // searches would silently miss case-variant hits. On MySQL we
+            // fall back to LOWER() which handles utf8mb4 correctly via the
+            // table's collation.
+            $driver = \App\Database\Connection::driverFor($this->pdo);
+            $lower  = ($driver?->name() === 'sqlite') ? 'mb_lower' : 'LOWER';
+            $where[] = "($lower(p.title) LIKE ? OR $lower(p.body_md) LIKE ?)";
             $needle = '%' . mb_strtolower($q, 'UTF-8') . '%';
             $args[] = $needle;
             $args[] = $needle;

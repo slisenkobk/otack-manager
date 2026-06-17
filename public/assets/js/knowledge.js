@@ -78,6 +78,106 @@ function initEditor() {
   }
 
   tabs.forEach(b => b.addEventListener('click', () => switchTo(b.dataset.editorTab)));
+
+  // ─── Markdown toolbar ─────────────────────────────────────────────
+  // Translates clicks on the toolbar buttons into a markdown-syntax edit
+  // of the textarea. Inline marks (bold, italic, code, strike) wrap the
+  // current selection; block marks (headings, lists, quote, code-block,
+  // table, hr) prepend/insert lines without clobbering existing content.
+  const toolbar = root.querySelector('[data-editor-toolbar]');
+  if (toolbar && source) {
+    toolbar.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-md]');
+      if (!btn) return;
+      e.preventDefault();
+      applyMd(source, btn.dataset.md);
+    });
+  }
+}
+
+// All mutations go through replaceSelection() which uses
+// document.execCommand('insertText'). That's the one path that keeps
+// the textarea's native undo stack intact, so Cmd/Ctrl+Z and the
+// toolbar's Undo button both work. execCommand is deprecated on paper
+// but every shipping browser still implements it for textareas and
+// no spec'd replacement preserves undo. If/when that changes, swap
+// to InputEvent + ElementInternals once browsers ship it.
+function replaceSelection(textarea, replacement, cursorOffsetFromEnd = 0, selectionLength = 0) {
+  textarea.focus();
+  const ok = document.execCommand && document.execCommand('insertText', false, replacement);
+  if (!ok) {
+    // Fallback for browsers where insertText returns false (rare):
+    // dispatch an InputEvent so frameworks observing the textarea pick
+    // it up, then rewrite value. Undo will not be restorable in this path.
+    const start = textarea.selectionStart;
+    const end   = textarea.selectionEnd;
+    textarea.value = textarea.value.slice(0, start) + replacement + textarea.value.slice(end);
+    const cursor = start + replacement.length - cursorOffsetFromEnd;
+    textarea.setSelectionRange(cursor - selectionLength, cursor);
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    return;
+  }
+  if (cursorOffsetFromEnd > 0 || selectionLength > 0) {
+    const cursor = textarea.selectionStart - cursorOffsetFromEnd;
+    textarea.setSelectionRange(cursor - selectionLength, cursor);
+  }
+}
+
+function applyMd(textarea, kind) {
+  if (kind === 'undo') { textarea.focus(); document.execCommand('undo'); return; }
+  if (kind === 'redo') { textarea.focus(); document.execCommand('redo'); return; }
+
+  const start = textarea.selectionStart;
+  const end   = textarea.selectionEnd;
+  const value = textarea.value;
+  const sel   = value.slice(start, end);
+
+  const INLINE_WRAP = {
+    bold:   { l: '**', r: '**', placeholder: 'bold text' },
+    italic: { l: '*',  r: '*',  placeholder: 'italic text' },
+    strike: { l: '~~', r: '~~', placeholder: 'strikethrough' },
+    code:   { l: '`',  r: '`',  placeholder: 'code' },
+  };
+  const LINE_PREFIX = {
+    h1: '# ', h2: '## ', h3: '### ',
+    ul: '- ', ol: '1. ', quote: '> ',
+  };
+  const INSERT_BLOCK = {
+    link:      () => { const u = prompt(t('js.knowledge.link_url') || 'URL', 'https://'); return u ? `[${sel || t('js.knowledge.link_text') || 'link text'}](${u})` : null; },
+    codeblock: () => "```\n" + (sel || 'code block') + "\n```",
+    hr:        () => "\n---\n",
+    table:     () => "\n| Column 1 | Column 2 |\n|----------|----------|\n| cell     | cell     |\n",
+  };
+
+  if (INLINE_WRAP[kind]) {
+    const m = INLINE_WRAP[kind];
+    const inner = sel || m.placeholder;
+    const replacement = m.l + inner + m.r;
+    // Position cursor inside the wrap, selecting placeholder text.
+    replaceSelection(textarea, replacement, m.r.length, inner.length);
+    return;
+  }
+
+  if (LINE_PREFIX[kind]) {
+    const prefix = LINE_PREFIX[kind];
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+    // Select from lineStart to end so the prefix is applied to whole lines.
+    textarea.setSelectionRange(lineStart, end);
+    if (sel.length > 0 && sel.includes('\n')) {
+      const lines = value.slice(lineStart, end).split('\n');
+      replaceSelection(textarea, lines.map(l => prefix + l).join('\n'));
+    } else {
+      replaceSelection(textarea, prefix + value.slice(lineStart, end));
+    }
+    return;
+  }
+
+  if (INSERT_BLOCK[kind]) {
+    const piece = INSERT_BLOCK[kind]();
+    if (piece === null) return;
+    replaceSelection(textarea, piece);
+    return;
+  }
 }
 
 // ─── Show page: comments ────────────────────────────────────────────

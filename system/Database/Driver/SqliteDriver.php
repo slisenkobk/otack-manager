@@ -42,6 +42,15 @@ final class SqliteDriver implements DriverInterface
         ] as $stmt) {
             $pdo->query($stmt);
         }
+        // Register a Unicode-aware lower-casing UDF — SQLite's built-in
+        // LOWER() is ASCII-only, so Cyrillic / Polish-diacritic searches
+        // would silently miss case-variant hits. MySQL handles this via
+        // utf8mb4_*_ci collation; on SQLite we plug the gap here.
+        $pdo->sqliteCreateFunction(
+            'mb_lower',
+            static fn($s) => $s === null ? null : mb_strtolower((string)$s, 'UTF-8'),
+            1
+        );
     }
 
     /**
