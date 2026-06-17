@@ -34,8 +34,11 @@ return function (Schema $schema): void {
         // show via Parsedown + HtmlSanitizer (cached at request scope by
         // the renderer if needed; for v1 we re-parse each load).
         $t->text('body_md')->nullable();
-        $t->integer('category_id')->nullable();
-        $t->integer('author_id');
+        // bigInteger (not integer) so the FK references line up on MySQL —
+        // id() maps to BIGINT UNSIGNED, and MySQL 8 refuses cross-type FKs.
+        // On SQLite both map to INTEGER affinity so there's no data drift.
+        $t->bigInteger('category_id')->nullable();
+        $t->bigInteger('author_id');
         $t->timestamp('created_at');
         $t->timestamp('updated_at');
         $t->foreign('category_id')->references('id')->on('knowledge_categories')->onDelete('SET NULL');
@@ -47,7 +50,7 @@ return function (Schema $schema): void {
 
     $schema->createTable('knowledge_page_versions', function (Blueprint $t) {
         $t->id();
-        $t->integer('page_id');
+        $t->bigInteger('page_id');
         // Snapshot of title + body_md at the moment "Save snapshot" was
         // pressed. Append-only — versions are a read journal, never
         // restorable to head (per design discussion 2026-06-17).
@@ -57,7 +60,7 @@ return function (Schema $schema): void {
         // "Approved by Legal"). NULL is fine; renders as a generic
         // "Snapshot #N" in the journal.
         $t->string('note', 280)->nullable();
-        $t->integer('snapshot_by');
+        $t->bigInteger('snapshot_by');
         $t->timestamp('snapshot_at');
         $t->foreign('page_id')->references('id')->on('knowledge_pages')->onDelete('CASCADE');
         $t->foreign('snapshot_by')->references('id')->on('users')->onDelete('CASCADE');

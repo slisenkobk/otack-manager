@@ -13,8 +13,10 @@ use App\Database\Schema\Schema;
 return function (Schema $schema): void {
     $schema->createTable('knowledge_page_tag_map', function (Blueprint $t) {
         $t->id();
-        $t->integer('page_id');
-        $t->integer('tag_id');
+        // bigInteger (not integer) so FK types line up on MySQL — id()
+        // maps to BIGINT UNSIGNED and MySQL 8 refuses cross-type FKs.
+        $t->bigInteger('page_id');
+        $t->bigInteger('tag_id');
         $t->foreign('page_id')->references('id')->on('knowledge_pages')->onDelete('CASCADE');
         $t->foreign('tag_id')->references('id')->on('tags')->onDelete('CASCADE');
         $t->index(['page_id'])->name('idx_kpt_page');
