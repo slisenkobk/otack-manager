@@ -230,6 +230,13 @@
 }
 .kanban-card:active { cursor: grabbing; }
 
+/* Cards in a "Done" column (column.is_done = 1) sit visually behind the
+   work-in-progress ones — they're still legible but read as background
+   noise. Hover restores full opacity so picking one up for inspection
+   isn't fighting the dim. */
+.kanban-col[data-is-done="1"] .kanban-card { opacity: 0.65; }
+.kanban-col[data-is-done="1"] .kanban-card:hover { opacity: 1; }
+
 /* Card content — legacy selectors (.k-title, .k-meta) */
 .kanban-card .k-title {
   font-family: var(--font-sans);

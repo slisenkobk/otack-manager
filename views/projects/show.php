@@ -53,7 +53,7 @@ foreach ($boardColumns as $c) {
   <div class="kanban" data-project-id="<?= (int)$project['id'] ?>" data-current-user-id="<?= (int)$currentUserId ?>">
     <?php foreach ($boardColumns as $col): ?>
       <?php $colTasks = $tasksByCol[$col['id']] ?? []; ?>
-      <div class="kanban-col" data-column-id="<?= (int)$col['id'] ?>">
+      <div class="kanban-col" data-column-id="<?= (int)$col['id'] ?>"<?= !empty($col['is_done']) ? ' data-is-done="1"' : '' ?>>
         <div class="kanban-col__head kanban-col-head">
           <button type="button" class="kanban-col__drag" aria-label="<?= e(t('projects.kanban.col_reorder')) ?>" title="<?= e(t('projects.kanban.col_reorder_title')) ?>"><i class="fa-solid fa-grip-vertical"></i></button>
           <span class="kanban-col__dot dot" data-bg="<?= e($col['color']) ?>"></span>
