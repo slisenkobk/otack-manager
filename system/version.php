@@ -8,4 +8,4 @@ declare(strict_types=1);
  *
  * Format: strict semver `MAJOR.MINOR.PATCH`, no pre-release suffixes.
  */
-const APP_VERSION = '1.6.1';
+const APP_VERSION = '1.6.2';

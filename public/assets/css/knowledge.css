@@ -465,6 +465,11 @@
   border-bottom-color: var(--accent);
 }
 .knowledge-editor__panes { position: relative; min-height: 520px; }
+/* The textarea carries `.input` from forms.css which sets `display: block`
+   and that has higher specificity than the UA `[hidden]` rule — so a
+   plain `hidden` attribute fails to hide it. Make the hide explicit
+   for both panes. */
+.knowledge-editor__panes [hidden] { display: none !important; }
 .knowledge-editor__textarea {
   width: 100%;
   font-family: var(--font-mono);
