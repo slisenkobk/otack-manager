@@ -147,11 +147,16 @@ test.describe('admin tokens view', () => {
     await expect(page.locator('[data-token-row] [data-token-name]', { hasText: BOB_TOKEN_A })).toBeVisible();
     await expect(page.locator('[data-token-row] [data-token-name]', { hasText: BOB_TOKEN_B })).toBeVisible();
 
-    // No "otk_…" plaintext anywhere — admins never see token values.
+    // No "otk_…" plaintext anywhere — even though admins can MINT new
+    // tokens for the user (see the create form below), already-issued
+    // plaintexts are stored hashed and never echoed back into the page.
     const html = await page.content();
     expect(html).not.toMatch(/otk_[A-Za-z0-9]{40}/);
-    // And no creation UI is rendered on the admin view.
-    await expect(page.locator('input[name=name]')).toHaveCount(0);
+    // Admin-create-token UI ships intentionally (commit 0c1e934, June 4):
+    // an admin can mint a token on behalf of any user. The plaintext is
+    // revealed once via the flash-token section, not from the tokens list.
+    await expect(page.locator('[data-admin-create-token]')).toBeVisible();
+    await expect(page.locator('[data-admin-create-token] input[name=name]')).toBeVisible();
   });
 
   test('admin can revoke a single token + revoke all', async ({ page }) => {

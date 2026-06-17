@@ -104,10 +104,13 @@ test('admin creates poll, voter votes, dedup works, summary task spawns', async 
   await page.goto('/polls/' + pollId);
   await expect(page.locator('.poll-stats__count').first()).toContainText('1');
 
-  // Voters tab shows the voter row.
+  // Voters tab shows the voter row. The table itself is rendered with
+  // `class="data-table" data-voters-table` — the legacy `.voters-table`
+  // CSS class was retired during the CSS-2 unification, so target the
+  // data attribute which is stable.
   await page.click('.project-tab:has-text("Voters"), .project-tab:has-text("Голосуючі"), .project-tab:has-text("Głosujący")');
-  await expect(page.locator('.voters-table tbody tr')).toHaveCount(1);
-  await expect(page.locator('.voters-table tbody tr')).toContainText(VOTER_EMAIL);
+  await expect(page.locator('[data-voters-table] tbody tr')).toHaveCount(1);
+  await expect(page.locator('[data-voters-table] tbody tr')).toContainText(VOTER_EMAIL);
 
   // Close the poll. UI.confirm with {danger:true} renders the confirm button
   // as .btn--danger (not .submit), so target the trailing button.
