@@ -123,14 +123,14 @@ final class FormSubmissionRepository
     }
 
     /**
-     * Submissions still awaiting admin attention — everything that hasn't
-     * been explicitly closed via 'done' or 'rejected'. Conversion to a
-     * task/project is a routing action, not a "handled" verdict: the lead
-     * still needs follow-up until the admin marks it done.
+     * Brand-new submissions awaiting first triage — status 'new' only. As
+     * soon as an admin moves a lead into 'in_progress' (or converts/closes
+     * it) it's being handled, so it drops off the sidebar badge: the badge
+     * answers "how many untouched leads are there?", not "how many are open".
      */
-    public function countUnhandled(): int {
+    public function countNew(): int {
         $row = $this->pdo->query(
-            "SELECT COUNT(*) AS c FROM form_submissions WHERE status NOT IN ('done', 'rejected')"
+            "SELECT COUNT(*) AS c FROM form_submissions WHERE status = 'new'"
         )->fetch();
         return (int)($row['c'] ?? 0);
     }

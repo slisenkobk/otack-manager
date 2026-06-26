@@ -7,9 +7,10 @@ $canFormsSb  = $isAdminSb || $isManagerSb;
 $projectsCount = \App\App::make('projects')->countAllForUser((int)($user['id'] ?? 0), $isAdminSb, 'under_review');
 $newSubmissionsCount = 0;
 if ($canFormsSb) {
-    // Conversion to a task/project is just routing — admin still needs to
-    // mark the submission as done or rejected for it to drop off the badge.
-    $newSubmissionsCount = \App\App::make('form_submissions')->countUnhandled();
+    // Badge counts only untouched leads (status 'new'). Once a submission is
+    // moved to in_progress / converted / closed it's being handled, so it
+    // drops off the badge — no point flagging work already underway.
+    $newSubmissionsCount = \App\App::make('form_submissions')->countNew();
 }
 ?>
 <aside class="sidebar">

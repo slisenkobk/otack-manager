@@ -186,6 +186,12 @@ final class Updater
             // 9. migrate
             $this->runMigrations();
 
+            // 9b. cache-bust assets — a new release almost always ships CSS/JS
+            // changes, so stamp a fresh asset_version to make browsers refetch
+            // instead of serving stale files from the ?v= cache. Best-effort:
+            // never fail an otherwise-successful update over this.
+            try { $this->settings->set('asset_version', (string)time()); } catch (\Throwable $_) {}
+
             // 10. record
             /** @var AppVersionRepository $versions */
             $versions = App::make('app_versions');
