@@ -22,7 +22,7 @@ $converted = in_array($sub['status'], ['converted_task', 'converted_project'], t
       <div>
         <h2 class="submission-card__title"><?= e($form['title']) ?></h2>
         <?php if (!empty($form['description'])): ?>
-          <p class="submission-card__sub"><?= e($form['description']) ?></p>
+          <div class="submission-card__sub rich-text"><?= \App\Service\HtmlSanitizer::clean((string)$form['description']) ?></div>
         <?php endif; ?>
       </div>
       <span class="submission-card__meta">Submission #<?= (int)$sub['id'] ?> · <?= fmt_datetime($sub['created_at']) ?></span>
