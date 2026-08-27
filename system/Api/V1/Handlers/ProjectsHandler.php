@@ -53,7 +53,7 @@ final class ProjectsHandler extends BaseHandler
         // ProjectRepository::create signature: (name, description, createdBy, color)
         $id = $this->svc('projects')->create(
             $name,
-            JsonRequest::optionalString($body, 'description'),
+            self::sanitizeDescription(JsonRequest::optionalString($body, 'description')),
             $this->userId(),
             JsonRequest::optionalString($body, 'color')
         );
@@ -73,7 +73,8 @@ final class ProjectsHandler extends BaseHandler
         $patch = [];
         foreach (['name', 'color', 'description', 'status', 'repo_url', 'default_branch', 'dev_branch', 'dev_url', 'agent_instructions'] as $f) {
             $v = JsonRequest::optionalString($body, $f);
-            if ($v !== null) $patch[$f] = $v;
+            if ($v === null) continue;
+            $patch[$f] = $f === 'description' ? self::sanitizeDescription($v) : $v;
         }
         if ($patch) $this->svc('projects')->update($id, $patch);
         return ApiResponse::ok($this->serializeMany([$this->svc('projects')->findById($id)])[0]);
@@ -170,6 +171,21 @@ final class ProjectsHandler extends BaseHandler
         $rest = array_values(array_filter($byId, fn($p) => (int)$p['id'] > $after));
         usort($rest, fn($a, $b) => (int)$a['id'] - (int)$b['id']);
         return array_slice($rest, 0, $limit);
+    }
+
+    /**
+     * Run project descriptions through the same HTML allow-list the web
+     * controller uses (ProjectController::store/update). The value is later
+     * rendered as raw HTML in the project overview and in the WYSIWYG edit
+     * form, so an unsanitised API write would be stored XSS: a manager who
+     * owns a project could plant a payload that fires in an admin's session.
+     * `null` stays `null` (absent field); `''` stays `''` — this only
+     * scrubs, it does not change the presence semantics documented for
+     * PATCH /projects/{id}.
+     */
+    private static function sanitizeDescription(?string $html): ?string
+    {
+        return $html === null ? null : \App\Service\HtmlSanitizer::clean($html);
     }
 
     private function serializeMany(array $rows): array

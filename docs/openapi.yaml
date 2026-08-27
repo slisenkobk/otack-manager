@@ -84,7 +84,7 @@ components:
       properties:
         id: { type: integer, example: 42 }
         name: { type: string, example: Website Redesign }
-        description: { type: [string, 'null'], description: 'Sanitised HTML, authored in the WYSIWYG editor. Note - not sanitised by this API on write; only the web UI runs it through the sanitiser.' }
+        description: { type: [string, 'null'], description: 'Sanitised HTML, authored in the WYSIWYG editor. Sanitised by this API on write as well - POST /projects and PATCH /projects/{id} run the same allow-list as the web UI, so disallowed tags and attributes are stripped before storage.' }
         repo_url: { type: [string, 'null'], example: 'git@github.com:org/repo.git' }
         default_branch: { type: [string, 'null'], example: main }
         dev_branch: { type: [string, 'null'], example: develop }
@@ -563,7 +563,7 @@ paths:
               properties:
                 name: { type: string }
                 color: { type: string }
-                description: { type: string, description: 'Sanitised HTML, authored in the WYSIWYG editor. This endpoint does not sanitise on write.' }
+                description: { type: string, description: 'Sanitised HTML, authored in the WYSIWYG editor. Sanitised on write - disallowed tags and attributes are stripped, so the stored value may differ from what was sent.' }
                 status: { type: string }
                 repo_url: { type: string, example: 'git@github.com:org/repo.git' }
                 default_branch: { type: string, example: main }
@@ -807,8 +807,8 @@ paths:
         - $ref: '#/components/parameters/AfterCursor'
         - $ref: '#/components/parameters/Limit'
         - { name: assignee_id, in: query, schema: { type: integer }, description: 'Filter by assignee; defaults to the caller. Any caller may set this — results remain bounded by the caller''s own project membership.' }
-        - { name: agent_state, in: query, schema: { type: string, enum: [researching, awaiting_approval, implementing, review, blocked] } }
-        - { name: updated_after, in: query, schema: { type: string, format: date-time } }
+        - { name: agent_state, in: query, schema: { type: string, enum: [researching, awaiting_approval, implementing, review, blocked] }, description: 'Filter by execution phase. A value outside the enum is rejected with 422 validation_failed, not answered with an empty page.' }
+        - { name: updated_after, in: query, schema: { type: string, format: date-time }, description: 'Inclusive lower bound on updated_at. A value with no fractional seconds is treated as the start of that second, so it covers every task updated within it; polling with the newest updated_at you saw therefore returns that task again. At-least-once at the second boundary - de-duplicate by id.' }
       responses:
         '200':
           description: OK
@@ -816,6 +816,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/PaginatedTasks' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
   /tasks/{id}:
@@ -897,7 +898,7 @@ paths:
         - { name: status,      in: query, schema: { type: string } }
         - { name: priority,    in: query, schema: { type: string, enum: [none, low, medium, high, urgent] } }
         - { name: search,      in: query, schema: { type: string } }
-        - { name: agent_state, in: query, schema: { type: string, enum: [researching, awaiting_approval, implementing, review, blocked] } }
+        - { name: agent_state, in: query, schema: { type: string, enum: [researching, awaiting_approval, implementing, review, blocked] }, description: 'Filter by execution phase. A value outside the enum is rejected with 422 validation_failed, not answered with an empty page.' }
       responses:
         '200':
           description: OK
@@ -906,6 +907,7 @@ paths:
               schema: { $ref: '#/components/schemas/PaginatedTasks' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
         '429': { $ref: '#/components/responses/RateLimited' }
     post:
       tags: [Tasks]

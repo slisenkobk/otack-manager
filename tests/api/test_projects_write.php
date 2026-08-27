@@ -237,3 +237,48 @@ api_it('DELETE /projects/{id}/members/{userId} resolves both ids distinctly', fu
     assert_true(in_array(2, $memberIds, true),  'user 2 must still be a member (only user 3 was targeted)');
     assert_true(!in_array(3, $memberIds, true), 'user 3 should have been removed');
 });
+
+// --- Finding 1 (final review): the API write path must sanitise `description`.
+// Both the project overview and the WYSIWYG edit form render this value as raw
+// HTML, so an unsanitised API write is stored XSS: a manager who owns a project
+// could plant a payload that fires in an admin's session.
+
+api_it('PATCH /projects/{id}: description is sanitised on write (stored-XSS defence)', function () {
+    [$pdo, , $adminTok,] = pw_setup();
+    pw_seed_project($pdo, 3300, 'XssPatch');
+    $payload = '<p>legit body</p><img src=x onerror="alert(1)"><script>alert(2)</script>';
+
+    $r = api_request('PATCH', '/api/v1/projects/3300', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+        'body'    => json_encode(['description' => $payload]),
+    ]);
+    assert_eq(200, $r['status']);
+
+    $stored = (string)$pdo->query('SELECT description FROM projects WHERE id = 3300')
+        ->fetch(\PDO::FETCH_ASSOC)['description'];
+
+    foreach (['response' => (string)$r['json']['description'], 'stored' => $stored] as $where => $html) {
+        assert_true(stripos($html, 'onerror') === false, "onerror survived in $where: $html");
+        assert_true(stripos($html, '<script') === false, "<script> survived in $where: $html");
+        assert_true(stripos($html, '<img') === false, "<img> survived in $where: $html");
+    }
+    assert_true(strpos($stored, 'legit body') !== false, 'allow-listed markup must survive: ' . $stored);
+});
+
+api_it('POST /projects: description is sanitised on write too', function () {
+    [$pdo, , $adminTok,] = pw_setup();
+    $r = api_request('POST', '/api/v1/projects', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+        'body'    => json_encode([
+            'name'        => 'XssCreate',
+            'description' => '<p>ok</p><a href="javascript:alert(1)">x</a><script>alert(2)</script>',
+        ]),
+    ]);
+    assert_eq(201, $r['status']);
+    $id = (int)$r['json']['id'];
+    $stored = (string)$pdo->query('SELECT description FROM projects WHERE id = ' . $id)
+        ->fetch(\PDO::FETCH_ASSOC)['description'];
+    assert_true(stripos($stored, '<script') === false, '<script> survived: ' . $stored);
+    assert_true(stripos($stored, 'javascript:') === false, 'javascript: href survived: ' . $stored);
+    assert_true(strpos($stored, 'ok') !== false, 'allow-listed markup must survive: ' . $stored);
+});

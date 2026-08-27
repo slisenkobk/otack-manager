@@ -134,8 +134,9 @@ final class TaskRepository {
             foreach ($projectIds as $pid) $vals[] = (int)$pid;
         }
         if ($updatedAfter !== null && $updatedAfter !== '') {
-            $sql .= ' AND updated_at > ?';
-            $vals[] = $updatedAfter;
+            // Inclusive on purpose — see normaliseUpdatedAfterBound().
+            $sql .= ' AND updated_at >= ?';
+            $vals[] = self::normaliseUpdatedAfterBound($updatedAfter);
         }
         if ($agentState !== null && $agentState !== '') {
             $sql .= ' AND agent_state = ?';
@@ -147,6 +148,39 @@ final class TaskRepository {
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($vals);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Normalise an `updated_after` bound so a second-precision cursor covers
+     * the whole second it names.
+     *
+     * `updated_at` is written by iso_now_utc() with microseconds
+     * (`2026-08-27T10:00:00.900000Z`), but the API only ever *emits* second
+     * precision via BaseHandler::isoTime() (`2026-08-27T10:00:00Z`). A client
+     * that echoes an `updated_at` it received back as its cursor therefore
+     * sends a shorter string, and the comparison here is lexical on both
+     * SQLite and MySQL: at offset 19 the stored row has `.` (0x2E) and the
+     * cursor has `Z` (0x5A), so `'...00.900000Z' > '...00Z'` is FALSE. With a
+     * strict `>` every row updated inside the cursor's own second is dropped —
+     * and dropped permanently, because the cursor only ever moves forward.
+     *
+     * Padding a fraction-less bound to `.000000` puts it at the *start* of the
+     * second, and `>=` then returns every row in it. The trade is that the
+     * exact boundary row the client already saw comes back once more: the
+     * endpoint is at-least-once at the second boundary, which is the correct
+     * failure direction against silent, permanent loss. Clients should treat
+     * the feed as idempotent (documented in docs/API.md §5.4 `GET /tasks`).
+     *
+     * A value the pattern does not recognise (offsets, garbage) is passed
+     * through untouched, preserving the previous behaviour.
+     */
+    private static function normaliseUpdatedAfterBound(string $updatedAfter): string
+    {
+        $v = trim($updatedAfter);
+        if (preg_match('/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(Z?)$/', $v, $m)) {
+            return $m[1] . 'T' . $m[2] . '.000000' . $m[3];
+        }
+        return $v;
     }
 
     /**

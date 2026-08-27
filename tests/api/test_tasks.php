@@ -505,3 +505,78 @@ api_it('GET /tasks/{id}: from_form marks tasks born from a public submission', f
     assert_eq(false, $plain['json']['from_form']);
     assert_eq(true,  $born['json']['from_form']);
 });
+
+// --- Finding 2 (final review): `updated_after` must not drop rows that share
+// the cursor's own second. `updated_at` is stored with microseconds but the
+// API only ever emits second precision, so a cursor echoed back from a
+// response used to sort *after* every sub-second row inside that second.
+
+api_it('GET /tasks?updated_after=: a second-precision cursor still returns sub-second updates', function () {
+    [$pdo, , $empTok] = tasks_setup();
+    tasks_seed_project($pdo, 5600, 1);
+    tasks_seed_column($pdo, 56001, 5600, 'To Do', 0);
+    $pdo->prepare("INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, 2, 'member')")->execute([5600]);
+    tasks_seed_task($pdo, 5610, 5600, 56001, 1, 2);
+    tasks_seed_task($pdo, 5611, 5600, 56001, 1, 2);
+    // Same wall-clock second, differing only in the microseconds the API never emits.
+    $pdo->exec("UPDATE tasks SET updated_at = '2026-08-27T10:00:00.100000Z' WHERE id = 5610");
+    $pdo->exec("UPDATE tasks SET updated_at = '2026-08-27T10:00:00.900000Z' WHERE id = 5611");
+
+    // This is the exact string a polling client holds after reading task 5610.
+    $seen = api_request('GET', '/api/v1/tasks/5610', ['headers' => ['Authorization: Bearer ' . $empTok]]);
+    assert_eq(200, $seen['status']);
+    assert_eq('2026-08-27T10:00:00Z', $seen['json']['updated_at']);
+
+    $r = api_request('GET', '/api/v1/tasks?updated_after=' . rawurlencode($seen['json']['updated_at']), [
+        'headers' => ['Authorization: Bearer ' . $empTok],
+    ]);
+    assert_eq(200, $r['status']);
+    $ids = array_map('intval', array_column($r['json']['items'], 'id'));
+    assert_true(in_array(5611, $ids, true), 'a task updated later in the cursor second must not be lost');
+    // Inclusive bound: the boundary row comes back too (at-least-once, by design).
+    assert_true(in_array(5610, $ids, true), 'the boundary row is returned again — at-least-once is the documented trade');
+});
+
+// --- Finding 3 (final review): `agent_state` is a closed set on read as well
+// as on write. An unknown phase must 422, not answer 200 with an empty page —
+// otherwise a client typo is indistinguishable from "no work assigned to me".
+
+api_it('GET /tasks?agent_state= rejects an unknown phase with 422', function () {
+    [$pdo, , $empTok] = tasks_setup();
+    tasks_seed_project($pdo, 5620, 1);
+    tasks_seed_column($pdo, 56201, 5620, 'To Do', 0);
+    $pdo->prepare("INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, 2, 'member')")->execute([5620]);
+    tasks_seed_task($pdo, 5621, 5620, 56201, 1, 2);
+
+    $r = api_request('GET', '/api/v1/tasks?agent_state=implmenting', [
+        'headers' => ['Authorization: Bearer ' . $empTok],
+    ]);
+    assert_eq(422, $r['status']);
+    assert_eq('validation_failed', $r['json']['error']);
+    assert_eq('invalid', $r['json']['fields']['agent_state']);
+
+    // A valid phase is still a plain 200.
+    $ok = api_request('GET', '/api/v1/tasks?agent_state=implementing', [
+        'headers' => ['Authorization: Bearer ' . $empTok],
+    ]);
+    assert_eq(200, $ok['status']);
+});
+
+api_it('GET /projects/{id}/tasks?agent_state= rejects an unknown phase with 422', function () {
+    [$pdo, $adminTok,] = tasks_setup();
+    tasks_seed_project($pdo, 5630, 1);
+    tasks_seed_column($pdo, 56301, 5630, 'To Do', 0);
+    tasks_seed_task($pdo, 5631, 5630, 56301, 1);
+
+    $r = api_request('GET', '/api/v1/projects/5630/tasks?agent_state=reviewing', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+    ]);
+    assert_eq(422, $r['status']);
+    assert_eq('validation_failed', $r['json']['error']);
+    assert_eq('invalid', $r['json']['fields']['agent_state']);
+
+    $ok = api_request('GET', '/api/v1/projects/5630/tasks?agent_state=review', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+    ]);
+    assert_eq(200, $ok['status']);
+});

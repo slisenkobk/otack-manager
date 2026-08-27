@@ -11,9 +11,10 @@ use App\Repository\ProjectMemberRepository;
  *   admin     — full power, sees everything
  *   manager   — can create projects, manage projects they own, do task work
  *               in any project they're a member of
- *   employee  — task work only, scoped to projects they're added to; can only
- *               edit/delete tasks they themselves created (any-task fields
- *               like status, comments, attachments remain open)
+ *   employee  — task work only, scoped to projects they're added to; may
+ *               fully edit/delete tasks they themselves created **or are
+ *               assigned to** (see canEditTask); any-task fields like
+ *               status, comments and attachments remain open on the rest
  *
  * Convention: every check takes the `users` row array (`$user`) so callers
  * pass `$this->user` directly.
@@ -42,11 +43,13 @@ final class RolePolicy
         $userId = (int)$user['id'];
         $isAuthor = (int)($task['created_by'] ?? 0) === $userId;
         if ($isAuthor) return true;
-        // The assignee owns execution of their own task: they may move it
-        // between columns and update its fields. Without this an employee
-        // cannot progress work a manager handed them — which also blocks
-        // API service accounts (see docs/API.md §2.1). Guard against the
-        // null→0 cast: an unassigned task must not grant anyone rights.
+        // The assignee owns execution of their own task and gets the WHOLE
+        // edit bundle every caller of this method gates on — not just moving
+        // between columns and updating fields, but also delete, tag and
+        // attachment mutation, link/unlink, and promote-to-project. Without
+        // this an employee cannot progress work a manager handed them — which
+        // also blocks API service accounts (see docs/API.md §2.1). Guard
+        // against the null→0 cast: an unassigned task grants no one rights.
         $assigneeId = (int)($task['assignee_id'] ?? 0);
         if ($assigneeId !== 0 && $assigneeId === $userId) return true;
         // manager can edit any task within projects they own

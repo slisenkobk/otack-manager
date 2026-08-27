@@ -525,10 +525,12 @@ are excluded from the default "first column" a new task lands in (see
 `POST /projects/{id}/tasks` below). Both are booleans, never null.
 
 `description` is sanitised HTML authored in the project's WYSIWYG editor —
-not plain text, don't treat it as Markdown. **This API does not sanitise
-`description` on write** (only the web UI's edit form runs it through the
-HTML sanitiser before saving); if you set it via `PATCH /projects/{id}`,
-send HTML you already trust.
+not plain text, don't treat it as Markdown. **This API sanitises
+`description` on write**: `POST /projects` and `PATCH /projects/{id}` run the
+value through the same HTML allow-list the web UI's edit form uses, so tags
+and attributes outside that list (`<script>`, `onerror=`, `javascript:` hrefs)
+are stripped before it is stored. What you read back may therefore differ from
+what you sent.
 
 `repo_url`, `default_branch`, `dev_branch`, `dev_url`, and
 `agent_instructions` describe the project's connection to a source
@@ -608,9 +610,11 @@ Update mutable project fields. Send only the fields you want to change.
 
 `status` is one of `active | archived`. Unrecognised fields are ignored.
 
-`description` is stored exactly as sent — this endpoint does **not** run it
-through the HTML sanitiser the web UI's edit form uses, so only send HTML
-you already trust (see the `GET /projects/{id}` entry above).
+`description` is sanitised before it is stored — this endpoint runs it
+through the same HTML allow-list the web UI's edit form uses, so disallowed
+tags and attributes are stripped and the stored value may differ from what
+you sent (see the `GET /projects/{id}` entry above). The same applies to
+`description` on `POST /projects`.
 
 A field set to `null` is treated as **absent** (no-op), not as "clear it" —
 unlike `PATCH /tasks/{id}`, there is currently no way to blank out
@@ -832,9 +836,18 @@ belong to.
   can never be used to peek into a project the caller cannot see.
 - `agent_state` (one of `researching|awaiting_approval|implementing|review|blocked`)
   — filter to tasks in that execution phase. See
-  [`agent_state`](#agent_state-fields) below.
-- `updated_after` (ISO-8601 timestamp) — only tasks updated at or after this
-  instant.
+  [`agent_state`](#agent_state-fields) below. A value outside that set is
+  rejected with `422 validation_failed` rather than returning an empty page,
+  so a typo in an automated client can't masquerade as "no work assigned".
+- `updated_after` (ISO-8601 timestamp) — only tasks whose `updated_at` is at
+  or after this instant. The bound is **inclusive**, and a value with no
+  fractional seconds (which is all this API ever emits — see
+  [§4.5 Timestamps](#45-timestamps)) is treated as the *start* of that second,
+  so it covers every task updated within it. Consequence: polling with the
+  `updated_at` of the newest task you saw returns that task again. The feed is
+  **at-least-once** at the second boundary — de-duplicate by `id`. This is
+  deliberate: the alternative, an exclusive bound, would silently and
+  permanently drop any task updated in the same second as your cursor.
 
 **Response 200:** paginated list of the **light** task shape (same shape as
 `GET /projects/{id}/tasks`).
@@ -948,7 +961,9 @@ List tasks in a project.
 - `priority` (one of `none|low|medium|high|urgent`)
 - `search` (string) — substring on title/description
 - `agent_state` (one of `researching|awaiting_approval|implementing|review|blocked`)
-  — filter by execution phase, see [§5.4 `GET /tasks/{id}`](#agent_state-fields)
+  — filter by execution phase, see [§5.4 `GET /tasks/{id}`](#agent_state-fields).
+  A value outside that set is rejected with `422 validation_failed`, not
+  answered with an empty page.
 
 **Response 200:** paginated list of the **light** task shape (no description,
 no counts, no tags, no links — fetch the single-task endpoint for the rich
@@ -1029,6 +1044,23 @@ curl -sS -X POST \
 Update mutable task fields.
 
 **Auth:** `canEditTask`.
+
+> **`canEditTask` — what it means.** Nine endpoints in this section gate on
+> this rule, so it is worth stating once. A caller may fully edit a task
+> (title, description, column, assignee, priority, due date, `agent_state`,
+> plus delete, tag and attachment mutation, link/unlink, and
+> promote-to-project) when **any** of the following holds:
+>
+> - they are an `admin`; or
+> - they created the task (`created_by`); or
+> - **they are the task's `assignee_id`** — an assignee holds the full edit
+>   bundle above, not merely the right to move the task along; or
+> - they are a `manager` **and** an owner-member of the task's project.
+>
+> The assignee clause is what lets a service account drive a task it was
+> handed in the web UI to completion (see [§2.1](#21-decide-who-the-integration-runs-as)).
+> Everyone else gets `403 forbidden`. Note this is broader than mere project
+> membership: being on the project is not by itself enough.
 
 **Request body** (all optional):
 

@@ -29,7 +29,7 @@ $fieldErrors  = $fieldErrors ?? [];
       <div class="wysiwyg-editor"
            data-quill
            data-quill-target="#project-description-hidden"
-           data-placeholder="What is this project about?"><?= $project['description'] ?? '' ?></div>
+           data-placeholder="What is this project about?"><?= $project['description'] ? \App\Service\HtmlSanitizer::clean((string)$project['description']) : '' ?></div>
     </div>
     <input type="hidden" name="description" id="project-description-hidden"
            value="<?= e($project['description'] ?? '') ?>">

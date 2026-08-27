@@ -42,6 +42,13 @@ final class TasksHandler extends BaseHandler
             : $this->userId();
 
         $agentState   = isset($req->query['agent_state']) ? (string)$req->query['agent_state'] : null;
+        // Validate the read filter against the same closed set the write path
+        // uses. Without this a typo ("implmenting") returns 200 with an empty
+        // page — indistinguishable from "nothing is assigned to me", which is
+        // the one call an automated worker makes on every wake-up.
+        if ($agentState !== null && $agentState !== '' && !in_array($agentState, self::AGENT_STATES, true)) {
+            return ApiResponse::error(422, 'validation_failed', 'unknown agent_state', ['agent_state' => 'invalid']);
+        }
         $updatedAfter = isset($req->query['updated_after']) ? (string)$req->query['updated_after'] : null;
 
         // Visibility: admins see everything, everyone else is bounded by
@@ -92,6 +99,11 @@ final class TasksHandler extends BaseHandler
             if (isset($req->query[$k]) && $req->query[$k] !== '') {
                 $filters[$k] = (string)$req->query[$k];
             }
+        }
+        // Same closed-set guard as index() and the PATCH write path — an
+        // unknown phase is a client bug, not "no matching work".
+        if (isset($filters['agent_state']) && !in_array($filters['agent_state'], self::AGENT_STATES, true)) {
+            return ApiResponse::error(422, 'validation_failed', 'unknown agent_state', ['agent_state' => 'invalid']);
         }
 
         $items = $this->svc('tasks')->listForProjectAfterId($projectId, $filters, $after, $limit + 1);
