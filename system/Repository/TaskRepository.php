@@ -108,6 +108,48 @@ final class TaskRepository {
     }
 
     /**
+     * Cursor-paginated tasks assigned to one user, optionally constrained to
+     * a set of visible project ids. $projectIds === null means "no visibility
+     * constraint" (admin); an empty array means "sees nothing" and short-
+     * circuits, because `IN ()` is a syntax error in both drivers.
+     *
+     * @param  list<int>|null $projectIds
+     * @return list<array<string,mixed>>
+     */
+    public function listAssignedAfterId(
+        int $assigneeId,
+        ?array $projectIds,
+        int $after,
+        int $limit,
+        ?string $updatedAfter = null,
+        ?string $agentState = null
+    ): array {
+        if ($projectIds !== null && $projectIds === []) return [];
+
+        $sql  = 'SELECT * FROM tasks WHERE assignee_id = ? AND id > ?';
+        $vals = [$assigneeId, $after];
+
+        if ($projectIds !== null) {
+            $sql .= ' AND project_id IN (' . implode(',', array_fill(0, count($projectIds), '?')) . ')';
+            foreach ($projectIds as $pid) $vals[] = (int)$pid;
+        }
+        if ($updatedAfter !== null && $updatedAfter !== '') {
+            $sql .= ' AND updated_at > ?';
+            $vals[] = $updatedAfter;
+        }
+        if ($agentState !== null && $agentState !== '') {
+            $sql .= ' AND agent_state = ?';
+            $vals[] = $agentState;
+        }
+        $sql .= ' ORDER BY id ASC LIMIT ?';
+        $vals[] = $limit;
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($vals);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
      * Cursor-paginated, filterable task list for the external API.
      *
      * Filters (all optional):

@@ -27,6 +27,41 @@ final class TasksHandler extends BaseHandler
         return ApiResponse::ok($this->serializeOne($task));
     }
 
+    /**
+     * Cross-project task list. Defaults to the caller as assignee — the
+     * common case is a service account asking "what is mine?".
+     */
+    public function index(Request $req, array $params = []): array
+    {
+        $after = isset($req->query['after']) ? (int)$req->query['after'] : 0;
+        $limit = min(100, max(1, (int)($req->query['limit'] ?? 50)));
+        $assigneeId = isset($req->query['assignee_id'])
+            ? (int)$req->query['assignee_id']
+            : $this->userId();
+
+        $agentState   = isset($req->query['agent_state']) ? (string)$req->query['agent_state'] : null;
+        $updatedAfter = isset($req->query['updated_after']) ? (string)$req->query['updated_after'] : null;
+
+        // Visibility: admins see everything, everyone else is bounded by
+        // project membership — the only scoping lever tokens have (docs/API.md §2.1).
+        $projectIds = null;
+        if (!RolePolicy::isAdmin($this->user())) {
+            $visible = $this->svc('projects')->listForUser($this->userId(), false);
+            $projectIds = array_values(array_unique(array_map(fn($p) => (int)$p['id'], $visible)));
+        }
+
+        $rows = $this->svc('tasks')->listAssignedAfterId(
+            $assigneeId, $projectIds, $after, $limit + 1, $updatedAfter, $agentState
+        );
+
+        $next = null;
+        if (count($rows) > $limit) {
+            $rows = array_slice($rows, 0, $limit);
+            $next = (int)end($rows)['id'];
+        }
+        return ApiResponse::paginated(array_map(fn($t) => $this->serializeListItem($t), $rows), $next);
+    }
+
     /** GET /api/v1/projects/{id}/tasks */
     public function indexForProject(Request $req, array $params = []): array
     {

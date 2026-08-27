@@ -395,3 +395,62 @@ api_it('GET /projects/{id}/tasks?agent_state= filters by phase', function () {
     assert_eq(1, count($r['json']['items']));
     assert_eq(5470, (int)$r['json']['items'][0]['id']);
 });
+
+api_it('GET /tasks: returns only tasks assigned to the caller, across projects', function () {
+    [$pdo, , $empTok] = tasks_setup();
+    tasks_seed_project($pdo, 5500, 1);
+    tasks_seed_project($pdo, 5501, 1);
+    tasks_seed_column($pdo, 55001, 5500, 'To Do', 0);
+    tasks_seed_column($pdo, 55011, 5501, 'To Do', 0);
+    $pdo->prepare("INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, 2, 'member')")->execute([5500]);
+    $pdo->prepare("INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, 2, 'member')")->execute([5501]);
+    tasks_seed_task($pdo, 5510, 5500, 55001, 1, 2);   // assigned to caller
+    tasks_seed_task($pdo, 5511, 5501, 55011, 1, 2);   // assigned to caller, other project
+    tasks_seed_task($pdo, 5512, 5500, 55001, 1, 1);   // assigned to someone else
+
+    $r = api_request('GET', '/api/v1/tasks', [
+        'headers' => ['Authorization: Bearer ' . $empTok],
+    ]);
+    assert_eq(200, $r['status']);
+    $ids = array_map('intval', array_column($r['json']['items'], 'id'));
+    assert_true(in_array(5510, $ids, true), '5510 must be present');
+    assert_true(in_array(5511, $ids, true), '5511 must be present');
+    assert_true(!in_array(5512, $ids, true), '5512 belongs to another assignee');
+});
+
+api_it('GET /tasks: never leaks tasks from projects the caller is not in', function () {
+    [$pdo, , $empTok] = tasks_setup();
+    tasks_seed_project($pdo, 5520, 1);
+    tasks_seed_column($pdo, 55201, 5520, 'To Do', 0);
+    // Assigned to the caller, but the caller is NOT a member of the project.
+    tasks_seed_task($pdo, 5530, 5520, 55201, 1, 2);
+
+    $r = api_request('GET', '/api/v1/tasks', [
+        'headers' => ['Authorization: Bearer ' . $empTok],
+    ]);
+    assert_eq(200, $r['status']);
+    $ids = array_map('intval', array_column($r['json']['items'], 'id'));
+    assert_true(!in_array(5530, $ids, true), 'membership must gate visibility');
+});
+
+api_it('GET /tasks?agent_state= filters across projects', function () {
+    [$pdo, , $empTok] = tasks_setup();
+    tasks_seed_project($pdo, 5540, 1);
+    tasks_seed_column($pdo, 55401, 5540, 'To Do', 0);
+    $pdo->prepare("INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, 2, 'member')")->execute([5540]);
+    tasks_seed_task($pdo, 5550, 5540, 55401, 1, 2);
+    tasks_seed_task($pdo, 5551, 5540, 55401, 1, 2);
+    $pdo->exec("UPDATE tasks SET agent_state = 'awaiting_approval' WHERE id = 5550");
+
+    $r = api_request('GET', '/api/v1/tasks?agent_state=awaiting_approval', [
+        'headers' => ['Authorization: Bearer ' . $empTok],
+    ]);
+    assert_eq(200, $r['status']);
+    assert_eq(1, count($r['json']['items']));
+    assert_eq(5550, (int)$r['json']['items'][0]['id']);
+});
+
+api_it('GET /tasks requires a token', function () {
+    $r = api_request('GET', '/api/v1/tasks');
+    assert_eq(401, $r['status']);
+});

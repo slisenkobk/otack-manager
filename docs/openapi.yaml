@@ -775,6 +775,29 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks assigned to the caller, across all visible projects (cursor-paginated)
+      description: >-
+        Defaults to the caller as assignee. Visibility is bounded by project
+        membership: admins see every project, everyone else only sees tasks
+        in projects they belong to.
+      parameters:
+        - $ref: '#/components/parameters/AfterCursor'
+        - $ref: '#/components/parameters/Limit'
+        - { name: assignee_id, in: query, schema: { type: integer }, description: Admin-only override; defaults to the caller }
+        - { name: agent_state, in: query, schema: { type: string, enum: [researching, awaiting_approval, implementing, review, blocked] } }
+        - { name: updated_after, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedTasks' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
   /tasks/{id}:
     parameters:
       - $ref: '#/components/parameters/PathId'
