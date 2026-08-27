@@ -15,6 +15,8 @@ declare(strict_types=1);
  *  - `api_tokens.status_*`      — `'api_tokens.status_' . $status` in views/profile/tokens.php
  *  - `updates.kind.*`           — `t('updates.kind.' . $kind)` in views/admin/updates-tab.php
  *  - `updates.source.*`         — `t('updates.source.' . $source)` in views/admin/updates-tab.php
+ *  - `tasks.agent_state.*`      — `t('tasks.agent_state.' . $state)` in
+ *                                 views/partials/kanban-card.php + views/tasks/show.php
  *
  * Static exemptions:
  *  - `forms_data.brand_tag`     — brand label, tracked as parity-exempt
@@ -67,6 +69,7 @@ it('no unused i18n keys (modulo documented dynamic prefixes)', function () {
         'api_tokens.status_',
         'updates.kind.',
         'updates.source.',
+        'tasks.agent_state.',
         // Install wizard step labels — built as `'install.step.' . $key`
         // in views/layouts/install.php where $key ∈ {db, admin, security,
         // integrations, done}. The welcome step doesn't have a label here

@@ -13,7 +13,7 @@ $meta['links'] = $meta['links'] ?? 0;
      data-assignee-id="<?= (int)($t['assignee_id'] ?? 0) ?>"
      data-tags="<?= e(implode(',', array_column($tags, 'name'))) ?>"
      data-title="<?= e(strtolower($t['title'])) ?>">
-  <?php if ($tags || !empty($t['sub_status'])): ?>
+  <?php if ($tags || !empty($t['sub_status']) || !empty($t['agent_state'])): ?>
     <div class="kanban-card__row">
       <?php foreach (array_slice($tags, 0, 2) as $tag): ?>
         <span class="kanban-card__tag tag" data-tag-color="<?= e($tag['color']) ?>">
@@ -23,6 +23,11 @@ $meta['links'] = $meta['links'] ?? 0;
       <?php if (!empty($t['sub_status'])): ?>
         <span class="sub-status sub-status--<?= e($t['sub_status']) ?>" title="<?= e(ucfirst($t['sub_status'])) ?>">
           <?= e($t['sub_status'] === 'reopened' ? t('tasks.sub_status.reopened') : t('tasks.sub_status.returned')) ?>
+        </span>
+      <?php endif; ?>
+      <?php if (!empty($t['agent_state'])): ?>
+        <span class="agent-state agent-state--<?= e($t['agent_state']) ?>">
+          <?= e(t('tasks.agent_state.' . $t['agent_state'])) ?>
         </span>
       <?php endif; ?>
     </div>

@@ -28,6 +28,15 @@
       <?php else: ?>
         <span class="sub-status" data-task-sub-status hidden></span>
       <?php endif; ?>
+      <?php if (!empty($task['agent_state'])): ?>
+        <div class="task-agent-state-row">
+          <span class="agent-state agent-state--<?= e($task['agent_state']) ?>" data-task-agent-state>
+            <?= e(t('tasks.agent_state.' . $task['agent_state'])) ?>
+          </span>
+        </div>
+      <?php else: ?>
+        <span class="agent-state" data-task-agent-state hidden></span>
+      <?php endif; ?>
       <h1 class="task-title<?= !empty($canEditTask) ? ' is-editable' : '' ?>" <?= !empty($canEditTask) ? 'contenteditable="true"' : '' ?> spellcheck="false"
           data-task-id="<?= (int)$task['id'] ?>"><?= e($task['title']) ?></h1>
     </div>

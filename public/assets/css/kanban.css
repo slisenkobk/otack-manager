@@ -582,6 +582,28 @@ a.link-card *,
 .sub-status--reopened { color: #6D28D9; background: color-mix(in srgb, #DDD6FE 60%, transparent); }
 .task-header .sub-status { font-size: 11px; padding: 4px 10px; }
 
+/* Agent execution phase badge — same shape as .sub-status, different palette */
+.agent-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 700 var(--fz-micro)/1 var(--font-mono);
+  letter-spacing: var(--ls-mono-strong);
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+.agent-state[hidden] { display: none !important; }
+
+.agent-state--researching       { color: #1D4ED8; background: color-mix(in srgb, #BFDBFE 60%, transparent); }
+.agent-state--awaiting_approval { color: #9A3412; background: color-mix(in srgb, #FED7AA 60%, transparent); }
+.agent-state--implementing      { color: #0F766E; background: color-mix(in srgb, #99F6E4 60%, transparent); }
+.agent-state--review            { color: #4338CA; background: color-mix(in srgb, #C7D2FE 60%, transparent); }
+.agent-state--blocked           { color: #B91C1C; background: color-mix(in srgb, #FECACA 60%, transparent); }
+
+.task-header .agent-state { font-size: 11px; padding: 4px 10px; }
+
 /* Open tasks indicator on project card */
 .card__tasks {
   display: inline-flex;
