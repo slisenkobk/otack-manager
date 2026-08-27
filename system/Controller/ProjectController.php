@@ -254,6 +254,11 @@ final class ProjectController extends BaseController {
                 $fields['color'] = $color;
             }
         }
+        foreach (['repo_url', 'default_branch', 'dev_branch', 'dev_url', 'agent_instructions'] as $f) {
+            if (!array_key_exists($f, $data)) continue;
+            $v = trim((string)$data[$f]);
+            $fields[$f] = $v === '' ? null : $v;
+        }
         if ($fields) {
             $this->projects->update($id, $fields);
         }

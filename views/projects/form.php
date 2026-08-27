@@ -34,6 +34,34 @@ $fieldErrors  = $fieldErrors ?? [];
     <input type="hidden" name="description" id="project-description-hidden"
            value="<?= e($project['description'] ?? '') ?>">
   </div>
+  <div class="field mt-14">
+    <label for="f-project-repo-url"><?= e(t('projects.form.repo_url')) ?></label>
+    <input id="f-project-repo-url" class="input" type="text" name="repo_url"
+           value="<?= e($project['repo_url'] ?? '') ?>" maxlength="500"
+           placeholder="git@github.com:org/repo.git">
+  </div>
+  <div class="field mt-14">
+    <label for="f-project-default-branch"><?= e(t('projects.form.default_branch')) ?></label>
+    <input id="f-project-default-branch" class="input" type="text" name="default_branch"
+           value="<?= e($project['default_branch'] ?? '') ?>" maxlength="100" placeholder="main">
+  </div>
+  <div class="field mt-14">
+    <label for="f-project-dev-branch"><?= e(t('projects.form.dev_branch')) ?></label>
+    <input id="f-project-dev-branch" class="input" type="text" name="dev_branch"
+           value="<?= e($project['dev_branch'] ?? '') ?>" maxlength="100" placeholder="develop">
+  </div>
+  <div class="field mt-14">
+    <label for="f-project-dev-url"><?= e(t('projects.form.dev_url')) ?></label>
+    <input id="f-project-dev-url" class="input" type="text" name="dev_url"
+           value="<?= e($project['dev_url'] ?? '') ?>" maxlength="500"
+           placeholder="https://dev.example.com">
+  </div>
+  <div class="field mt-14">
+    <label for="f-project-agent-instructions"><?= e(t('projects.form.agent_instructions')) ?></label>
+    <textarea id="f-project-agent-instructions" class="input" name="agent_instructions"
+              rows="6"><?= e($project['agent_instructions'] ?? '') ?></textarea>
+    <div class="field__hint"><?= e(t('projects.form.agent_hint')) ?></div>
+  </div>
   <button class="submit mt-18" type="submit">
     <?= e(t('common.save')) ?> &#8594;
   </button>
