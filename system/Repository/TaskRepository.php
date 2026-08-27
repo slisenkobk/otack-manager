@@ -158,6 +158,10 @@ final class TaskRepository {
             $where[] = 't.priority = ?';
             $args[] = (string)$filters['priority'];
         }
+        if (isset($filters['agent_state']) && $filters['agent_state'] !== '') {
+            $where[] = 't.agent_state = ?';
+            $args[] = (string)$filters['agent_state'];
+        }
         if (isset($filters['search']) && $filters['search'] !== '') {
             $where[] = 'LOWER(t.title) LIKE ?';
             $args[] = '%' . mb_strtolower((string)$filters['search']) . '%';

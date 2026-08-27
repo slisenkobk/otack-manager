@@ -9,6 +9,13 @@ use App\Http\Request;
 
 final class TasksHandler extends BaseHandler
 {
+    /**
+     * Phases owned by the external agent bridge. Kept as a closed set so a
+     * typo in an automated client surfaces as 422 instead of silently
+     * parking a task in a state nothing will ever pick up.
+     */
+    private const AGENT_STATES = ['researching', 'awaiting_approval', 'implementing', 'review', 'blocked'];
+
     /** GET /api/v1/tasks/{id} */
     public function show(Request $req, array $params = []): array
     {
@@ -37,7 +44,7 @@ final class TasksHandler extends BaseHandler
                 $filters[$k] = (int)$req->query[$k];
             }
         }
-        foreach (['status', 'priority', 'search'] as $k) {
+        foreach (['status', 'priority', 'search', 'agent_state'] as $k) {
             if (isset($req->query[$k]) && $req->query[$k] !== '') {
                 $filters[$k] = (string)$req->query[$k];
             }
@@ -167,6 +174,20 @@ final class TasksHandler extends BaseHandler
         if (array_key_exists('sub_status', $body)) {
             $fields['sub_status'] = $body['sub_status'] === '' || $body['sub_status'] === null
                 ? null : (string)$body['sub_status'];
+        }
+        if (array_key_exists('agent_state', $body)) {
+            $s = $body['agent_state'];
+            if ($s === null || $s === '') {
+                $fields['agent_state']    = null;
+                $fields['agent_state_at'] = null;
+            } elseif (in_array((string)$s, self::AGENT_STATES, true)) {
+                $fields['agent_state']    = (string)$s;
+                // Stamped server-side: clients must not be able to backdate a
+                // phase, since staleness detection keys on this value.
+                $fields['agent_state_at'] = iso_now_utc();
+            } else {
+                return ApiResponse::error(422, 'validation_failed', 'unknown agent_state', ['agent_state' => 'invalid']);
+            }
         }
 
         if ($fields) $this->svc('tasks')->update($id, $fields);
@@ -343,6 +364,7 @@ final class TasksHandler extends BaseHandler
             'assignee_id' => $t['assignee_id'] !== null ? (int)$t['assignee_id'] : null,
             'due_date'    => $t['due_date'] ?? null,
             'sub_status'  => $t['sub_status'] ?? null,
+            'agent_state' => $t['agent_state'] ?? null,
             // ISO-normalise so list shape matches ProjectsHandler / the
             // detail shape and clients don't have to handle raw DB strings
             // (which differ between SQLite text and MySQL DATETIME).

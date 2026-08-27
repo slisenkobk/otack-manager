@@ -313,3 +313,65 @@ api_it('PATCH /tasks/{id}: non-assignee employee still gets 403', function () {
     ]);
     assert_eq(403, $r['status']);
 });
+
+api_it('PATCH /tasks/{id}: sets agent_state and stamps agent_state_at', function () {
+    [$pdo, $adminTok,] = tasks_setup();
+    tasks_seed_project($pdo, 5400, 1);
+    tasks_seed_column($pdo, 54001, 5400, 'To Do', 0);
+    tasks_seed_task($pdo, 5410, 5400, 54001, 1);
+
+    $r = api_request('PATCH', '/api/v1/tasks/5410', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+        'body'    => json_encode(['agent_state' => 'researching']),
+    ]);
+    assert_eq(200, $r['status']);
+    assert_eq('researching', $r['json']['agent_state']);
+
+    $row = $pdo->query('SELECT agent_state_at FROM tasks WHERE id = 5410')->fetch(\PDO::FETCH_ASSOC);
+    assert_true(!empty($row['agent_state_at']), 'agent_state_at must be stamped automatically');
+});
+
+api_it('PATCH /tasks/{id}: rejects an unknown agent_state', function () {
+    [$pdo, $adminTok,] = tasks_setup();
+    tasks_seed_project($pdo, 5420, 1);
+    tasks_seed_column($pdo, 54201, 5420, 'To Do', 0);
+    tasks_seed_task($pdo, 5430, 5420, 54201, 1);
+
+    $r = api_request('PATCH', '/api/v1/tasks/5430', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+        'body'    => json_encode(['agent_state' => 'nonsense']),
+    ]);
+    assert_eq(422, $r['status']);
+    assert_eq('validation_failed', $r['json']['error']);
+});
+
+api_it('PATCH /tasks/{id}: agent_state null clears the phase', function () {
+    [$pdo, $adminTok,] = tasks_setup();
+    tasks_seed_project($pdo, 5440, 1);
+    tasks_seed_column($pdo, 54401, 5440, 'To Do', 0);
+    tasks_seed_task($pdo, 5450, 5440, 54401, 1);
+    $pdo->exec("UPDATE tasks SET agent_state = 'review' WHERE id = 5450");
+
+    $r = api_request('PATCH', '/api/v1/tasks/5450', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+        'body'    => json_encode(['agent_state' => null]),
+    ]);
+    assert_eq(200, $r['status']);
+    assert_eq(null, $r['json']['agent_state']);
+});
+
+api_it('GET /projects/{id}/tasks?agent_state= filters by phase', function () {
+    [$pdo, $adminTok,] = tasks_setup();
+    tasks_seed_project($pdo, 5460, 1);
+    tasks_seed_column($pdo, 54601, 5460, 'To Do', 0);
+    tasks_seed_task($pdo, 5470, 5460, 54601, 1);
+    tasks_seed_task($pdo, 5471, 5460, 54601, 1);
+    $pdo->exec("UPDATE tasks SET agent_state = 'implementing' WHERE id = 5470");
+
+    $r = api_request('GET', '/api/v1/projects/5460/tasks?agent_state=implementing', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+    ]);
+    assert_eq(200, $r['status']);
+    assert_eq(1, count($r['json']['items']));
+    assert_eq(5470, (int)$r['json']['items'][0]['id']);
+});
