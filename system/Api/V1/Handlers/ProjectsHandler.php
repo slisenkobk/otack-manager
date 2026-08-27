@@ -177,6 +177,7 @@ final class ProjectsHandler extends BaseHandler
         return array_map(fn($p) => [
             'id'         => (int)$p['id'],
             'name'       => $p['name'],
+            'description' => $p['description'] ?? null,
             'slug'       => $p['slug'] ?? null,
             'color'      => $p['color'] ?? null,
             'status'     => $p['status'] ?? 'active',
@@ -190,9 +191,11 @@ final class ProjectsHandler extends BaseHandler
     {
         $base = $this->serializeMany([$p])[0];
         $base['columns'] = array_map(fn($c) => [
-            'id'       => (int)$c['id'],
-            'name'     => $c['name'],
-            'position' => (int)$c['position'],
+            'id'         => (int)$c['id'],
+            'name'       => $c['name'],
+            'position'   => (int)$c['position'],
+            'is_done'    => !empty($c['is_done']),
+            'is_backlog' => !empty($c['is_backlog']),
         ], $columns);
         $base['members'] = array_map(fn($m) => [
             'user_id' => (int)($m['user_id'] ?? $m['id'] ?? 0),

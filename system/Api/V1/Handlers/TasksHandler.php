@@ -440,6 +440,13 @@ final class TasksHandler extends BaseHandler
         // Linked task ids (other-side only).
         $base['links'] = array_values(array_map('intval', $this->svc('task_links')->linkedIds($id)));
 
+        // Tasks auto-created from a public form submission carry text written
+        // by anonymous internet users. The agent bridge refuses to act on them
+        // until a human re-assigns the task (see the agent-bridge spec §10).
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM form_submissions WHERE converted_task_id = ?');
+        $stmt->execute([$id]);
+        $base['from_form'] = (int)$stmt->fetchColumn() > 0;
+
         return $base;
     }
 

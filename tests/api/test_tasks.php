@@ -490,3 +490,18 @@ api_it('GET /tasks?assignee_id= (blank) falls back to the caller, not assignee_i
     $ids = array_map('intval', array_column($r['json']['items'], 'id'));
     assert_true(in_array(5580, $ids, true), 'blank assignee_id must fall back to the caller, not return an empty page');
 });
+
+api_it('GET /tasks/{id}: from_form marks tasks born from a public submission', function () {
+    [$pdo, $adminTok,] = tasks_setup();
+    tasks_seed_project($pdo, 5700, 1);
+    tasks_seed_column($pdo, 57001, 5700, 'To Do', 0);
+    tasks_seed_task($pdo, 5710, 5700, 57001, 1);
+    tasks_seed_task($pdo, 5711, 5700, 57001, 1);
+    $pdo->exec("INSERT OR IGNORE INTO forms (id, hash, title, status, locale, created_by, created_at, updated_at) VALUES (5790, 'h5790', 'F', 'published', 'en', 1, '2026-01-01', '2026-01-01')");
+    $pdo->exec("INSERT INTO form_submissions (form_id, status, data_json, converted_task_id, created_at, updated_at) VALUES (5790, 'new', '{}', 5711, '2026-01-01', '2026-01-01')");
+
+    $plain = api_request('GET', '/api/v1/tasks/5710', ['headers' => ['Authorization: Bearer ' . $adminTok]]);
+    $born  = api_request('GET', '/api/v1/tasks/5711', ['headers' => ['Authorization: Bearer ' . $adminTok]]);
+    assert_eq(false, $plain['json']['from_form']);
+    assert_eq(true,  $born['json']['from_form']);
+});
