@@ -21,8 +21,9 @@ time. An MCP server is not a new capability on top of that API; it's a
 Code, or a general MCP-speaking client) that wants to drive Otack Manager
 conversationally instead of shelling out to `curl`.
 
-The REST API has ~35 routes. A naive MCP bridge — one tool per route — would
-hand the model 35 thin, REST-shaped tools and let it improvise the workflow
+The REST API has 48 distinct (method, path) endpoints. A naive MCP bridge —
+one tool per route — would hand the model 48 thin, REST-shaped tools and let
+it improvise the workflow
 (fetch task → fetch project → fetch comments → decide → patch → comment →
 move). That's how you get an agent that technically has access to
 everything and reliably does the wrong sequence of things with it.

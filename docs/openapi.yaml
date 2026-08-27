@@ -84,12 +84,12 @@ components:
       properties:
         id: { type: integer, example: 42 }
         name: { type: string, example: Website Redesign }
-        description: { type: [string, 'null'], description: Sanitised HTML, authored in the WYSIWYG editor. Note - not sanitised by this API on write; only the web UI runs it through the sanitiser. }
+        description: { type: [string, 'null'], description: 'Sanitised HTML, authored in the WYSIWYG editor. Note - not sanitised by this API on write; only the web UI runs it through the sanitiser.' }
         repo_url: { type: [string, 'null'], example: 'git@github.com:org/repo.git' }
         default_branch: { type: [string, 'null'], example: main }
         dev_branch: { type: [string, 'null'], example: develop }
         dev_url: { type: [string, 'null'], example: 'https://dev.example.com' }
-        agent_instructions: { type: [string, 'null'], description: Plain text, read by automated workers. Not rendered as HTML. }
+        agent_instructions: { type: [string, 'null'], description: 'Plain text, read by automated workers. Not rendered as HTML.' }
         slug: { type: [string, 'null'], example: website-redesign }
         color: { type: [string, 'null'], example: '#8B7C68' }
         status:
@@ -563,13 +563,13 @@ paths:
               properties:
                 name: { type: string }
                 color: { type: string }
-                description: { type: string, description: Sanitised HTML, authored in the WYSIWYG editor. This endpoint does not sanitise on write. }
+                description: { type: string, description: 'Sanitised HTML, authored in the WYSIWYG editor. This endpoint does not sanitise on write.' }
                 status: { type: string }
                 repo_url: { type: string, example: 'git@github.com:org/repo.git' }
                 default_branch: { type: string, example: main }
                 dev_branch: { type: string, example: develop }
                 dev_url: { type: string, example: 'https://dev.example.com' }
-                agent_instructions: { type: string, description: Plain text, read by automated workers. }
+                agent_instructions: { type: string, description: 'Plain text, read by automated workers.' }
             example: { status: archived }
       responses:
         '200':
