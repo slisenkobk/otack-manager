@@ -214,7 +214,7 @@ final class TaskRepository {
     }
 
     public function update(int $id, array $fields): void {
-        $allowed = ['title', 'description', 'column_id', 'position', 'assignee_id', 'due_date', 'priority', 'sub_status'];
+        $allowed = ['title', 'description', 'column_id', 'position', 'assignee_id', 'due_date', 'priority', 'sub_status', 'agent_state', 'agent_state_at'];
         $set = []; $vals = [];
         foreach ($fields as $k => $v) {
             if (!in_array($k, $allowed, true)) continue;

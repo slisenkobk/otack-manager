@@ -89,3 +89,49 @@ it('TaskRepository::move updates column_id, position, updated_at', function () {
     assert_true($after['updated_at'] > $before['updated_at']);
     @unlink($db);
 });
+
+it('update() persists agent_state and agent_state_at', function () {
+    $pdo = \App\Database\Connection::open('sqlite::memory:');
+    $base = dirname(__DIR__, 2) . '/system/Database/migrations/';
+    apply_migration($pdo, $base . '20260522_000_users.php');
+    apply_migration($pdo, $base . '20260522_010_projects.php');
+    apply_migration($pdo, $base . '20260522_030_task_columns.php');
+    apply_migration($pdo, $base . '20260525_010_task_columns_backlog.php');
+    apply_migration($pdo, $base . '20260522_040_tasks.php');
+    apply_migration($pdo, $base . '20260526_020_tasks_sub_status.php');
+    apply_migration($pdo, $base . '20260526_030_tasks_priority.php');
+    apply_migration($pdo, $base . '20260827_000_tasks_agent_state.php');
+
+    $pdo->exec("INSERT INTO users (id, name, email, password_hash, role, status, created_at) VALUES (1,'U','u@x','x','admin','approved','2026-01-01 00:00:00')");
+    $pdo->exec("INSERT INTO projects (id, name, slug, status, created_by, created_at, updated_at) VALUES (1,'P','p','active',1,'2026-01-01 00:00:00','2026-01-01 00:00:00')");
+    $pdo->exec("INSERT INTO task_columns (id, project_id, name, position, is_done, is_backlog) VALUES (1,1,'To Do',0,0,0)");
+    $pdo->exec("INSERT INTO tasks (id, project_id, column_id, title, position, created_by, created_at, updated_at) VALUES (1,1,1,'T',1024,1,'2026-01-01 00:00:00','2026-01-01 00:00:00')");
+
+    $repo = new \App\Repository\TaskRepository($pdo);
+    $repo->update(1, ['agent_state' => 'researching', 'agent_state_at' => '2026-08-27 10:00:00']);
+
+    $row = $pdo->query('SELECT agent_state, agent_state_at FROM tasks WHERE id = 1')->fetch(\PDO::FETCH_ASSOC);
+    assert_eq('researching', $row['agent_state']);
+    assert_eq('2026-08-27 10:00:00', $row['agent_state_at']);
+});
+
+it('update() ignores unknown columns', function () {
+    // Guards the $allowed allowlist: a typo'd field must not reach SQL.
+    $pdo = \App\Database\Connection::open('sqlite::memory:');
+    $base = dirname(__DIR__, 2) . '/system/Database/migrations/';
+    apply_migration($pdo, $base . '20260522_000_users.php');
+    apply_migration($pdo, $base . '20260522_010_projects.php');
+    apply_migration($pdo, $base . '20260522_030_task_columns.php');
+    apply_migration($pdo, $base . '20260525_010_task_columns_backlog.php');
+    apply_migration($pdo, $base . '20260522_040_tasks.php');
+    apply_migration($pdo, $base . '20260827_000_tasks_agent_state.php');
+    $pdo->exec("INSERT INTO users (id, name, email, password_hash, role, status, created_at) VALUES (1,'U','u@x','x','admin','approved','2026-01-01 00:00:00')");
+    $pdo->exec("INSERT INTO projects (id, name, slug, status, created_by, created_at, updated_at) VALUES (1,'P','p','active',1,'2026-01-01 00:00:00','2026-01-01 00:00:00')");
+    $pdo->exec("INSERT INTO task_columns (id, project_id, name, position, is_done, is_backlog) VALUES (1,1,'To Do',0,0,0)");
+    $pdo->exec("INSERT INTO tasks (id, project_id, column_id, title, position, created_by, created_at, updated_at) VALUES (1,1,1,'T',1024,1,'2026-01-01 00:00:00','2026-01-01 00:00:00')");
+
+    $repo = new \App\Repository\TaskRepository($pdo);
+    $repo->update(1, ['agent_stat' => 'typo']);   // no exception, no write
+    $row = $pdo->query('SELECT agent_state FROM tasks WHERE id = 1')->fetch(\PDO::FETCH_ASSOC);
+    assert_eq(null, $row['agent_state']);
+});
