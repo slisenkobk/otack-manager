@@ -450,6 +450,12 @@ projects they're a member of (or originally created).
     {
       "id": 42,
       "name": "Website Redesign",
+      "description": "<p>Public marketing site rebuild.</p>",
+      "repo_url": "git@github.com:org/website.git",
+      "default_branch": "main",
+      "dev_branch": "develop",
+      "dev_url": "https://dev.website.example.com",
+      "agent_instructions": "Run `make test` before pushing. Never touch payments/.",
       "slug": "website-redesign",
       "color": "#8B7C68",
       "status": "active",
@@ -461,6 +467,9 @@ projects they're a member of (or originally created).
   "next_cursor": null
 }
 ```
+
+The list shape carries the same fields as the detail shape below — just
+without `columns` / `members`.
 
 **Example:**
 
@@ -487,6 +496,12 @@ Full project detail with columns + members embedded.
 {
   "id": 42,
   "name": "Website Redesign",
+  "description": "<p>Public marketing site rebuild.</p>",
+  "repo_url": "git@github.com:org/website.git",
+  "default_branch": "main",
+  "dev_branch": "develop",
+  "dev_url": "https://dev.website.example.com",
+  "agent_instructions": "Run `make test` before pushing. Never touch payments/.",
   "slug": "website-redesign",
   "color": "#8B7C68",
   "status": "active",
@@ -494,15 +509,34 @@ Full project detail with columns + members embedded.
   "created_at": "2026-06-01T12:00:00Z",
   "updated_at": "2026-06-01T12:00:00Z",
   "columns": [
-    { "id": 101, "name": "To Do", "position": 0 },
-    { "id": 102, "name": "Doing", "position": 1 },
-    { "id": 103, "name": "Done",  "position": 2 }
+    { "id": 101, "name": "To Do", "position": 0, "is_done": false, "is_backlog": false },
+    { "id": 102, "name": "Doing", "position": 1, "is_done": false, "is_backlog": false },
+    { "id": 103, "name": "Done",  "position": 2, "is_done": true,  "is_backlog": false }
   ],
   "members": [
     { "user_id": 7, "name": "Ada Lovelace", "role": "owner" }
   ]
 }
 ```
+
+`is_done` / `is_backlog` mark the column's role in the board: `is_done`
+columns are where the app considers a task finished; `is_backlog` columns
+are excluded from the default "first column" a new task lands in (see
+`POST /projects/{id}/tasks` below). Both are booleans, never null.
+
+`description` is sanitised HTML authored in the project's WYSIWYG editor —
+not plain text, don't treat it as Markdown. **This API does not sanitise
+`description` on write** (only the web UI's edit form runs it through the
+HTML sanitiser before saving); if you set it via `PATCH /projects/{id}`,
+send HTML you already trust.
+
+`repo_url`, `default_branch`, `dev_branch`, `dev_url`, and
+`agent_instructions` describe the project's connection to a source
+repository for automated workers. They're all free-form and unvalidated —
+the API does not check that `repo_url` is reachable or that the branches
+exist. `agent_instructions` is plain text (not HTML/Markdown), meant to be
+read by a machine, e.g. "run `make test` before pushing; never touch
+`payments/`."
 
 **Errors:**
 
@@ -526,7 +560,9 @@ Create a project. The caller is auto-added as `owner`.
 }
 ```
 
-Only `name` is required.
+Only `name` is required. `repo_url`, `default_branch`, `dev_branch`,
+`dev_url`, and `agent_instructions` are **not** accepted at creation time —
+set them afterwards with `PATCH /projects/{id}`.
 
 **Response 201:** the project shape (no `columns` / `members` — use
 `GET /projects/{id}` to fetch those).
@@ -561,11 +597,26 @@ Update mutable project fields. Send only the fields you want to change.
   "name": "New name",
   "color": "#A8C8E8",
   "description": "Updated body",
-  "status": "archived"
+  "status": "archived",
+  "repo_url": "git@github.com:org/website.git",
+  "default_branch": "main",
+  "dev_branch": "develop",
+  "dev_url": "https://dev.website.example.com",
+  "agent_instructions": "Run `make test` before pushing. Never touch payments/."
 }
 ```
 
-`status` is one of `active | archived`. Other fields are ignored.
+`status` is one of `active | archived`. Unrecognised fields are ignored.
+
+`description` is stored exactly as sent — this endpoint does **not** run it
+through the HTML sanitiser the web UI's edit form uses, so only send HTML
+you already trust (see the `GET /projects/{id}` entry above).
+
+A field set to `null` is treated as **absent** (no-op), not as "clear it" —
+unlike `PATCH /tasks/{id}`, there is currently no way to blank out
+`description`, `repo_url`, `default_branch`, `dev_branch`, `dev_url`, or
+`agent_instructions` back to `null` through this endpoint. Sending `""`
+stores a literal empty string, not `null`.
 
 **Response 200:** updated project shape.
 
@@ -760,6 +811,70 @@ Every `id` in `order` must belong to the project — foreign ids return
 
 ### 5.4 Tasks
 
+#### `GET /tasks`
+
+Cross-project task list — "what is assigned to a given user, anywhere I can
+see it". This is the endpoint an automated worker (the agent bridge, a CI
+runner, a Slack bot) polls to find its own work without knowing which
+projects exist in advance.
+
+**Auth:** any active token. Visibility is bounded by project membership:
+admins see every project, everyone else only sees tasks in projects they
+belong to.
+
+**Query parameters:**
+
+- `limit` (int, default 50, max 100), `after` (cursor) — pagination, see
+  [§4.6 Pagination](#46-pagination)
+- `assignee_id` (int) — defaults to the caller. Any caller may set this to
+  look up someone else's tasks; the result set stays bounded by the
+  **caller's own** project membership (not the target assignee's), so this
+  can never be used to peek into a project the caller cannot see.
+- `agent_state` (one of `researching|awaiting_approval|implementing|review|blocked`)
+  — filter to tasks in that execution phase. See
+  [`agent_state`](#agent_state-fields) below.
+- `updated_after` (ISO-8601 timestamp) — only tasks updated at or after this
+  instant.
+
+**Response 200:** paginated list of the **light** task shape (same shape as
+`GET /projects/{id}/tasks`).
+
+```json
+{
+  "items": [
+    {
+      "id": 501,
+      "project_id": 42,
+      "column_id": 101,
+      "title": "Write docs",
+      "position": 1024.0,
+      "priority": "high",
+      "assignee_id": 12,
+      "due_date": "2026-06-30",
+      "sub_status": null,
+      "agent_state": "implementing",
+      "created_at": "2026-06-01T12:00:00Z",
+      "updated_at": "2026-06-01T12:00:00Z"
+    }
+  ],
+  "next_cursor": 501
+}
+```
+
+**Example:**
+
+```bash
+# Everything assigned to me, across every project I'm in
+curl -sS -H "Authorization: Bearer $OTACK_API_TOKEN" \
+  "$OTACK_API_URL/tasks"
+
+# Everything I'm actively implementing, across projects
+curl -sS -H "Authorization: Bearer $OTACK_API_TOKEN" \
+  "$OTACK_API_URL/tasks?agent_state=implementing"
+```
+
+---
+
 #### `GET /tasks/{id}`
 
 Fetch a single task with full detail.
@@ -779,6 +894,7 @@ Fetch a single task with full detail.
   "assignee_id": 12,
   "due_date": "2026-06-30",
   "sub_status": null,
+  "agent_state": null,
   "created_at": "2026-06-01T12:00:00Z",
   "updated_at": "2026-06-01T12:00:00Z",
   "description": "Markdown body",
@@ -788,11 +904,31 @@ Fetch a single task with full detail.
   "tags": [
     { "id": 9, "name": "docs", "color": "#A8C8E8" }
   ],
-  "links": [502, 504]
+  "links": [502, 504],
+  "from_form": false
 }
 ```
 
 `links` is the array of other task ids linked to this one (symmetric).
+
+`from_form` is `true` when the task was auto-created from a public form
+submission — its title/description were written by an anonymous internet
+visitor, not a project member. Automated clients (the agent bridge in
+particular) should treat `from_form: true` as a signal to wait for a human
+to triage/re-assign the task before acting on it; the API does not enforce
+this itself.
+
+<a id="agent_state-fields"></a>
+**`agent_state` / `agent_state_at`:** `agent_state` is a nullable, closed
+enum (`researching | awaiting_approval | implementing | review | blocked`)
+that the app itself never sets — it exists purely for an external agent
+bridge to record where a task is in its own execution model. It is
+deliberately not `sub_status` (which the app owns and which `move()` can
+clear). `agent_state_at` is stamped server-side to the current time
+whenever `agent_state` changes via `PATCH /tasks/{id}`; clients cannot set
+it directly, and **it is not returned in any API response** — it's an
+internal column used for staleness detection, not part of the public
+contract.
 
 ---
 
@@ -811,6 +947,8 @@ List tasks in a project.
 - `status` (string) — filter by column-status family
 - `priority` (one of `none|low|medium|high|urgent`)
 - `search` (string) — substring on title/description
+- `agent_state` (one of `researching|awaiting_approval|implementing|review|blocked`)
+  — filter by execution phase, see [§5.4 `GET /tasks/{id}`](#agent_state-fields)
 
 **Response 200:** paginated list of the **light** task shape (no description,
 no counts, no tags, no links — fetch the single-task endpoint for the rich
@@ -829,6 +967,7 @@ shape):
       "assignee_id": 12,
       "due_date": "2026-06-30",
       "sub_status": null,
+      "agent_state": null,
       "created_at": "2026-06-01T12:00:00Z",
       "updated_at": "2026-06-01T12:00:00Z"
     }
@@ -901,13 +1040,22 @@ Update mutable task fields.
   "assignee_id": null,
   "due_date": "2026-07-15",
   "priority": "medium",
-  "sub_status": "blocked"
+  "sub_status": "blocked",
+  "agent_state": "implementing"
 }
 ```
 
 - Pass `""` or `null` for `description`, `assignee_id`, `due_date`,
   `sub_status` to clear them.
 - `priority` unknowns are coerced to `none`.
+- `agent_state` must be one of `researching | awaiting_approval |
+  implementing | review | blocked`, or `null`/`""` to clear it — an
+  unrecognised value is rejected with `422 validation_failed` rather than
+  silently stored, so a typo in an automated client surfaces immediately
+  instead of parking the task in a phase nothing will ever pick up.
+  Setting it stamps `agent_state_at` server-side; you cannot set that
+  timestamp yourself, and it isn't in the response (see
+  [§5.4 `GET /tasks/{id}`](#agent_state-fields)).
 
 **Response 200:** rich task shape.
 
@@ -1874,8 +2022,11 @@ Load it into your tool of choice:
 - [`docs/INTEGRATION-CHECKLIST.md`](INTEGRATION-CHECKLIST.md) — one-page
   checklist for integrators. Bring this to your code review.
 
-### 11.4 MCP bridge (phase 2 placeholder)
+### 11.4 MCP bridge
 
 A native MCP (Model Context Protocol) server that re-exposes this REST API as
-typed MCP tools is on the roadmap but **not in v1**. Until it lands, drive the
-API directly via the patterns above.
+a curated set of typed tools is on the roadmap but **not built yet, and not
+scheduled ahead of client-side work that has to come first** — see
+[`docs/MCP.md`](MCP.md) for the intent, the tool list under consideration,
+and the condition that gates building it. Until it lands, drive the API
+directly via the patterns above.

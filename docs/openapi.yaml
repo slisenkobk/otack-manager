@@ -84,6 +84,12 @@ components:
       properties:
         id: { type: integer, example: 42 }
         name: { type: string, example: Website Redesign }
+        description: { type: [string, 'null'], description: Sanitised HTML, authored in the WYSIWYG editor. Note - not sanitised by this API on write; only the web UI runs it through the sanitiser. }
+        repo_url: { type: [string, 'null'], example: 'git@github.com:org/repo.git' }
+        default_branch: { type: [string, 'null'], example: main }
+        dev_branch: { type: [string, 'null'], example: develop }
+        dev_url: { type: [string, 'null'], example: 'https://dev.example.com' }
+        agent_instructions: { type: [string, 'null'], description: Plain text, read by automated workers. Not rendered as HTML. }
         slug: { type: [string, 'null'], example: website-redesign }
         color: { type: [string, 'null'], example: '#8B7C68' }
         status:
@@ -111,6 +117,8 @@ components:
                   id: { type: integer }
                   name: { type: string }
                   position: { type: integer }
+                  is_done: { type: boolean }
+                  is_backlog: { type: boolean }
             members:
               type: array
               items:
@@ -145,13 +153,17 @@ components:
         assignee_id: { type: [integer, 'null'] }
         due_date: { type: [string, 'null'], example: '2026-06-15' }
         sub_status: { type: [string, 'null'] }
+        agent_state:
+          type: [string, 'null']
+          enum: [researching, awaiting_approval, implementing, review, blocked, null]
+          description: Execution phase owned by the external agent bridge.
         created_at: { type: [string, 'null'] }
         updated_at: { type: [string, 'null'] }
     Task:
       allOf:
         - $ref: '#/components/schemas/TaskListItem'
         - type: object
-          required: [comments_count, attachments_count, tags, links]
+          required: [comments_count, attachments_count, tags, links, from_form]
           properties:
             description: { type: [string, 'null'] }
             created_by: { type: [integer, 'null'] }
@@ -169,6 +181,9 @@ components:
               type: array
               items: { type: integer }
               description: IDs of the other side of each link
+            from_form:
+              type: boolean
+              description: True when the task was auto-created from a public form submission.
     Comment:
       type: object
       required: [id, entity_type, entity_id, user_id, body]
@@ -548,8 +563,13 @@ paths:
               properties:
                 name: { type: string }
                 color: { type: string }
-                description: { type: string }
+                description: { type: string, description: Sanitised HTML, authored in the WYSIWYG editor. This endpoint does not sanitise on write. }
                 status: { type: string }
+                repo_url: { type: string, example: 'git@github.com:org/repo.git' }
+                default_branch: { type: string, example: main }
+                dev_branch: { type: string, example: develop }
+                dev_url: { type: string, example: 'https://dev.example.com' }
+                agent_instructions: { type: string, description: Plain text, read by automated workers. }
             example: { status: archived }
       responses:
         '200':
@@ -832,6 +852,14 @@ paths:
                   type: string
                   enum: [none, low, medium, high, urgent]
                 sub_status: { type: [string, 'null'] }
+                agent_state:
+                  type: [string, 'null']
+                  enum: [researching, awaiting_approval, implementing, review, blocked, null]
+                  description: >-
+                    Execution phase owned by the external agent bridge.
+                    Setting it also stamps agent_state_at server-side
+                    (not itself accepted or returned) with the current
+                    time; clients cannot set that timestamp directly.
             example: { priority: high, assignee_id: 12 }
       responses:
         '200':
@@ -869,6 +897,7 @@ paths:
         - { name: status,      in: query, schema: { type: string } }
         - { name: priority,    in: query, schema: { type: string, enum: [none, low, medium, high, urgent] } }
         - { name: search,      in: query, schema: { type: string } }
+        - { name: agent_state, in: query, schema: { type: string, enum: [researching, awaiting_approval, implementing, review, blocked] } }
       responses:
         '200':
           description: OK
@@ -958,7 +987,7 @@ paths:
                 required: [project_id, url]
                 properties:
                   project_id: { type: integer }
-                  url: { type: string, example: /projects/42?tab=overview }
+                  url: { type: string, example: '/projects/42?tab=overview' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
