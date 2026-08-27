@@ -279,3 +279,37 @@ api_it('DELETE /tasks/{id}/links/{other_id} removes the link', function () {
     ]);
     assert_true(!in_array(5181, array_map('intval', $g['json']['links']), true), 'link still present');
 });
+
+api_it('PATCH /tasks/{id}: assignee employee may update a manager-created task', function () {
+    [$pdo, , $empTok] = tasks_setup();
+    tasks_seed_project($pdo, 5310, 1);
+    tasks_seed_column($pdo, 53101, 5310, 'To Do', 0);
+    // user 2 is an employee, a member of the project, assigned to the task,
+    // but NOT its author — the exact shape of a bot service account.
+    $pdo->prepare("INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, 'member')")
+        ->execute([5310, 2]);
+    tasks_seed_task($pdo, 5320, 5310, 53101, 1, 2);
+
+    $r = api_request('PATCH', '/api/v1/tasks/5320', [
+        'headers' => ['Authorization: Bearer ' . $empTok],
+        'body'    => json_encode(['priority' => 'high']),
+    ]);
+    assert_eq(200, $r['status']);
+    assert_eq('high', $r['json']['priority']);
+});
+
+api_it('PATCH /tasks/{id}: non-assignee employee still gets 403', function () {
+    [$pdo, , $empTok] = tasks_setup();
+    tasks_seed_project($pdo, 5330, 1);
+    tasks_seed_column($pdo, 53301, 5330, 'To Do', 0);
+    $pdo->prepare("INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, ?, 'member')")
+        ->execute([5330, 2]);
+    // Assigned to user 1, not to the caller.
+    tasks_seed_task($pdo, 5340, 5330, 53301, 1, 1);
+
+    $r = api_request('PATCH', '/api/v1/tasks/5340', [
+        'headers' => ['Authorization: Bearer ' . $empTok],
+        'body'    => json_encode(['priority' => 'high']),
+    ]);
+    assert_eq(403, $r['status']);
+});

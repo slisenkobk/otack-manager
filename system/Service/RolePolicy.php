@@ -39,11 +39,19 @@ final class RolePolicy
     /** Can fully edit/delete a task (title, description, links, delete). */
     public static function canEditTask(array $user, array $task, ProjectMemberRepository $members): bool {
         if (self::isAdmin($user)) return true;
-        $isAuthor = (int)($task['created_by'] ?? 0) === (int)$user['id'];
+        $userId = (int)$user['id'];
+        $isAuthor = (int)($task['created_by'] ?? 0) === $userId;
         if ($isAuthor) return true;
+        // The assignee owns execution of their own task: they may move it
+        // between columns and update its fields. Without this an employee
+        // cannot progress work a manager handed them — which also blocks
+        // API service accounts (see docs/API.md §2.1). Guard against the
+        // null→0 cast: an unassigned task must not grant anyone rights.
+        $assigneeId = (int)($task['assignee_id'] ?? 0);
+        if ($assigneeId !== 0 && $assigneeId === $userId) return true;
         // manager can edit any task within projects they own
         if (self::isManager($user)) {
-            return $members->isOwner((int)$task['project_id'], (int)$user['id']);
+            return $members->isOwner((int)$task['project_id'], $userId);
         }
         return false;
     }

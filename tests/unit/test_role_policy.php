@@ -140,3 +140,24 @@ it('canEditTask: non-author employee no', function () {
     $task = ['id' => 1, 'project_id' => 100, 'created_by' => 99];
     assert_true(!RolePolicy::canEditTask(['id'=>12,'role'=>'employee'], $task, $members));
 });
+
+it('canEditTask: assignee can edit a task they did not create', function () {
+    $pdo = _rpPdo();
+    $members = new \App\Repository\ProjectMemberRepository($pdo);
+    $task = ['id' => 1, 'project_id' => 100, 'created_by' => 11, 'assignee_id' => 12];
+    assert_true(RolePolicy::canEditTask(['id' => 12, 'role' => 'employee'], $task, $members));
+});
+
+it('canEditTask: employee assigned to someone else still cannot edit', function () {
+    $pdo = _rpPdo();
+    $members = new \App\Repository\ProjectMemberRepository($pdo);
+    $task = ['id' => 1, 'project_id' => 100, 'created_by' => 11, 'assignee_id' => 99];
+    assert_true(!RolePolicy::canEditTask(['id' => 12, 'role' => 'employee'], $task, $members));
+});
+
+it('canEditTask: unassigned task gives no one extra rights', function () {
+    $pdo = _rpPdo();
+    $members = new \App\Repository\ProjectMemberRepository($pdo);
+    $task = ['id' => 1, 'project_id' => 100, 'created_by' => 11, 'assignee_id' => null];
+    assert_true(!RolePolicy::canEditTask(['id' => 12, 'role' => 'employee'], $task, $members));
+});
