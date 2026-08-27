@@ -350,7 +350,8 @@ api_it('PATCH /tasks/{id}: agent_state null clears the phase', function () {
     tasks_seed_project($pdo, 5440, 1);
     tasks_seed_column($pdo, 54401, 5440, 'To Do', 0);
     tasks_seed_task($pdo, 5450, 5440, 54401, 1);
-    $pdo->exec("UPDATE tasks SET agent_state = 'review' WHERE id = 5450");
+    // Seed both agent_state and agent_state_at so we can verify both are cleared
+    $pdo->exec("UPDATE tasks SET agent_state = 'review', agent_state_at = '2026-01-01T00:00:00.000000Z' WHERE id = 5450");
 
     $r = api_request('PATCH', '/api/v1/tasks/5450', [
         'headers' => ['Authorization: Bearer ' . $adminTok],
@@ -358,6 +359,25 @@ api_it('PATCH /tasks/{id}: agent_state null clears the phase', function () {
     ]);
     assert_eq(200, $r['status']);
     assert_eq(null, $r['json']['agent_state']);
+
+    // Verify both columns are cleared via direct DB query (since agent_state_at is not exposed in response)
+    $row = $pdo->query('SELECT agent_state, agent_state_at FROM tasks WHERE id = 5450')->fetch(\PDO::FETCH_ASSOC);
+    assert_true($row['agent_state'] === null, 'agent_state must be NULL');
+    assert_true($row['agent_state_at'] === null, 'agent_state_at must be NULL');
+});
+
+api_it('PATCH /tasks/{id}: rejects non-scalar agent_state', function () {
+    [$pdo, $adminTok,] = tasks_setup();
+    tasks_seed_project($pdo, 5480, 1);
+    tasks_seed_column($pdo, 54801, 5480, 'To Do', 0);
+    tasks_seed_task($pdo, 5490, 5480, 54801, 1);
+
+    $r = api_request('PATCH', '/api/v1/tasks/5490', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+        'body'    => json_encode(['agent_state' => ['x']]),
+    ]);
+    assert_eq(422, $r['status']);
+    assert_eq('validation_failed', $r['json']['error']);
 });
 
 api_it('GET /projects/{id}/tasks?agent_state= filters by phase', function () {

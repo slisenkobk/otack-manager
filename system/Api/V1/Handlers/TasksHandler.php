@@ -180,8 +180,8 @@ final class TasksHandler extends BaseHandler
             if ($s === null || $s === '') {
                 $fields['agent_state']    = null;
                 $fields['agent_state_at'] = null;
-            } elseif (in_array((string)$s, self::AGENT_STATES, true)) {
-                $fields['agent_state']    = (string)$s;
+            } elseif (is_string($s) && in_array($s, self::AGENT_STATES, true)) {
+                $fields['agent_state']    = $s;
                 // Stamped server-side: clients must not be able to backdate a
                 // phase, since staleness detection keys on this value.
                 $fields['agent_state_at'] = iso_now_utc();
