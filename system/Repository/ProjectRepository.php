@@ -44,7 +44,7 @@ final class ProjectRepository {
     }
 
     public function update(int $id, array $fields): void {
-        $allowed = ['name', 'description', 'status', 'color'];
+        $allowed = ['name', 'description', 'status', 'color', 'repo_url', 'default_branch', 'dev_branch', 'dev_url', 'agent_instructions'];
         $set = [];
         $vals = [];
         foreach ($fields as $k => $v) {

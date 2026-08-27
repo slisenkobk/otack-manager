@@ -71,7 +71,7 @@ final class ProjectsHandler extends BaseHandler
         if (!RolePolicy::canEditProject($this->user(), $project, $this->svc('members'))) return $this->forbidden();
         $body = $this->readBody($req);
         $patch = [];
-        foreach (['name', 'color', 'description', 'status'] as $f) {
+        foreach (['name', 'color', 'description', 'status', 'repo_url', 'default_branch', 'dev_branch', 'dev_url', 'agent_instructions'] as $f) {
             $v = JsonRequest::optionalString($body, $f);
             if ($v !== null) $patch[$f] = $v;
         }
@@ -178,6 +178,11 @@ final class ProjectsHandler extends BaseHandler
             'id'         => (int)$p['id'],
             'name'       => $p['name'],
             'description' => $p['description'] ?? null,
+            'repo_url'           => $p['repo_url'] ?? null,
+            'default_branch'     => $p['default_branch'] ?? null,
+            'dev_branch'         => $p['dev_branch'] ?? null,
+            'dev_url'            => $p['dev_url'] ?? null,
+            'agent_instructions' => $p['agent_instructions'] ?? null,
             'slug'       => $p['slug'] ?? null,
             'color'      => $p['color'] ?? null,
             'status'     => $p['status'] ?? 'active',

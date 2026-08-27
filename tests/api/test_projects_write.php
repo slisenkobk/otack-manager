@@ -190,6 +190,26 @@ api_it('DELETE /projects/{id}/members/{user_id} removes member', function () {
  *   - the *target* user (3) is removed
  *   - the *non-target* user (2) survives, proving we didn't delete by project id
  */
+api_it('PATCH /projects/{id}: round-trips agent bridge fields', function () {
+    [$pdo, , $adminTok, ] = pw_setup();
+    pw_seed_project($pdo, 5800, 'A');
+
+    $r = api_request('PATCH', '/api/v1/projects/5800', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+        'body'    => json_encode([
+            'repo_url'           => 'git@github.com:otack/demo.git',
+            'default_branch'     => 'main',
+            'dev_branch'         => 'develop',
+            'dev_url'            => 'https://demo.dev.example.com',
+            'agent_instructions' => "Run make test before pushing.\nNever touch payments.",
+        ]),
+    ]);
+    assert_eq(200, $r['status']);
+    assert_eq('git@github.com:otack/demo.git', $r['json']['repo_url']);
+    assert_eq('develop', $r['json']['dev_branch']);
+    assert_true(str_contains($r['json']['agent_instructions'], 'Never touch payments'));
+});
+
 api_it('DELETE /projects/{id}/members/{userId} resolves both ids distinctly', function () {
     [$pdo, , $adminTok,] = pw_setup();
     // Third user only this test cares about; distinct id space so other
