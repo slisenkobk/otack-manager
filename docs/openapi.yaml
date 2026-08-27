@@ -786,7 +786,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/AfterCursor'
         - $ref: '#/components/parameters/Limit'
-        - { name: assignee_id, in: query, schema: { type: integer }, description: Admin-only override; defaults to the caller }
+        - { name: assignee_id, in: query, schema: { type: integer }, description: 'Filter by assignee; defaults to the caller. Any caller may set this — results remain bounded by the caller''s own project membership.' }
         - { name: agent_state, in: query, schema: { type: string, enum: [researching, awaiting_approval, implementing, review, blocked] } }
         - { name: updated_after, in: query, schema: { type: string, format: date-time } }
       responses:

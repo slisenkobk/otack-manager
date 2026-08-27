@@ -454,3 +454,39 @@ api_it('GET /tasks requires a token', function () {
     $r = api_request('GET', '/api/v1/tasks');
     assert_eq(401, $r['status']);
 });
+
+api_it('GET /tasks: caller who is a member of no projects sees an empty list, not a crash', function () {
+    [$pdo, ,] = tasks_setup();
+    // Fresh user, member of nothing, with no membership rows at all —
+    // exercises the $projectIds === [] short-circuit in
+    // TaskRepository::listAssignedAfterId() (IN () is a SQL syntax error).
+    $pdo->exec("INSERT OR IGNORE INTO users (id, name, email, password_hash, role, status, created_at) VALUES (5900, 'Lonely', 'lonely@x', 'x', 'employee', 'approved', '2026-01-01')");
+    $repo = new \App\Repository\ApiTokenRepository($pdo);
+    $lonelyTok = $repo->create(5900, 'tasks-lonely-' . bin2hex(random_bytes(3)))['token'];
+
+    tasks_seed_project($pdo, 5560, 1);
+    tasks_seed_column($pdo, 55601, 5560, 'To Do', 0);
+    // Assigned to the lonely user, but they belong to no project — not even this one.
+    tasks_seed_task($pdo, 5561, 5560, 55601, 1, 5900);
+
+    $r = api_request('GET', '/api/v1/tasks', [
+        'headers' => ['Authorization: Bearer ' . $lonelyTok],
+    ]);
+    assert_eq(200, $r['status']);
+    assert_eq(0, count($r['json']['items']));
+});
+
+api_it('GET /tasks?assignee_id= (blank) falls back to the caller, not assignee_id=0', function () {
+    [$pdo, , $empTok] = tasks_setup();
+    tasks_seed_project($pdo, 5570, 1);
+    tasks_seed_column($pdo, 55701, 5570, 'To Do', 0);
+    $pdo->prepare("INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (?, 2, 'member')")->execute([5570]);
+    tasks_seed_task($pdo, 5580, 5570, 55701, 1, 2);
+
+    $r = api_request('GET', '/api/v1/tasks?assignee_id=', [
+        'headers' => ['Authorization: Bearer ' . $empTok],
+    ]);
+    assert_eq(200, $r['status']);
+    $ids = array_map('intval', array_column($r['json']['items'], 'id'));
+    assert_true(in_array(5580, $ids, true), 'blank assignee_id must fall back to the caller, not return an empty page');
+});

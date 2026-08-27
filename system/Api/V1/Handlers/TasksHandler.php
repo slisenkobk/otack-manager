@@ -35,7 +35,9 @@ final class TasksHandler extends BaseHandler
     {
         $after = isset($req->query['after']) ? (int)$req->query['after'] : 0;
         $limit = min(100, max(1, (int)($req->query['limit'] ?? 50)));
-        $assigneeId = isset($req->query['assignee_id'])
+        // A blank ?assignee_id= must fall back to the caller, not cast to 0
+        // and silently return an empty page — same idiom as indexForProject().
+        $assigneeId = (isset($req->query['assignee_id']) && $req->query['assignee_id'] !== '')
             ? (int)$req->query['assignee_id']
             : $this->userId();
 
@@ -44,6 +46,13 @@ final class TasksHandler extends BaseHandler
 
         // Visibility: admins see everything, everyone else is bounded by
         // project membership — the only scoping lever tokens have (docs/API.md §2.1).
+        // Deliberately narrower than BaseHandler::canSeeProject(), which also
+        // grants access via created_by === userId: that fallback only matters
+        // for hand-seeded rows missing an owner membership row, since both
+        // API and web project creation insert one. Membership-only here fails
+        // closed (under-fetch, never a leak) — do not "fix" it into using
+        // canSeeProject()'s created_by branch, which would need a per-project
+        // check this cursor-paginated cross-project query can't do in SQL.
         $projectIds = null;
         if (!RolePolicy::isAdmin($this->user())) {
             $visible = $this->svc('projects')->listForUser($this->userId(), false);
