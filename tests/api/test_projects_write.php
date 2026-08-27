@@ -206,7 +206,9 @@ api_it('PATCH /projects/{id}: round-trips agent bridge fields', function () {
     ]);
     assert_eq(200, $r['status']);
     assert_eq('git@github.com:otack/demo.git', $r['json']['repo_url']);
+    assert_eq('main', $r['json']['default_branch']);
     assert_eq('develop', $r['json']['dev_branch']);
+    assert_eq('https://demo.dev.example.com', $r['json']['dev_url']);
     assert_true(str_contains($r['json']['agent_instructions'], 'Never touch payments'));
 });
 
