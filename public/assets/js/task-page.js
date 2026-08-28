@@ -54,7 +54,7 @@ import { logSilent, t, withButtonBusy } from './utils.js';
       // description_html is run through HtmlSanitizer::cleanRich() server-side
       // on every read (TaskController::update), not merely assumed clean
       // because Quill produced it. A LinkPreview pass then runs after the
-      // allow-list and does add markup it doesn't permit (span wrappers,
+      // allow-list and does add markup it doesn't permit (span/i wrappers,
       // class/rel/spellcheck on the anchor) — so the allow-list is not
       // literally the last gate. What makes this innerHTML safe: LinkPreview
       // never writes caller-controlled bytes into an attribute value.

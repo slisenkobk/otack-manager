@@ -25,8 +25,14 @@ namespace App\Service;
  * cards with the DOM API (never by concatenating markup), re-serialise.
  * There is no code path here that can write into an attribute value.
  *
- * Because `HtmlSanitizer` is now the last gate again, callers may keep
- * relying on "whatever the allow-list permitted is what reaches the DOM".
+ * That does not make the allow-list the last gate: `buildCardNode()` below
+ * adds `<span>`/`<i>` wrappers and `class`/`rel`/`spellcheck` attributes that
+ * are not on `HtmlSanitizer::ALLOWED_TAGS_RICH`/`ALLOWED_ATTRS_RICH`, so
+ * markup outside the allow-list does reach the browser. What `enhance()`
+ * guarantees instead: it never writes caller-controlled bytes into an
+ * attribute value. Everything it adds is a fixed, server-controlled
+ * literal; the only caller-derived value it emits is an `href`, and that
+ * value's `https?://` prefix is pinned by the matcher that found it.
  */
 final class LinkPreview
 {

@@ -947,13 +947,13 @@ the app's own page markup uses — and no tag ever keeps an `on*` event handler.
 That last guarantee covers what is *stored*. One more step runs after the
 allow-list, on the way to the browser: the server-side pass that turns bare
 URLs into link cards. It does add markup the allow-list doesn't mention —
-`span` wrappers, plus `class`/`rel`/`spellcheck` on the anchor — so it is not
-literally true that nothing reaches the browser beyond what the allow-list
-permits. What matters for safety is narrower and still holds: `LinkPreview::
-enhance()` never writes caller-controlled bytes into an attribute value.
-Everything it adds is a fixed, server-controlled literal; the only
-caller-derived value it emits is an `href`, and that value's `https?://`
-prefix is pinned by the matcher that found it.
+`span` and `i` wrappers, plus `class`/`rel`/`spellcheck` on the anchor — so
+it is not literally true that nothing reaches the browser beyond what the
+allow-list permits. What matters for safety is narrower and still holds:
+`LinkPreview::enhance()` never writes caller-controlled bytes into an
+attribute value. Everything it adds is a fixed, server-controlled literal;
+the only caller-derived value it emits is an `href`, and that value's
+`https?://` prefix is pinned by the matcher that found it.
 
 Headings and tables are the point of the wider list: an automated worker
 writing a structured summary into a task description keeps its structure
