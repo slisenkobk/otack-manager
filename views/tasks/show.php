@@ -49,16 +49,19 @@
         <?php endif; ?>
       </header>
       <div class="overview-panel__body rich-text task-description-rendered">
-        <?= $task['description'] ? \App\Service\LinkPreview::enhance((string)$task['description']) : '<em class="overview-panel__empty">' . e(t('tasks.no_description')) . '</em>' ?>
+        <?= $task['description'] ? \App\Service\LinkPreview::enhance(\App\Service\HtmlSanitizer::clean((string)$task['description'])) : '<em class="overview-panel__empty">' . e(t('tasks.no_description')) . '</em>' ?>
       </div>
       <div class="overview-panel__body task-description-editor d-none">
         <div class="wysiwyg-host">
           <div class="wysiwyg-editor"
                data-quill
                data-quill-target="#task-description-hidden"
-               data-placeholder="<?= e(t('projects.overview.description_placeholder')) ?>"><?= $task['description'] ?? '' ?></div>
+               data-placeholder="<?= e(t('projects.overview.description_placeholder')) ?>"><?= $task['description'] ? \App\Service\HtmlSanitizer::clean((string)$task['description']) : '' ?></div>
         </div>
-        <input type="hidden" id="task-description-hidden" value="<?= e($task['description'] ?? '') ?>">
+        <?php // Also the sanitisation boundary for wysiwyg.js, which seeds Quill with
+              // `editor.root.innerHTML = hidden.value` — an attached-element innerHTML
+              // write, so an <img onerror> in here would fire before Quill re-renders. ?>
+        <input type="hidden" id="task-description-hidden" value="<?= e($task['description'] ? \App\Service\HtmlSanitizer::clean((string)$task['description']) : '') ?>">
         <div class="flex-row-gap-8-mt-8">
           <button class="btn btn--primary submit" type="button" data-action="save-description"><?= e(t('common.save')) ?></button>
           <button class="btn btn--ghost" type="button" data-action="cancel-description"><?= e(t('common.cancel')) ?></button>

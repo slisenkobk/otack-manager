@@ -172,7 +172,9 @@ foreach ($boardColumns as $c) {
                    data-quill-target="#project-description-hidden"
                    data-placeholder="<?= e(t('projects.overview.description_placeholder')) ?>"><?= $project['description'] ? \App\Service\HtmlSanitizer::clean((string)$project['description']) : '' ?></div>
             </div>
-            <input type="hidden" id="project-description-hidden" value="<?= e($project['description'] ?? '') ?>">
+            <?php // Sanitised for the same reason as the editor div: wysiwyg.js assigns
+                  // this value to Quill's `root.innerHTML`, which is a live DOM sink. ?>
+            <input type="hidden" id="project-description-hidden" value="<?= e($project['description'] ? \App\Service\HtmlSanitizer::clean((string)$project['description']) : '') ?>">
             <div class="flex-row-gap-8-mt-8">
               <button class="btn btn--primary submit" type="button" data-action="save-description"><?= e(t('common.save')) ?></button>
               <button class="btn btn--ghost" type="button" data-action="cancel-description"><?= e(t('common.cancel')) ?></button>

@@ -580,3 +580,89 @@ api_it('GET /projects/{id}/tasks?agent_state= rejects an unknown phase with 422'
     ]);
     assert_eq(200, $ok['status']);
 });
+
+// --- XSS sweep: the API write path must sanitise `description` on tasks, the
+// same way ProjectsHandler does for projects. This is the source end of a live
+// escalation chain: views/tasks/show.php renders the value as raw HTML, so the
+// payload fires for anyone who merely *opens* the task — an admin included —
+// with no edit form involved. `canEditTask` includes the task's assignee, so
+// any project member handed a task could plant it.
+
+api_it('POST /projects/{id}/tasks: description is sanitised on write (stored-XSS defence)', function () {
+    [$pdo, $adminTok,] = tasks_setup();
+    tasks_seed_project($pdo, 5700, 1);
+    tasks_seed_column($pdo, 57001, 5700, 'To Do', 0);
+
+    $r = api_request('POST', '/api/v1/projects/5700/tasks', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+        'body'    => json_encode([
+            'title'       => 'XssCreateTask',
+            'description' => '<p>legit <strong>body</strong></p>'
+                           . '<img src=x onerror="alert(1)">'
+                           . '<script>alert(2)</script>'
+                           . '<a href="javascript:alert(3)">x</a>',
+        ]),
+    ]);
+    assert_eq(201, $r['status']);
+    $id = (int)$r['json']['id'];
+
+    $stored = (string)$pdo->query('SELECT description FROM tasks WHERE id = ' . $id)
+        ->fetch(\PDO::FETCH_ASSOC)['description'];
+
+    foreach (['response' => (string)$r['json']['description'], 'stored' => $stored] as $where => $html) {
+        assert_true(stripos($html, 'onerror') === false,     "onerror survived in $where: $html");
+        assert_true(stripos($html, '<script') === false,     "<script> survived in $where: $html");
+        assert_true(stripos($html, '<img') === false,        "<img> survived in $where: $html");
+        assert_true(stripos($html, 'javascript:') === false, "javascript: href survived in $where: $html");
+    }
+    // Allow-listed markup is untouched — this scrubs, it does not flatten.
+    assert_true(strpos($stored, '<strong>body</strong>') !== false, 'allow-listed markup must survive: ' . $stored);
+});
+
+api_it('PATCH /tasks/{id}: description is sanitised on write too', function () {
+    [$pdo, $adminTok,] = tasks_setup();
+    tasks_seed_project($pdo, 5710, 1);
+    tasks_seed_column($pdo, 57101, 5710, 'To Do', 0);
+    tasks_seed_task($pdo, 5711, 5710, 57101, 1);
+
+    $r = api_request('PATCH', '/api/v1/tasks/5711', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+        'body'    => json_encode([
+            // Wrapped in a tag that is not on the allow list: unwrapping the
+            // wrapper must not promote the payload out unchecked.
+            'description' => '<p>legit body</p>'
+                           . '<div><img src=x onerror="alert(1)"></div>'
+                           . '<script>alert(2)</script>'
+                           . '<a href="javascript:alert(3)">x</a>',
+        ]),
+    ]);
+    assert_eq(200, $r['status']);
+
+    $stored = (string)$pdo->query('SELECT description FROM tasks WHERE id = 5711')
+        ->fetch(\PDO::FETCH_ASSOC)['description'];
+
+    foreach (['response' => (string)$r['json']['description'], 'stored' => $stored] as $where => $html) {
+        assert_true(stripos($html, 'onerror') === false,     "onerror survived in $where: $html");
+        assert_true(stripos($html, '<script') === false,     "<script> survived in $where: $html");
+        assert_true(stripos($html, '<img') === false,        "<img> survived in $where: $html");
+        assert_true(stripos($html, 'javascript:') === false, "javascript: href survived in $where: $html");
+    }
+    assert_true(strpos($stored, 'legit body') !== false, 'allow-listed markup must survive: ' . $stored);
+});
+
+api_it('PATCH /tasks/{id}: clearing description still stores NULL, not a sanitised empty string', function () {
+    [$pdo, $adminTok,] = tasks_setup();
+    tasks_seed_project($pdo, 5720, 1);
+    tasks_seed_column($pdo, 57201, 5720, 'To Do', 0);
+    tasks_seed_task($pdo, 5721, 5720, 57201, 1);
+    $pdo->exec("UPDATE tasks SET description = '<p>something</p>' WHERE id = 5721");
+
+    $r = api_request('PATCH', '/api/v1/tasks/5721', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+        'body'    => json_encode(['description' => '']),
+    ]);
+    assert_eq(200, $r['status']);
+    $stored = $pdo->query('SELECT description FROM tasks WHERE id = 5721')
+        ->fetch(\PDO::FETCH_ASSOC)['description'];
+    assert_eq(null, $stored, 'empty description must clear to NULL, unchanged by the sweep');
+});

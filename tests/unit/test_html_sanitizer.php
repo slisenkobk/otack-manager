@@ -87,3 +87,68 @@ it('strips onerror from allow-listed <a>', function () {
     $out = HtmlSanitizer::clean('<a href="https://example.com" onerror="alert(1)">x</a>');
     assert_true(strpos($out, 'onerror') === false, "onerror leaked: $out");
 });
+
+// --- XSS sweep: unwrapping a disallowed element used to promote its children
+// into the parent without ever re-checking them, so one wrapper in a tag that
+// is not on the allow list smuggled any payload straight through. These pin
+// the recursive-unwrap behaviour.
+
+it('sanitises children promoted out of a disallowed wrapper', function () {
+    $out = HtmlSanitizer::clean('<section><img src=x onerror="alert(1)"></section>');
+    assert_true(stripos($out, 'onerror') === false, "onerror survived one wrapper: $out");
+    assert_true(stripos($out, '<img') === false, "img survived one wrapper: $out");
+});
+
+it('sanitises children promoted out of nested disallowed wrappers', function () {
+    $out = HtmlSanitizer::clean('<section><article><img src=x onerror="alert(1)"></article></section>');
+    assert_true(stripos($out, 'onerror') === false, "onerror survived two wrappers: $out");
+    assert_true(stripos($out, '<img') === false, "img survived two wrappers: $out");
+});
+
+it('strips a <script> nested inside a disallowed wrapper but keeps its text', function () {
+    $out = HtmlSanitizer::clean('<span><script>alert(1)</script></span>');
+    assert_true(stripos($out, '<script') === false, "script survived a wrapper: $out");
+});
+
+it('is idempotent — cleaning twice equals cleaning once', function () {
+    $in  = '<section><article><img src=x onerror="alert(1)"></article></section><p>ok</p>';
+    $once = HtmlSanitizer::clean($in);
+    assert_eq($once, HtmlSanitizer::clean($once), "not idempotent: $once");
+});
+
+it('cleanRich also sanitises promoted children', function () {
+    $out = HtmlSanitizer::cleanRich('<section><img src="javascript:alert(1)" onerror="alert(2)"></section>');
+    assert_true(stripos($out, 'onerror') === false, "onerror survived in rich mode: $out");
+    assert_true(stripos($out, 'javascript:') === false, "javascript: src survived in rich mode: $out");
+});
+
+// --- Quill 2 emits a code block as one <div> per line inside a container
+// <div>. `div` is allow-listed (attributes stripped) precisely so those line
+// boxes survive; dropping them would splice every line into one run of text.
+
+it('keeps Quill code-block line structure but strips its attributes', function () {
+    $out = HtmlSanitizer::clean(
+        '<div class="ql-code-block-container" spellcheck="false">'
+        . '<div class="ql-code-block">a();</div><div class="ql-code-block">b();</div></div>'
+    );
+    assert_eq('<div><div>a();</div><div>b();</div></div>', $out);
+});
+
+it('strips event handlers from an allow-listed <div>', function () {
+    $out = HtmlSanitizer::clean('<div onclick="alert(1)" style="x">t</div>');
+    assert_eq('<div>t</div>', $out);
+});
+
+it('preserves the rest of the Quill toolbar output verbatim', function () {
+    foreach ([
+        '<p><strong>b</strong> <em>i</em> <u>u</u></p>',
+        '<p><code>x = 1</code></p>',
+        '<pre>a();</pre>',
+        '<ol><li>one</li><li>two</li></ol>',
+        '<ul><li>one</li><li>two</li></ul>',
+        '<p><br></p>',
+        '<blockquote>q</blockquote>',
+    ] as $in) {
+        assert_eq($in, HtmlSanitizer::clean($in), "Quill markup mangled: $in");
+    }
+});

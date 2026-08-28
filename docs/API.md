@@ -910,7 +910,7 @@ Fetch a single task with full detail.
   "agent_state": null,
   "created_at": "2026-06-01T12:00:00Z",
   "updated_at": "2026-06-01T12:00:00Z",
-  "description": "Markdown body",
+  "description": "<p>Sanitised HTML body</p>",
   "created_by": 7,
   "comments_count": 3,
   "attachments_count": 1,
@@ -923,6 +923,14 @@ Fetch a single task with full detail.
 ```
 
 `links` is the array of other task ids linked to this one (symmetric).
+
+`description` is sanitised HTML authored in the task's WYSIWYG editor —
+not plain text, don't treat it as Markdown. **This API sanitises
+`description` on write**: `POST /projects/{id}/tasks` and `PATCH /tasks/{id}`
+run the value through the same HTML allow-list the web UI uses, so tags and
+attributes outside that list (`<script>`, `onerror=`, `javascript:` hrefs)
+are stripped before it is stored. What you read back may therefore differ
+from what you sent.
 
 `from_form` is `true` when the task was auto-created from a public form
 submission — its title/description were written by an anonymous internet
@@ -1004,7 +1012,7 @@ Create a task in a project.
 ```json
 {
   "title": "Write docs",
-  "description": "Markdown body, optional",
+  "description": "<p>Sanitised HTML body</p>, optional",
   "column_id": 101,
   "assignee_id": 12,
   "priority": "high",
@@ -1017,6 +1025,10 @@ Only `title` is required. Defaults:
 
 - `column_id` → first non-backlog column by position
 - `priority` → `none` (any unknown value is normalised to `none`)
+
+`description` is sanitised before it is stored — see the
+[`GET /tasks/{id}`](#get-tasksid) entry above. The stored value may differ
+from what you sent.
 
 **Response 201:** the rich task shape (same as `GET /tasks/{id}`).
 
@@ -1079,6 +1091,10 @@ Update mutable task fields.
 
 - Pass `""` or `null` for `description`, `assignee_id`, `due_date`,
   `sub_status` to clear them.
+- `description` is sanitised on write — this endpoint runs it through the same
+  HTML allow-list the web UI uses, so disallowed tags and attributes are
+  stripped and the stored value may differ from what you sent. Clearing is
+  unaffected: `""`/`null` still stores `NULL`, never a sanitised empty string.
 - `priority` unknowns are coerced to `none`.
 - `agent_state` must be one of `researching | awaiting_approval |
   implementing | review | blocked`, or `null`/`""` to clear it — an

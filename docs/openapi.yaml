@@ -165,7 +165,7 @@ components:
         - type: object
           required: [comments_count, attachments_count, tags, links, from_form]
           properties:
-            description: { type: [string, 'null'] }
+            description: { type: [string, 'null'], description: 'Sanitised HTML, authored in the WYSIWYG editor - not Markdown. Sanitised by this API on write as well - POST /projects/{id}/tasks and PATCH /tasks/{id} run the same allow-list as the web UI, so disallowed tags and attributes are stripped before storage.' }
             created_by: { type: [integer, 'null'] }
             comments_count: { type: integer }
             attachments_count: { type: integer }

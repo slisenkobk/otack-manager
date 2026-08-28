@@ -29,7 +29,8 @@ $contact = $contact ?? [];
       <span class="pf-tag"><?= e(app_name()) ?></span>
       <h1 class="pf-title"><?= e($form['title']) ?></h1>
       <?php if (!empty($form['description'])): ?>
-        <div class="pf-desc rich-text"><?= $form['description'] /* server-sanitised HTML */ ?></div>
+        <?php // Sanitised here, at the render site, so the claim holds no matter which write path produced the row. ?>
+        <div class="pf-desc rich-text"><?= \App\Service\HtmlSanitizer::clean((string)$form['description']) ?></div>
       <?php endif; ?>
     </header>
 

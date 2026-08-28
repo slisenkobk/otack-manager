@@ -15,9 +15,18 @@ namespace App\Service;
  */
 final class HtmlSanitizer
 {
-    /** Tags whose textContent we keep but whose element we strip. */
+    /**
+     * Tags whose textContent we keep but whose element we strip.
+     *
+     * `div` is on the list only to preserve line structure: Quill 2 renders a
+     * code block as `<div class="ql-code-block-container">` wrapping one
+     * `<div class="ql-code-block">` per line. Every attribute is stripped (the
+     * `*` entry below is empty), so a kept `<div>` carries no class, style or
+     * handler — it is a bare line box. Dropping it instead would splice every
+     * code-block line into a single run of text.
+     */
     private const ALLOWED_TAGS = [
-        'p', 'strong', 'em', 'u', 'a', 'code', 'pre',
+        'p', 'div', 'strong', 'em', 'u', 'a', 'code', 'pre',
         'ul', 'ol', 'li', 'br', 'blockquote',
     ];
 
@@ -123,38 +132,48 @@ final class HtmlSanitizer
      */
     private static function sanitiseNode(\DOMNode $node, array $tags, array $attrs): void
     {
-        $remove = [];
-        foreach ($node->childNodes as $child) {
-            if ($child->nodeType === \XML_ELEMENT_NODE) {
-                /** @var \DOMElement $child */
-                $tag = strtolower($child->tagName);
-                if (!in_array($tag, $tags, true)) {
-                    // Replace with text content (unwrap)
-                    $remove[] = ['node' => $child, 'unwrap' => true];
-                } else {
-                    // Strip disallowed attributes
-                    self::cleanAttributes($child, $tag, $attrs);
-                    // Recurse
-                    self::sanitiseNode($child, $tags, $attrs);
-                }
-            }
-            // Text nodes and comment nodes are kept as-is (comments filtered below)
-            if ($child->nodeType === \XML_COMMENT_NODE) {
-                $remove[] = ['node' => $child, 'unwrap' => false];
-            }
-        }
+        // Walk with a live cursor instead of a snapshot + deferred removal.
+        // Unwrapping a disallowed element promotes its children up into this
+        // level, and those children have never been checked. A snapshot walk
+        // never revisits them, so `<div><img src=x onerror=...></div>` came
+        // back out as a live `<img onerror>`: one wrapper in a tag that is not
+        // on the allow list was enough to smuggle any payload through. The
+        // cursor resumes at the first promoted node so the newly exposed
+        // subtree is sanitised too. Each unwrap removes one element, so this
+        // terminates.
+        $child = $node->firstChild;
+        while ($child !== null) {
+            $next = $child->nextSibling;
 
-        foreach ($remove as $item) {
-            $n = $item['node'];
-            if ($item['unwrap']) {
-                // Move child text nodes up
-                while ($n->firstChild) {
-                    $node->insertBefore($n->firstChild, $n);
+            // Comment nodes are dropped entirely (content included).
+            if ($child->nodeType === \XML_COMMENT_NODE) {
+                $node->removeChild($child);
+                $child = $next;
+                continue;
+            }
+
+            // Text nodes are kept as-is.
+            if ($child->nodeType !== \XML_ELEMENT_NODE) {
+                $child = $next;
+                continue;
+            }
+
+            /** @var \DOMElement $child */
+            $tag = strtolower($child->tagName);
+            if (!in_array($tag, $tags, true)) {
+                // Unwrap: keep the contents, drop the element itself.
+                $promoted = $child->firstChild;
+                while ($child->firstChild) {
+                    $node->insertBefore($child->firstChild, $child);
                 }
+                $node->removeChild($child);
+                $child = $promoted ?? $next;
+                continue;
             }
-            if ($n->parentNode) {
-                $n->parentNode->removeChild($n);
-            }
+
+            self::cleanAttributes($child, $tag, $attrs);
+            self::sanitiseNode($child, $tags, $attrs);
+            $child = $next;
         }
     }
 

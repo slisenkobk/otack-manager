@@ -38,7 +38,7 @@ $hasMore   = count($voters) < (int)$total;
       · <?= e(t('polls.votes_count', ['n' => $total])) ?>
     </p>
     <?php if (!empty($poll['description'])): ?>
-      <div class="poll-show__description"><?= $poll['description'] ?></div>
+      <div class="poll-show__description"><?= \App\Service\HtmlSanitizer::clean((string)$poll['description']) ?></div>
     <?php endif; ?>
     <div class="form-card__url poll-show__url">
       <i class="fa-solid fa-link"></i>

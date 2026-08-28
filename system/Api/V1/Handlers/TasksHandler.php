@@ -151,7 +151,7 @@ final class TasksHandler extends BaseHandler
         }
 
         $assigneeId = JsonRequest::optionalInt($body, 'assignee_id');
-        $description = JsonRequest::optionalString($body, 'description');
+        $description = self::sanitizeDescription(JsonRequest::optionalString($body, 'description'));
         $priority = JsonRequest::optionalString($body, 'priority');
         $subStatus = JsonRequest::optionalString($body, 'sub_status');
 
@@ -203,7 +203,7 @@ final class TasksHandler extends BaseHandler
         if (array_key_exists('description', $body)) {
             $fields['description'] = $body['description'] === '' || $body['description'] === null
                 ? null
-                : (string)$body['description'];
+                : self::sanitizeDescription((string)$body['description']);
         }
         if (isset($body['column_id'])) {
             $newColumnId = (int)$body['column_id'];
@@ -400,6 +400,25 @@ final class TasksHandler extends BaseHandler
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────
+
+    /**
+     * Run task descriptions through the same HTML allow-list the web
+     * controller uses (TaskController::update). The value is rendered as raw
+     * HTML on the task page and seeded into the WYSIWYG editor there, so an
+     * unsanitised API write is stored XSS that fires for *anyone who merely
+     * opens the task* — an admin included — with no edit action required.
+     * `canEditTask` includes the assignee, so any project member handed a task
+     * could plant it.
+     *
+     * `null` stays `null` (absent field) and `''` is normalised to `null` by
+     * the callers before we ever see it, so this only scrubs — the presence
+     * semantics documented for POST /projects/{id}/tasks and
+     * PATCH /tasks/{id} are unchanged.
+     */
+    private static function sanitizeDescription(?string $html): ?string
+    {
+        return $html === null ? null : \App\Service\HtmlSanitizer::clean($html);
+    }
 
     private function isMemberOrAdmin(int $projectId): bool
     {

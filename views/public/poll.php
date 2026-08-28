@@ -30,7 +30,8 @@ $contactLabel = $contactField === 'phone' ? t('public_poll.phone_label') : t('pu
       <span class="pf-tag"><?= e(app_name()) ?></span>
       <h1 class="pf-title"><?= e($poll['title']) ?></h1>
       <?php if (!empty($poll['description'])): ?>
-        <div class="pf-desc rich-text"><?= $poll['description'] /* server-sanitised HTML */ ?></div>
+        <?php // Sanitised here, at the render site, so the claim holds no matter which write path produced the row. ?>
+        <div class="pf-desc rich-text"><?= \App\Service\HtmlSanitizer::clean((string)$poll['description']) ?></div>
       <?php endif; ?>
     </header>
 

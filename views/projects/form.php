@@ -31,8 +31,10 @@ $fieldErrors  = $fieldErrors ?? [];
            data-quill-target="#project-description-hidden"
            data-placeholder="What is this project about?"><?= $project['description'] ? \App\Service\HtmlSanitizer::clean((string)$project['description']) : '' ?></div>
     </div>
+    <?php // Sanitised for the same reason as the editor div: wysiwyg.js assigns
+          // this value to Quill's `root.innerHTML`, which is a live DOM sink. ?>
     <input type="hidden" name="description" id="project-description-hidden"
-           value="<?= e($project['description'] ?? '') ?>">
+           value="<?= e($project['description'] ? \App\Service\HtmlSanitizer::clean((string)$project['description']) : '') ?>">
   </div>
   <div class="field mt-14">
     <label for="f-project-repo-url"><?= e(t('projects.form.repo_url')) ?></label>

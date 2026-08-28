@@ -84,9 +84,11 @@ foreach (($projects ?? []) as $p) {
           <div class="wysiwyg-editor"
                data-quill
                data-quill-target="#form-description-hidden"
-               data-placeholder="<?= e(t('forms.description_placeholder')) ?>"><?= $form['description'] ?? '' ?></div>
+               data-placeholder="<?= e(t('forms.description_placeholder')) ?>"><?= $form['description'] ? \App\Service\HtmlSanitizer::clean((string)$form['description']) : '' ?></div>
         </div>
-        <input type="hidden" id="form-description-hidden" value="<?= e($form['description'] ?? '') ?>">
+        <?php // Sanitised for the same reason as the editor div: wysiwyg.js assigns
+              // this value to Quill's `root.innerHTML`, which is a live DOM sink. ?>
+        <input type="hidden" id="form-description-hidden" value="<?= e($form['description'] ? \App\Service\HtmlSanitizer::clean((string)$form['description']) : '') ?>">
       </div>
     </div>
   </section>
