@@ -53,14 +53,19 @@ import { logSilent, t, withButtonBusy } from './utils.js';
       const res = await api('/tasks/' + taskId, { method: 'POST', body: JSON.stringify({ description }) });
       // description_html is run through HtmlSanitizer::cleanRich() server-side
       // on every read (TaskController::update), not merely assumed clean
-      // because Quill produced it. That allow-list is what makes this
-      // innerHTML safe — and it is genuinely the last gate: the LinkPreview
-      // pass that runs after it walks the parsed DOM and rewrites text nodes
-      // only, so it cannot add an attribute the allow-list did not permit.
-      // (It could, once: it regexed the raw HTML string and spliced link-card
-      // markup into attribute values, which a browser re-tokenised into live
-      // on* handlers. See system/Service/LinkPreview.php's class docblock —
-      // if that ever regresses, this innerHTML stops being safe.)
+      // because Quill produced it. A LinkPreview pass then runs after the
+      // allow-list and does add markup it doesn't permit (span wrappers,
+      // class/rel/spellcheck on the anchor) — so the allow-list is not
+      // literally the last gate. What makes this innerHTML safe: LinkPreview
+      // never writes caller-controlled bytes into an attribute value.
+      // Everything it adds is a fixed, server-controlled literal; the only
+      // caller-derived value it emits is an href, and that value's
+      // https?:// prefix is pinned by the matcher that found it.
+      // (It could write attacker bytes into an attribute, once: it regexed
+      // the raw HTML string and spliced link-card markup into attribute
+      // values, which a browser re-tokenised into live on* handlers. See
+      // system/Service/LinkPreview.php's class docblock — if that ever
+      // regresses, this innerHTML stops being safe.)
       const safeHtml = res.task.description_html
         || '<em class="overview-panel__empty">No description. Click Edit to add one.</em>';
       rendered.innerHTML = safeHtml; // nosec: server-sanitized HTML

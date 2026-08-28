@@ -104,9 +104,17 @@ test('a poisoned task description is neutralised at render', async ({ page }) =>
   // `<img>` itself is *on* the rich allow-list task descriptions now use, so
   // asserting the element is gone no longer states anything true: what the
   // sanitiser strips here is `src=x` (not http(s)/data:image) and `onerror=`,
-  // leaving a bare, inert `<img>`. Assert that instead, and assert it harder —
-  // no surviving `<img>` may carry *any* attribute, so this catches an
-  // attribute leak of any name, not just the two this payload happens to use.
+  // leaving a bare, inert `<img>`. Assert that instead. Pin the exact
+  // sanitised shape this payload produces (verified against
+  // HtmlSanitizer::cleanRich() directly, not assumed)...
+  expect(body).toContain('<div><img></div>');
+  // ...and keep the negative pattern alongside it: unlike the positive
+  // assertion, it also catches an attribute leak on ANY <img> that might
+  // appear elsewhere in the page, not just this payload's. Note this is a
+  // narrower net than `not.toContain('<img')` used to be (a bare `<img>`
+  // now passes it, where it used to fail) — it's not a superset of the old
+  // assertion, just a targeted attribute check the positive assertion above
+  // doesn't fully subsume on its own.
   expect(body).not.toMatch(/<img\s[^>]/);                  // no attribute survived on any img
   expect(body).not.toContain('javascript:__xssHrefProbe');
   expect(body).not.toContain('javascript:window');         // href scheme rejected
