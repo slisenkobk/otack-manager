@@ -101,7 +101,13 @@ test('a poisoned task description is neutralised at render', async ({ page }) =>
   expect(res.status()).toBe(200);
   const body = await res.text();
   expect(body).not.toContain('__xssAttrProbe');            // onerror= stripped whole
-  expect(body).not.toContain('<img');                      // element gone, not just its attrs
+  // `<img>` itself is *on* the rich allow-list task descriptions now use, so
+  // asserting the element is gone no longer states anything true: what the
+  // sanitiser strips here is `src=x` (not http(s)/data:image) and `onerror=`,
+  // leaving a bare, inert `<img>`. Assert that instead, and assert it harder —
+  // no surviving `<img>` may carry *any* attribute, so this catches an
+  // attribute leak of any name, not just the two this payload happens to use.
+  expect(body).not.toMatch(/<img\s[^>]/);                  // no attribute survived on any img
   expect(body).not.toContain('javascript:__xssHrefProbe');
   expect(body).not.toContain('javascript:window');         // href scheme rejected
   expect(body).not.toContain('<script>window.__xssScriptProbe'); // element gone

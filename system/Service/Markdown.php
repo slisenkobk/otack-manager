@@ -54,7 +54,11 @@ final class Markdown
             error_reporting($prev);
         }
         $html = self::addHeadingAnchors($html);
-        return HtmlSanitizer::cleanRich($html);
+        // cleanRichWithAnchors(), not cleanRich(): the heading `id`s were just
+        // generated above from slugified heading text, and wiki Tables-of-
+        // Contents link to them. This is the *only* caller allowed that attr —
+        // see HtmlSanitizer::ALLOWED_ATTRS_RICH_ANCHORS.
+        return HtmlSanitizer::cleanRichWithAnchors($html);
     }
 
     /**

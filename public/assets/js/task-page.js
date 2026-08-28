@@ -54,7 +54,13 @@ import { logSilent, t, withButtonBusy } from './utils.js';
       // description_html is run through HtmlSanitizer::cleanRich() server-side
       // on every read (TaskController::update), not merely assumed clean
       // because Quill produced it. That allow-list is what makes this
-      // innerHTML safe.
+      // innerHTML safe — and it is genuinely the last gate: the LinkPreview
+      // pass that runs after it walks the parsed DOM and rewrites text nodes
+      // only, so it cannot add an attribute the allow-list did not permit.
+      // (It could, once: it regexed the raw HTML string and spliced link-card
+      // markup into attribute values, which a browser re-tokenised into live
+      // on* handlers. See system/Service/LinkPreview.php's class docblock —
+      // if that ever regresses, this innerHTML stops being safe.)
       const safeHtml = res.task.description_html
         || '<em class="overview-panel__empty">No description. Click Edit to add one.</em>';
       rendered.innerHTML = safeHtml; // nosec: server-sanitized HTML

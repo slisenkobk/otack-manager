@@ -507,3 +507,126 @@ it('no corpus payload produces a live element or handler when re-parsed', functi
         }
     }
 });
+
+// ---------------------------------------------------------------------------
+// Heading anchors: allowed for the wiki, denied to task descriptions.
+//
+// `id` was on the rich allow-list because `Markdown::renderRich()` generates
+// every heading id itself from slugified heading text, behind Parsedown's
+// safe mode. Task descriptions moved onto the same list but have no Parsedown
+// in front — the author picks the id byte-for-byte. That is not XSS, it is DOM
+// clobbering: views/layouts/main.php emits page content *before* #modal-root,
+// #toast-root, #lightbox-root and #i18n-js, so a planted duplicate id wins
+// getElementById. It works with CSP fully enabled.
+// ---------------------------------------------------------------------------
+
+it('cleanRich() emits no id on any tag', function () {
+    foreach (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as $h) {
+        $out = HtmlSanitizer::cleanRich("<$h id=\"i18n-js\">x</$h>");
+        assert_true(stripos($out, 'id=') === false, "id survived on <$h>: $out");
+        assert_true(str_contains($out, 'x'), "heading text lost: $out");
+    }
+    foreach (['<p id="modal-root">x</p>', '<div id="toast-root">x</div>',
+              '<td id="task-description-hidden">x</td>', '<img src="https://e.example/a.png" id="i18n-js">'] as $in) {
+        assert_true(stripos(HtmlSanitizer::cleanRich($in), 'id=') === false, "id survived: $in");
+    }
+});
+
+it('cleanRich() cannot clobber the app-shell element ids', function () {
+    // The two ids the reviewer landed exploits on.
+    foreach (['i18n-js', 'task-description-hidden'] as $id) {
+        $out = HtmlSanitizer::cleanRich('<h2 id="' . $id . '">{"js.toast.saved":"spoofed"}</h2>');
+        assert_true(!str_contains($out, $id), "clobbering id '$id' survived: $out");
+    }
+});
+
+it('cleanRichWithAnchors() keeps heading ids — and only on headings', function () {
+    $out = HtmlSanitizer::cleanRichWithAnchors('<h2 id="section-1">Section</h2>');
+    assert_true(str_contains($out, 'id="section-1"'), "wiki heading anchor lost: $out");
+
+    // Widening the list must not have leaked `id` onto anything else.
+    foreach (['<p id="x">a</p>', '<div id="x">a</div>', '<td id="x">a</td>',
+              '<img src="https://e.example/a.png" id="x">'] as $in) {
+        assert_true(stripos(HtmlSanitizer::cleanRichWithAnchors($in), 'id=') === false, "id leaked: $in");
+    }
+});
+
+it('cleanRichWithAnchors() differs from cleanRich() only by heading ids', function () {
+    foreach (html_sanitizer_corpus() as $in) {
+        $rich    = HtmlSanitizer::cleanRich($in);
+        $anchors = HtmlSanitizer::cleanRichWithAnchors($in);
+        // No corpus payload carries a heading id, so the two must agree.
+        assert_eq($rich, $anchors, "allow-lists diverged for: $in");
+    }
+});
+
+it('cleanRichWithAnchors() is idempotent and still blocks everything cleanRich() blocks', function () {
+    foreach (html_sanitizer_corpus() as $in) {
+        $once = HtmlSanitizer::cleanRichWithAnchors($in);
+        assert_eq($once, HtmlSanitizer::cleanRichWithAnchors($once), "not idempotent for: $in");
+        assert_eq([], array_values(live_dangers($once)), "cleanRichWithAnchors('$in') => '$once'");
+    }
+});
+
+it('Markdown::renderRich() still emits heading anchors after the split', function () {
+    $out = \App\Service\Markdown::renderRich("## Table of contents\n\n- [Intro](#intro)\n\n## Intro\n");
+    assert_true(str_contains($out, 'id="table-of-contents"'), "wiki anchor lost: $out");
+    assert_true(str_contains($out, 'id="intro"'), "wiki anchor lost: $out");
+    assert_true(str_contains($out, 'href="#intro"'), "TOC link lost: $out");
+});
+
+// ---------------------------------------------------------------------------
+// M-1: processing instructions.
+// ---------------------------------------------------------------------------
+
+it('drops processing instructions instead of passing them through', function () {
+    $pi = '<' . '?php system($_GET[0]); ?' . '>';
+    foreach (['clean', 'cleanRich', 'cleanRichWithAnchors'] as $method) {
+        $out = HtmlSanitizer::$method('<p>a</p>' . $pi . '<p>b</p>');
+        assert_eq('<p>a</p><p>b</p>', $out, "$method() kept a PI: $out");
+    }
+    // Nested inside a kept element, and inside an unwrapped one.
+    assert_eq('<p>ab</p>', HtmlSanitizer::clean('<p>a' . $pi . 'b</p>'));
+    assert_eq('<p>ab</p>', HtmlSanitizer::clean('<section><p>a' . $pi . 'b</p></section>'));
+
+    $xsl = '<' . '?xml-stylesheet href="x.xsl"?' . '>';
+    assert_eq('<p>a</p>', HtmlSanitizer::clean('<p>a</p>' . $xsl));
+    // Same policy as comments — content goes with the node.
+    assert_eq('<p>a</p>', HtmlSanitizer::clean('<p>a</p><!-- keep me out -->'));
+});
+
+// ---------------------------------------------------------------------------
+// Rich-only attributes as injection vectors. `clean()` never exposed an
+// attribute that can hold arbitrary author text next to a URL; `cleanRich()`
+// exposes four (img[alt], img[title], th[align], td[align]). Their *values*
+// must stay inert text no matter what is in them.
+// ---------------------------------------------------------------------------
+
+it('rich-only attribute values stay inert text', function () {
+    $breakouts = [
+        '" onerror="alert(1)',
+        '\' onerror=\'alert(1)',
+        '"><img src=x onerror=alert(1)>',
+        '</td><script>alert(1)</script>',
+        'x https://e.example/onerror=alert(1)// y',
+    ];
+    foreach ($breakouts as $v) {
+        $cases = [
+            '<img src="https://e.example/a.png" alt="' . $v . '">',
+            '<img src="https://e.example/a.png" title="' . $v . '">',
+            '<table><tr><th align="' . $v . '">h</th></tr></table>',
+            '<table><tr><td align="' . $v . '">c</td></tr></table>',
+        ];
+        foreach ($cases as $in) {
+            foreach (['cleanRich', 'cleanRichWithAnchors'] as $method) {
+                $out = HtmlSanitizer::$method($in);
+                assert_eq([], array_values(live_dangers($out)), "$method('$in') => '$out'");
+                assert_eq(
+                    [],
+                    array_values(live_dangers(\App\Service\LinkPreview::enhance($out))),
+                    "$method + enhance ('$in') => '$out'"
+                );
+            }
+        }
+    }
+});

@@ -941,10 +941,19 @@ Knowledge base wiki uses, not the narrower one project descriptions get
 (`href` limited to `http(s):`, `mailto:`, or an in-page `#fragment`);
 `src`/`alt`/`title` on `img` (`src` limited to `http(s):` or `data:image/`);
 `align`/`colspan`/`rowspan` on `th`/`td`. Every other tag/attribute is
-stripped, and no tag ever keeps an `on*` event handler. Headings and tables
-are the point of the wider list: an automated worker writing a structured
-summary into a task description keeps its structure instead of having it
-silently flattened to plain paragraphs.
+stripped — `id` included, so a description cannot collide with an element id
+the app's own page markup uses — and no tag ever keeps an `on*` event handler.
+
+That last guarantee covers what is *rendered*, not just what is stored: the
+one step that runs after the allow-list (the server-side pass that turns bare
+URLs into link cards) walks the parsed document and rewrites text nodes only,
+building its markup through the DOM API. It has no code path that can write
+into an attribute value, so the allow-list above is the last gate — what it
+permits is exactly what reaches the browser.
+
+Headings and tables are the point of the wider list: an automated worker
+writing a structured summary into a task description keeps its structure
+instead of having it silently flattened to plain paragraphs.
 
 `from_form` is `true` when the task was auto-created from a public form
 submission — its title/description were written by an anonymous internet
