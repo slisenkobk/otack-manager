@@ -30,6 +30,40 @@ final class HtmlSanitizer
         'ul', 'ol', 'li', 'br', 'blockquote',
     ];
 
+    /**
+     * Tags dropped together with everything inside them, instead of being
+     * unwrapped like every other disallowed tag.
+     *
+     * Unwrapping keeps a disallowed element's children and re-checks them.
+     * That is right for containers of prose (`<div>`, `<section>`, …) but
+     * wrong for these: their content is never body text in the first place.
+     *
+     *  - `script` / `style`: libxml's HTML parser stores their content in an
+     *    XML_CDATA_SECTION_NODE, and `DOMDocument::saveHTML()` writes a CDATA
+     *    section back out *verbatim* — no entity escaping. Promoting that
+     *    child re-injected live markup into the output
+     *    (`<style><img src=x onerror=…></style>` came back as a live `<img>`).
+     *    Converting it to a text node would be safe, but would then paint the
+     *    raw CSS/JS source onto the page as visible prose, which is not what
+     *    anyone who typed a `<style>` block meant. Dropping is both safe and
+     *    unsurprising.
+     *  - `template`: its content is inert in a real browser and is a standard
+     *    mXSS carrier; promoting it makes inert markup live.
+     *  - `noscript` / `noembed` / `noframes` / `iframe` / `object` / `embed` /
+     *    `applet` / `frame` / `frameset`: fallback or embedded content that
+     *    browsers parse under rules libxml does not share. Any parser
+     *    disagreement here is an mXSS primitive, so we do not carry the
+     *    content forward at all.
+     *  - `title` / `head` / `base` / `meta` / `link`: document metadata, never
+     *    body prose.
+     */
+    private const DROP_SUBTREE_TAGS = [
+        'script', 'style', 'template',
+        'noscript', 'noembed', 'noframes',
+        'iframe', 'object', 'embed', 'applet', 'frame', 'frameset',
+        'title', 'head', 'base', 'meta', 'link',
+    ];
+
     /** Attributes allowed per tag. '*' means any tag. */
     private const ALLOWED_ATTRS = [
         '*'  => [],
@@ -152,6 +186,24 @@ final class HtmlSanitizer
                 continue;
             }
 
+            // CDATA sections serialise *verbatim* through saveHTML(), so a
+            // stray one is raw HTML injection. DROP_SUBTREE_TAGS below already
+            // removes the only two elements libxml ever builds one for
+            // (`script`/`style`), so this branch should be unreachable — it is
+            // here as a second line of defence, in case a future libxml or a
+            // future allow-list edit surfaces a CDATA node somewhere else.
+            // Replacing it with a real text node makes it get escaped.
+            if ($child->nodeType === \XML_CDATA_SECTION_NODE) {
+                $text = $node->ownerDocument?->createTextNode((string)$child->nodeValue);
+                if ($text !== null) {
+                    $node->replaceChild($text, $child);
+                } else {
+                    $node->removeChild($child);
+                }
+                $child = $next;
+                continue;
+            }
+
             // Text nodes are kept as-is.
             if ($child->nodeType !== \XML_ELEMENT_NODE) {
                 $child = $next;
@@ -160,6 +212,12 @@ final class HtmlSanitizer
 
             /** @var \DOMElement $child */
             $tag = strtolower($child->tagName);
+            if (in_array($tag, self::DROP_SUBTREE_TAGS, true)) {
+                // Drop element *and* content — see DROP_SUBTREE_TAGS.
+                $node->removeChild($child);
+                $child = $next;
+                continue;
+            }
             if (!in_array($tag, $tags, true)) {
                 // Unwrap: keep the contents, drop the element itself.
                 $promoted = $child->firstChild;

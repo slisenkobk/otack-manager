@@ -51,7 +51,9 @@ import { logSilent, t, withButtonBusy } from './utils.js';
     const description = hidden ? hidden.value : '';
     try {
       const res = await api('/tasks/' + taskId, { method: 'POST', body: JSON.stringify({ description }) });
-      // description_html is server-sanitized HTML — safe to set as innerHTML
+      // description_html is run through HtmlSanitizer::clean() server-side on
+      // every read (TaskController::update), not merely assumed clean because
+      // Quill produced it. That allow-list is what makes this innerHTML safe.
       const safeHtml = res.task.description_html
         || '<em class="overview-panel__empty">No description. Click Edit to add one.</em>';
       rendered.innerHTML = safeHtml; // nosec: server-sanitized HTML

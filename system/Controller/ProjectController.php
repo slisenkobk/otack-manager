@@ -277,7 +277,13 @@ final class ProjectController extends BaseController {
                 'project' => [
                     'id'          => (int)$fresh['id'],
                     'name'        => $fresh['name'],
-                    'description' => \App\Service\LinkPreview::enhance((string)($fresh['description'] ?? '')),
+                    // Sanitise on read, same as views/projects/show.php. The
+                    // client moves these nodes into the live document via
+                    // <template> + replaceChildren (project-page.js), so a
+                    // stored payload would execute — this is the last gate.
+                    'description' => \App\Service\LinkPreview::enhance(
+                        \App\Service\HtmlSanitizer::clean((string)($fresh['description'] ?? ''))
+                    ),
                     'status'      => $fresh['status'],
                     'color'       => $fresh['color'] ?? '#1A1612',
                 ],

@@ -315,7 +315,9 @@ final class TasksHandler extends BaseHandler
         if ($name === '') {
             return ApiResponse::error(422, 'validation_failed', 'task has no title', ['title' => 'required']);
         }
-        $description = (string)($task['description'] ?? '');
+        // Re-sanitise on copy: the source row may predate the sanitiser, or
+        // have been written through a path that did not sanitise.
+        $description = \App\Service\HtmlSanitizer::clean((string)($task['description'] ?? ''));
 
         $newId = $this->svc('projects')->create(
             $name,

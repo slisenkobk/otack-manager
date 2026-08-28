@@ -141,7 +141,9 @@ final class TaskController extends BaseController {
 
         $name = trim((string)$task['title']);
         if ($name === '') { Response::json(['error' => 'Task has no title'], 422); return; }
-        $description = (string)($task['description'] ?? '');
+        // Re-sanitise on copy: the source row may predate the sanitiser, or
+        // have been written through a path that did not sanitise.
+        $description = \App\Service\HtmlSanitizer::clean((string)($task['description'] ?? ''));
 
         $newId = $this->projects->create($name, $description !== '' ? $description : null, (int)$this->user['id']);
         $this->members->add($newId, (int)$this->user['id'], 'owner');
@@ -655,8 +657,13 @@ final class TaskController extends BaseController {
                 'url'           => \abs_url('/tasks/' . $id),
             ]);
         }
-        // Description is sanitised HTML from Quill — enhance plain links into preview cards
-        $descHtml = \App\Service\LinkPreview::enhance((string)($fresh['description'] ?? ''));
+        // Never trust the stored value: sanitise on read exactly as
+        // views/tasks/show.php does, then enhance plain links into preview
+        // cards. The client assigns this straight to innerHTML
+        // (public/assets/js/task-page.js), so this is the last gate.
+        $descHtml = \App\Service\LinkPreview::enhance(
+            \App\Service\HtmlSanitizer::clean((string)($fresh['description'] ?? ''))
+        );
         Response::json([
             'ok' => true,
             'task' => [

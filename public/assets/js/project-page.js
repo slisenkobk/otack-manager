@@ -10,7 +10,10 @@ if (overview) {
   const editBtn  = overview.querySelector('[data-action=edit-description]');
 
   function replaceRenderedWith(html) {
-    // Server returns HTML already sanitized via HtmlSanitizer::clean()
+    // Server runs HtmlSanitizer::clean() over the stored description on every
+    // read (ProjectController::update) before returning it. These nodes are
+    // moved into the live document, so that server-side allow-list — not the
+    // fact that Quill wrote the value — is the only thing keeping this safe.
     const tpl = document.createElement('template');
     tpl.innerHTML = html;
     rendered.replaceChildren(...tpl.content.childNodes);
