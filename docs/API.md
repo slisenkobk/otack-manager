@@ -932,6 +932,20 @@ attributes outside that list (`<script>`, `onerror=`, `javascript:` hrefs)
 are stripped before it is stored. What you read back may therefore differ
 from what you sent.
 
+Task descriptions use the **wider** allow-list — the same one the app's
+Knowledge base wiki uses, not the narrower one project descriptions get
+(see `PATCH /projects/{id}` below). Permitted tags:
+`p`, `div`, `strong`, `em`, `u`, `s`, `del`, `a`, `code`, `pre`, `ul`, `ol`,
+`li`, `br`, `blockquote`, `hr`, `h1`–`h6`, `img`, `table`, `thead`, `tbody`,
+`tr`, `th`, `td`. Permitted attributes: `href`/`title`/`target` on `a`
+(`href` limited to `http(s):`, `mailto:`, or an in-page `#fragment`);
+`src`/`alt`/`title` on `img` (`src` limited to `http(s):` or `data:image/`);
+`align`/`colspan`/`rowspan` on `th`/`td`. Every other tag/attribute is
+stripped, and no tag ever keeps an `on*` event handler. Headings and tables
+are the point of the wider list: an automated worker writing a structured
+summary into a task description keeps its structure instead of having it
+silently flattened to plain paragraphs.
+
 `from_form` is `true` when the task was auto-created from a public form
 submission — its title/description were written by an anonymous internet
 visitor, not a project member. Automated clients (the agent bridge in
@@ -1026,9 +1040,9 @@ Only `title` is required. Defaults:
 - `column_id` → first non-backlog column by position
 - `priority` → `none` (any unknown value is normalised to `none`)
 
-`description` is sanitised before it is stored — see the
-[`GET /tasks/{id}`](#get-tasksid) entry above. The stored value may differ
-from what you sent.
+`description` is sanitised before it is stored, through the wider (task)
+allow-list — see the [`GET /tasks/{id}`](#get-tasksid) entry above for the
+full tag/attribute list. The stored value may differ from what you sent.
 
 **Response 201:** the rich task shape (same as `GET /tasks/{id}`).
 
@@ -1092,9 +1106,11 @@ Update mutable task fields.
 - Pass `""` or `null` for `description`, `assignee_id`, `due_date`,
   `sub_status` to clear them.
 - `description` is sanitised on write — this endpoint runs it through the same
-  HTML allow-list the web UI uses, so disallowed tags and attributes are
-  stripped and the stored value may differ from what you sent. Clearing is
-  unaffected: `""`/`null` still stores `NULL`, never a sanitised empty string.
+  wider HTML allow-list the web UI's task editor uses (see
+  [`GET /tasks/{id}`](#get-tasksid) for the full tag/attribute list), so
+  disallowed tags and attributes are stripped and the stored value may differ
+  from what you sent. Clearing is unaffected: `""`/`null` still stores `NULL`,
+  never a sanitised empty string.
 - `priority` unknowns are coerced to `none`.
 - `agent_state` must be one of `researching | awaiting_approval |
   implementing | review | blocked`, or `null`/`""` to clear it — an
@@ -1153,7 +1169,11 @@ Create a new project from a task (the task itself stays where it was).
 **Behaviour:**
 
 - Creates a project whose `name` = the task's title, `description` = the
-  task's description.
+  task's description. The copy is re-sanitised through the **narrow**
+  (project) allow-list, not the wider one task descriptions use — a heading
+  or table in the task's description will not survive the copy. This is a
+  known, accepted asymmetry, not a bug: project descriptions stay on the
+  narrow list everywhere.
 - Adds the caller as `owner` of the new project.
 - Seeds the project's default columns.
 - Duplicates the task's attachments onto the new project.

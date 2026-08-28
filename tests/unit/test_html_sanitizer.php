@@ -140,6 +140,38 @@ it('strips event handlers from an allow-listed <div>', function () {
     assert_eq('<div>t</div>', $out);
 });
 
+it('cleanRich() also keeps Quill code-block line structure via <div>', function () {
+    // div was missing from ALLOWED_TAGS_RICH; task descriptions (Quill-
+    // authored, same as project/comment descriptions) now use cleanRich(),
+    // so this would have re-broken code-block line boxes for every task
+    // description written in the web editor.
+    $out = HtmlSanitizer::cleanRich(
+        '<div class="ql-code-block-container" spellcheck="false">'
+        . '<div class="ql-code-block">a();</div><div class="ql-code-block">b();</div></div>'
+    );
+    assert_eq('<div><div>a();</div><div>b();</div></div>', $out);
+});
+
+it('cleanRich() strips event handlers from an allow-listed <div>', function () {
+    $out = HtmlSanitizer::cleanRich('<div onclick="alert(1)" style="x">t</div>');
+    assert_eq('<div>t</div>', $out);
+});
+
+it('cleanRich() allow-list is a strict superset of clean()\'s', function () {
+    // Feed input built only from ALLOWED_TAGS (the narrow list) through both
+    // methods. If cleanRich() were missing any narrow-list tag, this input
+    // would sanitise differently between the two — pinning the documented
+    // "same XSS defences, wider tag whitelist" nesting relationship.
+    $narrowSample = '<p>p</p><div>div</div><strong>strong</strong><em>em</em><u>u</u>'
+        . '<a href="https://example.com">a</a><code>code</code><pre>pre</pre>'
+        . '<ul><li>li</li></ul><ol><li>li</li></ol><br><blockquote>bq</blockquote>';
+    assert_eq(
+        HtmlSanitizer::clean($narrowSample),
+        HtmlSanitizer::cleanRich($narrowSample),
+        'cleanRich() dropped or altered a tag clean() keeps'
+    );
+});
+
 it('preserves the rest of the Quill toolbar output verbatim', function () {
     foreach ([
         '<p><strong>b</strong> <em>i</em> <u>u</u></p>',

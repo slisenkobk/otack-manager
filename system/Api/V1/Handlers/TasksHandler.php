@@ -317,6 +317,13 @@ final class TasksHandler extends BaseHandler
         }
         // Re-sanitise on copy: the source row may predate the sanitiser, or
         // have been written through a path that did not sanitise.
+        //
+        // Deliberately `clean()`, not `cleanRich()`: project descriptions
+        // stay on the narrow allow-list everywhere (see ProjectsHandler /
+        // ProjectController), even though task descriptions are now
+        // `cleanRich()`. Promoting a task whose description contains a
+        // heading or table therefore loses that markup here — known and
+        // accepted, not an oversight.
         $description = \App\Service\HtmlSanitizer::clean((string)($task['description'] ?? ''));
 
         $newId = $this->svc('projects')->create(
@@ -412,6 +419,18 @@ final class TasksHandler extends BaseHandler
      * `canEditTask` includes the assignee, so any project member handed a task
      * could plant it.
      *
+     * Uses `cleanRich()`, not `clean()`: task descriptions predate API-side
+     * sanitisation entirely, so existing rows may already carry headings,
+     * tables or images written through the (previously unsanitised) API.
+     * The narrow `clean()` allow-list would silently drop that structure on
+     * the next read, and the next `PATCH` would make the loss permanent.
+     * The external automated worker this API exists for is exactly the
+     * client likely to write structured summaries with headings and
+     * tables. Every render path for task descriptions (views/tasks/show.php,
+     * TaskController::update()'s description_html, TaskController::update()'s
+     * own write path) uses `cleanRich()` too, so nothing here is stripped on
+     * write only to vanish on view, or vice versa.
+     *
      * `null` stays `null` (absent field) and `''` is normalised to `null` by
      * the callers before we ever see it, so this only scrubs — the presence
      * semantics documented for POST /projects/{id}/tasks and
@@ -419,7 +438,7 @@ final class TasksHandler extends BaseHandler
      */
     private static function sanitizeDescription(?string $html): ?string
     {
-        return $html === null ? null : \App\Service\HtmlSanitizer::clean($html);
+        return $html === null ? null : \App\Service\HtmlSanitizer::cleanRich($html);
     }
 
     private function isMemberOrAdmin(int $projectId): bool

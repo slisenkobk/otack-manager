@@ -165,7 +165,7 @@ components:
         - type: object
           required: [comments_count, attachments_count, tags, links, from_form]
           properties:
-            description: { type: [string, 'null'], description: 'Sanitised HTML, authored in the WYSIWYG editor - not Markdown. Sanitised by this API on write as well - POST /projects/{id}/tasks and PATCH /tasks/{id} run the same allow-list as the web UI, so disallowed tags and attributes are stripped before storage.' }
+            description: { type: [string, 'null'], description: 'Sanitised HTML, authored in the WYSIWYG editor - not Markdown. Sanitised by this API on write as well - POST /projects/{id}/tasks and PATCH /tasks/{id} run it through the wider allow-list task descriptions use (the same one the Knowledge base wiki uses), not the narrower one project descriptions get. Allowed tags: p, div, strong, em, u, s, del, a, code, pre, ul, ol, li, br, blockquote, hr, h1 through h6, img, table, thead, tbody, tr, th, td. Allowed attributes: href/title/target on a (href restricted to http(s), mailto, or an in-page fragment); src/alt/title on img (src restricted to http(s) or data:image); align/colspan/rowspan on th/td. Every other tag and attribute is stripped before storage, so the stored value may differ from what was sent.' }
             created_by: { type: [integer, 'null'] }
             comments_count: { type: integer }
             attachments_count: { type: integer }

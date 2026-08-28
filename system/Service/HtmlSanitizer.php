@@ -71,12 +71,23 @@ final class HtmlSanitizer
     ];
 
     /**
-     * Extended allow-list for Knowledge-base Markdown output. Adds
+     * Extended allow-list, a strict superset of `ALLOWED_TAGS`. Adds
      * headings, horizontal rules, images, tables and inline `del/s`
-     * marks on top of the comment baseline. Used by `cleanRich()`.
+     * marks on top of the comment/task baseline. Used by `cleanRich()`
+     * for Knowledge-base Markdown output and for task descriptions
+     * (`TasksHandler::sanitizeDescription()`, `TaskController::update()`).
+     *
+     * `div` carries the same zero-attribute treatment and the same reason
+     * it is on `ALLOWED_TAGS`: Quill 2 renders a code block as
+     * `<div class="ql-code-block-container">` wrapping one
+     * `<div class="ql-code-block">` per line, and task descriptions are
+     * authored in that same Quill editor. Every tag in `ALLOWED_TAGS` must
+     * stay present here too — the two lists are documented as nested
+     * (everything `clean()` permits, `cleanRich()` also permits), and
+     * `tests/unit/test_html_sanitizer.php` asserts that nesting.
      */
     private const ALLOWED_TAGS_RICH = [
-        'p', 'strong', 'em', 'u', 's', 'del', 'a', 'code', 'pre',
+        'p', 'div', 'strong', 'em', 'u', 's', 'del', 'a', 'code', 'pre',
         'ul', 'ol', 'li', 'br', 'blockquote', 'hr',
         'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
         'img',
@@ -107,10 +118,16 @@ final class HtmlSanitizer
     }
 
     /**
-     * Sanitise rich Markdown output for the Knowledge base — same XSS
-     * defences as `clean()` but with a wider tag whitelist (headings,
-     * tables, images, hr). Comment / Quill surfaces should keep using
-     * `clean()` so they don't accidentally accept e.g. raw <table>.
+     * Sanitise rich HTML — same XSS defences as `clean()` but with a wider
+     * tag whitelist (headings, tables, images, hr). Used for Knowledge-base
+     * Markdown output and for task descriptions, both of which need to
+     * carry structure `clean()` would strip. Other Quill/comment surfaces
+     * (project descriptions, comments, polls, forms) should keep using
+     * `clean()` so they don't accidentally accept e.g. raw <table> — project
+     * descriptions in particular stay narrow on purpose even when copied
+     * from a task description that was allowed to contain one (see
+     * `TaskController::promoteToProject()` /
+     * `TasksHandler::promoteToProject()`).
      */
     public static function cleanRich(string $html): string
     {

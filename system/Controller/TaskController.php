@@ -143,6 +143,12 @@ final class TaskController extends BaseController {
         if ($name === '') { Response::json(['error' => 'Task has no title'], 422); return; }
         // Re-sanitise on copy: the source row may predate the sanitiser, or
         // have been written through a path that did not sanitise.
+        //
+        // Deliberately `clean()`, not `cleanRich()`: project descriptions
+        // stay on the narrow allow-list everywhere (see ProjectController),
+        // even though task descriptions are now `cleanRich()`. Promoting a
+        // task whose description contains a heading or table therefore
+        // loses that markup here — known and accepted, not an oversight.
         $description = \App\Service\HtmlSanitizer::clean((string)($task['description'] ?? ''));
 
         $newId = $this->projects->create($name, $description !== '' ? $description : null, (int)$this->user['id']);
@@ -578,7 +584,11 @@ final class TaskController extends BaseController {
         }
         if (array_key_exists('description', $data)) {
             $rawDesc = $data['description'] === '' ? '' : (string)$data['description'];
-            $fields['description'] = $rawDesc === '' ? null : \App\Service\HtmlSanitizer::clean($rawDesc);
+            // cleanRich(), not clean(): task descriptions carry the wider
+            // allow-list (headings, tables, images) — see
+            // HtmlSanitizer::cleanRich() and TasksHandler::sanitizeDescription()
+            // for why. Every render path for this field uses cleanRich() too.
+            $fields['description'] = $rawDesc === '' ? null : \App\Service\HtmlSanitizer::cleanRich($rawDesc);
         }
         if (isset($data['column_id'])) {
             $newColumnId = (int)$data['column_id'];
@@ -661,8 +671,11 @@ final class TaskController extends BaseController {
         // views/tasks/show.php does, then enhance plain links into preview
         // cards. The client assigns this straight to innerHTML
         // (public/assets/js/task-page.js), so this is the last gate.
+        // cleanRich() to match the write path above and every other task
+        // description render site — a mismatch here would silently drop
+        // headings/tables between save and view.
         $descHtml = \App\Service\LinkPreview::enhance(
-            \App\Service\HtmlSanitizer::clean((string)($fresh['description'] ?? ''))
+            \App\Service\HtmlSanitizer::cleanRich((string)($fresh['description'] ?? ''))
         );
         Response::json([
             'ok' => true,

@@ -581,12 +581,19 @@ api_it('GET /projects/{id}/tasks?agent_state= rejects an unknown phase with 422'
     assert_eq(200, $ok['status']);
 });
 
-// --- XSS sweep: the API write path must sanitise `description` on tasks, the
-// same way ProjectsHandler does for projects. This is the source end of a live
-// escalation chain: views/tasks/show.php renders the value as raw HTML, so the
-// payload fires for anyone who merely *opens* the task — an admin included —
-// with no edit form involved. `canEditTask` includes the task's assignee, so
-// any project member handed a task could plant it.
+// --- XSS sweep: the API write path must sanitise `description` on tasks,
+// through the *rich* allow-list (HtmlSanitizer::cleanRich()) — task
+// descriptions are wider than project descriptions on purpose, so existing
+// rows (written before the API sanitised at all) can keep headings/tables/
+// images instead of having them silently stripped. This is still the source
+// end of a live escalation chain: views/tasks/show.php renders the value as
+// raw HTML, so an unstripped payload fires for anyone who merely *opens* the
+// task — an admin included — with no edit form involved. `canEditTask`
+// includes the task's assignee, so any project member handed a task could
+// plant it. `<img>` is on the rich list, so it survives these payloads (its
+// dangerous `src`/`onerror` do not) — that is the intended widening, not a
+// regression; see the dedicated heading/table round-trip tests below for the
+// positive case.
 
 api_it('POST /projects/{id}/tasks: description is sanitised on write (stored-XSS defence)', function () {
     [$pdo, $adminTok,] = tasks_setup();
@@ -612,7 +619,10 @@ api_it('POST /projects/{id}/tasks: description is sanitised on write (stored-XSS
     foreach (['response' => (string)$r['json']['description'], 'stored' => $stored] as $where => $html) {
         assert_true(stripos($html, 'onerror') === false,     "onerror survived in $where: $html");
         assert_true(stripos($html, '<script') === false,     "<script> survived in $where: $html");
-        assert_true(stripos($html, '<img') === false,        "<img> survived in $where: $html");
+        // <img> itself is on the rich allow-list (it just carries no src, since
+        // "x" is neither http(s) nor data:image) — only its dangerous src/
+        // onerror must be gone, not the element.
+        assert_true(stripos($html, 'src="x"') === false,     "dangerous img src survived in $where: $html");
         assert_true(stripos($html, 'javascript:') === false, "javascript: href survived in $where: $html");
     }
     // Allow-listed markup is untouched — this scrubs, it does not flatten.
@@ -629,9 +639,11 @@ api_it('PATCH /tasks/{id}: description is sanitised on write too', function () {
         'headers' => ['Authorization: Bearer ' . $adminTok],
         'body'    => json_encode([
             // Wrapped in a tag that is not on the allow list: unwrapping the
-            // wrapper must not promote the payload out unchecked.
+            // wrapper must not promote the payload out unchecked. <div> itself
+            // IS on the rich allow list (Quill code-block line boxes), so this
+            // also pins that its attrs are still stripped.
             'description' => '<p>legit body</p>'
-                           . '<div><img src=x onerror="alert(1)"></div>'
+                           . '<div class="x"><img src=x onerror="alert(1)"></div>'
                            . '<script>alert(2)</script>'
                            . '<a href="javascript:alert(3)">x</a>',
         ]),
@@ -644,10 +656,98 @@ api_it('PATCH /tasks/{id}: description is sanitised on write too', function () {
     foreach (['response' => (string)$r['json']['description'], 'stored' => $stored] as $where => $html) {
         assert_true(stripos($html, 'onerror') === false,     "onerror survived in $where: $html");
         assert_true(stripos($html, '<script') === false,     "<script> survived in $where: $html");
-        assert_true(stripos($html, '<img') === false,        "<img> survived in $where: $html");
+        assert_true(stripos($html, 'class="x"') === false,   "div class attribute survived in $where: $html");
+        assert_true(stripos($html, 'src="x"') === false,     "dangerous img src survived in $where: $html");
         assert_true(stripos($html, 'javascript:') === false, "javascript: href survived in $where: $html");
     }
     assert_true(strpos($stored, 'legit body') !== false, 'allow-listed markup must survive: ' . $stored);
+});
+
+// --- The owner's decision this test file exists to prove: task descriptions
+// use cleanRich() (the wider allow-list — same one the wiki uses), not
+// clean(). A heading and a table must survive a full write → read round trip
+// through both write endpoints, while an executable payload alongside them is
+// still stripped exactly as before. See HtmlSanitizer::cleanRich() for why
+// task descriptions specifically need the wider list: existing rows may
+// already contain headings/tables/images from before the API sanitised
+// descriptions at all, and the narrow list would have silently dropped that
+// structure on the very next read.
+
+api_it('POST /projects/{id}/tasks: a heading and a table in description survive the rich allow-list, executable payload stripped', function () {
+    [$pdo, $adminTok,] = tasks_setup();
+    tasks_seed_project($pdo, 5730, 1);
+    tasks_seed_column($pdo, 57301, 5730, 'To Do', 0);
+
+    $r = api_request('POST', '/api/v1/projects/5730/tasks', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+        'body'    => json_encode([
+            'title'       => 'RichCreateTask',
+            'description' => '<h2>Summary</h2>'
+                           . '<table><thead><tr><th>Step</th><th>Status</th></tr></thead>'
+                           . '<tbody><tr><td>Build</td><td>Green</td></tr></tbody></table>'
+                           . '<img src=x onerror="alert(1)">'
+                           . '<script>alert(2)</script>'
+                           . '<a href="javascript:alert(3)">x</a>',
+        ]),
+    ]);
+    assert_eq(201, $r['status']);
+    $id = (int)$r['json']['id'];
+
+    $stored = (string)$pdo->query('SELECT description FROM tasks WHERE id = ' . $id)
+        ->fetch(\PDO::FETCH_ASSOC)['description'];
+
+    foreach (['response' => (string)$r['json']['description'], 'stored' => $stored] as $where => $html) {
+        assert_true(stripos($html, '<h2>Summary</h2>') !== false, "heading lost in $where: $html");
+        assert_true(stripos($html, '<table>') !== false,          "table lost in $where: $html");
+        assert_true(stripos($html, '<th>Step</th>') !== false,    "table header cell lost in $where: $html");
+        assert_true(stripos($html, '<td>Build</td>') !== false,   "table data cell lost in $where: $html");
+        assert_true(stripos($html, 'onerror') === false,     "onerror survived in $where: $html");
+        assert_true(stripos($html, '<script') === false,     "<script> survived in $where: $html");
+        assert_true(stripos($html, 'src="x"') === false,     "dangerous img src survived in $where: $html");
+        assert_true(stripos($html, 'javascript:') === false, "javascript: href survived in $where: $html");
+    }
+
+    // Round trip: GET must return exactly what the POST response/stored row had.
+    $g = api_request('GET', '/api/v1/tasks/' . $id, ['headers' => ['Authorization: Bearer ' . $adminTok]]);
+    assert_eq(200, $g['status']);
+    assert_eq($stored, (string)$g['json']['description'], 'GET must return exactly what was stored');
+});
+
+api_it('PATCH /tasks/{id}: a heading and a table in description survive the rich allow-list, executable payload stripped', function () {
+    [$pdo, $adminTok,] = tasks_setup();
+    tasks_seed_project($pdo, 5740, 1);
+    tasks_seed_column($pdo, 57401, 5740, 'To Do', 0);
+    tasks_seed_task($pdo, 5741, 5740, 57401, 1);
+
+    $r = api_request('PATCH', '/api/v1/tasks/5741', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+        'body'    => json_encode([
+            'description' => '<h3>Findings</h3>'
+                           . '<table><tbody><tr><td>Regression</td><td>None</td></tr></tbody></table>'
+                           . '<div><img src=x onerror="alert(1)"></div>'
+                           . '<script>alert(2)</script>'
+                           . '<a href="javascript:alert(3)">x</a>',
+        ]),
+    ]);
+    assert_eq(200, $r['status']);
+
+    $stored = (string)$pdo->query('SELECT description FROM tasks WHERE id = 5741')
+        ->fetch(\PDO::FETCH_ASSOC)['description'];
+
+    foreach (['response' => (string)$r['json']['description'], 'stored' => $stored] as $where => $html) {
+        assert_true(stripos($html, '<h3>Findings</h3>') !== false,   "heading lost in $where: $html");
+        assert_true(stripos($html, '<table>') !== false,             "table lost in $where: $html");
+        assert_true(stripos($html, '<td>Regression</td>') !== false, "table cell lost in $where: $html");
+        assert_true(stripos($html, 'onerror') === false,     "onerror survived in $where: $html");
+        assert_true(stripos($html, '<script') === false,     "<script> survived in $where: $html");
+        assert_true(stripos($html, 'src="x"') === false,     "dangerous img src survived in $where: $html");
+        assert_true(stripos($html, 'javascript:') === false, "javascript: href survived in $where: $html");
+    }
+
+    // Round trip: GET must return exactly what the PATCH stored.
+    $g = api_request('GET', '/api/v1/tasks/5741', ['headers' => ['Authorization: Bearer ' . $adminTok]]);
+    assert_eq(200, $g['status']);
+    assert_eq($stored, (string)$g['json']['description'], 'GET must return exactly what PATCH stored');
 });
 
 api_it('PATCH /tasks/{id}: clearing description still stores NULL, not a sanitised empty string', function () {

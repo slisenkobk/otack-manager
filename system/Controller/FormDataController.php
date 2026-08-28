@@ -181,7 +181,11 @@ final class FormDataController extends BaseController
 
             $taskId = $this->tasks->create($projectId, (int)$todoCol['id'], $title, (int)$this->user['id']);
             if ($description !== '') {
-                $this->tasks->update($taskId, ['description' => \App\Service\HtmlSanitizer::clean($description)]);
+                // cleanRich() to match every other write into tasks.description
+                // (FormTemplate::renderTaskBody() only ever emits <p>/<strong>/
+                // <em>/<br>, which are on both allow-lists, so this is a policy
+                // consistency choice, not a behaviour change for this path).
+                $this->tasks->update($taskId, ['description' => \App\Service\HtmlSanitizer::cleanRich($description)]);
             }
             $this->subs->setStatus($id, 'converted_task', $taskId, null);
             $this->activity->log('task.created', (int)$this->user['id'], $projectId, $taskId,
