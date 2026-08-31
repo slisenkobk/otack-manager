@@ -1,4 +1,4 @@
-.PHONY: help setup serve dev test unit api e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package package-check migrate test-clean wizard
+.PHONY: help setup serve dev test unit api e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package package-check migrate test-clean wizard install-agent
 
 PORT ?= 8000
 SERVER_PID := /tmp/otack-server.pid
@@ -29,6 +29,8 @@ help:
 	@echo "  make clean        — fresh + remove node_modules + vendor cache"
 	@echo ""
 	@echo "  make package      — build /tmp/otack-tasks-deploy.tar.gz for shared-hosting upload"
+	@echo ""
+	@echo "  make install-agent — install the agent-bridge CLI + skill (see agent/README.md)"
 
 check-env:
 	@php bin/check-env.php
@@ -40,6 +42,40 @@ setup:
 	@mkdir -p data data/sessions public/uploads
 	@chmod 700 data/sessions
 	@php bin/check-env.php
+
+# Install the agent skill into the user's Claude Code skills directory as a
+# symlink, so the repository stays the single source of truth. The skill must
+# live outside this repo because it works inside *other* repositories, and a
+# project skill is only visible within its own project.
+#
+# `rm -f` alone would silently no-op on a directory (a stale non-symlink
+# ~/.claude/skills/otack-agent/ — e.g. from before this target existed, or a
+# manual mkdir), after which `ln -s` creates the symlink *inside* it instead
+# of replacing it and the skill loader never finds SKILL.md where it expects
+# — so this removes a directory target explicitly first. `.env` is written
+# under `umask 077` rather than written-then-chmodded, since Config::load is
+# fail-closed on any group/other bit and a plain printf-then-chmod leaves a
+# world-readable window between those two steps.
+install-agent:
+	@mkdir -p $(HOME)/.claude/skills $(HOME)/.claude/otack-agent
+	@chmod 700 $(HOME)/.claude/otack-agent
+	@if [ -d $(HOME)/.claude/skills/otack-agent ] && [ ! -L $(HOME)/.claude/skills/otack-agent ]; then \
+		rm -rf $(HOME)/.claude/skills/otack-agent; \
+	else \
+		rm -f $(HOME)/.claude/skills/otack-agent; \
+	fi
+	@ln -s $(CURDIR)/agent/skill $(HOME)/.claude/skills/otack-agent
+	@chmod +x agent/bin/otack agent/bin/otack-tick
+	@if [ ! -f $(HOME)/.claude/otack-agent/.env ]; then \
+		(umask 077 && printf 'OTACK_API_URL=https://otack-manager.neoweblab.eu/api/v1\nOTACK_API_TOKEN=\n' > $(HOME)/.claude/otack-agent/.env); \
+		echo "Created ~/.claude/otack-agent/.env — put your token in it (mode 0600)"; \
+	fi
+	@if [ ! -f $(HOME)/.claude/otack-agent/projects.json ]; then \
+		cp agent/projects.example.json $(HOME)/.claude/otack-agent/projects.json; \
+		echo "Created ~/.claude/otack-agent/projects.json — list the projects the agent may touch"; \
+	fi
+	@echo "Agent installed. Verify with: agent/bin/otack whoami"
+	@echo "One-time login required before the bot works — see agent/README.md's 'One-time login' section."
 
 serve:
 	php -S localhost:$(PORT) -t public public/index.php
@@ -190,6 +226,7 @@ package:
 	     --exclude='./.gitignore' \
 	     --exclude='./node_modules' \
 	     --exclude='./tests' \
+	     --exclude='./agent' \
 	     --exclude='./test-results' \
 	     --exclude='./.playwright' \
 	     --exclude='./.env' \
@@ -223,9 +260,9 @@ package-check: package
 	@tar tzvf /tmp/otack-tasks-deploy.tar.gz | sort -k 3 -nr | head -5
 	@echo ""
 	@echo "→ Checking for forbidden paths..."
-	@if tar tzf /tmp/otack-tasks-deploy.tar.gz | grep -E '(^|/)(\.git(/|$$)|\.dev-notes(/|$$)|test-results(/|$$)|node_modules(/|$$)|package(-lock)?\.json|playwright\.config\.ts|app\.sqlite|data\.backup-|backups(/|$$)|\.env$$)' >/dev/null; then \
+	@if tar tzf /tmp/otack-tasks-deploy.tar.gz | grep -E '(^|/)(\.git(/|$$)|\.dev-notes(/|$$)|test-results(/|$$)|node_modules(/|$$)|package(-lock)?\.json|playwright\.config\.ts|app\.sqlite|data\.backup-|backups(/|$$)|\.env$$|agent(/|$$))' >/dev/null; then \
 		echo "  ✗ FORBIDDEN content found in tarball:"; \
-		tar tzf /tmp/otack-tasks-deploy.tar.gz | grep -E '(^|/)(\.git(/|$$)|\.dev-notes(/|$$)|test-results(/|$$)|node_modules(/|$$)|package(-lock)?\.json|playwright\.config\.ts|app\.sqlite|data\.backup-|backups(/|$$)|\.env$$)'; \
+		tar tzf /tmp/otack-tasks-deploy.tar.gz | grep -E '(^|/)(\.git(/|$$)|\.dev-notes(/|$$)|test-results(/|$$)|node_modules(/|$$)|package(-lock)?\.json|playwright\.config\.ts|app\.sqlite|data\.backup-|backups(/|$$)|\.env$$|agent(/|$$))'; \
 		exit 1; \
 	fi
 	@echo "  ✓ No forbidden paths."
