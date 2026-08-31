@@ -31,8 +31,16 @@ use App\Http\{Csrf, Request, Response};
 //     tree pseudo-arms, color-swatch previews, etc.) still need to
 //     work. CSP3 distinguishes element vs attribute style — we keep
 //     the strict half (element) and accept the lax half (attribute).
+//
+// `form-action 'self'` / `base-uri 'self'` (second-layer hardening, agreed
+// 2026-08-27): neither falls back to `default-src`, so without them an
+// injected `<form action="https://evil">` could still post off-site and an
+// injected `<base href="https://evil">` could still re-point every
+// relative URL on the page even after the sanitiser blocks the tag itself.
+// They stay useful as a second line of defence if the sanitiser is ever
+// bypassed again.
 $nonce = csp_nonce();
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src-elem 'self' 'nonce-$nonce'; style-src-attr 'unsafe-inline'; script-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src-elem 'self' 'nonce-$nonce'; style-src-attr 'unsafe-inline'; script-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'");
 header("X-Content-Type-Options: nosniff");
 header("Referrer-Policy: strict-origin-when-cross-origin");
 
