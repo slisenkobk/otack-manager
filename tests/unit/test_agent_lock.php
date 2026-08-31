@@ -32,6 +32,8 @@ const TICK_EXIT_OK = 0;
 const TICK_EXIT_CONFIG_ERROR = 1;
 const TICK_EXIT_USAGE_ERROR = 2;
 const TICK_EXIT_BLOCKED = 75;
+const TICK_EXIT_CHILD_BASE = 100;
+const TICK_EXIT_GIT_REFUSED = 90;
 
 function _tickHome(): string {
     $home = sys_get_temp_dir() . '/otack-tick-test-' . bin2hex(random_bytes(4));
@@ -68,9 +70,37 @@ function _tickWriteProjects(string $home, array $projects): void {
     );
 }
 
+/**
+ * A directory holding a stub `claude`, first on PATH. Third pass:
+ * otack-tick now resolves `claude` to an absolute path and refuses to
+ * launch when it cannot find one (cron's PATH is /usr/bin:/bin, which does
+ * not contain ~/.local/bin — a bare `claude` in the command used to be a
+ * scheduled run failing with "command not found" for a reason no message
+ * explained). Every helper below therefore puts a stub on PATH, which also
+ * means the resolution path itself is exercised by every test.
+ */
+function _tickStubBin(int $exitCode = 0, string $extraBody = ''): string {
+    $dir = sys_get_temp_dir() . '/otack-tick-stub-bin-' . bin2hex(random_bytes(4));
+    mkdir($dir, 0700, true);
+    register_shutdown_function(fn() => _tickRrmdir($dir));
+    file_put_contents($dir . '/claude', "#!/bin/sh\n$extraBody\nexit $exitCode\n");
+    chmod($dir . '/claude', 0755);
+    return $dir;
+}
+
+/** One shared no-op stub, created lazily, for every helper that doesn't need its own. */
+function _tickDefaultStubBin(): string {
+    static $dir = null;
+    if ($dir === null) { $dir = _tickStubBin(); }
+    return $dir;
+}
+
 function _tick(string $home, string $args, array $extraEnv = []): array {
     $bin = dirname(__DIR__, 2) . '/agent/bin/otack-tick';
-    $env = array_merge(['HOME' => $home, 'OTACK_TICK_ALLOW_SELFTEST' => '1'], $extraEnv);
+    $env = array_merge(
+        ['HOME' => $home, 'OTACK_TICK_ALLOW_SELFTEST' => '1', 'PATH' => _tickDefaultStubBin() . ':' . getenv('PATH')],
+        $extraEnv
+    );
     $envStr = '';
     foreach ($env as $k => $v) { $envStr .= $k . '=' . escapeshellarg((string)$v) . ' '; }
     $cmd = $envStr . PHP_BINARY . ' ' . escapeshellarg($bin) . ' ' . $args;
@@ -335,7 +365,10 @@ it('print-cmd: a plain multi-word test_cmd like "make test" is accepted', functi
     $proj = _tickTempProjectDir();
     _tickWriteProjects($home, ['1' => ['path' => $proj, 'write' => true, 'test_cmd' => 'make test']]);
     [$cmd] = _tick($home, '--selftest=print-cmd');
-    exec($cmd . ' 2>&1', $out, $code);
+    // stdout only: the wrapper also writes advisory notes to stderr (a
+    // project that is not a git working tree, for one), and print-cmd's
+    // stdout must stay parseable JSON on its own.
+    exec($cmd . ' 2>/dev/null', $out, $code);
     assert_eq(TICK_EXIT_OK, $code, implode("\n", $out));
     $decoded = _tickDecodePrintCmd(implode("\n", $out));
     assert_true(in_array('Bash(make test:*)', $decoded['allowed_tools'], true), implode("\n", $out));
@@ -352,15 +385,19 @@ it('print-cmd: constructs a command bounded exactly the way spec §9 and C1/C2/M
         '3' => ['path' => $projReadOnly, 'write' => false, 'test_cmd' => 'make dangerous-test'],
     ]);
     [$cmd] = _tick($home, '--selftest=print-cmd');
-    exec($cmd . ' 2>&1', $out, $code);
+    exec($cmd . ' 2>/dev/null', $out, $code); // stdout only — see the note above
+
     assert_eq(TICK_EXIT_OK, $code, implode("\n", $out));
     $decoded = _tickDecodePrintCmd(implode("\n", $out));
     $full = $decoded['cmd'];
 
     // M6 mutant: --permission-mode switched to bypassPermissions.
+    // F1: acceptEdits, not dontAsk — see the dedicated test below for why
+    // the mode and the absence of Edit/Write are one fix, not two.
     assert_true(str_contains($full, '--permission-mode'), $full);
-    assert_true(str_contains($full, 'dontAsk'), $full);
+    assert_true(str_contains($full, 'acceptEdits'), $full);
     assert_true(!str_contains($full, 'bypassPermissions'), $full);
+    assert_true(!str_contains($full, 'dontAsk'), $full);
 
     // Never --dangerously-skip-permissions, anywhere in the command or the
     // structured fields — this is the one flag this whole file exists to
@@ -430,12 +467,8 @@ it('a real session: the lock stays held for the child\'s entire lifetime, and it
     $proj = _tickTempProjectDir();
     _tickWriteProjects($home, ['1' => ['path' => $proj, 'write' => true]]);
 
-    $binDir = sys_get_temp_dir() . '/otack-tick-stub-bin-' . bin2hex(random_bytes(4));
-    mkdir($binDir, 0700, true);
-    register_shutdown_function(fn() => _tickRrmdir($binDir));
     $stubExitCode = 47;
-    file_put_contents($binDir . '/claude', "#!/bin/sh\nsleep 1\nexit $stubExitCode\n");
-    chmod($binDir . '/claude', 0755);
+    $binDir = _tickStubBin($stubExitCode, 'sleep 1');
 
     $bin = dirname(__DIR__, 2) . '/agent/bin/otack-tick';
     $path = $binDir . ':' . getenv('PATH');
@@ -455,6 +488,618 @@ it('a real session: the lock stays held for the child\'s entire lifetime, and it
 
     fclose($pipes[1]); fclose($pipes[2]);
     $exitCode = proc_close($p);
-    assert_eq($stubExitCode, $exitCode, 'the child\'s exit code must propagate, not collapse to 0');
+    // Third pass: `exit($code)` propagated the child's status verbatim, so
+    // a session exiting 1, 2 or 75 was indistinguishable from the
+    // wrapper's own config error / usage error / blocked. The child's code
+    // is now offset by EXIT_CHILD_BASE, which keeps it visible AND
+    // unambiguous.
+    assert_eq(TICK_EXIT_CHILD_BASE + $stubExitCode, $exitCode, 'the child\'s exit code must be reported, offset out of the wrapper\'s own code space');
+    assert_true($exitCode !== TICK_EXIT_CONFIG_ERROR && $exitCode !== TICK_EXIT_USAGE_ERROR && $exitCode !== TICK_EXIT_BLOCKED,
+        'a child failure must never be reported using one of the wrapper\'s own codes');
     assert_true(_tickFlockIsFree($lockPath), 'the lock must be free once the whole session (wrapper + child) has exited');
+});
+
+// ---------------------------------------------------------------------
+// Third hardening pass. Each block below corresponds to a finding whose
+// failure was reproduced first against the previous commit, and to one of
+// the mutants that survived the previous test suite.
+// ---------------------------------------------------------------------
+
+/**
+ * A throwaway git repository with a real (bare) remote, on branch
+ * `otack/task-1`, default branch `main`. Returns
+ * ['repo' => …, 'remote' => …].
+ */
+function _tickGitRepo(bool $withOriginHead = true): array {
+    $base = sys_get_temp_dir() . '/otack-tick-git-' . bin2hex(random_bytes(4));
+    mkdir($base, 0700, true);
+    register_shutdown_function(fn() => _tickRrmdir($base));
+    $remote = $base . '/remote.git';
+    $repo   = $base . '/repo';
+    $q = ' >/dev/null 2>&1';
+    exec('git init -q --bare ' . escapeshellarg($remote) . $q);
+    exec('git clone -q ' . escapeshellarg($remote) . ' ' . escapeshellarg($repo) . $q);
+    $g = 'cd ' . escapeshellarg($repo) . ' && git ';
+    exec($g . 'config user.email agent@example.test' . $q);
+    exec($g . 'config user.name Agent' . $q);
+    exec($g . 'symbolic-ref HEAD refs/heads/main' . $q);
+    file_put_contents($repo . '/a.txt', "one\n");
+    exec($g . 'add a.txt' . $q);
+    exec($g . 'commit -qm init' . $q);
+    exec($g . 'push -q origin main' . $q);
+    if ($withOriginHead) { exec($g . 'remote set-head origin -a' . $q); }
+    exec($g . 'checkout -q -b otack/task-1' . $q);
+    // One commit that only exists on the task branch, so a push to the
+    // default branch has something to carry — otherwise git short-circuits
+    // with "Everything up-to-date" and never reaches the pre-push hook.
+    file_put_contents($repo . '/b.txt', "two\n");
+    exec($g . 'add b.txt' . $q);
+    exec($g . 'commit -qm work' . $q);
+    // 'remote' is the URL as git recorded it, not its realpath: that is
+    // what `git remote get-url origin` returns and therefore what the
+    // policy compares against.
+    return ['repo' => realpath($repo), 'remote' => $remote];
+}
+
+/** A tick home wired to one write-enabled git project. */
+function _tickHomeWithRepo(array $repo, array $extra = []): string {
+    $home = _tickHome();
+    _tickWriteProjects($home, ['1' => array_merge(['path' => $repo['repo'], 'write' => true], $extra)]);
+    return $home;
+}
+
+/** Runs `otack-tick --selftest=print-cmd` and returns the decoded JSON. */
+function _tickPrintCmd(string $home): array {
+    [$cmd] = _tick($home, '--selftest=print-cmd');
+    exec($cmd . ' 2>/dev/null', $out, $code);
+    assert_eq(TICK_EXIT_OK, $code, implode("\n", $out));
+    return _tickDecodePrintCmd(implode("\n", $out));
+}
+
+/** Invokes the git gate the way the generated PATH shim does. */
+function _tickGitGate(string $policyPath, string $cwd, string $args): array {
+    $bin = dirname(__DIR__, 2) . '/agent/bin/otack-tick';
+    $cmd = 'cd ' . escapeshellarg($cwd) . ' && OTACK_GIT_POLICY=' . escapeshellarg($policyPath)
+         . ' ' . PHP_BINARY . ' ' . escapeshellarg($bin) . ' --git-gate ' . $args . ' 2>&1';
+    $out = []; $code = 0;
+    exec($cmd, $out, $code);
+    return ['out' => implode("\n", $out), 'code' => $code];
+}
+
+it('F1: Write and Edit are NOT in the allow-list, and the mode is acceptEdits — together that is what bounds file writes', function () {
+    // The second pass concluded --add-dir could not bound Write. It could:
+    // the cause was that `Write` was listed in --allowedTools, and a bare
+    // tool name is an unconditional grant that never consults the
+    // directory check. Measured against a real `claude -p`, ground truth
+    // taken from outside the child (does the file exist?), identical
+    // prompt each time:
+    //   dontAsk     + Write allowed  + target outside every --add-dir -> file CREATED
+    //   acceptEdits + Write withheld + target inside  an  --add-dir   -> file created
+    //   acceptEdits + Write withheld + target outside every --add-dir -> REFUSED
+    // If either half of this test is ever "fixed" by putting Write back in
+    // the list, the boundary silently disappears again.
+    $home = _tickHomeWithRepo(_tickGitRepo());
+    $decoded = _tickPrintCmd($home);
+
+    assert_true(!in_array('Write', $decoded['allowed_tools'], true),
+        'Write must NOT be in --allowedTools — a bare grant bypasses the --add-dir check entirely');
+    assert_true(!in_array('Edit', $decoded['allowed_tools'], true),
+        'Edit must NOT be in --allowedTools, same reason');
+    assert_eq('acceptEdits', $decoded['permission_mode']);
+    // Read stays: the session must be able to read the project it works on.
+    assert_true(in_array('Read', $decoded['allowed_tools'], true), implode(',', $decoded['allowed_tools']));
+    // And the boundary only exists if there is a boundary to speak of.
+    assert_true(count($decoded['add_dirs']) > 0, 'acceptEdits without --add-dir would bound nothing');
+});
+
+it('F6: --disallowedTools actually reaches the command line, with every §9 absolute in it', function () {
+    // The previous suite asserted on $decoded['disallowed_tools'] only,
+    // which is the array — dropping the flag while still building the
+    // array survived all 14 tests, silently re-opening force-push, tags and
+    // branch deletion. Assert against the constructed command string.
+    $home = _tickHomeWithRepo(_tickGitRepo());
+    $decoded = _tickPrintCmd($home);
+    $full = $decoded['cmd'];
+
+    assert_true(str_contains($full, '--disallowedTools'), 'the flag itself must be on the command line: ' . $full);
+    foreach ($decoded['disallowed_tools'] as $rule) {
+        assert_true(str_contains($full, $rule), "deny rule missing from the actual command: $rule");
+    }
+
+    // Mutant: dropping individual entries. The old test asserted only
+    // WebFetch and `php -r`, so removing curl/wget/ssh/`npx tsx -e` from
+    // the deny list went unnoticed.
+    foreach ([
+        'Bash(curl:*)', 'Bash(wget:*)', 'Bash(ssh:*)', 'Bash(npx tsx -e:*)',
+        'Bash(php -r:*)', 'WebFetch',
+        'Bash(git push --force:*)', 'Bash(git push --tags:*)', 'Bash(git tag:*)',
+        'Bash(git branch -D:*)', 'Bash(git branch --delete:*)',
+    ] as $rule) {
+        assert_true(in_array($rule, $decoded['disallowed_tools'], true), "deny rule dropped: $rule");
+    }
+
+    // Same for --allowedTools: the flag, not just the array.
+    assert_true(str_contains($full, '--allowedTools'), $full);
+});
+
+it('--add-dir values are shell-escaped, so a project path with a space cannot split into two arguments', function () {
+    // Mutant: dropping escapeshellarg() on --add-dir values. Every existing
+    // fixture used space-free temp paths, so it survived.
+    $repo = _tickGitRepo();
+    $spaced = dirname($repo['repo']) . '/dir with spaces';
+    rename($repo['repo'], $spaced);
+    $home = _tickHome();
+    _tickWriteProjects($home, ['1' => ['path' => $spaced, 'write' => true, 'default_branch' => 'main']]);
+    $decoded = _tickPrintCmd($home);
+
+    assert_eq([realpath($spaced)], $decoded['add_dirs']);
+    assert_true(
+        str_contains($decoded['cmd'], escapeshellarg(realpath($spaced))),
+        'the path must appear quoted in the command, not raw: ' . $decoded['cmd']
+    );
+    assert_true(
+        !str_contains($decoded['cmd'], '--add-dir ' . realpath($spaced)),
+        'an unquoted path would be parsed as several arguments: ' . $decoded['cmd']
+    );
+});
+
+it('the lock payload is truncated before rewriting, so a longer previous payload cannot corrupt it', function () {
+    // Mutant: dropping ftruncate($lock, 0). fopen(…, 'c') does not
+    // truncate, so the leftover tail of a longer previous write stays
+    // behind and the next tick reads unparseable JSON.
+    $home = _tickHome();
+    $lockPath = $home . '/.claude/otack-agent/agent.lock';
+    file_put_contents($lockPath, str_repeat('X', 4096));
+
+    [$cmd] = _tick($home, '--selftest=hold:0');
+    exec($cmd . ' 2>&1', $out, $code);
+    assert_eq(TICK_EXIT_OK, $code, implode("\n", $out));
+
+    $raw = (string)file_get_contents($lockPath);
+    assert_true(!str_contains($raw, 'XXXX'), 'stale bytes survived the rewrite: ' . substr($raw, 0, 200));
+    $info = json_decode($raw, true);
+    assert_true(is_array($info) && isset($info['pid']), 'the lock file must still parse as JSON: ' . substr($raw, 0, 200));
+});
+
+it('the inode re-check fires when the lock file is replaced inside the fopen/flock window', function () {
+    // Mutant: removing the fstat/fresh-stat comparison. The window is
+    // microseconds wide in production, so the test widens it with a
+    // test-only flag (same gate as every other --selftest surface) and
+    // replaces the file inside it — otherwise this defence is untestable
+    // and, as the reviewer found, removable without a single failure.
+    $home = _tickHome();
+    $lockPath = $home . '/.claude/otack-agent/agent.lock';
+
+    [$bootstrap] = _tick($home, '--selftest=hold:0');
+    exec($bootstrap . ' 2>&1', $b, $bc);
+    assert_eq(TICK_EXIT_OK, $bc, implode("\n", $b));
+
+    [$cmd] = _tick($home, '--selftest=hold:0 --selftest-race-sleep-ms=1500');
+    $p = proc_open($cmd, [1 => ['pipe','w'], 2 => ['pipe','w']], $pipes);
+    usleep(500_000); // inside the widened fopen()->flock() window
+    unlink($lockPath);
+    file_put_contents($lockPath, '{}'); // a different inode now sits at the path
+    $err = stream_get_contents($pipes[2]);
+    fclose($pipes[1]); fclose($pipes[2]);
+    $code = proc_close($p);
+
+    assert_eq(TICK_EXIT_CONFIG_ERROR, $code, 'a replaced lock file must abort the tick');
+    assert_true(str_contains($err, 'was replaced while being acquired'), $err);
+});
+
+/** A pid that is certainly not running, so "the recorded holder is dead" can be staged deterministically. */
+function _tickDeadPid(): int {
+    for ($pid = 99990; $pid > 60000; $pid--) {
+        if (!function_exists('posix_kill')) { return $pid; }
+        if (!@posix_kill($pid, 0) && posix_get_last_error() !== 1) { return $pid; }
+    }
+    return 99999;
+}
+
+it('F2: a lock held by a leaked descriptor, with its recorded holder dead, is named as such and posts nothing', function () {
+    // Reproduced against the previous commit: the lock fd is inherited by
+    // `claude` and by everything it spawns, so a background process the
+    // session left behind (`make test` starting a dev server) keeps holding
+    // it after the wrapper exits. Every later tick then printed "tick
+    // already running (pid <dead>)" with no otack-tick in `ps`, and after
+    // three hours posted the stale-tick comment into a task on every single
+    // tick. Staged here without an orphan process: the test itself holds
+    // the flock while the payload names a pid that is definitely dead.
+    $home = _tickHome();
+    $lockPath = $home . '/.claude/otack-agent/agent.lock';
+    $deadPid = _tickDeadPid();
+    file_put_contents($lockPath, json_encode([
+        'pid'        => $deadPid,
+        'host'       => gethostname(),
+        'task_id'    => 55,
+        'phase'      => 'implementing',
+        'started_at' => time() - (4 * 3600),
+    ]));
+    $fh = fopen($lockPath, 'c');
+    assert_true(flock($fh, LOCK_EX | LOCK_NB), 'the test must be able to hold the lock itself');
+
+    [$cmd] = _tick($home, '');
+    exec($cmd . ' 2>&1', $out, $code);
+    $text = implode("\n", $out);
+
+    assert_eq(TICK_EXIT_BLOCKED, $code, $text);
+    assert_true(str_contains($text, 'is not running on this machine'), $text);
+    assert_true(str_contains($text, 'inherited file descriptor'), 'must explain WHY the lock outlived the session: ' . $text);
+    assert_true(str_contains($text, 'lsof'), 'must tell the operator how to find the real holder: ' . $text);
+    // The stale-tick comment must be suppressed: nothing is running to be slow.
+    assert_true(!str_contains($text, 'could not post the stale-tick warning comment'),
+        'a dead holder must not trigger the "работаю подозрительно долго" post: ' . $text);
+    assert_true(!is_file($home . '/.claude/otack-agent/stale-warned'),
+        'no stale-warned marker should be burned for a lock with no live holder');
+
+    flock($fh, LOCK_UN); fclose($fh);
+});
+
+it('F4: deleting agent.lock while nothing is running bootstraps a fresh one instead of bricking the bot', function () {
+    // Reproduced against the previous commit with nothing running at all:
+    // bootstrap tick lays the marker, operator deletes agent.lock while
+    // idle, and every later tick exits 1 forever — recoverable only by
+    // deleting a dotfile nobody has heard of. The refusal is now gated on
+    // the recorded holder actually being alive (the M1 test above still
+    // covers the case where it is).
+    $home = _tickHome();
+    $lockPath = $home . '/.claude/otack-agent/agent.lock';
+
+    [$bootstrap] = _tick($home, '--selftest=hold:0');
+    exec($bootstrap . ' 2>&1', $b, $bc);
+    assert_eq(TICK_EXIT_OK, $bc, implode("\n", $b));
+    assert_true(is_file($home . '/.claude/otack-agent/.agent-lock-initialized'));
+
+    unlink($lockPath); // nothing is running
+
+    [$next] = _tick($home, '--selftest=hold:0');
+    exec($next . ' 2>&1', $out, $code);
+    $text = implode("\n", $out);
+    assert_eq(TICK_EXIT_OK, $code, 'an idle deletion must not brick the bot: ' . $text);
+    assert_true(str_contains($text, 'bootstrapping a fresh lock'), 'and it must say that it did: ' . $text);
+    assert_true(is_file($lockPath), 'the lock file should have been recreated');
+
+    // Still healthy on the tick after that, with nothing left to say.
+    [$third] = _tick($home, '--selftest=hold:0');
+    exec($third . ' 2>&1', $out3, $code3);
+    assert_eq(TICK_EXIT_OK, $code3, implode("\n", $out3));
+    assert_true(!str_contains(implode("\n", $out3), 'bootstrapping'), 'the second recovery should be silent');
+});
+
+it('F5: the session cwd has no sensitive neighbours — never $HOME, never beside .env/projects.json', function () {
+    $home = _tickHomeWithRepo(_tickGitRepo());
+    $decoded = _tickPrintCmd($home);
+    $cwd = $decoded['cwd'];
+    assert_true($cwd !== $home, 'cwd must not be $HOME');
+    assert_true(
+        !str_starts_with($cwd, $home . '/.claude/otack-agent'),
+        'cwd must not be a child of the directory holding .env (the bearer token) and projects.json ' .
+        '(the allow-list deciding what the next tick may touch): ' . $cwd
+    );
+    assert_true(is_dir($cwd), $cwd);
+    // Nothing sensitive may share the directory the session starts in.
+    $siblings = array_values(array_diff(scandir(dirname($cwd)) ?: [], ['.', '..']));
+    assert_eq(['session-cwd'], $siblings, 'the session cwd should be alone in its parent: ' . implode(',', $siblings));
+});
+
+it('F3: the branch policy is a real gate — the shim, the hooks and the policy file all reach the child', function () {
+    $repo = _tickGitRepo();
+    $home = _tickHomeWithRepo($repo);
+    $decoded = _tickPrintCmd($home);
+
+    $gate = $decoded['git_gate'];
+    assert_true(is_file($gate['shim']), 'the PATH shim must exist: ' . $gate['shim']);
+    assert_true(is_executable($gate['shim']), 'and be executable');
+    assert_true(str_contains((string)file_get_contents($gate['shim']), '--git-gate'), 'the shim must re-enter otack-tick');
+    assert_eq('git', basename($gate['shim']), 'the shim must be named git so PATH resolution finds it');
+    foreach (['pre-commit', 'pre-push'] as $hook) {
+        $p = $gate['hooks_dir'] . '/' . $hook;
+        assert_true(is_file($p) && is_executable($p), "missing hook: $p");
+    }
+
+    // The policy is derived from projects.json, never hardcoded.
+    $entry = $gate['policy']['repos'][$repo['repo']] ?? null;
+    assert_true(is_array($entry), 'the write-enabled repository must be in the policy: ' . json_encode($gate['policy']));
+    assert_eq('main', $entry['default_branch']);
+    assert_eq($repo['remote'], $entry['origin']);
+
+    // And the child's environment is what activates both mechanisms.
+    $env = $decoded['child_env'];
+    assert_true(str_starts_with($env['PATH'], dirname($gate['shim']) . ':'),
+        'the shim directory must come FIRST on the child PATH: ' . $env['PATH']);
+    assert_eq('core.hooksPath', $env['GIT_CONFIG_KEY_0']);
+    assert_eq($gate['hooks_dir'], $env['GIT_CONFIG_VALUE_0']);
+    assert_eq('2', $env['GIT_CONFIG_COUNT']);
+    assert_eq($gate['policy_path'], $env['OTACK_GIT_POLICY']);
+});
+
+it('F3: the gate refuses the exact two commands that defeated the prefix rules', function () {
+    // `git checkout -B main` does not match a `Bash(git checkout main:*)`
+    // deny prefix, and `git push origin HEAD:main` does not match
+    // `Bash(git push origin main:*)` — the reviewer advanced a real
+    // remote's main with exactly this pair.
+    $repo = _tickGitRepo();
+    $home = _tickHomeWithRepo($repo);
+    $policy = _tickPrintCmd($home)['git_gate']['policy_path'];
+
+    $before = trim((string)shell_exec('git --git-dir=' . escapeshellarg($repo['remote']) . ' rev-parse main'));
+
+    $r1 = _tickGitGate($policy, $repo['repo'], 'checkout -B main');
+    assert_eq(TICK_EXIT_GIT_REFUSED, $r1['code'], $r1['out']);
+    assert_true(str_contains($r1['out'], 'default branch'), $r1['out']);
+
+    $r2 = _tickGitGate($policy, $repo['repo'], 'push origin HEAD:main');
+    assert_eq(TICK_EXIT_GIT_REFUSED, $r2['code'], $r2['out']);
+    assert_true(str_contains($r2['out'], 'default branch'), $r2['out']);
+
+    $after = trim((string)shell_exec('git --git-dir=' . escapeshellarg($repo['remote']) . ' rev-parse main'));
+    assert_eq($before, $after, 'the remote default branch must not have moved');
+    assert_eq('otack/task-1', trim((string)shell_exec(
+        'git -C ' . escapeshellarg($repo['repo']) . ' symbolic-ref --short HEAD')),
+        'and the working tree must still be on its task branch');
+});
+
+it('F3: the gate refuses shipping the repository to any destination but its own origin', function () {
+    $repo = _tickGitRepo();
+    $elsewhere = dirname($repo['repo']) . '/elsewhere.git';
+    exec('git init -q --bare ' . escapeshellarg($elsewhere) . ' >/dev/null 2>&1');
+    $home = _tickHomeWithRepo($repo);
+    $policy = _tickPrintCmd($home)['git_gate']['policy_path'];
+
+    $r = _tickGitGate($policy, $repo['repo'], 'push ' . escapeshellarg($elsewhere) . ' HEAD:refs/heads/backup');
+    assert_eq(TICK_EXIT_GIT_REFUSED, $r['code'], $r['out']);
+    assert_true(str_contains($r['out'], 'own origin'), $r['out']);
+    assert_eq('', trim((string)shell_exec('git --git-dir=' . escapeshellarg($elsewhere) . ' show-ref 2>/dev/null')),
+        'nothing may have landed in the other repository');
+});
+
+it('F3: the gate refuses every way of switching itself off, and still allows ordinary work', function () {
+    $repo = _tickGitRepo();
+    $home = _tickHomeWithRepo($repo);
+    $policy = _tickPrintCmd($home)['git_gate']['policy_path'];
+
+    $refusals = [
+        // --no-verify would skip the hooks that back the shim up.
+        'push --no-verify origin HEAD:refs/heads/x' => 'no-verify',
+        // -c can re-point core.hooksPath.
+        '-c core.hooksPath=/dev/null push origin HEAD:main' => 'global option',
+        'tag v1'          => 'tags',
+        'branch -D main'  => 'deletes, renames',
+        'remote set-url origin /tmp/nope' => 'read-only',
+        'config core.hooksPath /dev/null' => 'read-only',
+        'push --force origin HEAD:refs/heads/otack/task-1' => 'rewrites history',
+        'push --mirror origin' => 'delete or overwrite',
+        'push origin :refs/heads/otack/task-1' => 'deletes a remote ref',
+        'push origin +HEAD:refs/heads/otack/task-1' => 'force push',
+    ];
+    foreach ($refusals as $args => $needle) {
+        $r = _tickGitGate($policy, $repo['repo'], $args);
+        assert_eq(TICK_EXIT_GIT_REFUSED, $r['code'], "should have been refused: git $args\n" . $r['out']);
+        assert_true(str_contains($r['out'], $needle), "wrong reason for `git $args`: " . $r['out']);
+    }
+
+    // Read-only inspection passes straight through...
+    $ok = _tickGitGate($policy, $repo['repo'], 'status --short --branch');
+    assert_eq(0, $ok['code'], $ok['out']);
+    assert_true(str_contains($ok['out'], 'otack/task-1'), $ok['out']);
+
+    // ...and so does the work the agent is actually meant to do.
+    $push = _tickGitGate($policy, $repo['repo'], 'push origin HEAD:refs/heads/otack/task-1');
+    assert_eq(0, $push['code'], 'a task-branch push must still work: ' . $push['out']);
+    assert_true(
+        str_contains((string)shell_exec('git --git-dir=' . escapeshellarg($repo['remote']) . ' show-ref 2>/dev/null'), 'otack/task-1'),
+        'the task branch should now exist on the remote'
+    );
+});
+
+it('F3: a git reached by absolute path (dodging the PATH shim) is still stopped by the injected hooks', function () {
+    // The shim catches --no-verify; core.hooksPath catches a git the shim
+    // never saw — e.g. one invoked with an absolute path from a Makefile.
+    // Neither alone is enough, which is why both are installed.
+    $repo = _tickGitRepo();
+    $home = _tickHomeWithRepo($repo);
+    $decoded = _tickPrintCmd($home);
+    $gate = $decoded['git_gate'];
+    $before = trim((string)shell_exec('git --git-dir=' . escapeshellarg($repo['remote']) . ' rev-parse main'));
+
+    $gitBin = trim((string)shell_exec('command -v git 2>/dev/null')) ?: '/usr/bin/git';
+    $cmd = 'cd ' . escapeshellarg($repo['repo'])
+         . ' && OTACK_GIT_POLICY=' . escapeshellarg($gate['policy_path'])
+         . ' GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=' . escapeshellarg($gate['hooks_dir'])
+         . ' ' . escapeshellarg($gitBin) . ' push origin HEAD:main 2>&1';
+    $out = []; $code = 0;
+    exec($cmd, $out, $code);
+    $text = implode("\n", $out);
+
+    assert_true($code !== 0, 'the push must fail: ' . $text);
+    assert_true(str_contains($text, 'pre-push') || str_contains($text, 'REFUSED'), $text);
+    assert_eq($before, trim((string)shell_exec('git --git-dir=' . escapeshellarg($repo['remote']) . ' rev-parse main')),
+        'the remote default branch must not have moved');
+});
+
+it('F3: the default branch is read from config, not hardcoded to main/master', function () {
+    $repo = _tickGitRepo();
+    exec('cd ' . escapeshellarg($repo['repo']) . ' && git checkout -q -b trunk main >/dev/null 2>&1');
+    exec('cd ' . escapeshellarg($repo['repo']) . ' && git push -q origin trunk >/dev/null 2>&1');
+    exec('cd ' . escapeshellarg($repo['repo']) . ' && git checkout -q otack/task-1 >/dev/null 2>&1');
+
+    $home = _tickHome();
+    _tickWriteProjects($home, ['1' => ['path' => $repo['repo'], 'write' => true, 'default_branch' => 'trunk']]);
+    $decoded = _tickPrintCmd($home);
+    assert_eq('trunk', $decoded['git_gate']['policy']['repos'][$repo['repo']]['default_branch']);
+
+    $policy = $decoded['git_gate']['policy_path'];
+    $r = _tickGitGate($policy, $repo['repo'], 'push origin HEAD:trunk');
+    assert_eq(TICK_EXIT_GIT_REFUSED, $r['code'], 'a project whose default branch is "trunk" must be protected there: ' . $r['out']);
+    assert_true(str_contains($r['out'], 'trunk'), $r['out']);
+});
+
+it('F3: a write-enabled repository with no discoverable default branch refuses to launch rather than guessing', function () {
+    $base = sys_get_temp_dir() . '/otack-tick-nogit-' . bin2hex(random_bytes(4));
+    mkdir($base, 0700, true);
+    register_shutdown_function(fn() => _tickRrmdir($base));
+    exec('cd ' . escapeshellarg($base) . ' && git init -q . >/dev/null 2>&1'); // no remote, no origin/HEAD
+
+    $home = _tickHome();
+    _tickWriteProjects($home, ['1' => ['path' => $base, 'write' => true]]);
+    [$cmd] = _tick($home, '--selftest=print-cmd');
+    exec($cmd . ' 2>&1', $out, $code);
+    $text = implode("\n", $out);
+    assert_eq(TICK_EXIT_CONFIG_ERROR, $code, $text);
+    assert_true(str_contains($text, 'cannot determine the default branch'), $text);
+    assert_true(str_contains($text, 'default_branch'), 'the message must name the config key that fixes it: ' . $text);
+});
+
+it('the isolated settings.json is never written through a symlink', function () {
+    $home = _tickHomeWithRepo(_tickGitRepo());
+    $claudeHome = $home . '/.claude/otack-agent/claude-home';
+    mkdir($claudeHome, 0700, true);
+    $decoy = $home . '/decoy-settings.json';
+    file_put_contents($decoy, '{"permissions":{"allow":["Bash"]}}');
+    symlink($decoy, $claudeHome . '/settings.json');
+
+    [$cmd] = _tick($home, '--selftest=print-cmd');
+    exec($cmd . ' 2>&1', $out, $code);
+    $text = implode("\n", $out);
+    assert_eq(TICK_EXIT_CONFIG_ERROR, $code, $text);
+    assert_true(str_contains($text, 'symlink'), $text);
+    assert_eq('{"permissions":{"allow":["Bash"]}}', (string)file_get_contents($decoy),
+        'the rewrite must not have followed the link');
+});
+
+it('an existing claude-home with loosened permissions is refused, not used as-is', function () {
+    // It holds the bot's Claude Code login; 0700 used to be applied at
+    // creation and never checked again.
+    $home = _tickHomeWithRepo(_tickGitRepo());
+    $claudeHome = $home . '/.claude/otack-agent/claude-home';
+    mkdir($claudeHome, 0755, true);
+    chmod($claudeHome, 0755);
+
+    [$cmd] = _tick($home, '--selftest=print-cmd');
+    exec($cmd . ' 2>&1', $out, $code);
+    $text = implode("\n", $out);
+    assert_eq(TICK_EXIT_CONFIG_ERROR, $code, $text);
+    assert_true(str_contains($text, 'chmod 700'), 'the message must say how to fix it: ' . $text);
+});
+
+it('claude is resolved to an absolute path, and a missing one is a clear error rather than "command not found"', function () {
+    $home = _tickHomeWithRepo(_tickGitRepo());
+    $decoded = _tickPrintCmd($home);
+    assert_true(str_starts_with($decoded['claude_bin'], '/'), 'claude must be resolved absolutely: ' . $decoded['claude_bin']);
+    assert_true(is_executable($decoded['claude_bin']), $decoded['claude_bin']);
+    assert_true(str_contains($decoded['cmd'], escapeshellarg($decoded['claude_bin'])),
+        'the absolute path must be what the command actually invokes: ' . $decoded['cmd']);
+
+    // cron's PATH. Only assert the failure when this machine genuinely has
+    // no claude in the fallback locations, so the test cannot be flaky.
+    if (!is_executable('/usr/local/bin/claude') && !is_executable('/opt/homebrew/bin/claude')) {
+        [$cmd] = _tick($home, '--selftest=print-cmd', ['PATH' => '/usr/bin:/bin']);
+        exec($cmd . ' 2>&1', $out, $code);
+        $text = implode("\n", $out);
+        assert_eq(TICK_EXIT_CONFIG_ERROR, $code, $text);
+        assert_true(str_contains($text, 'cannot find the `claude` executable'), $text);
+        assert_true(str_contains($text, 'crontab'), 'and it must point at the fix: ' . $text);
+    }
+});
+
+it('the session transcript goes to a 0600 log file, not to cron mail', function () {
+    // The session has bare `Read` over the filesystem, so its transcript
+    // can contain anything it read.
+    $repo = _tickGitRepo();
+    $home = _tickHomeWithRepo($repo);
+    $binDir = _tickStubBin(0, 'echo SECRET-TRANSCRIPT-LINE');
+
+    $bin = dirname(__DIR__, 2) . '/agent/bin/otack-tick';
+    $cmd = 'HOME=' . escapeshellarg($home) . ' PATH=' . escapeshellarg($binDir . ':' . getenv('PATH')) . ' '
+         . PHP_BINARY . ' ' . escapeshellarg($bin);
+    $out = []; $code = 0;
+    exec($cmd . ' 2>&1', $out, $code);
+    $text = implode("\n", $out);
+
+    assert_eq(TICK_EXIT_OK, $code, $text);
+    assert_true(!str_contains($text, 'SECRET-TRANSCRIPT-LINE'),
+        'the child transcript must not land on the wrapper\'s own stdout/stderr: ' . $text);
+    $log = $home . '/.claude/otack-agent/tick-session.log';
+    assert_true(is_file($log), 'the transcript must be written to the log');
+    assert_true(str_contains((string)file_get_contents($log), 'SECRET-TRANSCRIPT-LINE'), 'and actually contain it');
+    assert_eq('0600', substr(sprintf('%o', fileperms($log)), -4));
+    assert_true(str_contains($text, 'session transcript'), 'the wrapper must say where it went: ' . $text);
+});
+
+// A minimal fixture server, same shape as _cliFixtureServer() in
+// test_agent_cli.php but self-contained: this file must not depend on the
+// load order of another test file.
+function _tickFixtureServer(array $routes, callable $fn): void {
+    $dir = sys_get_temp_dir() . '/otack-tick-fixture-' . bin2hex(random_bytes(4));
+    mkdir($dir, 0700, true);
+    file_put_contents($dir . '/routes.json', json_encode($routes));
+    $router = $dir . '/router.php';
+    file_put_contents($router, <<<'PHP'
+<?php
+$routes = json_decode((string)file_get_contents(__DIR__ . '/routes.json'), true) ?: [];
+$key = $_SERVER['REQUEST_METHOD'] . ' ' . parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$resp = $routes[$key] ?? null;
+header('Content-Type: application/json');
+if ($resp === null) { http_response_code(404); echo json_encode(['error' => 'no route: ' . $key]); exit; }
+http_response_code($resp['status'] ?? 200);
+echo $resp['body'] ?? '{}';
+PHP
+    );
+    $port = random_int(45000, 49999);
+    $pid = (int)trim((string)shell_exec(
+        '/usr/bin/env php -S 127.0.0.1:' . $port . ' ' . escapeshellarg($router) . ' > /dev/null 2>&1 & echo $!'
+    ));
+    for ($i = 0; $i < 50; $i++) {
+        $s = @fsockopen('127.0.0.1', $port, $errno, $errstr, 0.1);
+        if ($s) { fclose($s); break; }
+        usleep(50_000);
+    }
+    try {
+        $fn($port);
+    } finally {
+        if ($pid > 0) {
+            if (function_exists('posix_kill')) { @posix_kill($pid, 15); } else { @shell_exec('kill ' . $pid); }
+        }
+        _tickRrmdir($dir);
+    }
+}
+
+it('M3: the stale-tick comment is refused by the projects.json gate, not merely lost to an unreachable API', function () {
+    // Mutant: removing requireLocalProject()'s equivalent from the
+    // stale-tick POST. The previous test asserted only "could not post the
+    // stale-tick warning comment", which an unreachable API produces just
+    // as well — so deleting the gate changed nothing. With a real fixture
+    // server answering GET /tasks/55, the two are distinguishable: the
+    // refusal must name the allow-list.
+    _tickFixtureServer([
+        'GET /api/v1/tasks/55' => ['status' => 200, 'body' => json_encode(['id' => 55, 'project_id' => 999])],
+    ], function (int $port) {
+        $repo = _tickGitRepo();
+        $home = sys_get_temp_dir() . '/otack-tick-test-' . bin2hex(random_bytes(4));
+        mkdir($home . '/.claude/otack-agent', 0700, true);
+        register_shutdown_function(fn() => _tickRrmdir($home));
+        file_put_contents($home . '/.claude/otack-agent/.env',
+            "OTACK_API_URL=http://127.0.0.1:$port/api/v1\nOTACK_API_TOKEN=otk_test\n");
+        chmod($home . '/.claude/otack-agent/.env', 0600);
+        // Project 1 is allow-listed; the task the stale lock names lives in
+        // project 999, which is not.
+        _tickWriteProjects($home, ['1' => ['path' => $repo['repo'], 'write' => true, 'default_branch' => 'main']]);
+
+        $staleStart = time() - (3 * 3600 + 600);
+        [$hold] = _tick($home, '--selftest=hold:3 --selftest-task-id=55 --selftest-started-at=' . $staleStart);
+        $p = proc_open($hold, [1 => ['pipe','w'], 2 => ['pipe','w']], $pipes);
+        usleep(500_000);
+
+        [$blocked] = _tick($home, '');
+        exec($blocked . ' 2>&1', $out, $code);
+        $text = implode("\n", $out);
+
+        assert_eq(TICK_EXIT_BLOCKED, $code, $text);
+        assert_true(
+            str_contains($text, 'is not listed in ~/.claude/otack-agent/projects.json'),
+            'the refusal must come from the allow-list gate, not from a network failure: ' . $text
+        );
+
+        fclose($pipes[1]); fclose($pipes[2]); proc_close($p);
+    });
 });

@@ -15,11 +15,31 @@ ini_set('zend.exception_ignore_args', '1');
  * session and runs one Claude Code tick as a child process.
  *
  * Why a wrapper rather than locking inside the CLI: flock lives exactly as
- * long as the process holding the file descriptor. A short CLI command would
- * release it a second after the session started. Here the descriptor stays
- * open for the session's entire lifetime, and the kernel releases it when
- * this process ends — so a crash, a reboot or a closed laptop cannot leave a
- * stale lock behind, and no TTL or cleanup is needed (spec §5.1).
+ * long as the file descriptor holding it. A short CLI command would release
+ * it a second after the session started. Here the descriptor stays open for
+ * the session's entire lifetime.
+ *
+ * F2 (third review pass) — what the lock actually guarantees, because the
+ * previous docblock (and spec §5.1) claimed something false. flock is tied
+ * to the open file *description*, not to this process: fork() and exec()
+ * both preserve it, so the descriptor — and with it the lock — is inherited
+ * by `claude`, by every shell it spawns, and by anything those leave behind.
+ * Reproduced: this wrapper -> passthru() -> child -> `nohup sleep 120 &`;
+ * the wrapper exits, `lsof agent.lock` still shows the orphaned `sleep`
+ * holding it. Identical with proc_open, so it is not a passthru artifact.
+ * The realistic trigger is a session that runs `make test` and leaves a dev
+ * server or a watcher running.
+ *
+ * So the true statements are:
+ *   - the kernel releases the lock when the LAST process holding a copy of
+ *     the descriptor exits — normally that is this wrapper, but not always;
+ *   - a crash, a reboot or a closed laptop still cannot leave a stale lock
+ *     file behind, because there is no on-disk lock state to clean up;
+ *   - a leaked descriptor CAN hold the lock after the session is gone. The
+ *     symptom is "tick already running (pid <dead>)" forever with no
+ *     otack-tick in `ps`. This script detects exactly that (see the
+ *     liveness check at the flock failure branch) and names `lsof` as the
+ *     way to find the real holder, instead of repeating a lie every tick.
  *
  * C1 (adversarial review of 8144dfe): `--allowedTools` on the shipped CLI
  * (2.1.186) ADDS to `alwaysAllowRules`, merged with the operator's own
@@ -33,23 +53,76 @@ ini_set('zend.exception_ignore_args', '1');
  * `~/.claude` config, and was refused the identical command once `claude`
  * was pointed at an isolated `CLAUDE_CONFIG_DIR` whose settings.json grants
  * nothing. This file always launches the child with `CLAUDE_CONFIG_DIR` set
- * to such a directory (`CLAUDE_HOME_DIR` below), which this script owns and
+ * to such a directory (`$claudeHomeDir` below), which this script owns and
  * rewrites to a known-empty state on every tick.
  *
  * Operational prerequisite this implies: `CLAUDE_CONFIG_DIR` isolates
  * authentication along with everything else on this CLI (verified — an
  * isolated, freshly-created config dir reports "Not logged in" even though
  * the operator's own session is authenticated). The directory named by
- * CLAUDE_HOME_DIR below must be logged in once, out of band
+ * $claudeHomeDir below must be logged in once, out of band
  * (`CLAUDE_CONFIG_DIR=<dir> claude` interactively, or `claude setup-token`),
  * before this script can launch a real session. Until then it fails loudly
- * (the child prints "Not logged in" and exits non-zero, which `exit($code)`
- * below propagates to cron) rather than silently doing nothing or falling
- * back to the operator's own credentials.
+ * rather than silently doing nothing or falling back to the operator's own
+ * credentials.
+ *
+ * F1 (third review pass) — file writes ARE bounded, contrary to the second
+ * pass's conclusion. That pass observed `Edit(//dir/**)` / `Write(//dir/**)`
+ * scoped rules misbehaving (true, reconfirmed: such a rule denies writes
+ * inside its own declared directory) and concluded --add-dir is not a hard
+ * boundary. The actual cause was different: `Write` was listed in
+ * `--allowedTools`, and a bare tool name is an UNCONDITIONAL grant, so the
+ * directory check is never reached. Measured against a real `claude -p`,
+ * ground truth checked from outside the child (does the file exist?), same
+ * neutral prompt in every run:
+ *
+ *   permission-mode | Write in --allowedTools | target                    | result
+ *   ----------------+-------------------------+---------------------------+---------
+ *   dontAsk         | yes (the old code)      | outside every --add-dir   | CREATED
+ *   acceptEdits     | no                      | inside an --add-dir       | created
+ *   acceptEdits     | no                      | outside every --add-dir   | REFUSED
+ *
+ * Hence: Edit/Write are NOT in $allowedTools below, and PERMISSION_MODE is
+ * acceptEdits. Also verified in the same run that acceptEdits does not
+ * weaken Bash: a command absent from --allowedTools (`sw_vers ...`) was not
+ * executed — in `-p` there is nobody to answer the prompt, so a prompt is a
+ * denial. Note the session's cwd is writable too, which is why cwd is a
+ * deliberately boring directory (F5, see $sessionCwdDir).
+ *
+ * F3 (third review pass) — the ban on touching the default branch is
+ * enforced by a real gate, not by permission prefixes. Prefix rules cannot
+ * express a branch policy, and the previous attempt was demonstrably
+ * bypassable: `git checkout -B main` does not match a
+ * `Bash(git checkout main:*)` deny, and `git push origin HEAD:main` does not
+ * match `Bash(git push origin main:*)` — the reviewer advanced a real
+ * remote's `main` with exactly those two commands, and shipped the whole
+ * repository to an unrelated URL with `git push <url> HEAD:refs/heads/x`.
+ * Two mechanisms replace them, both configured through the child's
+ * environment (putenv is proven to reach the passthru child on this
+ * platform):
+ *   1. a `git` shim first on PATH, which re-enters this script as
+ *      `--git-gate` and inspects argv before exec'ing the real git. The bot
+ *      cannot go around it: every command it may run must literally start
+ *      with `git ` to match a `Bash(git …:*)` allow prefix, so
+ *      `/usr/bin/git …`, `env git …`, `PATH=… git …` and `command git …`
+ *      are all refused by the permission layer before they run.
+ *   2. `core.hooksPath` injected via GIT_CONFIG_* (which applies to EVERY
+ *      git invocation, including one made by a Makefile with an absolute
+ *      path), with pre-commit/pre-push hooks re-entering this script as
+ *      `--git-hook=…`. This is what catches a git that dodged the shim;
+ *      the shim is what catches `--no-verify`, which would skip the hooks.
+ * Both read one policy file this script writes per tick, listing for each
+ * allow-listed repository its default branch and its origin URL. The
+ * default branch is never hardcoded: it comes from an optional
+ * `default_branch` key in projects.json, falling back to the repository's
+ * own `refs/remotes/origin/HEAD`.
  *
  * Usage:  otack-tick
+ *         otack-tick --git-gate <git args…>        (internal: the PATH shim)
+ *         otack-tick --git-hook=pre-commit         (internal: git hook)
+ *         otack-tick --git-hook=pre-push <remote> <url>
  *         (all --selftest=* flags below require OTACK_TICK_ALLOW_SELFTEST=1
- *         in the environment — see MINOR below — and are for tests only)
+ *         in the environment and are for tests only)
  *         otack-tick --selftest=hold:<seconds>
  *         otack-tick --selftest=hold:<seconds> --selftest-task-id=<id> --selftest-started-at=<epoch>
  *                     (fabricates task_id/started_at instead of the real
@@ -57,12 +130,16 @@ ini_set('zend.exception_ignore_args', '1');
  *                     literally waiting three hours)
  *         otack-tick --selftest=print-cmd [...same project/task fabrication...]
  *                     (runs every step through building the child command —
- *                     lock, config, allow-list, disallow-list, add-dir,
- *                     CLAUDE_CONFIG_DIR setup, chdir — then prints it as JSON
- *                     on stdout and exits 0 instead of calling passthru().
- *                     M6: this is the seam tests assert the constructed
- *                     command against, instead of trusting it by reading the
- *                     source.)
+ *                     lock, config, allow-list, disallow-list, add-dir, git
+ *                     gate, CLAUDE_CONFIG_DIR setup, chdir — then prints it
+ *                     as JSON on stdout and exits 0 instead of calling
+ *                     passthru(). M6: this is the seam tests assert the
+ *                     constructed command against, instead of trusting it
+ *                     by reading the source.)
+ *         otack-tick --selftest-race-sleep-ms=<n>
+ *                     (widens the fopen()->flock() window so a test can
+ *                     deterministically replace the lock file inside it and
+ *                     prove the inode re-check actually fires)
  */
 
 require_once __DIR__ . '/../lib/Config.php';
@@ -73,11 +150,12 @@ use App\Agent\{Config, Client};
 const STALE_AFTER_SECONDS = 3 * 3600;
 
 // PERMISSION_MODE: found empirically against a real `claude -p` invocation
-// (Step 5, and re-verified for this fix). Never replace it with
+// (see F1 in the docblock). acceptEdits is what makes --add-dir a real
+// boundary for Edit/Write; it does NOT loosen Bash. Never replace it with
 // `--dangerously-skip-permissions` (forbidden; enforced by
 // tests/unit/test_agent_lock.php asserting the constructed command never
 // contains the substring "dangerously").
-const PERMISSION_MODE = 'dontAsk';
+const PERMISSION_MODE = 'acceptEdits';
 
 // MINOR: distinct exit codes so cron / a human reading logs can tell "did
 // nothing, another tick already holds the lock" apart from "ran and
@@ -87,11 +165,20 @@ const EXIT_CONFIG_ERROR   = 1;
 const EXIT_USAGE_ERROR    = 2;
 const EXIT_BLOCKED        = 75; // sysexits.h EX_TEMPFAIL: not an error, but not "ran" either.
 
+// Third pass: `exit($code)` used to propagate the child's status verbatim,
+// so a session that happened to exit 1, 2 or 75 was indistinguishable from
+// this wrapper's own config error / usage error / blocked. Offset it
+// instead: the wrapper's own codes stay in 0..75, anything >= 100 means
+// "the wrapper ran fine, the claude session exited (code - 100)".
+const EXIT_CHILD_BASE = 100;
+
+// The git gate's own refusal code (used by the PATH shim and by the git
+// hooks, never by a scheduled run) — distinct from git's own 1/128 so a
+// refusal is recognisable in a transcript.
+const EXIT_GIT_REFUSED = 90;
+
 // MINOR: `--selftest=hold:<junk>` used to silently no-op via `(int)` cast,
-// and `hold:999999999` would hold the mutex for days on a typo. Both are
-// cron-log-only failure modes — nothing on stdout/stderr looks wrong, the
-// bot just quietly does nothing (or nothing else can run) until a human
-// notices. `ctype_digit` rejects the junk; this caps the legitimate range.
+// and `hold:999999999` would hold the mutex for days on a typo.
 const MAX_SELFTEST_HOLD_SECONDS = 60;
 
 // MINOR: the whole --selftest=* surface is test-only scaffolding that
@@ -99,6 +186,10 @@ const MAX_SELFTEST_HOLD_SECONDS = 60;
 // env var so a stray "--selftest=..." token surviving into a real cron line
 // can never be mistaken for anything but a configuration mistake.
 const SELFTEST_ENV_GATE = 'OTACK_TICK_ALLOW_SELFTEST';
+
+// Where the git gate finds its policy. Set by this script for the child;
+// read by --git-gate / --git-hook.
+const GIT_POLICY_ENV = 'OTACK_GIT_POLICY';
 
 // M4: the allow-list string is built by concatenating each project's
 // test_cmd raw, and the CLI's rule parser splits on spaces/commas *outside
@@ -108,12 +199,437 @@ const SELFTEST_ENV_GATE = 'OTACK_TICK_ALLOW_SELFTEST';
 // rules from one config value). Reject anything outside a conservative
 // character allow-list before it is ever interpolated, rather than trying
 // to escape the characters the parser treats specially.
+//
+// Third pass, noted as ACCEPTED not fixed: this check is syntactic only. It
+// validates characters, not authority — "sh", "bash" and "make" all pass
+// and each becomes a broad `Bash(<x>:*)` grant, and `make` runs whatever
+// the project's Makefile says. See agent/README.md.
 const TEST_CMD_SAFE_PATTERN = '/^[A-Za-z0-9 _.\/-]+$/';
 
 function isSafeTestCmd(string $cmd): bool
 {
     return $cmd !== '' && preg_match(TEST_CMD_SAFE_PATTERN, $cmd) === 1;
 }
+
+/**
+ * A git ref name safe to interpolate into a policy file and to compare
+ * against. Deliberately narrower than git's own rules.
+ */
+function isSafeBranchName(string $name): bool
+{
+    if ($name === '' || $name[0] === '-' || str_contains($name, '..')) { return false; }
+    return preg_match('#^[A-Za-z0-9][A-Za-z0-9._/-]*$#', $name) === 1;
+}
+
+/**
+ * F2/F4: is the process that recorded itself as the lock holder still
+ * alive? posix_kill($pid, 0) is the standard probe; EPERM (errno 1) means
+ * the process exists but belongs to someone else, which still counts as
+ * alive. Falls back to ps(1) if ext/posix is missing.
+ */
+function processAlive(int $pid): bool
+{
+    if ($pid <= 0) { return false; }
+    if (function_exists('posix_kill')) {
+        if (@posix_kill($pid, 0)) { return true; }
+        return function_exists('posix_get_last_error') && posix_get_last_error() === 1; // EPERM
+    }
+    $out = []; $code = 1;
+    @exec('ps -p ' . escapeshellarg((string)$pid) . ' -o pid= 2>/dev/null', $out, $code);
+    return $code === 0;
+}
+
+/** Runs a command, capturing stdout. Returns [exitCode, trimmed stdout]. */
+function runCapture(array $argv, ?string $cwd = null): array
+{
+    $cmd = implode(' ', array_map('escapeshellarg', $argv));
+    if ($cwd !== null) { $cmd = 'cd ' . escapeshellarg($cwd) . ' && ' . $cmd; }
+    $out = []; $code = 1;
+    @exec($cmd . ' 2>/dev/null', $out, $code);
+    return [$code, trim(implode("\n", $out))];
+}
+
+// --- The git gate (F3) --------------------------------------------------
+//
+// Everything below runs in one of two internal modes — as the PATH shim
+// (`--git-gate`) or as a git hook (`--git-hook=…`) — never as part of a
+// scheduled run.
+
+function gitRefuse(string $why): void
+{
+    fwrite(STDERR,
+        "otack git gate: REFUSED — $why\n" .
+        "This is spec §9 policy enforced by agent/bin/otack-tick, not a git error. " .
+        "Work on a task branch and push it; a human merges into the default branch.\n"
+    );
+    exit(EXIT_GIT_REFUSED);
+}
+
+/**
+ * The per-tick policy: which repositories the bot may mutate, each one's
+ * default branch and its origin URL, plus the absolute path of the real
+ * git. Written by the scheduled run, read here.
+ */
+function gitPolicyLoad(): array
+{
+    $path = (string)getenv(GIT_POLICY_ENV);
+    if ($path === '' || !is_file($path)) {
+        gitRefuse(GIT_POLICY_ENV . ' is unset or does not point at a readable policy file');
+    }
+    $policy = json_decode((string)file_get_contents($path), true);
+    if (!is_array($policy) || !isset($policy['git']) || !is_array($policy['repos'] ?? null)) {
+        gitRefuse("the policy file at $path is not usable");
+    }
+    return $policy;
+}
+
+/** The policy entry for the repository containing $cwd, or null. */
+function gitRepoPolicy(array $policy, string $git, string $cwd): ?array
+{
+    [$code, $top] = runCapture([$git, 'rev-parse', '--show-toplevel'], $cwd);
+    if ($code !== 0 || $top === '') { return null; }
+    $real = realpath($top);
+    if ($real === false) { return null; }
+    $entry = $policy['repos'][$real] ?? null;
+    if (!is_array($entry)) { return null; }
+    $entry['path'] = $real;
+    return $entry;
+}
+
+/** Current branch name, or '' when detached. */
+function gitCurrentBranch(string $git, string $cwd): string
+{
+    [$code, $name] = runCapture([$git, 'symbolic-ref', '--quiet', '--short', 'HEAD'], $cwd);
+    return $code === 0 ? $name : '';
+}
+
+/** refs/heads/x -> x; leaves anything else alone. */
+function gitShortRef(string $ref): string
+{
+    return str_starts_with($ref, 'refs/heads/') ? substr($ref, strlen('refs/heads/')) : $ref;
+}
+
+/**
+ * Subcommands the gate has an opinion about. Anything here is refused
+ * outright in a repository that is not in the policy (fail closed);
+ * anything else — status, diff, log, rev-parse, show — is passed straight
+ * through, since it cannot change history or send anything anywhere.
+ */
+const GIT_GATED_SUBCOMMANDS = [
+    'push', 'commit', 'merge', 'rebase', 'cherry-pick', 'revert', 'am',
+    'reset', 'restore', 'apply', 'checkout', 'switch', 'branch', 'tag',
+    'remote', 'config', 'filter-branch', 'update-ref', 'fast-import',
+    'bundle', 'archive', 'clone', 'send-email', 'daemon', 'worktree',
+];
+
+/** Subcommands that write history and so must never run on the default branch. */
+const GIT_HISTORY_SUBCOMMANDS = [
+    'commit', 'merge', 'rebase', 'cherry-pick', 'revert', 'am', 'reset', 'restore', 'apply',
+];
+
+function runGitGate(array $args): void
+{
+    $policy = gitPolicyLoad();
+    $git = (string)$policy['git'];
+
+    // 1. Global options, before the subcommand. Anything that could
+    //    re-point git's configuration (and therefore switch the hooks off)
+    //    is refused rather than forwarded.
+    $cwd = getcwd() ?: '.';
+    $sub = null;
+    $i = 0;
+    $n = count($args);
+    for (; $i < $n; $i++) {
+        $a = $args[$i];
+        if ($a === '') { continue; }
+        if ($a === '-C') {
+            $i++;
+            if ($i >= $n) { gitRefuse('-C given without a directory'); }
+            $cwd = $args[$i];
+            continue;
+        }
+        if (str_starts_with($a, '-C') && strlen($a) > 2) { $cwd = substr($a, 2); continue; }
+        if ($a === '-c' || str_starts_with($a, '--config-env') || str_starts_with($a, '--exec-path')
+            || str_starts_with($a, '--git-dir') || str_starts_with($a, '--work-tree')
+            || str_starts_with($a, '--namespace') || str_starts_with($a, '--upload-pack')) {
+            gitRefuse("the global option \"$a\" can re-point git's configuration and is not allowed");
+        }
+        if ($a[0] !== '-') { $sub = $a; break; }
+    }
+    $rest = array_slice($args, $i + 1);
+
+    // 2. --no-verify (and `commit -n`) would skip the hooks that back this
+    //    gate up, so the shim refuses them for every subcommand.
+    foreach ($rest as $a) {
+        if ($a === '--no-verify') { gitRefuse('--no-verify would skip the policy hooks'); }
+    }
+
+    if ($sub === null) {
+        // `git --version`, `git --help`: nothing to gate.
+        gitExec($git, $args);
+    }
+
+    $entry = gitRepoPolicy($policy, $git, $cwd);
+    if ($entry === null) {
+        if (in_array($sub, GIT_GATED_SUBCOMMANDS, true)) {
+            gitRefuse(
+                "\"git $sub\" was run outside every repository listed in " .
+                '~/.claude/otack-agent/projects.json (write:true), so there is no branch policy to apply'
+            );
+        }
+        gitExec($git, $args);
+    }
+
+    $default = (string)($entry['default_branch'] ?? '');
+    $origin  = (string)($entry['origin'] ?? '');
+    $repo    = (string)$entry['path'];
+
+    if (in_array($sub, GIT_HISTORY_SUBCOMMANDS, true)) {
+        if ($sub === 'commit' && (in_array('-n', $rest, true))) {
+            gitRefuse('`git commit -n` is --no-verify and would skip the policy hooks');
+        }
+        $branch = gitCurrentBranch($git, $repo);
+        if ($default !== '' && $branch === $default) {
+            gitRefuse("\"git $sub\" on the default branch \"$default\" (spec §9)");
+        }
+    }
+
+    if ($sub === 'tag') {
+        gitRefuse('tags are out of the agent\'s remit entirely (spec §9)');
+    }
+
+    if ($sub === 'branch') {
+        foreach ($rest as $a) {
+            if (in_array($a, ['-d', '-D', '--delete', '-m', '-M', '--move', '-f', '--force', '-c', '-C', '--copy'], true)) {
+                gitRefuse("\"git branch $a\" deletes, renames or force-moves a branch (spec §9)");
+            }
+        }
+        gitExec($git, $args);
+    }
+
+    if ($sub === 'remote') {
+        $first = $rest[0] ?? '';
+        if (!in_array($first, ['get-url', 'show', '-v', '--verbose', ''], true)) {
+            gitRefuse('only read-only `git remote` forms are allowed — changing a remote would move the push target');
+        }
+        gitExec($git, $args);
+    }
+
+    if ($sub === 'config') {
+        $readOnly = ['--get', '--get-all', '--get-regexp', '--list', '-l', '--get-urlmatch'];
+        $isRead = false;
+        foreach ($rest as $a) { if (in_array($a, $readOnly, true)) { $isRead = true; break; } }
+        if (!$isRead) { gitRefuse('only read-only `git config` forms are allowed'); }
+        gitExec($git, $args);
+    }
+
+    if ($sub === 'checkout' || $sub === 'switch') {
+        if ($default !== '') { gitGateCheckout($sub, $rest, $default); }
+        gitExec($git, $args);
+    }
+
+    if ($sub === 'push') {
+        gitGatePush($git, $repo, $rest, $default, $origin);
+        gitExec($git, $args);
+    }
+
+    gitExec($git, $args);
+}
+
+/** Refuses any checkout/switch whose target is the default branch, in any spelling. */
+function gitGateCheckout(string $sub, array $rest, string $default): void
+{
+    $takesBranch = $sub === 'checkout' ? ['-b', '-B'] : ['-c', '-C', '--orphan'];
+    $n = count($rest);
+    for ($i = 0; $i < $n; $i++) {
+        $a = $rest[$i];
+        if ($a === '--') { break; }
+        if (in_array($a, $takesBranch, true)) {
+            $target = $rest[$i + 1] ?? '';
+            if ($target === $default) {
+                gitRefuse("\"git $sub $a $default\" would put the session on the default branch (spec §9)");
+            }
+            $i++;
+            continue;
+        }
+        if ($a !== '' && $a[0] === '-') { continue; }
+        if ($a === $default || $a === 'refs/heads/' . $default) {
+            gitRefuse("\"git $sub $default\" would put the session on the default branch (spec §9)");
+        }
+        break; // first positional is the target; the rest are paths
+    }
+}
+
+/**
+ * The push policy: no force, no delete, no tags, no mirror/all, only the
+ * repository's own origin as a destination, and never the default branch
+ * as a destination ref — regardless of which refspec spelling is used.
+ */
+function gitGatePush(string $git, string $repo, array $rest, string $default, string $origin): void
+{
+    $positional = [];
+    $n = count($rest);
+    for ($i = 0; $i < $n; $i++) {
+        $a = $rest[$i];
+        if ($a === '') { continue; }
+        if ($a[0] === '-') {
+            if (str_starts_with($a, '--force') || $a === '-f') {
+                gitRefuse("\"git push $a\" rewrites history on the remote (spec §9)");
+            }
+            if (in_array($a, ['--mirror', '--delete', '-d', '--tags', '--follow-tags', '--all', '--prune'], true)) {
+                gitRefuse("\"git push $a\" can delete or overwrite refs the agent does not own (spec §9)");
+            }
+            if (str_starts_with($a, '--receive-pack') || str_starts_with($a, '--exec')) {
+                gitRefuse("\"git push $a\" runs an arbitrary command on the far end");
+            }
+            if (in_array($a, ['-o', '--push-option', '--repo'], true)) {
+                // These take a value; refusing is simpler and safer than
+                // trying to keep positional counting in sync with them.
+                gitRefuse("\"git push $a\" is not allowed");
+            }
+            continue;
+        }
+        $positional[] = $a;
+    }
+
+    // Destination. `git push` with no remote uses the branch's remote;
+    // this script pins push.default=current for the child, and the bot
+    // cannot add or re-point a remote (see the `remote` case above), so
+    // resolving "origin" is the honest default here.
+    $remoteArg = $positional[0] ?? 'origin';
+    [$code, $url] = runCapture([$git, 'remote', 'get-url', $remoteArg], $repo);
+    if ($code !== 0 || $url === '') {
+        $url = $remoteArg; // not a known remote name — it is a literal URL/path
+    }
+    if ($origin === '') {
+        gitRefuse("this repository has no recorded origin URL, so there is nowhere the agent may push");
+    }
+    if ($url !== $origin) {
+        gitRefuse(
+            "pushing to \"$url\" — the only destination allowed for this repository is its own origin " .
+            "(\"$origin\"). Sending repository contents anywhere else is spec §9's external-service ban."
+        );
+    }
+
+    $refspecs = array_slice($positional, 1);
+    if ($refspecs === []) {
+        $branch = gitCurrentBranch($git, $repo);
+        if ($default !== '' && ($branch === $default || $branch === '')) {
+            gitRefuse("a bare `git push` from \"" . ($branch ?: 'a detached HEAD') . "\" could land on the default branch \"$default\" (spec §9)");
+        }
+        return;
+    }
+
+    foreach ($refspecs as $spec) {
+        if ($spec !== '' && $spec[0] === '+') {
+            gitRefuse("the refspec \"$spec\" is a force push (spec §9)");
+        }
+        if ($spec !== '' && $spec[0] === ':') {
+            gitRefuse("the refspec \"$spec\" deletes a remote ref (spec §9)");
+        }
+        $dst = str_contains($spec, ':') ? substr($spec, strpos($spec, ':') + 1) : $spec;
+        if ($dst === 'HEAD' || $spec === 'HEAD') {
+            $dst = gitCurrentBranch($git, $repo);
+        }
+        if (str_starts_with($dst, 'refs/tags/')) {
+            gitRefuse("the refspec \"$spec\" pushes a tag (spec §9)");
+        }
+        $dstShort = gitShortRef($dst);
+        if ($default !== '' && $dstShort === $default) {
+            gitRefuse(
+                "the refspec \"$spec\" resolves to the default branch \"$default\" — " .
+                'this is exactly the "git push origin HEAD:main" shape prefix rules could not express (spec §9)'
+            );
+        }
+    }
+}
+
+/** Hands off to the real git, preserving stdio and the exit code. */
+function gitExec(string $git, array $args): void
+{
+    $cmd = implode(' ', array_map('escapeshellarg', array_merge([$git], $args)));
+    $code = 0;
+    passthru($cmd, $code);
+    exit($code);
+}
+
+/**
+ * Defence in depth behind the shim: GIT_CONFIG_* points core.hooksPath at
+ * generated hooks that re-enter here, so a git reached by absolute path
+ * (from a Makefile, say) is still gated. `--no-verify`, which would skip
+ * these, is refused by the shim.
+ */
+function runGitHook(string $which, array $args): void
+{
+    $policy = gitPolicyLoad();
+    $git = (string)$policy['git'];
+    $cwd = getcwd() ?: '.';
+    $entry = gitRepoPolicy($policy, $git, $cwd);
+    if ($entry === null) {
+        gitRefuse("$which: this repository is not listed in ~/.claude/otack-agent/projects.json (write:true)");
+    }
+    $default = (string)($entry['default_branch'] ?? '');
+    $origin  = (string)($entry['origin'] ?? '');
+    $repo    = (string)$entry['path'];
+
+    if ($which === 'pre-commit') {
+        $branch = gitCurrentBranch($git, $repo);
+        if ($default !== '' && $branch === $default) {
+            gitRefuse("pre-commit: committing on the default branch \"$default\" (spec §9)");
+        }
+        exit(EXIT_OK);
+    }
+
+    // pre-push: argv is <remote-name> <remote-url>; stdin carries
+    // "<local ref> <local sha> <remote ref> <remote sha>" per ref.
+    $url = $args[1] ?? '';
+    if ($origin === '' || $url !== $origin) {
+        gitRefuse("pre-push: \"$url\" is not this repository's origin (\"$origin\") — spec §9 bans sending repository contents elsewhere");
+    }
+    $zero = str_repeat('0', 40);
+    while (($line = fgets(STDIN)) !== false) {
+        $line = trim($line);
+        if ($line === '') { continue; }
+        $parts = preg_split('/\s+/', $line);
+        if (count($parts) < 4) { continue; }
+        [$localRef, $localSha, $remoteRef, $remoteSha] = $parts;
+        if (str_starts_with($remoteRef, 'refs/tags/')) {
+            gitRefuse("pre-push: pushing the tag \"$remoteRef\" (spec §9)");
+        }
+        if ($localSha === $zero || preg_match('/^0+$/', $localSha) === 1) {
+            gitRefuse("pre-push: deleting the remote ref \"$remoteRef\" (spec §9)");
+        }
+        if ($default !== '' && gitShortRef($remoteRef) === $default) {
+            gitRefuse("pre-push: \"$remoteRef\" is the default branch \"$default\" (spec §9)");
+        }
+        if (preg_match('/^0+$/', $remoteSha) !== 1) {
+            [$code] = runCapture([$git, 'merge-base', '--is-ancestor', $remoteSha, $localSha], $repo);
+            if ($code !== 0) {
+                gitRefuse("pre-push: \"$remoteRef\" would be updated non-fast-forward, i.e. a force push (spec §9)");
+            }
+        }
+    }
+    exit(EXIT_OK);
+}
+
+// Internal modes are dispatched before anything else: they are re-entries
+// from the shim / the hooks inside a running session, and must not touch
+// the lock, the config or the API.
+if (($argv[1] ?? '') === '--git-gate') {
+    runGitGate(array_slice($argv, 2));
+    exit(EXIT_GIT_REFUSED); // unreachable; runGitGate always exits
+}
+if (str_starts_with($argv[1] ?? '', '--git-hook=')) {
+    $which = substr($argv[1], strlen('--git-hook='));
+    if ($which !== 'pre-commit' && $which !== 'pre-push') {
+        fwrite(STDERR, "unknown git hook \"$which\"\n");
+        exit(EXIT_USAGE_ERROR);
+    }
+    runGitHook($which, array_slice($argv, 2));
+    exit(EXIT_GIT_REFUSED); // unreachable
+}
+
+// --- Scheduled run ------------------------------------------------------
 
 $home = getenv('HOME') ?: '';
 $dir  = rtrim($home, '/') . '/.claude/otack-agent';
@@ -123,15 +639,25 @@ if (!is_dir($dir)) {
 }
 
 $lockPath      = $dir . '/agent.lock';
-// M1, see the long comment further down at the point this is used.
+// M1/F4, see the long comments at the points these are used.
 $initMarker    = $dir . '/.agent-lock-initialized';
-// C1: the isolated, otack-tick-owned Claude Code config directory (see the
-// docblock above). Never the operator's own ~/.claude.
+// C1: the isolated, otack-tick-owned Claude Code config directory.
 $claudeHomeDir = $dir . '/claude-home';
-// C2: a directory that exists only so the child's cwd is a deliberate,
-// inert choice instead of whatever $HOME or the caller's shell happened to
-// leave it at — see the C2 comment further down.
-$sessionCwdDir = $dir . '/session-cwd';
+// F3: this tick's git shim, hooks and policy file.
+$gitGateDir    = $dir . '/git-gate';
+$gitHooksDir   = $gitGateDir . '/hooks';
+$gitPolicyPath = $gitGateDir . '/policy.json';
+// The child's transcript. It is not sent to cron mail on purpose (see the
+// comment where the redirect is built).
+$sessionLog    = $dir . '/tick-session.log';
+// F5 (third review pass): the session's cwd is writable (verified — the
+// child was refused a write outside every --add-dir but treats its own cwd
+// as permitted), and it used to be a child of the directory holding .env
+// (the bearer token) and projects.json (the allow-list deciding what the
+// NEXT tick may touch). The session demonstrably wrote projects.json from
+// there. F1 closes the write path; this moves the cwd away from those
+// neighbours as well, so a future hole in one is not a hole in the other.
+$sessionCwdDir = rtrim($home, '/') . '/.cache/otack-agent/session-cwd';
 
 // --- Argument parsing --------------------------------------------------
 //
@@ -141,6 +667,7 @@ $sessionCwdDir = $dir . '/session-cwd';
 $selftest          = null;   // null | 'print-cmd' | int (hold seconds)
 $selftestTaskId    = null;
 $selftestStartedAt = null;
+$selftestRaceSleep = 0;
 $selftestGateOpen  = getenv(SELFTEST_ENV_GATE) === '1';
 
 foreach (array_slice($argv, 1) as $a) {
@@ -197,6 +724,19 @@ foreach (array_slice($argv, 1) as $a) {
         $selftestStartedAt = (int)$raw;
         continue;
     }
+    if (str_starts_with($a, '--selftest-race-sleep-ms=')) {
+        if (!$selftestGateOpen) {
+            fwrite(STDERR, "--selftest-race-sleep-ms requires " . SELFTEST_ENV_GATE . "=1 in the environment\n");
+            exit(EXIT_USAGE_ERROR);
+        }
+        $raw = substr($a, strlen('--selftest-race-sleep-ms='));
+        if (!ctype_digit($raw) || (int)$raw > 5000) {
+            fwrite(STDERR, "--selftest-race-sleep-ms requires an integer of at most 5000, got \"$raw\"\n");
+            exit(EXIT_USAGE_ERROR);
+        }
+        $selftestRaceSleep = (int)$raw;
+        continue;
+    }
     fwrite(STDERR, "unrecognised argument \"$a\"\n");
     exit(EXIT_USAGE_ERROR);
 }
@@ -205,39 +745,59 @@ foreach (array_slice($argv, 1) as $a) {
 //
 // M1 (adversarial review of 8144dfe): `agent.lock` is not just a status
 // file — the flock held on its inode IS the mutex. `rm agent.lock` while a
-// session holds it does not release that mutex (only closing the fd does,
-// and the kernel only does that when the process exits); it just detaches
-// the path from the locked inode. A second tick's `fopen($lockPath, 'c')`
-// then silently creates a brand-new, wholly uncontended inode at that path
-// and locks *that* — flock() has no way to know the old inode is still
-// spoken for, because the two inodes can never conflict with each other.
-// Reproduced: holder running, `rm agent.lock`, second tick creates a fresh
-// inode, locks it, and launches a second concurrent session — exactly the
-// failure this file exists to prevent. Every cue in the product points a
-// frustrated operator at `rm`: the file is called a lock, and a missing
-// file reads as "nothing is running".
+// session holds it does not release that mutex (only closing every copy of
+// the descriptor does); it just detaches the path from the locked inode. A
+// second tick's `fopen($lockPath, 'c')` then silently creates a brand-new,
+// wholly uncontended inode at that path and locks *that* — flock() has no
+// way to know the old inode is still spoken for, because the two inodes can
+// never conflict with each other. Reproduced: holder running,
+// `rm agent.lock`, second tick creates a fresh inode, locks it, and
+// launches a second concurrent session.
 //
-// A single point-in-time inode comparison cannot detect this by itself: a
-// tick that (re)creates the file because it is missing will always see its
-// own brand-new inode as internally consistent. What actually closes the
-// gap is a persistent record, written once and never removed, of "this
-// machine has taken the lock before" — so a *missing* agent.lock can be
-// told apart from "first run ever" (marker also absent — bootstrap
-// normally) versus "someone deleted it out from under a holder" (marker
-// present — refuse, do not silently recreate).
+// The guard is a persistent record — written on every successful
+// acquisition, never removed — of who last held the lock. A *missing*
+// agent.lock can then be told apart from "first run ever" (marker also
+// absent: bootstrap) versus "someone deleted it out from under a live
+// holder" (marker names a process that is still running: refuse).
+//
+// F4 (third review pass): that last distinction used to be missing. The
+// marker held only a timestamp, so ANY missing agent.lock with a marker
+// present was refused — including the entirely harmless case of an operator
+// deleting the file while nothing was running, which bricked every later
+// tick with exit 1 until someone deleted a dotfile they had never heard of.
+// Reproduced with nothing running at all. The refusal is now gated on the
+// recorded holder actually being alive, same probe as the flock-failure
+// branch below.
 $lockExisted   = file_exists($lockPath);
-$markerExisted = file_exists($initMarker);
+$markerRaw     = is_file($initMarker) ? (string)file_get_contents($initMarker) : null;
+$markerExisted = $markerRaw !== null;
+
 if (!$lockExisted && $markerExisted) {
+    $marker     = json_decode(trim($markerRaw), true);
+    $markerPid  = is_array($marker) ? (int)($marker['pid'] ?? 0) : 0;
+    $markerHost = is_array($marker) ? (string)($marker['host'] ?? '') : '';
+    $holderLive = $markerPid > 0 && $markerHost === gethostname() && processAlive($markerPid);
+
+    if ($holderLive) {
+        fwrite(STDERR,
+            "agent.lock is missing at $lockPath, but $initMarker records pid $markerPid on this host as its " .
+            "last holder — and that process is still running. Refusing to create a replacement: it still holds " .
+            "the deleted file open, and a fresh lock here would let a second session run alongside it.\n" .
+            "Do NOT delete agent.lock to \"fix\" a stuck tick — deletion does not free the mutex.\n" .
+            "Inspect pid $markerPid (`ps -p $markerPid`), and kill it if it is genuinely wedged; the next tick " .
+            "will then bootstrap a new lock on its own.\n"
+        );
+        exit(EXIT_CONFIG_ERROR);
+    }
+
     fwrite(STDERR,
-        "agent.lock is missing at $lockPath, but $initMarker records that this machine has run " .
-        "before. Refusing to create a replacement: a session started before this tick may still " .
-        "hold the deleted file open, and a fresh lock here would let it run concurrently with a " .
-        "second session — exactly the failure this check exists to prevent.\n" .
-        "Do NOT delete agent.lock to \"fix\" a stuck tick — deletion does not free the mutex.\n" .
-        "Check for a live process first (e.g. `ps aux | grep otack-tick`), kill it if it is " .
-        "genuinely dead, and only then remove $initMarker to let this script bootstrap again.\n"
+        "agent.lock is missing at $lockPath and " .
+        ($markerPid > 0
+            ? "its recorded last holder (pid $markerPid" . ($markerHost !== '' ? " on $markerHost" : '') . ") is not running"
+            : "the marker at $initMarker predates this check and names no holder") .
+        " — bootstrapping a fresh lock. Nothing was running, so this is safe; note that deleting agent.lock " .
+        "while a session IS running does not free the mutex and would be refused here.\n"
     );
-    exit(EXIT_CONFIG_ERROR);
 }
 
 $lock = fopen($lockPath, 'c');
@@ -246,20 +806,56 @@ if ($lock === false) {
     exit(EXIT_CONFIG_ERROR);
 }
 
+if ($selftestRaceSleep > 0) {
+    // Test-only: widens the fopen()->flock() window so a test can replace
+    // the file inside it and prove the inode re-check below actually fires.
+    usleep($selftestRaceSleep * 1000);
+}
+
 if (!flock($lock, LOCK_EX | LOCK_NB)) {
     // Someone else is mid-tick. Exiting EXIT_BLOCKED (not EXIT_OK) is
     // correct: an overlapping tick is the normal case when work runs longer
     // than the schedule interval, not an error condition worth alerting on
-    // — but it is also not "ran and succeeded", and the two used to be
-    // indistinguishable from cron's point of view.
+    // — but it is also not "ran and succeeded".
     $held = json_decode((string)file_get_contents($lockPath), true) ?: [];
     $since = isset($held['started_at']) ? time() - (int)$held['started_at'] : 0;
     $for = $since > 0 ? ' for ' . intdiv($since, 60) . 'm' : '';
     $pid = $held['pid'] ?? '?';
+    $holderPid  = (int)($held['pid'] ?? 0);
+    $holderHost = (string)($held['host'] ?? '');
+
+    // F2 (third review pass): the lock can outlive the session that took
+    // it. The descriptor is inherited by `claude` and by everything it
+    // spawns, so a background process the session left behind — a dev
+    // server or watcher started by `make test` is the realistic case —
+    // keeps holding it after this wrapper is long gone. The symptom was
+    // "tick already running (pid <dead>)" on every tick forever, with no
+    // otack-tick in `ps`, and after three hours a "работаю подозрительно
+    // долго" comment posted into a task on every single tick. Say what is
+    // actually true instead, and post nothing: no session is running to be
+    // slow.
+    $holderAlive = $holderPid > 0 && $holderHost === gethostname() && processAlive($holderPid);
+    if (!$holderAlive) {
+        fwrite(STDERR,
+            "agent.lock at $lockPath is still locked, but its recorded holder (pid $pid" .
+            ($holderHost !== '' ? ", host $holderHost" : '') . ") is not running on this machine.\n" .
+            "The lock is held by an inherited file descriptor: flock follows the open file description, so " .
+            "`claude` and every process it spawned inherited it, and something the session left behind " .
+            "(a dev server or watcher started by the test command is the usual culprit) is still holding it.\n" .
+            "Find the real holder with:  lsof " . escapeshellarg($lockPath) . "\n" .
+            "then kill that process. Deleting agent.lock does NOT free the mutex.\n" .
+            "No stale-tick comment was posted: there is no running session to be slow.\n"
+        );
+        exit(EXIT_BLOCKED);
+    }
+
     // M1: reworded so the message does not invite the exact remedy that
-    // causes the bug above.
-    echo "tick already running$for (pid $pid), doing nothing. " .
-         "Do not delete agent.lock — that will not free the mutex and lets a second session start concurrently.\n";
+    // causes the bug above. Third pass: this is a diagnostic, so it belongs
+    // on stderr — stdout is for a tick's actual output.
+    fwrite(STDERR,
+        "tick already running$for (pid $pid), doing nothing. " .
+        "Do not delete agent.lock — that will not free the mutex and lets a second session start concurrently.\n"
+    );
 
     if ($since > STALE_AFTER_SECONDS) {
         // Do not kill it — a long implementation phase is legitimate. Say so
@@ -273,9 +869,7 @@ if (!flock($lock, LOCK_EX | LOCK_NB)) {
         // But only ATTEMPT the "работаю подозрительно долго" comment once
         // per lock generation (spec §5.2, D7) — a 30-minute schedule would
         // otherwise post it again every tick for as long as the run stays
-        // wedged. The marker holds the started_at we already warned about;
-        // a new value there (a genuinely new stale run, or the same run
-        // restarted) is what re-arms it.
+        // wedged.
         $startedAt = isset($held['started_at']) ? (string)(int)$held['started_at'] : '';
         $warnedPath = $dir . '/stale-warned';
         $alreadyWarned = is_file($warnedPath) ? trim((string)file_get_contents($warnedPath)) : '';
@@ -285,13 +879,8 @@ if (!flock($lock, LOCK_EX | LOCK_NB)) {
             // M2 (adversarial review of 8144dfe): the marker write used to
             // sit outside this `if ($taskId > 0)` guard. The lock starts
             // with task_id: null (Task 4/6 fill it in later via
-            // `otack tick-note`), so a run that wedges *before* the skill
-            // picks a task burned the marker without ever posting anything
-            // — once tick-note later set the id, every subsequent tick saw
-            // this generation already "warned" and stayed silent forever.
-            // §5.2's "работаю подозрительно долго" would then never fire
-            // for that generation. task_id<=0 means we have not attempted
-            // anything yet, so do not mark it attempted.
+            // `otack tick-note`), so a run that wedged *before* the skill
+            // picked a task burned the marker without ever posting anything.
             if ($taskId > 0) {
                 try {
                     $cfg = Config::load($home);
@@ -300,12 +889,9 @@ if (!flock($lock, LOCK_EX | LOCK_NB)) {
                     // M3 (adversarial review of b4a4c4f): this POST took
                     // task_id straight from the lock file with no allow-list
                     // check at all — every other write in agent/bin/otack
-                    // gates on requireLocalProject() (since b4a4c4f), but a
-                    // task sitting in a project absent from
-                    // ~/.claude/otack-agent/projects.json would still
-                    // receive a comment from the bot. Fetch the task to
-                    // learn its project and refuse exactly like the CLI
-                    // does before posting.
+                    // gates on requireLocalProject(), but a task sitting in a
+                    // project absent from ~/.claude/otack-agent/projects.json
+                    // would still receive a comment from the bot.
                     $t = $client->get("/tasks/$taskId");
                     if ($t['status'] !== 200) {
                         throw new \RuntimeException("GET /tasks/$taskId returned " . $t['status']);
@@ -326,21 +912,11 @@ if (!flock($lock, LOCK_EX | LOCK_NB)) {
                     ]);
                 } catch (\Throwable $e) {
                     // Best-effort: the mutual exclusion itself does not
-                    // depend on this comment landing. Still mark it
-                    // attempted below so a genuinely unreachable API, or a
-                    // project this machine is not allowed to touch, doesn't
-                    // retry every single tick forever.
+                    // depend on this comment landing.
                     fwrite(STDERR, 'could not post the stale-tick warning comment: ' . $e->getMessage() . "\n");
                 }
 
-                // Mark this generation attempted regardless of how the try
-                // block above ended (posted, API failure, or the allow-list
-                // gate refusing) — task_id > 0 is the only thing that needs
-                // to be true for "we tried" to be accurate.
                 if (file_put_contents($warnedPath, $startedAt) === false) {
-                    // M2: an unwritable config dir must not mean "re-attempt
-                    // (and re-fail, and re-log) every single tick forever" —
-                    // at least say so once per occurrence.
                     fwrite(STDERR, "warning: could not write $warnedPath — will keep re-attempting the stale-tick warning every tick\n");
                 }
             }
@@ -355,9 +931,7 @@ if (!flock($lock, LOCK_EX | LOCK_NB)) {
 // e.g. a concurrent delete-and-recreate — what we just locked may already
 // be orphaned at this path. Compare device+inode of our open handle
 // against a fresh stat() of the path and back off on any mismatch rather
-// than proceed as if nothing happened. This is the standard defensive
-// idiom for path-based advisory locks (see flock(2)'s own notes on races
-// between unlink() and a waiter's lock).
+// than proceed as if nothing happened.
 $fstat = fstat($lock);
 $pstat = @stat($lockPath);
 if ($fstat === false || $pstat === false || $fstat['dev'] !== $pstat['dev'] || $fstat['ino'] !== $pstat['ino']) {
@@ -365,12 +939,17 @@ if ($fstat === false || $pstat === false || $fstat['dev'] !== $pstat['dev'] || $
     exit(EXIT_CONFIG_ERROR);
 }
 
-if (!$markerExisted) {
-    // First-ever successful acquisition on this machine — lay the marker
-    // the M1 guard above depends on. Never removed by this script.
-    if (file_put_contents($initMarker, (string)time()) === false) {
-        fwrite(STDERR, "warning: could not write $initMarker — the rm-while-held guard will not protect the next tick\n");
-    }
+// F4: the marker doubles as "who last held this lock", so a missing
+// agent.lock can be judged on liveness rather than on the mere fact that
+// this machine has run before. Rewritten on every acquisition; never
+// removed by this script.
+$holderRecord = [
+    'pid'        => getmypid(),
+    'host'       => gethostname(),
+    'started_at' => time(),
+];
+if (file_put_contents($initMarker, json_encode($holderRecord)) === false) {
+    fwrite(STDERR, "warning: could not write $initMarker — the rm-while-held guard will not protect the next tick\n");
 }
 
 ftruncate($lock, 0);
@@ -378,9 +957,7 @@ fwrite($lock, json_encode([
     'pid'        => getmypid(),
     'host'       => gethostname(),
     // Filled in by `otack tick-note <id> <phase>` once the skill has picked
-    // a task (Task 4, Task 6) — null here just means "no task chosen yet",
-    // not "unknown lock format", so a tick that dies before its first pick
-    // still leaves a well-formed file for the next tick to read.
+    // a task (Task 4, Task 6) — null here just means "no task chosen yet".
     'task_id'    => $selftestTaskId,
     'phase'      => $selftestTaskId !== null ? 'implementing' : null,
     'started_at' => $selftestStartedAt ?? time(),
@@ -405,11 +982,9 @@ try {
 // Bounded allow-list for the child session (spec §9, D11) — built from
 // every write-enabled project in projects.json, not a single one: this
 // wrapper launches `claude -p` *before* the skill has run `otack next` and
-// picked a task, so at this point we cannot yet know which one project the
-// tick will touch. "Every locally write-allowed project" is the tightest
+// picked a task. "Every locally write-allowed project" is the tightest
 // bound available at launch time; the skill's own gates narrow it further
-// once a task is actually picked (project must be in projects.json,
-// write:true, repo_url matches origin — Task 6's SKILL.md).
+// once a task is actually picked.
 $addDirs = [];
 foreach ($cfg->projects as $p) {
     if (empty($p['write'])) { continue; }
@@ -419,10 +994,7 @@ foreach ($cfg->projects as $p) {
 // C2 (adversarial review of 8144dfe): with zero write-enabled projects —
 // including no projects.json at all, which per spec §7.3 means "the agent
 // may touch nothing" — the session used to launch anyway, with write tools
-// and no --add-dir at all. The documented crontab line is
-// `cd /path/to/otack-tasks && agent/bin/otack-tick`, so cwd is this
-// repository: the bot would get unconditional Edit/Write/commit/push over
-// its own control plane and the server code. Refuse outright instead.
+// and no --add-dir at all.
 if ($addDirs === []) {
     fwrite(STDERR,
         "no write-enabled projects in ~/.claude/otack-agent/projects.json — refusing to launch a " .
@@ -432,23 +1004,19 @@ if ($addDirs === []) {
 }
 
 // M5 (adversarial review of 8144dfe): the previous git prefixes granted
-// exactly what spec §9 forbids — Bash(git push:*) matches
-// `git push --force origin main`, Bash(git branch:*) matches
-// `git branch -D`, and Bash(git checkout:*) plus Bash(git commit:*) let a
-// session check out `main` and commit straight onto it. `git branch` is
-// dropped entirely (branch creation goes through `git checkout -b`, already
-// covered by the broader checkout prefix below; §9 never asks the bot to
-// delete or list branches). The remaining broad verbs (push, checkout) are
-// kept — dev_branch names and existing task branches the bot may need to
-// resume (§5.3) are not known ahead of time and can't be expressed as a
-// static prefix — and narrowed instead via --disallowedTools below, which
-// the CLI evaluates with higher precedence than --allowedTools. Verified
-// empirically (not assumed from syntax): under this exact
-// --permission-mode, `Bash(git checkout:*)` combined with a
-// `Bash(git checkout main:*)` disallow rule still permits
-// `git checkout otack/task-1` and refuses `git checkout main`; the same
-// allow/disallow pairing was verified for `git push` against
-// `git push --force`.
+// exactly what spec §9 forbids. `git branch` is dropped entirely. The
+// remaining broad verbs (push, checkout) are kept — dev_branch names and
+// existing task branches the bot may need to resume (§5.3) are not known
+// ahead of time and can't be expressed as a static prefix.
+//
+// F3 (third review pass): the --disallowedTools entries below are NOT what
+// keeps the bot off the default branch any more. They were proven not to:
+// `git checkout -B main` does not match `Bash(git checkout main:*)`, and
+// `git push origin HEAD:main` does not match `Bash(git push origin main:*)`
+// — the reviewer advanced a real remote's main with those two commands.
+// The branch policy is enforced by the git gate (the PATH shim plus
+// core.hooksPath, built below); the deny rules are kept only as a second,
+// cheaper layer against the exact spellings they do match.
 $bashPrefixes = [
     'Bash(git add:*)',
     'Bash(git commit:*)',
@@ -459,11 +1027,7 @@ $bashPrefixes = [
 ];
 foreach ($cfg->projects as $idStr => $p) {
     if (empty($p['write']) || empty($p['test_cmd'])) { continue; }
-    // M4: reject before interpolating — see isSafeTestCmd()'s docblock
-    // constant above. A project with an unsafe test_cmd is a config
-    // mistake, not something to silently drop (this codebase's convention,
-    // per agent/lib/Config.php, is to fail loud on ambiguous config rather
-    // than degrade quietly).
+    // M4: reject before interpolating — see TEST_CMD_SAFE_PATTERN above.
     if (!isSafeTestCmd($p['test_cmd'])) {
         fwrite(STDERR,
             "project \"$idStr\" has a test_cmd containing characters outside the safe set " .
@@ -482,7 +1046,8 @@ foreach ($cfg->projects as $idStr => $p) {
 // able to silently re-open one of these by accident.
 $disallowedTools = [
     // Force-push and branch/tag deletion — §9 "force-push", "удаление
-    // чужих веток, теги".
+    // чужих веток, теги". The git gate refuses these regardless of
+    // spelling; these rules stop the obvious ones a step earlier.
     'Bash(git push --force:*)',
     'Bash(git push -f:*)',
     'Bash(git push --force-with-lease:*)',
@@ -492,15 +1057,6 @@ $disallowedTools = [
     'Bash(git branch -D:*)',
     'Bash(git branch --delete:*)',
     'Bash(git tag:*)',
-    // A (non-force) push or checkout that lands on the default branch is
-    // still forbidden by §9 — "пуш и мерж в default_branch" is not
-    // conditioned on --force. default_branch is a per-project, server-side
-    // field this wrapper cannot know at launch time (Task 6's job, once a
-    // task is picked); main/master cover the overwhelming majority of
-    // projects this machine will ever point at. Residual risk, not fully
-    // closable from a static CLI rule: a project whose default branch is
-    // named something else, or a push that targets main via a different
-    // remote ref spec (e.g. `git push origin HEAD:main`).
     'Bash(git checkout main:*)',
     'Bash(git checkout master:*)',
     'Bash(git push origin main:*)',
@@ -519,40 +1075,130 @@ $disallowedTools = [
     'WebFetch',
 ];
 
+// F1: Edit and Write are deliberately absent. A bare tool name in
+// --allowedTools is an unconditional grant that short-circuits the
+// directory check; without it, acceptEdits confines both to --add-dir (and
+// cwd). Verified empirically both ways — see the table in the docblock.
 $allowedTools = array_values(array_unique(array_merge(
-    ['Read', 'Edit', 'Write', 'Grep', 'Glob'],
+    ['Read', 'Grep', 'Glob'],
     $bashPrefixes
 )));
-// M6: never a bare wildcard — see the "not a wildcard" assertion in
-// tests/unit/test_agent_lock.php. Edit/Write are intentionally left
-// unscoped to a directory: `Edit(//<dir>/**)` / `Write(//<dir>/**)`
-// path-scoping was tried and verified NOT to hold under
-// --permission-mode dontAsk on this CLI (2.1.186) — a scoped Write rule
-// denied writes *inside* its own scope, and under acceptEdits mode a
-// scoped rule was ignored entirely (a write outside the declared directory
-// still succeeded). Relying on it would have been worse than not trying:
-// a false sense of a boundary that isn't enforced. --add-dir was checked
-// the same way and found not to bound Write's reach either. The real
-// boundary this file provides is CLAUDE_CONFIG_DIR (arbitrary code
-// execution / network egress) plus the narrowed git prefixes above
-// (destructive git operations); which *files* get edited within a project
-// is a behavioural boundary enforced by the skill and the task prompt, not
-// by this CLI's tool-permission syntax. See the fix report for the full
-// experiment.
+
+// --- The git gate's policy, shim and hooks (F3) -------------------------
+//
+// Built fresh every tick, from the same projects.json that produced
+// $addDirs, so it can never drift away from what the session may touch.
+$realGit = trim((string)@shell_exec('command -v git 2>/dev/null'));
+if ($realGit === '' || !is_executable($realGit)) {
+    $realGit = '/usr/bin/git';
+}
+if (!is_executable($realGit)) {
+    fwrite(STDERR, "cannot find a git executable to build the branch-policy gate — refusing to launch\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+
+// The optional per-project `default_branch` key. Config::load() only
+// surfaces the keys it validates, and agent/lib/Config.php is out of scope
+// for this change, so read that one optional key from the same file it
+// already validated (existence, permissions, JSON shape, canonical ids).
+$rawProjects = [];
+if (is_file($dir . '/projects.json')) {
+    $decoded = json_decode((string)file_get_contents($dir . '/projects.json'), true);
+    if (is_array($decoded) && is_array($decoded['projects'] ?? null)) {
+        $rawProjects = $decoded['projects'];
+    }
+}
+
+$gitRepos = [];
+foreach ($cfg->projects as $idStr => $p) {
+    if (empty($p['write'])) { continue; }
+    $path = $p['path'];
+
+    [$rc, $top] = runCapture([$realGit, 'rev-parse', '--show-toplevel'], $path);
+    if ($rc !== 0 || $top === '') {
+        // Not a git working tree. Nothing to enforce a branch policy
+        // against — and the gate refuses every mutating subcommand in a
+        // repository it does not know, so this stays fail-closed.
+        fwrite(STDERR, "note: write-enabled project \"$idStr\" at $path is not a git working tree; " .
+            "the git gate will refuse every mutating git command there\n");
+        continue;
+    }
+    $repoReal = realpath($top) ?: $top;
+
+    $declared = $rawProjects[$idStr]['default_branch'] ?? null;
+    $default = null;
+    if (is_string($declared) && $declared !== '') {
+        if (!isSafeBranchName($declared)) {
+            fwrite(STDERR, "project \"$idStr\" has an unusable \"default_branch\": \"$declared\"\n");
+            exit(EXIT_CONFIG_ERROR);
+        }
+        $default = $declared;
+    } else {
+        // No hardcoded main/master: ask the repository itself.
+        [$c2, $head] = runCapture([$realGit, 'symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'], $repoReal);
+        if ($c2 === 0 && str_starts_with($head, 'origin/')) {
+            $candidate = substr($head, strlen('origin/'));
+            if (isSafeBranchName($candidate)) { $default = $candidate; }
+        }
+    }
+    if ($default === null) {
+        fwrite(STDERR,
+            "cannot determine the default branch of write-enabled project \"$idStr\" ($repoReal): " .
+            "neither a \"default_branch\" key in ~/.claude/otack-agent/projects.json nor a usable " .
+            "refs/remotes/origin/HEAD in the repository (`git remote set-head origin -a` creates the latter). " .
+            "Refusing to launch rather than guessing \"main\" — spec §9's ban on touching the default branch " .
+            "cannot be enforced without knowing its name.\n"
+        );
+        exit(EXIT_CONFIG_ERROR);
+    }
+
+    [$c3, $origin] = runCapture([$realGit, 'remote', 'get-url', 'origin'], $repoReal);
+    $gitRepos[$repoReal] = [
+        'default_branch' => $default,
+        'origin'         => $c3 === 0 ? $origin : '',
+    ];
+}
+
+if (!is_dir($gitHooksDir) && !mkdir($gitHooksDir, 0700, true) && !is_dir($gitHooksDir)) {
+    fwrite(STDERR, "cannot create $gitHooksDir\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+$self = realpath(__FILE__) ?: __FILE__;
+$gitGateFiles = [
+    $gitGateDir . '/git'          => "#!/bin/sh\nexec " . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($self) . " --git-gate \"\$@\"\n",
+    $gitHooksDir . '/pre-commit'  => "#!/bin/sh\nexec " . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($self) . " --git-hook=pre-commit \"\$@\"\n",
+    $gitHooksDir . '/pre-push'    => "#!/bin/sh\nexec " . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($self) . " --git-hook=pre-push \"\$@\"\n",
+];
+foreach ($gitGateFiles as $path => $body) {
+    if (is_link($path) || (file_exists($path) && !is_file($path))) { @unlink($path); }
+    if (file_put_contents($path, $body) === false || !chmod($path, 0700)) {
+        fwrite(STDERR, "cannot write the git gate file $path\n");
+        exit(EXIT_CONFIG_ERROR);
+    }
+}
+if (is_link($gitPolicyPath) || (file_exists($gitPolicyPath) && !is_file($gitPolicyPath))) { @unlink($gitPolicyPath); }
+$policyJson = json_encode(['git' => $realGit, 'repos' => $gitRepos], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+if (file_put_contents($gitPolicyPath, $policyJson) === false || !chmod($gitPolicyPath, 0600)) {
+    fwrite(STDERR, "cannot write $gitPolicyPath\n");
+    exit(EXIT_CONFIG_ERROR);
+}
 
 // C2: cwd must never be incidental. The documented crontab line
 // (`cd /path/to/otack-tasks && agent/bin/otack-tick`) puts this
 // repository's working tree in cwd; without the `cd`, a bare crontab entry
-// leaves it at $HOME, which holds this bot's own token (.env) and the
-// settings file it could otherwise widen its own permissions through.
-// Neither is a place an autonomous writer should ever start from by
-// accident. There is no single "the" project directory to chdir into at
-// this point (the task, and therefore its project, is picked later by the
-// skill via `otack next`) — so this points at a directory that exists
-// solely to be an inert default: nothing lives here for a stray relative
-// path to touch.
+// leaves it at $HOME. Neither is a place an autonomous writer should start
+// from. There is no single "the" project directory to chdir into at this
+// point (the task, and therefore its project, is picked later by the skill
+// via `otack next`) — so this points at a directory that exists solely to
+// be an inert default. F5: it deliberately has no sensitive neighbours —
+// cwd is writable to the session, and this used to sit next to .env and
+// projects.json.
 if (!is_dir($sessionCwdDir) && !mkdir($sessionCwdDir, 0700, true) && !is_dir($sessionCwdDir)) {
     fwrite(STDERR, "cannot create $sessionCwdDir\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+if (is_link($sessionCwdDir)) {
+    fwrite(STDERR, "$sessionCwdDir is a symlink — refusing to run the session in it\n");
     exit(EXIT_CONFIG_ERROR);
 }
 if (!chdir($sessionCwdDir)) {
@@ -569,18 +1215,115 @@ if (!is_dir($claudeHomeDir) && !mkdir($claudeHomeDir, 0700, true) && !is_dir($cl
     fwrite(STDERR, "cannot create $claudeHomeDir\n");
     exit(EXIT_CONFIG_ERROR);
 }
+// Third pass: the 0700 mode was applied at creation and never checked
+// again, so a directory that had been loosened (or created by hand) was
+// used as-is — and this one holds the bot's Claude Code login.
+if (is_link($claudeHomeDir)) {
+    fwrite(STDERR, "$claudeHomeDir is a symlink — refusing to use it as the isolated config directory\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+$claudeHomePerms = @fileperms($claudeHomeDir);
+if ($claudeHomePerms === false) {
+    fwrite(STDERR, "cannot stat $claudeHomeDir\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+if (($claudeHomePerms & 0077) !== 0) {
+    fwrite(STDERR,
+        "$claudeHomeDir is mode " . decoct($claudeHomePerms & 0777) . " — it holds the bot's Claude Code " .
+        "login and must not be readable or writable by anyone else. Fix with: chmod 700 " .
+        escapeshellarg($claudeHomeDir) . "\n"
+    );
+    exit(EXIT_CONFIG_ERROR);
+}
+
+// Third pass: this write used to follow whatever sat at that path. A
+// symlink there would have redirected the rewrite (and its contents are
+// chosen by this script, so the target would be a valid settings file
+// somewhere else entirely). Refuse anything that is not a regular file,
+// and unlink before writing.
+$settingsPath = $claudeHomeDir . '/settings.json';
+if (is_link($settingsPath)) {
+    fwrite(STDERR, "$settingsPath is a symlink — refusing to write the isolated settings through it\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+if (file_exists($settingsPath)) {
+    if (!is_file($settingsPath)) {
+        fwrite(STDERR, "$settingsPath exists but is not a regular file — refusing to write the isolated settings\n");
+        exit(EXIT_CONFIG_ERROR);
+    }
+    @unlink($settingsPath);
+}
 $isolatedSettings = json_encode(
     ['permissions' => ['allow' => [], 'deny' => []]],
     JSON_PRETTY_PRINT
 );
-if (file_put_contents($claudeHomeDir . '/settings.json', $isolatedSettings) === false) {
-    fwrite(STDERR, "cannot write $claudeHomeDir/settings.json\n");
+if (file_put_contents($settingsPath, $isolatedSettings) === false) {
+    fwrite(STDERR, "cannot write $settingsPath\n");
     exit(EXIT_CONFIG_ERROR);
 }
+
+// Third pass: cron's PATH is /usr/bin:/bin, which does not contain
+// ~/.local/bin — a bare `claude` in the command was a scheduled run that
+// failed with "command not found" for a reason no message explained.
+// Resolve it here, honouring PATH first (so a test or an operator can
+// point at a different build) and falling back to the usual install
+// locations.
+$claudeBin = trim((string)@shell_exec('command -v claude 2>/dev/null'));
+if ($claudeBin === '' || !is_executable($claudeBin)) {
+    $claudeBin = '';
+    foreach ([
+        rtrim($home, '/') . '/.local/bin/claude',
+        '/usr/local/bin/claude',
+        '/opt/homebrew/bin/claude',
+    ] as $candidate) {
+        if (is_executable($candidate)) { $claudeBin = $candidate; break; }
+    }
+}
+if ($claudeBin === '') {
+    fwrite(STDERR,
+        "cannot find the `claude` executable. cron runs with PATH=/usr/bin:/bin, which does not include " .
+        "~/.local/bin — set PATH= explicitly on the crontab line (see agent/README.md).\n"
+    );
+    exit(EXIT_CONFIG_ERROR);
+}
+
+// The child's environment. putenv() is inherited by passthru()'s child
+// (verified on this platform), which is how both the config isolation and
+// the git gate reach the session.
 putenv("CLAUDE_CONFIG_DIR=$claudeHomeDir");
+putenv(GIT_POLICY_ENV . "=$gitPolicyPath");
+// F3, mechanism 1: the shim is found before the real git. The bot cannot
+// prepend its own PATH= or call git by absolute path, because every
+// command it may run must literally start with `git ` to match an allow
+// prefix.
+$childPath = $gitGateDir . ':' . (getenv('PATH') ?: '/usr/bin:/bin');
+putenv("PATH=$childPath");
+// F3, mechanism 2: applies to EVERY git invocation, including one made
+// with an absolute path from inside a Makefile. push.default=current makes
+// a bare `git push` mean "this branch only", so the gate can reason about
+// where it would land.
+putenv('GIT_CONFIG_COUNT=2');
+putenv('GIT_CONFIG_KEY_0=core.hooksPath');
+putenv('GIT_CONFIG_VALUE_0=' . $gitHooksDir);
+putenv('GIT_CONFIG_KEY_1=push.default');
+putenv('GIT_CONFIG_VALUE_1=current');
+
+// Third pass: the child's transcript used to go straight to cron mail. The
+// session has bare `Read` over the filesystem, so that transcript can
+// contain anything it read — send it to a 0600 log instead, and keep it
+// from growing without bound.
+if (is_link($sessionLog) || (file_exists($sessionLog) && !is_file($sessionLog))) {
+    fwrite(STDERR, "$sessionLog is not a regular file — refusing to redirect the session transcript into it\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+if (is_file($sessionLog) && filesize($sessionLog) > 5 * 1024 * 1024) {
+    @rename($sessionLog, $sessionLog . '.1');
+}
+if (!is_file($sessionLog)) { @touch($sessionLog); }
+@chmod($sessionLog, 0600);
 
 $prompt = 'Use the otack-agent skill to run one tick.';
-$cmdParts = ['claude', '-p', escapeshellarg($prompt), '--permission-mode', escapeshellarg(PERMISSION_MODE)];
+$cmdParts = [escapeshellarg($claudeBin), '-p', escapeshellarg($prompt), '--permission-mode', escapeshellarg(PERMISSION_MODE)];
 foreach ($addDirs as $projectDir) {
     $cmdParts[] = '--add-dir';
     $cmdParts[] = escapeshellarg($projectDir);
@@ -590,23 +1333,49 @@ $cmdParts[] = escapeshellarg(implode(' ', $allowedTools));
 $cmdParts[] = '--disallowedTools';
 $cmdParts[] = escapeshellarg(implode(' ', $disallowedTools));
 $cmd = implode(' ', $cmdParts);
+$redirectedCmd = $cmd . ' >> ' . escapeshellarg($sessionLog) . ' 2>&1';
 
 if ($selftest === 'print-cmd') {
     // M6: the seam tests assert the constructed command against, instead of
     // trusting the source. Everything above this point (lock, config,
-    // allow/disallow-list construction, chdir, CLAUDE_CONFIG_DIR setup) has
-    // already run for real; only the final passthru() is skipped.
+    // allow/disallow-list construction, git gate, chdir, CLAUDE_CONFIG_DIR
+    // setup) has already run for real; only the final passthru() is
+    // skipped.
     echo json_encode([
         'cmd'              => $cmd,
         'cwd'              => getcwd(),
+        'claude_bin'       => $claudeBin,
         'claude_config_dir'=> getenv('CLAUDE_CONFIG_DIR'),
         'permission_mode'  => PERMISSION_MODE,
         'add_dirs'         => $addDirs,
         'allowed_tools'    => $allowedTools,
         'disallowed_tools' => $disallowedTools,
+        'session_log'      => $sessionLog,
+        'git_gate' => [
+            'shim'        => $gitGateDir . '/git',
+            'hooks_dir'   => $gitHooksDir,
+            'policy_path' => $gitPolicyPath,
+            'policy'      => json_decode($policyJson, true),
+        ],
+        'child_env' => [
+            'PATH'                => getenv('PATH'),
+            'GIT_CONFIG_COUNT'    => getenv('GIT_CONFIG_COUNT'),
+            'GIT_CONFIG_KEY_0'    => getenv('GIT_CONFIG_KEY_0'),
+            'GIT_CONFIG_VALUE_0'  => getenv('GIT_CONFIG_VALUE_0'),
+            'GIT_CONFIG_KEY_1'    => getenv('GIT_CONFIG_KEY_1'),
+            'GIT_CONFIG_VALUE_1'  => getenv('GIT_CONFIG_VALUE_1'),
+            (string)GIT_POLICY_ENV => getenv(GIT_POLICY_ENV),
+        ],
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
     exit(EXIT_OK);
 }
 
-passthru($cmd, $code);
-exit($code);
+fwrite(STDERR, "session transcript -> $sessionLog\n");
+passthru($redirectedCmd, $code);
+if ($code === 0) {
+    exit(EXIT_OK);
+}
+// Third pass: `exit($code)` collided with this wrapper's own 1/2/75. Offset
+// it so a reader can always tell whose failure it was.
+fwrite(STDERR, "the claude session exited $code; transcript: $sessionLog\n");
+exit(min(EXIT_CHILD_BASE + $code, 254));
