@@ -156,13 +156,18 @@ reset-test: confirm-destruct
 	@echo "Test DB + schema + uploads reset."
 
 # Lower-friction cleanup used by `make e2e` — no password gate. Removes
-# Playwright artifacts and per-suite SQLite DBs so consecutive runs start
-# from a clean disk; safe to invoke ad hoc.
+# Playwright artifacts, per-suite SQLite DBs (+ -wal/-shm sidecars), the
+# test schema cache, and the test upload dir, so consecutive runs start
+# from a clean disk; safe to invoke ad hoc. Same paths as `reset-test`
+# below, minus the password gate — use `reset-test` when you want the
+# confirm prompt (e.g. running it by hand), `test-clean` when a script
+# (like `make e2e`) needs to wipe test state without a TTY.
 test-clean:
 	@rm -rf test-results/ .playwright/
 	@rm -f data/app.test.sqlite data/app.test.sqlite-wal data/app.test.sqlite-shm
 	@rm -f data/app.api-test.sqlite data/app.api-test.sqlite-wal data/app.api-test.sqlite-shm
-	@rm -rf data/.schema.test
+	@rm -rf data/.schema.test public/uploads-test
+	@mkdir -p public/uploads-test
 	@echo "Test artifacts cleared."
 
 reset-uploads: confirm-destruct
