@@ -1,0 +1,179 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * The scheduled entry point. Holds the mutual-exclusion lock for the whole
+ * session and runs one Claude Code tick as a child process.
+ *
+ * Why a wrapper rather than locking inside the CLI: flock lives exactly as
+ * long as the process holding the file descriptor. A short CLI command would
+ * release it a second after the session started. Here the descriptor stays
+ * open for the session's entire lifetime, and the kernel releases it when
+ * this process ends — so a crash, a reboot or a closed laptop cannot leave a
+ * stale lock behind, and no TTL or cleanup is needed (spec §5.1).
+ *
+ * Usage:  otack-tick
+ *         otack-tick --selftest=hold:<seconds>   (tests only: lock, sleep, exit)
+ *         otack-tick --selftest=hold:<seconds> --selftest-task-id=<id> --selftest-started-at=<epoch>
+ *                     (tests only: same, but fabricates task_id/started_at
+ *                     instead of the real values, so a stale-tick scenario
+ *                     doesn't require literally waiting three hours)
+ */
+
+require_once __DIR__ . '/../lib/Config.php';
+require_once __DIR__ . '/../lib/Client.php';
+
+use App\Agent\{Config, Client};
+
+const STALE_AFTER_SECONDS = 3 * 3600;
+
+// PERMISSION_MODE: found empirically against a real `claude -p` invocation
+// in Step 5 below — do not change this without re-running that check, and
+// never replace it with `--dangerously-skip-permissions` (forbidden; the
+// point of §9's boundaries is a bounded allow-list actually being honoured
+// non-interactively, not disabled checks).
+const PERMISSION_MODE = 'dontAsk';
+
+$home = getenv('HOME') ?: '';
+$dir  = rtrim($home, '/') . '/.claude/otack-agent';
+if (!is_dir($dir)) {
+    fwrite(STDERR, "agent config directory missing: $dir\n");
+    exit(1);
+}
+
+$lockPath = $dir . '/agent.lock';
+$lock = fopen($lockPath, 'c');
+if ($lock === false) {
+    fwrite(STDERR, "cannot open lock file: $lockPath\n");
+    exit(1);
+}
+
+// Test hooks: fabricate task_id/started_at instead of the real values, so a
+// test can simulate "this tick has been stuck for 3+ hours" without waiting.
+$selftest = null;
+$selftestTaskId = null;
+$selftestStartedAt = null;
+foreach (array_slice($argv, 1) as $a) {
+    if (str_starts_with($a, '--selftest=hold:'))       { $selftest = (int)substr($a, 16); }
+    if (str_starts_with($a, '--selftest-task-id='))    { $selftestTaskId = (int)substr($a, 20); }
+    if (str_starts_with($a, '--selftest-started-at=')) { $selftestStartedAt = (int)substr($a, 22); }
+}
+
+if (!flock($lock, LOCK_EX | LOCK_NB)) {
+    // Someone else is mid-tick. Exiting 0 is correct: an overlapping tick is
+    // the normal case when work runs longer than the schedule interval, not
+    // an error condition worth alerting on.
+    $held = json_decode((string)file_get_contents($lockPath), true) ?: [];
+    $since = isset($held['started_at']) ? time() - (int)$held['started_at'] : 0;
+    $for = $since > 0 ? ' for ' . intdiv($since, 60) . 'm' : '';
+    echo "tick already running$for (pid " . ($held['pid'] ?? '?') . "), doing nothing\n";
+
+    if ($since > STALE_AFTER_SECONDS) {
+        // Do not kill it — a long implementation phase is legitimate. Say so
+        // loudly enough that a human notices a genuinely wedged run, every
+        // time this observation is made.
+        fwrite(STDERR, "WARNING: the running tick has held the lock for " . intdiv($since, 3600) . "h; check it\n");
+
+        // But only ATTEMPT the "работаю подозрительно долго" comment once
+        // per lock generation (spec §5.2, D7) — a 30-minute schedule would
+        // otherwise post it again every tick for as long as the run stays
+        // wedged. The marker holds the started_at we already warned about;
+        // a new value there (a genuinely new stale run, or the same run
+        // restarted) is what re-arms it.
+        $startedAt = isset($held['started_at']) ? (string)(int)$held['started_at'] : '';
+        $warnedPath = $dir . '/stale-warned';
+        $alreadyWarned = is_file($warnedPath) ? trim((string)file_get_contents($warnedPath)) : '';
+        $taskId = isset($held['task_id']) ? (int)$held['task_id'] : 0;
+
+        if ($startedAt !== '' && $startedAt !== $alreadyWarned) {
+            if ($taskId > 0) {
+                try {
+                    $cfg = Config::load($home);
+                    $client = new Client($cfg->instance, $cfg->token);
+                    $hours = intdiv($since, 3600);
+                    $client->post('/comments', [
+                        'entity'    => 'task',
+                        'entity_id' => $taskId,
+                        'body'      => "работаю подозрительно долго — этот тик держит лок уже {$hours}ч; если процесс завис, посмотрите вручную.",
+                    ]);
+                } catch (\Throwable $e) {
+                    // Best-effort: the mutual exclusion itself does not
+                    // depend on this comment landing. Still mark it
+                    // attempted below so a genuinely unreachable API
+                    // doesn't retry every single tick forever.
+                    fwrite(STDERR, 'could not post the stale-tick warning comment: ' . $e->getMessage() . "\n");
+                }
+            }
+            file_put_contents($warnedPath, $startedAt);
+        }
+    }
+    exit(0);
+}
+
+ftruncate($lock, 0);
+fwrite($lock, json_encode([
+    'pid'        => getmypid(),
+    'host'       => gethostname(),
+    // Filled in by `otack tick-note <id> <phase>` once the skill has picked
+    // a task (Task 4, Task 6) — null here just means "no task chosen yet",
+    // not "unknown lock format", so a tick that dies before its first pick
+    // still leaves a well-formed file for the next tick to read.
+    'task_id'    => $selftestTaskId,
+    'phase'      => $selftestTaskId !== null ? 'implementing' : null,
+    'started_at' => $selftestStartedAt ?? time(),
+    'started_iso'=> gmdate('c', $selftestStartedAt ?? time()),
+], JSON_PRETTY_PRINT));
+fflush($lock);
+
+if ($selftest !== null) {
+    sleep(max(0, $selftest));
+    exit(0);
+}
+
+// Fail fast if the agent cannot even authenticate — better a clear message in
+// the cron log than a session that starts and immediately gives up.
+try {
+    $cfg = Config::load($home);
+} catch (\RuntimeException $e) {
+    fwrite(STDERR, 'agent config unusable: ' . $e->getMessage() . "\n");
+    exit(1);
+}
+
+// Bounded allow-list for the child session (spec §9, D11) — built from
+// every write-enabled project in projects.json, not a single one: this
+// wrapper launches `claude -p` *before* the skill has run `otack next` and
+// picked a task, so at this point we cannot yet know which one project the
+// tick will touch. "Every locally write-allowed project" is the tightest
+// bound available at launch time; the skill's own gates narrow it further
+// once a task is actually picked (project must be in projects.json,
+// write:true, repo_url matches origin — Task 6's SKILL.md).
+$addDirs = [];
+$bashPrefixes = [
+    'Bash(git add:*)', 'Bash(git commit:*)', 'Bash(git push:*)',
+    'Bash(git status:*)', 'Bash(git diff:*)', 'Bash(git checkout:*)', 'Bash(git branch:*)',
+];
+foreach ($cfg->projects as $p) {
+    if (empty($p['write'])) { continue; }
+    $addDirs[] = $p['path'];
+    if (!empty($p['test_cmd'])) {
+        $bashPrefixes[] = 'Bash(' . $p['test_cmd'] . ':*)';
+    }
+}
+$allowedTools = array_values(array_unique(array_merge(
+    ['Read', 'Edit', 'Write', 'Grep', 'Glob'],
+    $bashPrefixes
+)));
+
+$prompt = 'Use the otack-agent skill to run one tick.';
+$cmdParts = ['claude', '-p', escapeshellarg($prompt), '--permission-mode', escapeshellarg(PERMISSION_MODE)];
+foreach ($addDirs as $projectDir) {
+    $cmdParts[] = '--add-dir';
+    $cmdParts[] = escapeshellarg($projectDir);
+}
+$cmdParts[] = '--allowedTools';
+$cmdParts[] = escapeshellarg(implode(' ', $allowedTools));
+$cmd = implode(' ', $cmdParts);
+
+passthru($cmd, $code);
+exit($code);
