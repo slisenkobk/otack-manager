@@ -1,0 +1,291 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * Otack Manager agent CLI.
+ *
+ * Every command prints JSON on stdout and nothing else, so the skill that
+ * drives it never has to parse prose. Diagnostics go to stderr with a
+ * non-zero exit code.
+ *
+ * The lock is NOT taken here — it is held by agent/bin/otack-tick for the
+ * whole session (spec §5.1). A lock taken by a short-lived command would be
+ * released the moment that command exits.
+ */
+
+require_once __DIR__ . '/../lib/Config.php';
+require_once __DIR__ . '/../lib/Client.php';
+require_once __DIR__ . '/../lib/Triage.php';
+
+use App\Agent\{Config, Client, Triage};
+
+const PHASES = ['researching', 'awaiting_approval', 'implementing', 'review', 'blocked'];
+
+function out(array $data): never {
+    echo json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), "\n";
+    exit(0);
+}
+
+function fail(string $message, int $code = 1): never {
+    fwrite(STDERR, json_encode(['error' => $message], JSON_UNESCAPED_UNICODE) . "\n");
+    exit($code);
+}
+
+function usage(): never {
+    fwrite(STDERR, <<<TXT
+    otack — Otack Manager agent CLI
+
+      whoami                  verify the token and show the acting user
+      next                    the task this tick should work, with a reason
+      task <id>               task, its thread, and its project context
+      project <id>            repo, branches, instructions, columns
+      new-comments <id>       comments written since the agent last spoke
+      state <id> <phase>      set agent_state (researching|awaiting_approval|implementing|review|blocked)
+      move <id> <column-id>   move the card
+      comment <id>            post a comment, body read from stdin
+      tick-note <id> <phase>  record which task/phase the running tick is on (agent.lock)
+
+    TXT);
+    exit(2);
+}
+
+$argvRest = array_slice($argv, 1);
+$cmd = $argvRest[0] ?? '';
+if ($cmd === '' || $cmd === '-h' || $cmd === '--help') { usage(); }
+
+try {
+    $cfg    = Config::load(getenv('HOME') ?: '');
+    $client = new Client($cfg->instance, $cfg->token);
+
+    $me = null;
+    $self = function () use ($client, &$me): array {
+        if ($me === null) {
+            $r = $client->get('/me');
+            if ($r['status'] !== 200) { fail('GET /me returned ' . $r['status']); }
+            $me = $r['json'];
+        }
+        return $me;
+    };
+
+    // Every project the agent touches must be listed locally (spec §7.3).
+    $requireLocalProject = function (int $projectId) use ($cfg): array {
+        $local = $cfg->projectPath($projectId);
+        if ($local === null) {
+            fail("project $projectId is not listed in ~/.claude/otack-agent/projects.json — refusing to act on it");
+        }
+        return $local;
+    };
+
+    // Comment counts are needed only for the agent_state values where they
+    // decide the outcome (review/awaiting_approval) — one paginated fetch
+    // per such task, not per task overall. getAll() (not get()) because a
+    // thread past 100 comments would otherwise push the agent's own last
+    // comment out of the first page and make the whole thread look unread
+    // (spec §4.1, D6).
+    $countNewComments = function (int $taskId, int $selfId) use ($client): int {
+        $comments = $client->getAll("/tasks/$taskId/comments", ['limit' => 100]);
+        return count(Triage::newComments($comments, $selfId));
+    };
+
+    switch ($cmd) {
+        case 'whoami':
+            out($self());
+
+        case 'next': {
+            $selfId = (int)$self()['id'];
+
+            // getAll(), not get(): GET /tasks caps a page at 100 rows
+            // (D6) — an agent assigned more than that would otherwise only
+            // ever see its first 100, cursor-stable but silently partial.
+            $tasks = $client->getAll('/tasks', ['assignee_id' => $selfId, 'limit' => 100]);
+
+            // Only tasks whose project this machine is allowed to touch
+            // (spec §7.3) — existing behaviour, kept.
+            $tasks = array_values(array_filter(
+                $tasks,
+                fn($t) => $cfg->projectPath((int)$t['project_id']) !== null
+            ));
+
+            // GET /tasks has no column filter (TaskRepository::listAssignedAfterId)
+            // — it returns Done and Backlog cards too, all with
+            // agent_state: null, which Triage::pick would read as "new".
+            // Drop anything not sitting in a workable column: neither the
+            // done column nor the backlog (ProjectsHandler::serializeOne()
+            // emits is_done/is_backlog per column). Fetched once per
+            // distinct project id, not once per task.
+            $workableColumns = [];
+            foreach (array_unique(array_map(fn($t) => (int)$t['project_id'], $tasks)) as $pid) {
+                $p = $client->get("/projects/$pid");
+                if ($p['status'] !== 200) { $workableColumns[$pid] = []; continue; }
+                $ids = [];
+                foreach ($p['json']['columns'] ?? [] as $c) {
+                    if (empty($c['is_done']) && empty($c['is_backlog'])) { $ids[] = (int)$c['id']; }
+                }
+                $workableColumns[$pid] = $ids;
+            }
+            $tasks = array_values(array_filter(
+                $tasks,
+                fn($t) => in_array((int)$t['column_id'], $workableColumns[(int)$t['project_id']] ?? [], true)
+            ));
+
+            $counts = [];
+            foreach ($tasks as $t) {
+                if (in_array($t['agent_state'] ?? null, ['review', 'awaiting_approval'], true)) {
+                    $counts[(int)$t['id']] = $countNewComments((int)$t['id'], $selfId);
+                }
+            }
+
+            // Triage::pick()'s from_form check is a second line of defence,
+            // not the only one (Task 3's docblock explains why): these
+            // $tasks came from GET /tasks list items, which never carry
+            // from_form at all, so pick() has nothing to filter on here.
+            // Verify the actual winner against the DETAIL shape before
+            // acting on it, and re-triage the remaining pool if it turns
+            // out to be a form-created task. Bounded at 10 rounds so a
+            // pathological pool (e.g. every remaining task form-created)
+            // cannot loop forever.
+            $pool = $tasks;
+            for ($round = 0; $round < 10; $round++) {
+                $picked = Triage::pick($pool, $counts);
+                if ($picked === null) { out(['task' => null, 'reason' => 'idle']); }
+
+                $winnerId = (int)$picked['task']['id'];
+                $detail = $client->get("/tasks/$winnerId");
+                if ($detail['status'] !== 200) {
+                    fail("GET /tasks/$winnerId returned " . $detail['status']);
+                }
+
+                if (!empty($detail['json']['from_form'])) {
+                    $pool = array_values(array_filter($pool, fn($t) => (int)$t['id'] !== $winnerId));
+                    continue;
+                }
+
+                // The DETAIL payload is strictly richer than the list item
+                // pick() worked from (it has description, tags, links,
+                // comments_count, from_form) — return it instead of the
+                // list-item shape so the caller never has to make a second
+                // round trip just to get what it already fetched here.
+                out(['task' => $detail['json'], 'reason' => $picked['reason']]);
+            }
+
+            out(['task' => null, 'reason' => 'idle']);
+        }
+
+        case 'task': {
+            $id = (int)($argvRest[1] ?? 0);
+            if ($id <= 0) { fail('usage: otack task <id>'); }
+            $t = $client->get("/tasks/$id");
+            if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
+            $projectId = (int)$t['json']['project_id'];
+            $local = $requireLocalProject($projectId);
+            $p = $client->get("/projects/$projectId");
+            $comments = $client->getAll("/tasks/$id/comments", ['limit' => 100]);
+            out([
+                'task'     => $t['json'],
+                'project'  => $p['json'],
+                'local'    => $local,
+                'comments' => $comments,
+                'new_comments' => Triage::newComments($comments, (int)$self()['id']),
+            ]);
+        }
+
+        case 'project': {
+            $id = (int)($argvRest[1] ?? 0);
+            if ($id <= 0) { fail('usage: otack project <id>'); }
+            $local = $requireLocalProject($id);
+            $p = $client->get("/projects/$id");
+            if ($p['status'] !== 200) { fail("GET /projects/$id returned " . $p['status']); }
+            out(['project' => $p['json'], 'local' => $local]);
+        }
+
+        case 'new-comments': {
+            $id = (int)($argvRest[1] ?? 0);
+            if ($id <= 0) { fail('usage: otack new-comments <id>'); }
+            $comments = $client->getAll("/tasks/$id/comments", ['limit' => 100]);
+            out(['items' => Triage::newComments($comments, (int)$self()['id'])]);
+        }
+
+        case 'state': {
+            $id    = (int)($argvRest[1] ?? 0);
+            $phase = (string)($argvRest[2] ?? '');
+            if ($id <= 0) { fail('usage: otack state <id> <phase>'); }
+            if (!in_array($phase, PHASES, true)) {
+                fail('unknown phase "' . $phase . '" — valid: ' . implode('|', PHASES));
+            }
+            $r = $client->patch("/tasks/$id", ['agent_state' => $phase]);
+            if ($r['status'] !== 200) { fail("PATCH /tasks/$id returned " . $r['status']); }
+            out($r['json']);
+        }
+
+        case 'move': {
+            $id     = (int)($argvRest[1] ?? 0);
+            $column = (int)($argvRest[2] ?? 0);
+            if ($id <= 0 || $column <= 0) { fail('usage: otack move <id> <column-id>'); }
+
+            // TaskRepository::move() writes `position` exactly as given, so
+            // a flat constant (the old `1024` here) collides every
+            // agent-moved card at the same spot the moment a second one
+            // lands in a column that already has one (D10). Ask the
+            // project for the target column's current cards and append
+            // past the highest position in it — same ordering the web UI's
+            // drag-and-drop already relies on. `column_id` filters
+            // server-side so this stays one small paginated fetch, not the
+            // whole project board.
+            $t = $client->get("/tasks/$id");
+            if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
+            $projectId = (int)$t['json']['project_id'];
+            $inColumn = $client->getAll("/projects/$projectId/tasks", ['column_id' => $column, 'limit' => 100]);
+            $position = Triage::nextPosition($inColumn);
+
+            $r = $client->post("/tasks/$id/move", ['column_id' => $column, 'position' => $position]);
+            if ($r['status'] !== 200) { fail("POST /tasks/$id/move returned " . $r['status']); }
+            out($r['json']);
+        }
+
+        case 'comment': {
+            $id = (int)($argvRest[1] ?? 0);
+            if ($id <= 0) { fail('usage: otack comment <id>  (body on stdin)'); }
+            $body = stream_get_contents(STDIN);
+            if (trim((string)$body) === '') { fail('refusing to post an empty comment'); }
+            $r = $client->post('/comments', ['entity' => 'task', 'entity_id' => $id, 'body' => $body]);
+            if ($r['status'] !== 201) { fail('POST /comments returned ' . $r['status']); }
+            out($r['json']);
+        }
+
+        case 'tick-note': {
+            // Rewrites agent.lock with which task/phase the running tick is
+            // on, so the *next* tick — if this one wedges — can say
+            // something useful instead of a bare "still running" (spec
+            // §5.1, D7). The lock's mutual exclusion is `flock`, held by
+            // otack-tick for the session's whole lifetime (Task 5); this
+            // command only edits the JSON payload inside that same file, it
+            // does not take or need the lock itself — there is only ever
+            // one live session to race against, and that session is the one
+            // calling this command.
+            $id    = (int)($argvRest[1] ?? 0);
+            $phase = (string)($argvRest[2] ?? '');
+            if ($id <= 0 || $phase === '') { fail('usage: otack tick-note <id> <phase>'); }
+            if (!in_array($phase, PHASES, true)) {
+                fail('unknown phase "' . $phase . '" — valid: ' . implode('|', PHASES));
+            }
+            $lockPath = rtrim(getenv('HOME') ?: '', '/') . '/.claude/otack-agent/agent.lock';
+            if (!is_file($lockPath)) {
+                fail("no agent.lock at $lockPath — tick-note must run inside an otack-tick session");
+            }
+            $info = json_decode((string)file_get_contents($lockPath), true);
+            if (!is_array($info)) {
+                fail("$lockPath is not valid JSON");
+            }
+            $info['task_id'] = $id;
+            $info['phase']   = $phase;
+            file_put_contents($lockPath, json_encode($info, JSON_PRETTY_PRINT));
+            out(['task_id' => $id, 'phase' => $phase]);
+        }
+
+        default:
+            fail("unknown command \"$cmd\" — run otack --help", 2);
+    }
+} catch (\RuntimeException $e) {
+    fail($e->getMessage());
+}
