@@ -2,6 +2,17 @@
 <?php
 declare(strict_types=1);
 
+// C1 + C2 (adversarial review of d49d97c, both CRITICAL): PHP's CLI SAPI
+// defaults display_errors to stdout, and this box has
+// zend.exception_ignore_args Off, so an uncaught exception's trace prints
+// constructor ARGUMENTS — including the bearer token passed into
+// Client::__construct(). This script's entire contract is "stdout is JSON,
+// nothing else, diagnostics go to stderr" (see the docblock below); both
+// settings must be pinned before anything else runs, not left to whatever
+// php.ini happens to be active on the box that cron uses.
+ini_set('display_errors', 'stderr');
+ini_set('zend.exception_ignore_args', '1');
+
 /**
  * Otack Manager agent CLI.
  *
@@ -30,6 +41,20 @@ function out(array $data): never {
 function fail(string $message, int $code = 1): never {
     fwrite(STDERR, json_encode(['error' => $message], JSON_UNESCAPED_UNICODE) . "\n");
     exit($code);
+}
+
+/**
+ * A task/project/column id argv entry must be a plain positive integer
+ * string. `(int)"5abc"` silently reads as `5` — under `strict_types` that
+ * doesn't throw, it just quietly acts on the wrong task, which is worse
+ * than refusing outright. `ctype_digit` rejects anything with a sign,
+ * decimal point, or trailing garbage before it ever becomes an int.
+ */
+function positiveIntArg(?string $raw, string $usage): int {
+    if ($raw === null || !ctype_digit($raw)) { fail($usage); }
+    $n = (int)$raw;
+    if ($n <= 0) { fail($usage); }
+    return $n;
 }
 
 function usage(): never {
@@ -63,7 +88,17 @@ try {
         if ($me === null) {
             $r = $client->get('/me');
             if ($r['status'] !== 200) { fail('GET /me returned ' . $r['status']); }
-            $me = $r['json'];
+            $json = $r['json'];
+            // M3: a `/me` response that isn't an object, or whose `id` is
+            // missing/zero/negative, must fail loud right here — not
+            // degrade into assignee_id=0 (silent false-idle), not an
+            // uncaught InvalidArgumentException out of Triage::newComments,
+            // and not an uncaught TypeError from treating `null` as an
+            // array downstream.
+            if (!is_array($json) || (int)($json['id'] ?? 0) <= 0) {
+                fail('GET /me returned an unexpected shape');
+            }
+            $me = $json;
         }
         return $me;
     };
@@ -114,12 +149,25 @@ try {
             // done column nor the backlog (ProjectsHandler::serializeOne()
             // emits is_done/is_backlog per column). Fetched once per
             // distinct project id, not once per task.
+            //
+            // M1: a failed or malformed GET /projects/{id} here used to
+            // degrade to an empty workable-column set — fail-closed on
+            // *picking* is right, but the result then reads identically to
+            // "no work to do" (reason: idle, exit 0), so a broken project
+            // makes the bot go permanently and silently dormant. Fail loud
+            // instead, the same way the comment-fetch path already does.
             $workableColumns = [];
             foreach (array_unique(array_map(fn($t) => (int)$t['project_id'], $tasks)) as $pid) {
                 $p = $client->get("/projects/$pid");
-                if ($p['status'] !== 200) { $workableColumns[$pid] = []; continue; }
+                if ($p['status'] !== 200) {
+                    fail("GET /projects/$pid returned " . $p['status']);
+                }
+                $columns = $p['json']['columns'] ?? null;
+                if (!is_array($columns)) {
+                    fail("GET /projects/$pid: response is missing a 'columns' array");
+                }
                 $ids = [];
-                foreach ($p['json']['columns'] ?? [] as $c) {
+                foreach ($columns as $c) {
                     if (empty($c['is_done']) && empty($c['is_backlog'])) { $ids[] = (int)$c['id']; }
                 }
                 $workableColumns[$pid] = $ids;
@@ -142,9 +190,13 @@ try {
             // from_form at all, so pick() has nothing to filter on here.
             // Verify the actual winner against the DETAIL shape before
             // acting on it, and re-triage the remaining pool if it turns
-            // out to be a form-created task. Bounded at 10 rounds so a
-            // pathological pool (e.g. every remaining task form-created)
-            // cannot loop forever.
+            // out to be a form-created task, OR — same reasoning — if it
+            // turns out to already be `blocked` (a race: the list item was
+            // fetched before a human blocked it moments later; pick()
+            // already filtered on the list's own agent_state, so this is
+            // the DETAIL payload catching what the list snapshot couldn't).
+            // Bounded at 10 rounds so a pathological pool (e.g. every
+            // remaining task form-created) cannot loop forever.
             $pool = $tasks;
             for ($round = 0; $round < 10; $round++) {
                 $picked = Triage::pick($pool, $counts);
@@ -156,7 +208,9 @@ try {
                     fail("GET /tasks/$winnerId returned " . $detail['status']);
                 }
 
-                if (!empty($detail['json']['from_form'])) {
+                $isFormCreated = !empty($detail['json']['from_form']);
+                $isBlocked     = ($detail['json']['agent_state'] ?? null) === 'blocked';
+                if ($isFormCreated || $isBlocked) {
                     $pool = array_values(array_filter($pool, fn($t) => (int)$t['id'] !== $winnerId));
                     continue;
                 }
@@ -166,15 +220,29 @@ try {
                 // comments_count, from_form) — return it instead of the
                 // list-item shape so the caller never has to make a second
                 // round trip just to get what it already fetched here.
-                out(['task' => $detail['json'], 'reason' => $picked['reason']]);
+                // Same for `local`: the skill needs the checkout path
+                // before it can touch the repo at all, and Config already
+                // has it in hand from the project-path filter above — hand
+                // it over instead of making the caller run `otack project`
+                // just to ask a second time.
+                $projectId = (int)$detail['json']['project_id'];
+                out([
+                    'task'   => $detail['json'],
+                    'reason' => $picked['reason'],
+                    'local'  => $cfg->projectPath($projectId),
+                ]);
             }
 
-            out(['task' => null, 'reason' => 'idle']);
+            // Every candidate in 10 straight rounds turned out to be
+            // form-created or newly-blocked at the DETAIL stage. That is
+            // NOT the same situation as an empty pool (genuinely no work):
+            // real work may be sitting right behind the form tasks. Use a
+            // distinct reason so it doesn't read to the operator as "idle".
+            out(['task' => null, 'reason' => 'idle_form_bound_exceeded']);
         }
 
         case 'task': {
-            $id = (int)($argvRest[1] ?? 0);
-            if ($id <= 0) { fail('usage: otack task <id>'); }
+            $id = positiveIntArg($argvRest[1] ?? null, 'usage: otack task <id>');
             $t = $client->get("/tasks/$id");
             if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
             $projectId = (int)$t['json']['project_id'];
@@ -191,8 +259,7 @@ try {
         }
 
         case 'project': {
-            $id = (int)($argvRest[1] ?? 0);
-            if ($id <= 0) { fail('usage: otack project <id>'); }
+            $id = positiveIntArg($argvRest[1] ?? null, 'usage: otack project <id>');
             $local = $requireLocalProject($id);
             $p = $client->get("/projects/$id");
             if ($p['status'] !== 200) { fail("GET /projects/$id returned " . $p['status']); }
@@ -200,28 +267,37 @@ try {
         }
 
         case 'new-comments': {
-            $id = (int)($argvRest[1] ?? 0);
-            if ($id <= 0) { fail('usage: otack new-comments <id>'); }
+            $id = positiveIntArg($argvRest[1] ?? null, 'usage: otack new-comments <id>');
+            // C3: this command used to skip the allow-list gate entirely —
+            // fetch the task first (purely to learn its project_id) and
+            // refuse before touching the comment thread at all if this
+            // machine isn't allowed to act on that project (spec §7.3).
+            $t = $client->get("/tasks/$id");
+            if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
+            $requireLocalProject((int)$t['json']['project_id']);
             $comments = $client->getAll("/tasks/$id/comments", ['limit' => 100]);
             out(['items' => Triage::newComments($comments, (int)$self()['id'])]);
         }
 
         case 'state': {
-            $id    = (int)($argvRest[1] ?? 0);
+            $id    = positiveIntArg($argvRest[1] ?? null, 'usage: otack state <id> <phase>');
             $phase = (string)($argvRest[2] ?? '');
-            if ($id <= 0) { fail('usage: otack state <id> <phase>'); }
             if (!in_array($phase, PHASES, true)) {
                 fail('unknown phase "' . $phase . '" — valid: ' . implode('|', PHASES));
             }
+            // C3: gate before writing. Same fetch-then-check shape as
+            // new-comments above.
+            $t = $client->get("/tasks/$id");
+            if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
+            $requireLocalProject((int)$t['json']['project_id']);
             $r = $client->patch("/tasks/$id", ['agent_state' => $phase]);
             if ($r['status'] !== 200) { fail("PATCH /tasks/$id returned " . $r['status']); }
             out($r['json']);
         }
 
         case 'move': {
-            $id     = (int)($argvRest[1] ?? 0);
-            $column = (int)($argvRest[2] ?? 0);
-            if ($id <= 0 || $column <= 0) { fail('usage: otack move <id> <column-id>'); }
+            $id     = positiveIntArg($argvRest[1] ?? null, 'usage: otack move <id> <column-id>');
+            $column = positiveIntArg($argvRest[2] ?? null, 'usage: otack move <id> <column-id>');
 
             // TaskRepository::move() writes `position` exactly as given, so
             // a flat constant (the old `1024` here) collides every
@@ -235,6 +311,10 @@ try {
             $t = $client->get("/tasks/$id");
             if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
             $projectId = (int)$t['json']['project_id'];
+            // C3: this fetch already happens for the position maths below —
+            // the project_id is in hand, so the allow-list gate costs
+            // nothing extra to add here.
+            $requireLocalProject($projectId);
             $inColumn = $client->getAll("/projects/$projectId/tasks", ['column_id' => $column, 'limit' => 100]);
             $position = Triage::nextPosition($inColumn);
 
@@ -244,10 +324,25 @@ try {
         }
 
         case 'comment': {
-            $id = (int)($argvRest[1] ?? 0);
-            if ($id <= 0) { fail('usage: otack comment <id>  (body on stdin)'); }
+            $id = positiveIntArg($argvRest[1] ?? null, 'usage: otack comment <id>  (body on stdin)');
+            // C3: gate before touching stdin or the network.
+            $t = $client->get("/tasks/$id");
+            if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
+            $requireLocalProject((int)$t['json']['project_id']);
+
             $body = stream_get_contents(STDIN);
-            if (trim((string)$body) === '') { fail('refusing to post an empty comment'); }
+            if ($body === false) { $body = ''; }
+            if (trim($body) === '') { fail('refusing to post an empty comment'); }
+            // M2: the agent pipes git diffs and file excerpts into this
+            // command, so a stray latin-1 or binary byte is expected input,
+            // not a bug upstream. json_encode() returns false on invalid
+            // UTF-8, which would then hand `false` to Client::post()'s
+            // `?string $body` parameter and blow up as a strict_types
+            // TypeError deep inside the client instead of a clean refusal
+            // here.
+            if (!mb_check_encoding($body, 'UTF-8')) {
+                fail('comment body is not valid UTF-8 — refusing to post it');
+            }
             $r = $client->post('/comments', ['entity' => 'task', 'entity_id' => $id, 'body' => $body]);
             if ($r['status'] !== 201) { fail('POST /comments returned ' . $r['status']); }
             out($r['json']);
@@ -262,10 +357,12 @@ try {
             // command only edits the JSON payload inside that same file, it
             // does not take or need the lock itself — there is only ever
             // one live session to race against, and that session is the one
-            // calling this command.
-            $id    = (int)($argvRest[1] ?? 0);
+            // calling this command. (Taking a fresh flock() here would
+            // deadlock against the parent otack-tick process, which already
+            // holds LOCK_EX on this exact file for the whole session.)
+            $id    = positiveIntArg($argvRest[1] ?? null, 'usage: otack tick-note <id> <phase>');
             $phase = (string)($argvRest[2] ?? '');
-            if ($id <= 0 || $phase === '') { fail('usage: otack tick-note <id> <phase>'); }
+            if ($phase === '') { fail('usage: otack tick-note <id> <phase>'); }
             if (!in_array($phase, PHASES, true)) {
                 fail('unknown phase "' . $phase . '" — valid: ' . implode('|', PHASES));
             }
@@ -279,13 +376,29 @@ try {
             }
             $info['task_id'] = $id;
             $info['phase']   = $phase;
-            file_put_contents($lockPath, json_encode($info, JSON_PRETTY_PRINT));
+            $encoded = json_encode($info, JSON_PRETTY_PRINT);
+            if ($encoded === false) {
+                fail('failed to encode agent.lock payload as JSON: ' . json_last_error_msg());
+            }
+            if (file_put_contents($lockPath, $encoded) === false) {
+                fail("failed to write $lockPath");
+            }
             out(['task_id' => $id, 'phase' => $phase]);
         }
 
         default:
             fail("unknown command \"$cmd\" — run otack --help", 2);
     }
-} catch (\RuntimeException $e) {
+} catch (\Throwable $e) {
+    // C1: was `catch (\RuntimeException $e)`, which is not a parent of
+    // Client's `\InvalidArgumentException` (thrown on a non-https,
+    // non-loopback base URL — e.g. a single missing "s" in OTACK_API_URL)
+    // nor of a stray \TypeError. Either escaped uncaught, and PHP's default
+    // handler prints a trace WITH ARGUMENT VALUES when
+    // zend.exception_ignore_args is Off — putting the bearer token on
+    // stdout, stderr, and in cron's mail. Exception *messages* below never
+    // contain the token (only the trace's argument dump would have), so
+    // widening the catch to Throwable is safe: fail() only ever emits
+    // $e->getMessage().
     fail($e->getMessage());
 }

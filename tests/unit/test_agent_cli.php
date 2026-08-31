@@ -50,6 +50,110 @@ function _cli(string $args, string $home, string $stdin = ''): array {
     return ['code' => proc_close($p), 'out' => $out, 'err' => $err];
 }
 
+// --- fixture HTTP server: the CLI's OWN process makes real HTTP calls ------
+//
+// Generalises tests/unit/test_agent_client.php:49's
+// agent_client_with_fixture_server() (background `php -S`, port poll,
+// posix_kill in finally) into a small router keyed on method+path instead
+// of one canned response: the CLI issues several different requests per
+// command (GET /me, GET /tasks, GET /projects/{id}, GET /tasks/{id}, ...)
+// and each needs its own canned reply. Routes are dumped to a JSON file
+// beside the router script and re-read on every request (the built-in
+// server re-execs the script per request, so this is just a file read, not
+// a race); each request is also appended to a log file so a test can
+// assert on what the CLI actually sent — the request body of a PATCH/POST,
+// or that a call never happened at all (the allow-list gate tests rely on
+// the latter).
+//
+// $routes: "METHOD /path" => list of {status, body} served in order (last
+// one repeats once exhausted, so a route hit more times than fixtured
+// doesn't crash the server — it just keeps answering with its last entry).
+function _cliFixtureServer(array $routes, callable $fn): void
+{
+    $dir = sys_get_temp_dir() . '/otack-cli-fixture-' . bin2hex(random_bytes(4));
+    mkdir($dir, 0700, true);
+    file_put_contents($dir . '/routes.json', json_encode($routes));
+    file_put_contents($dir . '/requests.log', '');
+
+    $router = $dir . '/router.php';
+    file_put_contents($router, <<<'PHP'
+<?php
+$dir = __DIR__;
+$routes = json_decode((string)file_get_contents($dir . '/routes.json'), true) ?: [];
+$method = $_SERVER['REQUEST_METHOD'];
+$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$rawBody = file_get_contents('php://input');
+$key = $method . ' ' . $path;
+
+file_put_contents($dir . '/requests.log', json_encode([
+    'method' => $method,
+    'path'   => $path,
+    'query'  => $_GET,
+    'body'   => $rawBody !== '' ? json_decode($rawBody, true) : null,
+]) . "\n", FILE_APPEND);
+
+$queue = $routes[$key] ?? null;
+if ($queue === null) {
+    http_response_code(404);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'no route fixtured for ' . $key]);
+    exit;
+}
+$counterFile = $dir . '/n-' . md5($key) . '.txt';
+$idx = is_file($counterFile) ? (int)file_get_contents($counterFile) : 0;
+$resp = $queue[$idx] ?? $queue[count($queue) - 1];
+file_put_contents($counterFile, (string)($idx + 1));
+
+http_response_code($resp['status'] ?? 200);
+header('Content-Type: application/json');
+echo $resp['body'] ?? '{}';
+PHP
+    );
+
+    $port = random_int(45000, 49999);
+    $cmd = '/usr/bin/env php -S 127.0.0.1:' . $port . ' ' . escapeshellarg($router)
+        . ' > /dev/null 2>&1 & echo $!';
+    $pid = (int)trim((string)shell_exec($cmd));
+    for ($i = 0; $i < 50; $i++) {
+        $s = @fsockopen('127.0.0.1', $port, $errno, $errstr, 0.1);
+        if ($s) { fclose($s); break; }
+        usleep(50_000);
+    }
+    try {
+        $fn($port, $dir . '/requests.log');
+    } finally {
+        if ($pid > 0) {
+            if (function_exists('posix_kill')) { @posix_kill($pid, 15); }
+            else { @shell_exec('kill ' . $pid . ' 2>/dev/null'); }
+        }
+        foreach (glob("$dir/*") ?: [] as $f) { @unlink($f); }
+        @rmdir($dir);
+    }
+}
+
+/** _cliHome(), but OTACK_API_URL points at the fixture server on $port. */
+function _cliHomeForServer(int $port, ?array $projects = null): string {
+    $home = sys_get_temp_dir() . '/otack-cli-test-' . bin2hex(random_bytes(4));
+    mkdir($home . '/.claude/otack-agent', 0700, true);
+    file_put_contents($home . '/.claude/otack-agent/.env',
+        "OTACK_API_URL=http://127.0.0.1:$port/api/v1\nOTACK_API_TOKEN=otk_test\n");
+    chmod($home . '/.claude/otack-agent/.env', 0600);
+    if ($projects === null) {
+        $projectDir = $home . '/p42';
+        mkdir($projectDir, 0700, true);
+        $projects = ['42' => ['path' => $projectDir, 'write' => true]];
+    }
+    file_put_contents($home . '/.claude/otack-agent/projects.json',
+        json_encode(['projects' => $projects]));
+    return $home;
+}
+
+/** requests.log lines as decoded arrays, in order. */
+function _requestLog(string $logFile): array {
+    $lines = array_filter(explode("\n", (string)file_get_contents($logFile)), fn($l) => $l !== '');
+    return array_map(fn($l) => json_decode($l, true), $lines);
+}
+
 it('otack with no arguments prints usage and exits non-zero', function () {
     $r = _cli('', _cliHome());
     assert_true($r['code'] !== 0, 'expected a non-zero exit');
@@ -109,4 +213,332 @@ it('otack tick-note fails clearly when there is no lock file to write into', fun
     $r = _cli('tick-note 7 implementing', _cliHome());
     assert_true($r['code'] !== 0, 'expected a non-zero exit');
     assert_true(str_contains($r['err'], 'agent.lock'), 'error should name the lock file it expected to update');
+});
+
+it('otack tick-note fails cleanly when the lock file cannot be written', function () {
+    if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+        return; // root bypasses file permission bits — nothing to prove here.
+    }
+    $home = _cliHome();
+    $lockPath = $home . '/.claude/otack-agent/agent.lock';
+    file_put_contents($lockPath, json_encode(['pid' => 1]));
+    chmod($lockPath, 0400);
+    $r = _cli('tick-note 7 implementing', $home);
+    chmod($lockPath, 0600); // restore so the temp dir can be cleaned up normally
+    assert_true($r['code'] !== 0, 'expected a non-zero exit');
+    assert_true(str_contains($r['err'], 'failed to write'), 'error should say the lock file could not be written, not crash');
+});
+
+// --- C1: a non-https, non-loopback config typo must not leak the token -----
+
+it('otack refuses a non-https non-loopback OTACK_API_URL without printing the token or a stack trace', function () {
+    $home = sys_get_temp_dir() . '/otack-cli-test-' . bin2hex(random_bytes(4));
+    mkdir($home . '/.claude/otack-agent', 0700, true);
+    file_put_contents($home . '/.claude/otack-agent/.env',
+        "OTACK_API_URL=http://example.com/api/v1\nOTACK_API_TOKEN=SECRETTOKEN123ABC\n");
+    chmod($home . '/.claude/otack-agent/.env', 0600);
+
+    $r = _cli('whoami', $home);
+    assert_true($r['code'] !== 0, 'expected a non-zero exit');
+    assert_true(str_contains($r['err'], 'https'), 'error should explain the https requirement');
+    assert_true(!str_contains($r['err'], 'SECRETTOKEN123ABC'), 'the bearer token must never appear on stderr');
+    assert_true(!str_contains($r['out'], 'SECRETTOKEN123ABC'), 'the bearer token must never appear on stdout');
+    assert_true(!str_contains($r['err'], 'Stack trace'), 'should not leak a stack trace');
+});
+
+// --- ctype_digit: a numeric id argument with trailing garbage is rejected --
+
+it('otack task rejects a non-numeric id instead of acting on its numeric prefix', function () {
+    $r = _cli('task 5abc', _cliHome());
+    assert_true($r['code'] !== 0, 'expected a non-zero exit');
+    assert_true(str_contains($r['err'], 'usage: otack task'), 'should be a clean usage error');
+    assert_true(!str_contains($r['err'], 'HTTP request failed'), 'must reject before ever making a network call');
+});
+
+// --- fixture-server-backed tests --------------------------------------------
+
+it('otack next does not pick a card sitting in an is_done column', function () {
+    _cliFixtureServer([
+        'GET /api/v1/me'           => [['status' => 200, 'body' => json_encode(['id' => 1])]],
+        'GET /api/v1/tasks'        => [['status' => 200, 'body' => json_encode([
+            'items' => [['id' => 10, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null]],
+            'next_cursor' => null,
+        ])]],
+        'GET /api/v1/projects/42'  => [['status' => 200, 'body' => json_encode([
+            'columns' => [['id' => 5, 'is_done' => true, 'is_backlog' => false]],
+        ])]],
+    ], function (int $port, string $logFile) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('next', $home);
+        assert_eq(0, $r['code']);
+        $out = json_decode($r['out'], true);
+        assert_eq(null, $out['task']);
+        assert_eq('idle', $out['reason']);
+        $log = _requestLog($logFile);
+        foreach ($log as $entry) {
+            assert_true($entry['path'] !== '/api/v1/tasks/10', 'a done-column card must never be fetched by id at all');
+        }
+    });
+});
+
+it('otack next drops a from_form winner at the detail stage and returns the next candidate', function () {
+    _cliFixtureServer([
+        'GET /api/v1/me'          => [['status' => 200, 'body' => json_encode(['id' => 1])]],
+        'GET /api/v1/tasks'       => [['status' => 200, 'body' => json_encode([
+            'items' => [
+                ['id' => 10, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null],
+                ['id' => 11, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null],
+            ],
+            'next_cursor' => null,
+        ])]],
+        'GET /api/v1/projects/42' => [['status' => 200, 'body' => json_encode([
+            'columns' => [['id' => 5, 'is_done' => false, 'is_backlog' => false]],
+        ])]],
+        'GET /api/v1/tasks/10'    => [['status' => 200, 'body' => json_encode([
+            'id' => 10, 'project_id' => 42, 'from_form' => true, 'agent_state' => null,
+        ])]],
+        'GET /api/v1/tasks/11'    => [['status' => 200, 'body' => json_encode([
+            'id' => 11, 'project_id' => 42, 'from_form' => false, 'agent_state' => null,
+        ])]],
+    ], function (int $port, string $logFile) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('next', $home);
+        assert_eq(0, $r['code']);
+        $out = json_decode($r['out'], true);
+        assert_eq(11, $out['task']['id']);
+        assert_eq('new', $out['reason']);
+        assert_eq(realpath($home . '/p42'), $out['local']['path'], "next's output should carry the project's local path");
+        $log = _requestLog($logFile);
+        $paths = array_column($log, 'path');
+        $i10 = array_search('/api/v1/tasks/10', $paths, true);
+        $i11 = array_search('/api/v1/tasks/11', $paths, true);
+        assert_true($i10 !== false && $i11 !== false && $i10 < $i11, 'task 10 must be re-verified and dropped before task 11 is tried');
+    });
+});
+
+it('otack next fails loud on a 500 from GET /projects/{id} instead of reporting idle', function () {
+    _cliFixtureServer([
+        'GET /api/v1/me'          => [['status' => 200, 'body' => json_encode(['id' => 1])]],
+        'GET /api/v1/tasks'       => [['status' => 200, 'body' => json_encode([
+            'items' => [['id' => 10, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null]],
+            'next_cursor' => null,
+        ])]],
+        'GET /api/v1/projects/42' => [['status' => 500, 'body' => '{}']],
+    ], function (int $port) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('next', $home);
+        assert_true($r['code'] !== 0, 'a broken project must fail loud, not report idle with exit 0');
+        assert_true(str_contains($r['err'], '500'), 'error should name the failing status');
+    });
+});
+
+it('otack next skips a card that only reveals agent_state=blocked at the detail stage', function () {
+    _cliFixtureServer([
+        'GET /api/v1/me'          => [['status' => 200, 'body' => json_encode(['id' => 1])]],
+        'GET /api/v1/tasks'       => [['status' => 200, 'body' => json_encode([
+            'items' => [
+                ['id' => 10, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null],
+                ['id' => 11, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null],
+            ],
+            'next_cursor' => null,
+        ])]],
+        'GET /api/v1/projects/42' => [['status' => 200, 'body' => json_encode([
+            'columns' => [['id' => 5, 'is_done' => false, 'is_backlog' => false]],
+        ])]],
+        'GET /api/v1/tasks/10'    => [['status' => 200, 'body' => json_encode([
+            'id' => 10, 'project_id' => 42, 'from_form' => false, 'agent_state' => 'blocked',
+        ])]],
+        'GET /api/v1/tasks/11'    => [['status' => 200, 'body' => json_encode([
+            'id' => 11, 'project_id' => 42, 'from_form' => false, 'agent_state' => null,
+        ])]],
+    ], function (int $port) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('next', $home);
+        assert_eq(0, $r['code']);
+        $out = json_decode($r['out'], true);
+        assert_eq(11, $out['task']['id']);
+    });
+});
+
+it('otack next uses a distinct idle reason when the 10-round from_form bound is exhausted', function () {
+    $items = [];
+    $routes = [
+        'GET /api/v1/me'          => [['status' => 200, 'body' => json_encode(['id' => 1])]],
+        'GET /api/v1/projects/42' => [['status' => 200, 'body' => json_encode([
+            'columns' => [['id' => 5, 'is_done' => false, 'is_backlog' => false]],
+        ])]],
+    ];
+    for ($i = 1; $i <= 10; $i++) {
+        $items[] = ['id' => $i, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null];
+        $routes["GET /api/v1/tasks/$i"] = [['status' => 200, 'body' => json_encode([
+            'id' => $i, 'project_id' => 42, 'from_form' => true, 'agent_state' => null,
+        ])]];
+    }
+    $routes['GET /api/v1/tasks'] = [['status' => 200, 'body' => json_encode(['items' => $items, 'next_cursor' => null])]];
+
+    _cliFixtureServer($routes, function (int $port, string $logFile) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('next', $home);
+        assert_eq(0, $r['code']);
+        $out = json_decode($r['out'], true);
+        assert_eq(null, $out['task']);
+        assert_true($out['reason'] !== 'idle', 'exhausting the from_form bound must not read as the same idle as genuinely no work');
+        assert_true(str_contains($out['reason'], 'idle'), 'still an idle-family reason, just a distinct one');
+
+        $log = _requestLog($logFile);
+        $detailHits = array_filter($log, fn($e) => preg_match('#^/api/v1/tasks/\d+$#', $e['path']));
+        assert_eq(10, count($detailHits), 'expected all 10 rounds of the bound to run, not fewer');
+    });
+});
+
+it('otack state PATCHes agent_state, not a "state" field', function () {
+    _cliFixtureServer([
+        'GET /api/v1/tasks/10'   => [['status' => 200, 'body' => json_encode(['id' => 10, 'project_id' => 42])]],
+        'PATCH /api/v1/tasks/10' => [['status' => 200, 'body' => json_encode(['id' => 10, 'agent_state' => 'blocked'])]],
+    ], function (int $port, string $logFile) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('state 10 blocked', $home);
+        assert_eq(0, $r['code']);
+        $log = _requestLog($logFile);
+        $patch = array_values(array_filter($log, fn($e) => $e['method'] === 'PATCH'))[0] ?? null;
+        assert_true($patch !== null, 'expected a PATCH request');
+        assert_eq(['agent_state' => 'blocked'], $patch['body']);
+    });
+});
+
+it('otack state refuses a project absent from projects.json before writing anything', function () {
+    _cliFixtureServer([
+        'GET /api/v1/tasks/20'   => [['status' => 200, 'body' => json_encode(['id' => 20, 'project_id' => 999])]],
+        'PATCH /api/v1/tasks/20' => [['status' => 200, 'body' => json_encode(['id' => 20])]],
+    ], function (int $port, string $logFile) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('state 20 blocked', $home);
+        assert_true($r['code'] !== 0, 'expected a non-zero exit');
+        assert_true(str_contains($r['err'], 'projects.json'), 'error should point at the local allow-list');
+        $log = _requestLog($logFile);
+        assert_true(!in_array('PATCH', array_column($log, 'method'), true), 'must refuse before ever writing');
+    });
+});
+
+it('otack move refuses a project absent from projects.json before writing anything', function () {
+    _cliFixtureServer([
+        'GET /api/v1/tasks/21' => [['status' => 200, 'body' => json_encode(['id' => 21, 'project_id' => 999])]],
+    ], function (int $port, string $logFile) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('move 21 5', $home);
+        assert_true($r['code'] !== 0, 'expected a non-zero exit');
+        assert_true(str_contains($r['err'], 'projects.json'), 'error should point at the local allow-list');
+        $log = _requestLog($logFile);
+        $paths = array_column($log, 'path');
+        assert_true(!in_array('/api/v1/projects/999/tasks', $paths, true), 'must refuse before fetching column state');
+        assert_true(!in_array('/api/v1/tasks/21/move', $paths, true), 'must refuse before posting the move');
+    });
+});
+
+it('otack comment refuses a project absent from projects.json before touching the network body', function () {
+    _cliFixtureServer([
+        'GET /api/v1/tasks/22' => [['status' => 200, 'body' => json_encode(['id' => 22, 'project_id' => 999])]],
+    ], function (int $port, string $logFile) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('comment 22', $home, "some comment body\n");
+        assert_true($r['code'] !== 0, 'expected a non-zero exit');
+        assert_true(str_contains($r['err'], 'projects.json'), 'error should point at the local allow-list');
+        $log = _requestLog($logFile);
+        assert_true(!in_array('/api/v1/comments', array_column($log, 'path'), true), 'must refuse before posting the comment');
+    });
+});
+
+it('otack new-comments refuses a project absent from projects.json before fetching the thread', function () {
+    _cliFixtureServer([
+        'GET /api/v1/tasks/23' => [['status' => 200, 'body' => json_encode(['id' => 23, 'project_id' => 999])]],
+    ], function (int $port, string $logFile) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('new-comments 23', $home);
+        assert_true($r['code'] !== 0, 'expected a non-zero exit');
+        assert_true(str_contains($r['err'], 'projects.json'), 'error should point at the local allow-list');
+        $log = _requestLog($logFile);
+        $paths = array_column($log, 'path');
+        assert_true(!in_array('/api/v1/tasks/23/comments', $paths, true), 'must refuse before fetching the thread');
+        assert_true(!in_array('/api/v1/me', $paths, true), 'must refuse before even resolving self');
+    });
+});
+
+it('otack new-comments honours the watermark instead of returning the whole thread', function () {
+    _cliFixtureServer([
+        'GET /api/v1/tasks/5'          => [['status' => 200, 'body' => json_encode(['id' => 5, 'project_id' => 42])]],
+        'GET /api/v1/me'               => [['status' => 200, 'body' => json_encode(['id' => 1])]],
+        'GET /api/v1/tasks/5/comments' => [['status' => 200, 'body' => json_encode([
+            'items' => [
+                ['id' => 1, 'user_id' => 1, 'body' => 'a'],
+                ['id' => 2, 'user_id' => 2, 'body' => 'b'],
+                ['id' => 3, 'user_id' => 1, 'body' => 'c'],
+                ['id' => 4, 'user_id' => 2, 'body' => 'd'],
+            ],
+            'next_cursor' => null,
+        ])]],
+    ], function (int $port) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('new-comments 5', $home);
+        assert_eq(0, $r['code']);
+        $out = json_decode($r['out'], true);
+        assert_eq([4], array_column($out['items'], 'id'), 'expected only the comment after the watermark (id 3, the agent\'s own last)');
+    });
+});
+
+it('otack whoami: successful output lands on stdout and parses as JSON, stderr stays empty', function () {
+    _cliFixtureServer([
+        'GET /api/v1/me' => [['status' => 200, 'body' => json_encode(['id' => 1, 'name' => 'Bot'])]],
+    ], function (int $port) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('whoami', $home);
+        assert_eq(0, $r['code']);
+        assert_eq('', $r['err'], 'a successful command must not write anything to stderr');
+        $decoded = json_decode($r['out'], true);
+        assert_true($decoded !== null, 'stdout must parse as JSON');
+        assert_eq(['id' => 1, 'name' => 'Bot'], $decoded);
+    });
+});
+
+// --- M3: a malformed /me response must fail loud, not degrade silently -----
+
+it('otack whoami fails cleanly when /me is missing "id" instead of leaking a PHP warning', function () {
+    _cliFixtureServer([
+        'GET /api/v1/me' => [['status' => 200, 'body' => json_encode(['name' => 'Bot'])]],
+    ], function (int $port) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('whoami', $home);
+        assert_true($r['code'] !== 0, 'expected a non-zero exit');
+        assert_true(str_contains($r['err'], 'unexpected shape'), 'error should name the malformed /me response');
+        assert_eq('', $r['out'], 'stdout must stay empty on failure');
+        assert_true(!str_contains($r['err'], 'Warning'), 'must not leak a PHP diagnostic instead of a clean error');
+    });
+});
+
+it('otack whoami fails cleanly when /me returns null instead of crashing with a TypeError', function () {
+    _cliFixtureServer([
+        'GET /api/v1/me' => [['status' => 200, 'body' => 'null']],
+    ], function (int $port) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('whoami', $home);
+        assert_true($r['code'] !== 0, 'expected a non-zero exit');
+        assert_true(str_contains($r['err'], 'unexpected shape'), 'error should name the malformed /me response');
+        assert_true(!str_contains($r['err'], 'TypeError') || str_contains($r['err'], 'unexpected shape'), 'a clean message, not a raw TypeError trace');
+    });
+});
+
+// --- M2: an invalid-UTF-8 comment body must fail cleanly --------------------
+
+it('otack comment refuses an invalid-UTF-8 body instead of crashing on json_encode failure', function () {
+    _cliFixtureServer([
+        'GET /api/v1/tasks/30' => [['status' => 200, 'body' => json_encode(['id' => 30, 'project_id' => 42])]],
+    ], function (int $port, string $logFile) {
+        $home = _cliHomeForServer($port);
+        $badBody = "line one\xC3\x28 broken continuation byte";
+        $r = _cli('comment 30', $home, $badBody);
+        assert_true($r['code'] !== 0, 'expected a non-zero exit');
+        assert_true(str_contains($r['err'], 'UTF-8'), 'error should name the encoding problem');
+        assert_true(!str_contains($r['err'], 'Stack trace'), 'should not leak a stack trace');
+        $log = _requestLog($logFile);
+        assert_true(!in_array('/api/v1/comments', array_column($log, 'path'), true), 'must refuse before posting');
+    });
 });
