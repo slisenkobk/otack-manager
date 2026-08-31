@@ -17,11 +17,26 @@ final class Triage
      * place, and the mark survives a crash, a lost session, and a human
      * editing the board by hand.
      *
+     * `$selfUserId` must be a positive integer. `0` is not treated as "no
+     * self id yet" — a caller that ever passes `0` (e.g. a `/me` response
+     * reshaped so `$me['json']['id'] ?? 0` silently degrades) would produce
+     * a watermark that never matches anything, so the entire thread reads
+     * as new on every tick. That failure mode is indistinguishable from the
+     * legitimate "the agent has never commented" case, so it must fail loud
+     * at the boundary instead of degrading into an unsupervised reply loop.
+     *
      * @param list<array{id:int, user_id:int}> $comments
+     * @throws \InvalidArgumentException if $selfUserId is not positive
      * @return list<array<string,mixed>>
      */
     public static function newComments(array $comments, int $selfUserId): array
     {
+        if ($selfUserId <= 0) {
+            throw new \InvalidArgumentException(
+                "selfUserId must be a positive integer, got $selfUserId"
+            );
+        }
+
         $watermark = 0;
         foreach ($comments as $c) {
             if ((int)$c['user_id'] === $selfUserId) {
@@ -60,6 +75,13 @@ final class Triage
      * filter only helps when the caller already has the DETAIL shape in
      * hand (e.g. re-triaging after a `GET /tasks/{id}` round trip).
      *
+     * Within a rung, the lowest task id wins. Callers have no documented
+     * ordering contract with this function — the only reason ties break
+     * consistently today is that `TaskRepository::listAssignedAfterId()`
+     * happens to `ORDER BY id ASC` (system/Repository/TaskRepository.php).
+     * Sorting explicitly here means a caller that assembles the list
+     * differently can never flip the winner tick to tick on identical data.
+     *
      * @param list<array{id:int, agent_state:?string, from_form?:bool}> $tasks
      * @param array<int,int> $newCommentCounts
      * @return array{task:array<string,mixed>, reason:string}|null
@@ -85,6 +107,7 @@ final class Triage
             ['new',      $byState([null])],
         ] as [$reason, $rows]) {
             if ($rows !== []) {
+                usort($rows, fn($a, $b) => (int)$a['id'] <=> (int)$b['id']);
                 return ['task' => $rows[0], 'reason' => $reason];
             }
         }
@@ -102,7 +125,21 @@ final class Triage
      * the current maximum is the same ordering the web UI's drag-and-drop
      * relies on.
      *
+     * `$max` starts at `0.0` and is only ever raised by `max()`, so it can
+     * never end up negative — `$max + 1024.0` is correct unconditionally;
+     * there is no reachable case that needs a separate empty-column branch.
+     * `NAN` positions are swallowed to `1024.0` by `max()`'s own behaviour
+     * and that is left alone. What is not left alone: a position already at
+     * (or near) `PHP_FLOAT_MAX` would let `$max + 1024.0` round back down to
+     * `$max` (a tie, not an append), and a position that is already `INF`
+     * (e.g. from a value PHP could only parse as infinite) makes the sum
+     * `INF` too — `json_encode(['position' => INF])` returns `false`, so the
+     * move request body would silently become an empty string, and
+     * `TasksHandler.php`'s `(float)($body['position'] ?? 0)` has no bounds
+     * check to catch that downstream. Fail loud here instead.
+     *
      * @param list<array{position:float|int|string}> $rowsInColumn tasks already in the target column
+     * @throws \RuntimeException if the next position would not be a usable, strictly-greater float
      */
     public static function nextPosition(array $rowsInColumn): float
     {
@@ -110,6 +147,12 @@ final class Triage
         foreach ($rowsInColumn as $r) {
             $max = max($max, (float)$r['position']);
         }
-        return $max > 0.0 ? $max + 1024.0 : 1024.0;
+        $next = $max + 1024.0;
+        if (!is_finite($next) || $next <= $max) {
+            throw new \RuntimeException(
+                "nextPosition: computed position $next is not usable past max $max"
+            );
+        }
+        return $next;
     }
 }
