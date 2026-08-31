@@ -25,7 +25,13 @@ export default defineConfig({
     { name: 'firefox',  use: { ...devices['Desktop Firefox'] } },
   ],
   webServer: {
-    command: 'php -S localhost:8001 -t public public/index.php',
+    // -d max_execution_time=0: `php -S` is single-process — a slow
+    // password_verify() call (system/Auth/PasswordHasher.php) that exceeds
+    // PHP's default 30s max_execution_time fatals the whole server, and
+    // every remaining test in the run then fails with connection-refused.
+    // Scoped to this test harness only; production PHP-FPM config is
+    // untouched, and the hashing cost in PasswordHasher.php is unchanged.
+    command: 'php -d max_execution_time=0 -S localhost:8001 -t public public/index.php',
     url: 'http://localhost:8001',
     reuseExistingServer: !process.env.CI,
     env: {
