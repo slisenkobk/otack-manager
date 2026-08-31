@@ -252,6 +252,18 @@ function html_sanitizer_corpus(): array
         "<img src=\"/\\evil.example/x.png\">",
         '<a href="/%2Fevil.example">x</a>',
 
+        // --- control-byte obfuscation of the same trick (2026-08-31): libxml
+        // silently DROPS 0x01–0x08, 0x0B, 0x0C and 0x0E–0x1F when it
+        // re-serialises an attribute, so a control byte wedged between the two
+        // slashes hides "//host" from any predicate that reads the raw value.
+        "<a href=\"/\x0B/evil.example\">x</a>",
+        "<img src=\"/\x0C/evil.example/x.png\">",
+        "<a href=\"/\x01\x02/evil.example\">x</a>",
+        "<a href=\"/\x0B\\evil.example\">x</a>",
+        "<img src=\"/\x1F/evil.example/x.png\">",
+        "<a href=\"\t/\t/evil.example\">x</a>",
+        "<a href=\"/\0/evil.example\">x</a>",
+
         // --- attributes beyond on*
         '<a href="https://ok.example" style="position:fixed;inset:0">x</a>',
         '<a href="https://ok.example" srcset="https://evil.example/x 1x">x</a>',
@@ -498,6 +510,22 @@ function live_dangers(string $out): array
                 && preg_match('/^\s*(javascript|vbscript)\s*:/i', $val)) {
                 $bad[] = "live scheme in $name";
             }
+            // Off-origin authority. A value that begins "//host" or "/\host"
+            // is a protocol-relative *absolute* URL to another origin — the
+            // <a> navigation is not covered by any CSP directive (form-action
+            // governs form submission; there is no navigate-to). Browsers
+            // strip leading/trailing ASCII whitespace and ignore C0 controls
+            // in URL attributes, and libxml silently drops most C0 bytes when
+            // it re-serialises, so normalise both away before looking. "%2F"
+            // and "%5C" are NOT decoded into an authority separator by the
+            // WHATWG URL parser, so an encoded slash stays same-origin and
+            // must not be flagged.
+            if (in_array($name, ['href', 'src', 'action', 'formaction', 'xlink:href'], true)) {
+                $origin = preg_replace('/[\x00-\x20\x7F]+/', '', $attr->value);
+                if (preg_match('#^/[/\\\\]#', $origin)) {
+                    $bad[] = "off-origin authority in $name";
+                }
+            }
         }
     }
     return $bad;
@@ -689,4 +717,180 @@ it('does not additionally allow ./, ../, or bare relative paths', function () {
         $out = HtmlSanitizer::clean('<a href="' . $val . '">x</a>');
         assert_true(strpos($out, 'href') === false, "non-root-relative href unexpectedly survived for '$val': $out");
     }
+});
+
+// ---------------------------------------------------------------------------
+// Regression: the checked string must be the string that reaches the browser.
+//
+// libxml re-serialises attribute values on output and does NOT round-trip
+// every byte: 0x01–0x08, 0x0B, 0x0C and 0x0E–0x1F are silently DROPPED, and
+// 0x00 TRUNCATES the value. Only tab/LF/CR/space/0x7F survive, as %XX. So a
+// predicate that inspects the raw value can approve "/<0x0B>/evil.example"
+// — "/" not followed by "/" — and then serialise "//evil.example", a
+// protocol-relative URL to another origin. These pin the whole byte family.
+// ---------------------------------------------------------------------------
+
+/** Bytes libxml silently drops from an attribute value (28 of them). */
+function libxml_dropped_bytes(): array
+{
+    return array_merge(range(0x01, 0x08), [0x0B, 0x0C], range(0x0E, 0x1F));
+}
+
+it('blocks C0-control-obfuscated protocol-relative href (libxml drops the byte on output)', function () {
+    foreach (libxml_dropped_bytes() as $b) {
+        $hex = sprintf('0x%02X', $b);
+        $out = HtmlSanitizer::clean('<a href="/' . chr($b) . '/evil.example">x</a>');
+        assert_true(strpos($out, 'href') === false,
+            "control-byte $hex synthesised an off-origin href: $out");
+        assert_eq([], live_dangers($out), "control-byte $hex href => $out");
+    }
+});
+
+it('blocks C0-control-obfuscated protocol-relative src (libxml drops the byte on output)', function () {
+    foreach (libxml_dropped_bytes() as $b) {
+        $hex = sprintf('0x%02X', $b);
+        $out = HtmlSanitizer::cleanRich('<img src="/' . chr($b) . '/evil.example/x.png">');
+        assert_true(strpos($out, 'src') === false,
+            "control-byte $hex synthesised an off-origin src: $out");
+        assert_eq([], live_dangers($out), "control-byte $hex src => $out");
+    }
+});
+
+it('blocks the C0-control + backslash variant (/<ctl>\\host)', function () {
+    foreach (libxml_dropped_bytes() as $b) {
+        $hex = sprintf('0x%02X', $b);
+        $out = HtmlSanitizer::clean('<a href="/' . chr($b) . '\\evil.example">x</a>');
+        assert_true(strpos($out, 'href') === false,
+            "control-byte $hex + backslash survived: $out");
+        assert_eq([], live_dangers($out), "control-byte $hex backslash href => $out");
+    }
+});
+
+it('blocks NUL-obfuscated protocol-relative href/src (libxml truncates at NUL during parsing)', function () {
+    // libxml truncates an attribute value at the first NUL while *parsing*,
+    // so the sanitiser only ever sees "/" here and the remainder never
+    // reaches the document at all. Pin the outcome — same-origin, no host —
+    // rather than the mechanism, so a libxml change that stops truncating
+    // still has to satisfy the off-origin check below.
+    $out = HtmlSanitizer::clean("<a href=\"/\0/evil.example\">x</a>");
+    assert_true(strpos($out, 'evil.example') === false, "NUL-obfuscated href survived: $out");
+    assert_eq([], live_dangers($out), "NUL href => $out");
+
+    $out = HtmlSanitizer::cleanRich("<img src=\"/\0/evil.example/x.png\">");
+    assert_true(strpos($out, 'evil.example') === false, "NUL-obfuscated src survived: $out");
+    assert_eq([], live_dangers($out), "NUL src => $out");
+
+    // NUL is also in the write-back strip set, so a value that *does* carry
+    // one through to the predicate is normalised rather than silently cut.
+    $out = HtmlSanitizer::clean("<a href=\"/proj\0ects/1\">x</a>");
+    assert_true(strpos($out, 'evil') === false, "unexpected content: $out");
+    assert_eq([], live_dangers($out), "NUL mid-path => $out");
+});
+
+it('blocks tab/LF/CR-obfuscated protocol-relative href/src (today safe only via %XX — pin it)', function () {
+    foreach (["\t" => 'tab', "\n" => 'LF', "\r" => 'CR', ' ' => 'space'] as $c => $label) {
+        $out = HtmlSanitizer::clean('<a href="/' . $c . '/evil.example">x</a>');
+        assert_true(strpos($out, 'href') === false, "$label-obfuscated href survived: $out");
+        assert_eq([], live_dangers($out), "$label href => $out");
+
+        $out = HtmlSanitizer::cleanRich('<img src="/' . $c . '/evil.example/x.png">');
+        assert_true(strpos($out, 'src') === false, "$label-obfuscated src survived: $out");
+        assert_eq([], live_dangers($out), "$label src => $out");
+    }
+});
+
+it('blocks leading-whitespace variants where trim() shifts the string before matching', function () {
+    $payloads = [
+        "\t/\t/evil.example",
+        " / /evil.example",
+        "\n/\n/evil.example",
+        "\x0B/\x0B/evil.example",
+        "\x0C//evil.example",
+        "\x01/\x01/evil.example",
+        "  /\x0B\x0C/evil.example",
+    ];
+    foreach ($payloads as $val) {
+        $label = bin2hex($val);
+        $out = HtmlSanitizer::clean('<a href="' . $val . '">x</a>');
+        assert_true(strpos($out, 'href') === false, "leading-whitespace payload $label survived: $out");
+        assert_eq([], live_dangers($out), "payload $label => $out");
+
+        $out = HtmlSanitizer::cleanRich('<img src="' . $val . '">');
+        assert_true(strpos($out, 'src') === false, "leading-whitespace payload $label survived on src: $out");
+        assert_eq([], live_dangers($out), "payload $label src => $out");
+    }
+});
+
+it('blocks multi-byte control combinations between the slashes', function () {
+    $combos = ["\x01\x02", "\x0B\x0C", "\x1F\x0E", "\x0B\x09", "\x09\x0B", "\x0C\x20", "\x01\x0B\x0C\x1F"];
+    foreach ($combos as $c) {
+        $label = bin2hex($c);
+        $out = HtmlSanitizer::clean('<a href="/' . $c . '/evil.example">x</a>');
+        assert_true(strpos($out, 'href') === false, "combo $label survived on href: $out");
+        assert_eq([], live_dangers($out), "combo $label href => $out");
+
+        $out = HtmlSanitizer::cleanRich('<img src="/' . $c . '/evil.example/x.png">');
+        assert_true(strpos($out, 'src') === false, "combo $label survived on src: $out");
+        assert_eq([], live_dangers($out), "combo $label src => $out");
+    }
+});
+
+it('blocks control-byte obfuscation of the javascript: scheme', function () {
+    foreach (["java\x01script:alert(1)", "java\tscript:alert(1)", " javascript:alert(1)",
+              "\x0Bjavascript:alert(1)", "j\x0Ba\x0Bv\x0Ba\x0Bscript:alert(1)"] as $val) {
+        $out = HtmlSanitizer::clean('<a href="' . $val . '">x</a>');
+        assert_true(strpos($out, 'href') === false, "obfuscated javascript: survived: $out");
+        assert_eq([], live_dangers($out), "obfuscated scheme => $out");
+    }
+});
+
+it('still accepts every legitimate URL shape after control-byte normalisation', function () {
+    $hrefOk = [
+        'https://ok.example/a?b=1#c',
+        'http://ok.example/a',
+        'mailto:someone@ok.example',
+        '#fragment',
+        '/projects/1',
+        '/uploads/2026/06/a.png',
+        '/%2Fevil.example',
+    ];
+    foreach ($hrefOk as $val) {
+        $out = HtmlSanitizer::clean('<a href="' . $val . '">x</a>');
+        assert_true(strpos($out, 'href="' . $val . '"') !== false,
+            "legitimate href '$val' was stripped or mangled: $out");
+    }
+
+    $srcOk = [
+        'https://ok.example/x.png',
+        'data:image/png;base64,iVBORw0KGgo=',
+        '/uploads/2026/06/a.png',
+        '/%2Fevil.example',
+    ];
+    foreach ($srcOk as $val) {
+        $out = HtmlSanitizer::cleanRich('<img src="' . $val . '">');
+        assert_true(strpos($out, 'src="' . $val . '"') !== false,
+            "legitimate src '$val' was stripped or mangled: $out");
+    }
+});
+
+it('preserves a space inside an otherwise-legitimate path (percent-encoded, not deleted)', function () {
+    $out = HtmlSanitizer::cleanRich('<img src="/uploads/a b.png">');
+    assert_true(strpos($out, 'src="/uploads/a%20b.png"') !== false,
+        "space in path was deleted rather than percent-encoded: $out");
+
+    $out = HtmlSanitizer::clean('<a href="/uploads/a b.png">x</a>');
+    assert_true(strpos($out, 'href="/uploads/a%20b.png"') !== false,
+        "space in href path was deleted rather than percent-encoded: $out");
+});
+
+it('serialised value equals the value the predicate approved (no silently-dropped bytes survive storage)', function () {
+    // A control byte anywhere in an accepted value must be gone from the
+    // stored/serialised string too — otherwise "what was checked" and
+    // "what is served" are different strings again.
+    $out = HtmlSanitizer::clean("<a href=\"/proj\x0Bects/1\">x</a>");
+    assert_true(strpos($out, 'href="/projects/1"') !== false,
+        "normalised value not written back: $out");
+    $out = HtmlSanitizer::cleanRich("<img src=\"https://ok.exa\x01mple/x.png\">");
+    assert_true(strpos($out, 'src="https://ok.example/x.png"') !== false,
+        "normalised value not written back on src: $out");
 });

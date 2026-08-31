@@ -103,8 +103,15 @@ $env = [
     'SEED_DEFAULT_ADMIN_PASSWORD_HASH=',
     'PATH=' . getenv('PATH'),
 ];
+// -d max_execution_time=0: `php -S` is single-process — one request that
+// exceeds PHP's default 30s limit (a slow password_verify() in
+// system/Auth/PasswordHasher.php) fatals the whole server, and every
+// remaining request in the run then fails with connection-refused. The
+// flag must precede the router-script argument or PHP treats it as script
+// argv instead of an ini directive. Test harness only; production
+// PHP-FPM config is untouched. Mirrors playwright.config.ts (37f713e).
 $cmd = '/usr/bin/env ' . implode(' ', array_map('escapeshellarg', $env))
-     . ' php -S localhost:8765 -t ' . escapeshellarg($root . '/public')
+     . ' php -d max_execution_time=0 -S localhost:8765 -t ' . escapeshellarg($root . '/public')
      . ' ' . escapeshellarg($root . '/public/index.php')
      . ' > /tmp/otack-api-test-server.log 2>&1 & echo $!';
 $pid = (int)trim(shell_exec($cmd));

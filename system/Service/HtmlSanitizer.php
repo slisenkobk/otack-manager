@@ -338,14 +338,23 @@ final class HtmlSanitizer
             // disguise: browsers normalise "\" to "/" while parsing special
             // schemes, so "/\evil.example" is parsed identically to
             // "//evil.example" and would also jump origin. Encoded slashes
-            // ("/%2Fevil.example") are NOT decoded by the URL parser before
-            // host resolution, so that stays a same-origin path and is
-            // allowed. Deliberately not extended to "./", "../", or bare
-            // relative paths — this application never emits those, so
-            // there's no reason to widen the allow-list to cover them.
+            // ("/%2Fevil.example", "/%5Cevil.example") are NOT decoded by the
+            // WHATWG URL parser into an authority separator before host
+            // resolution — for src as well as href — so those stay
+            // same-origin paths and are allowed. Deliberately not extended to
+            // "./", "../", or bare relative paths — this application never
+            // emits those, so there's no reason to widen the allow-list.
+            //
+            // THE INVARIANT THIS BRANCH DEPENDS ON: the value that is
+            // *serialised* must still begin with a single slash. That is not
+            // automatic — libxml re-serialises attribute values on output and
+            // does not round-trip every byte (see urlAllowed() below). Testing
+            // the raw value while serving a different one is exactly how
+            // "/<0x0B>/evil.example" once became "//evil.example". urlAllowed()
+            // is what makes the checked string and the served string the same
+            // string; do not inline a raw preg_match() here again.
             if ($name === 'href') {
-                $val = trim($attr->value);
-                if (!preg_match('/^(https?:\/\/|mailto:|#|\/(?!\/|\\\\))/i', $val)) {
+                if (!self::urlAllowed($attr, '/^(https?:\/\/|mailto:|#|\/(?!\/|\\\\))/i')) {
                     $removeAttrs[] = $name;
                 }
             }
@@ -353,8 +362,7 @@ final class HtmlSanitizer
             // root-relative path form as href — every uploaded image is
             // served from a root-relative path (/uploads/...).
             if ($name === 'src') {
-                $val = trim($attr->value);
-                if (!preg_match('/^(https?:\/\/|data:image\/|\/(?!\/|\\\\))/i', $val)) {
+                if (!self::urlAllowed($attr, '/^(https?:\/\/|data:image\/|\/(?!\/|\\\\))/i')) {
                     $removeAttrs[] = $name;
                 }
             }
@@ -372,5 +380,57 @@ final class HtmlSanitizer
         if ($tag === 'a' && $el->getAttribute('target') === '_blank') {
             $el->setAttribute('rel', 'noopener noreferrer');
         }
+    }
+
+    /**
+     * Decide whether an href/src value is on the allow-list, and guarantee
+     * that the string approved here is the string the browser will receive.
+     *
+     * libxml re-serialises attribute values when the document is written out,
+     * and it does NOT round-trip every byte:
+     *
+     *   0x01–0x08, 0x0B, 0x0C, 0x0E–0x1F  silently DROPPED
+     *   0x00                              TRUNCATES the value
+     *   0x09, 0x0A, 0x0D, 0x20, 0x7F      kept, percent-encoded as %XX
+     *
+     * So matching against the raw value tests a different string from the one
+     * that ships. "/\x0B/evil.example" passes a naive "slash not followed by
+     * slash" test and then serialises as "//evil.example" — a protocol-relative
+     * URL to an attacker's origin. Two steps close that gap:
+     *
+     *  1. MATCH against a probe with every C0/space/DEL byte removed. This can
+     *     only ever narrow the accepted set: every prefix the stripping could
+     *     "repair" a value into (https://, mailto:, #, /path) is already on the
+     *     allow-list, while obfuscated forms ("java\tscript:", "/\x0B/host")
+     *     collapse onto their real meaning and get rejected.
+     *
+     *  2. WRITE BACK a value with only the non-round-tripping bytes removed —
+     *     the ones libxml drops or truncates on. Whitespace (tab/LF/CR/space)
+     *     and DEL are deliberately KEPT, because libxml preserves them
+     *     losslessly as %09/%0A/%0D/%20/%7F: a space inside "/uploads/a b.png"
+     *     is meaningful path data and percent-encoding is its correct
+     *     serialisation, so deleting it would silently break real links.
+     *     Percent-encoding can never turn into a slash, so keeping those bytes
+     *     cannot resurrect an authority separator.
+     *
+     * Net effect: what is stored and served is byte-identical to what was
+     * checked, modulo visible, reversible percent-encoding.
+     */
+    private static function urlAllowed(\DOMAttr $attr, string $pattern): bool
+    {
+        $val = trim($attr->value);
+
+        // Bytes libxml does not round-trip: NUL truncates, the rest vanish.
+        $stored = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]+/', '', $val);
+        // Probe: additionally drop tab/LF/CR/space/DEL for matching only.
+        $probe  = preg_replace('/[\x00-\x20\x7F]+/', '', $val);
+
+        if (!preg_match($pattern, $probe)) {
+            return false;
+        }
+        if ($stored !== $attr->value) {
+            $attr->value = $stored;
+        }
+        return true;
     }
 }
