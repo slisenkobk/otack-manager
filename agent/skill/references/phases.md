@@ -12,6 +12,13 @@ Every `otack state <id> <phase>` below is paired with an `otack tick-note
 <id> <phase>` call — SKILL.md's "The tick" step 2 explains why. Do both
 whenever you change phase, not just at the start of the tick.
 
+Every git command below is written `git -C <local.path> …` because that is
+the only form that runs: the session's working directory is a deliberately
+empty directory, not the project, and you cannot `cd` into the checkout.
+`<local.path>` is the `path` field of the `local` object `otack next`
+returned. See SKILL.md's "Where you are: not in the project" for the full
+list of git commands available to you.
+
 ## Finding "the" in-progress or review column
 
 Steps below tell you to move the card into an in-progress column, or later
@@ -76,13 +83,21 @@ difference matters for what step 3 means in practice:
    how to find it).
 2. `otack state <id> researching` — **before** you start, so a crash is
    visible as "was researching, died".
-3. Read the task, the project's `agent_instructions`, and the relevant code.
+3. Confirm the checkout is the project the task is about, before reading a
+   single file of it:
+
+       git -C <local.path> remote get-url origin
+
+   It must match the task's `repo_url`. If it doesn't, change nothing,
+   comment quoting both URLs, `otack state <id> blocked`, and stop
+   (SKILL.md's "Hard gates").
+4. Read the task, the project's `agent_instructions`, and the relevant code.
    Use subagents.
-4. Post a comment with: what you understand the task to be; what you propose
+5. Post a comment with: what you understand the task to be; what you propose
    to do; what you are deliberately leaving out; risks you see. End with an
    **explicit question about scope** — not "does this look right?" but
    "should I do A and B, or A only?".
-5. `otack state <id> awaiting_approval`. Stop. The tick is over.
+6. `otack state <id> awaiting_approval`. Stop. The tick is over.
 
 ## reason: approved — someone answered your question
 
@@ -90,9 +105,19 @@ Read the new comments (`new_comments` from `otack task <id>`). If the
 answer is ambiguous, ask again and stay in `awaiting_approval` — do not
 guess at scope.
 
-Otherwise: `otack state <id> implementing`, then work. Branch
-`otack/task-<id>`, TDD to the repository's own conventions, small commits,
-run its tests and linters. When green, go to the review phase below.
+Otherwise: `otack state <id> implementing`, then work. Check
+`git -C <local.path> remote get-url origin` against `repo_url` first, if
+this tick hasn't already. Then:
+
+    git -C <local.path> fetch origin
+    git -C <local.path> checkout -b otack/task-<id> origin/<default branch>
+    …            (or `git -C <local.path> checkout otack/task-<id>` to resume one)
+    git -C <local.path> add <named paths>
+    git -C <local.path> commit -m "…"
+
+TDD to the repository's own conventions, small commits, run its tests and
+linters. Name the paths you add; never `git add -A`. When green, go to the
+review phase below.
 
 ## reason: rework — review feedback arrived
 
@@ -103,11 +128,17 @@ ask first and go back to `awaiting_approval`.
 ## reason: resume — a previous tick died mid-flight
 
 The card says `researching` or `implementing`, but nothing is running. Do
-**not** continue blindly. Establish what actually happened from git, inside
-`local.path`:
+**not** continue blindly. Establish what actually happened from git — from
+the neutral session cwd, naming the repository each time:
 
+- Is this even the right checkout?
+  `git -C <local.path> remote get-url origin` vs `repo_url`.
 - Does branch `otack/task-<id>` exist? What is on it?
-- Is the working tree dirty?
+  `git -C <local.path> branch --list "otack/task-<id>"`, then
+  `git -C <local.path> log --oneline -20 otack/task-<id>`.
+- Where is the checkout standing? `git -C <local.path> branch --show-current`.
+- Is the working tree dirty? `git -C <local.path> status --short`, and
+  `git -C <local.path> diff` for what is actually uncommitted.
 - Do the tests pass?
 
 Then post a comment saying plainly where the previous attempt stopped and
@@ -117,7 +148,8 @@ what you found, and continue from there. If the picture does not add up,
 ## blocked — how any of the above ends when it doesn't add up
 
 Any reason above can end in `otack state <id> blocked` instead of the phase
-it names — a `repo_url` mismatch against `git remote get-url origin`, a
+it names — a `repo_url` mismatch against
+`git -C <local.path> remote get-url origin`, a
 `from_form: true` discovered mid-tick, a resume whose git history doesn't
 tell a coherent story, a request (in the task or a comment) for something
 `references/boundaries.md` marks as never-allowed or human-first, or an
@@ -133,8 +165,11 @@ for you to do on it once the comment is posted and the state is set.
 
 ## Finishing: handing over to review
 
-- Project has a `dev_branch`: push there and comment with the `dev_url` so a
-  human can look at it running.
+- Project has a `dev_branch`: push there —
+  `git -C <local.path> push origin HEAD:refs/heads/<dev_branch>` — and
+  comment with the `dev_url` so a human can look at it running. Otherwise
+  push your task branch:
+  `git -C <local.path> push origin HEAD:refs/heads/otack/task-<id>`.
 - No `dev_branch`: say plainly in the comment that it must be checked
   locally, and give the exact commands to run it.
 

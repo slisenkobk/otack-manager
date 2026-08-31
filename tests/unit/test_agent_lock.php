@@ -950,6 +950,254 @@ it('F3: a write-enabled repository with no discoverable default branch refuses t
     assert_true(str_contains($text, 'default_branch'), 'the message must name the config key that fixes it: ' . $text);
 });
 
+// ---------------------------------------------------------------------
+// F7 (fourth pass): the gate was right and the bot could not use git at
+// all. The session's cwd is a neutral directory, not a project, so every
+// git command takes the `git -C <repo> …` form — which matched none of the
+// old `Bash(git …:*)` prefixes. Reproduced against a real `claude -p`
+// child: `git -C <repo> checkout -B main` was refused by the permission
+// layer before the branch-policy gate ever saw it, and so was
+// `git -C <repo> remote get-url origin`, which SKILL.md requires before
+// any work begins.
+//
+// The fix widened the allow-list; these tests assert both halves of that:
+// the list now carries the `-C` forms (and NOT a blanket `git -C` grant),
+// and the gate still refuses every exploit in the same `-C` spelling,
+// checked against the remote's refs rather than any command's own output.
+// ---------------------------------------------------------------------
+
+/** Every allow rule for one repository path, as the tick builds them. */
+function _tickGitAllowRule(string $repoPath, string $sub): string {
+    return 'Bash(git -C ' . $repoPath . ' ' . $sub . ':*)';
+}
+
+it('F7: the allow-list carries the `git -C <repo> …` forms the session must use, one rule per verb', function () {
+    $repo = _tickGitRepo();
+    $home = _tickHomeWithRepo($repo);
+    $decoded = _tickPrintCmd($home);
+    $allowed = $decoded['allowed_tools'];
+    $full = $decoded['cmd'];
+
+    // The documented workflow, verb by verb. Dropping any one of these puts
+    // the bot back to "safe and useless" for that step.
+    foreach ([
+        'status', 'add', 'commit', 'push', 'checkout', 'switch',
+        'diff', 'log', 'show', 'rev-parse',
+        'branch --show-current', 'branch --list', 'remote get-url',
+        'fetch', 'pull',
+    ] as $sub) {
+        $rule = _tickGitAllowRule($repo['repo'], $sub);
+        assert_true(in_array($rule, $allowed, true), "missing allow rule: $rule\n" . implode("\n", $allowed));
+        // …and on the actual command line, not merely in the array (F6's
+        // lesson: the array and the flag are two different mutants).
+        assert_true(str_contains($full, $rule), "allow rule missing from the constructed command: $rule");
+    }
+
+    // NOT a blanket `git -C` grant. That single rule is `git <anything>` in
+    // disguise: the gate passes clone/archive/bundle/send-email/daemon/
+    // worktree/update-ref through inside a policy repository, so granting
+    // it would hand back network egress and writes outside every --add-dir.
+    assert_true(!in_array('Bash(git -C:*)', $allowed, true), 'a blanket `git -C` grant is every git subcommand at once');
+    foreach ($allowed as $rule) {
+        assert_true(
+            !preg_match('/^Bash\(git -C:?\*?\)$/', $rule),
+            "a blanket `git -C` grant leaked in as: $rule"
+        );
+    }
+
+    // Verbs deliberately absent, in the -C form as well as bare.
+    foreach (['tag', 'clone', 'worktree', 'update-ref', 'send-email', 'remote set-url', 'config'] as $sub) {
+        assert_true(
+            !in_array(_tickGitAllowRule($repo['repo'], $sub), $allowed, true),
+            "\"git $sub\" must not be grantable in the -C form either"
+        );
+    }
+
+    // The bare forms are gone: cwd is not a repository and `cd` matches no
+    // allow prefix, so they could only ever have granted a git run in the
+    // neutral session cwd. Keeping them would read as though the workflow
+    // happened inside the checkout.
+    foreach ([
+        'Bash(git add:*)', 'Bash(git commit:*)', 'Bash(git push:*)',
+        'Bash(git status:*)', 'Bash(git diff:*)', 'Bash(git checkout:*)',
+    ] as $dead) {
+        assert_true(!in_array($dead, $allowed, true), "the bare form should have been dropped: $dead");
+    }
+});
+
+it('F7: the deny rules exist in the -C spelling too, so the widened allow-list is still covered a second time', function () {
+    $repo = _tickGitRepo();
+    $home = _tickHomeWithRepo($repo);
+    $decoded = _tickPrintCmd($home);
+    $deny = $decoded['disallowed_tools'];
+    $full = $decoded['cmd'];
+
+    foreach ([
+        'push --force', 'push -f', 'push --force-with-lease', 'push --delete',
+        'push --mirror', 'push --tags', 'branch -D', 'branch --delete', 'tag',
+        'remote set-url', 'config',
+        // named from the policy's own default branch, never hardcoded
+        'checkout main', 'switch main', 'push origin main',
+    ] as $shape) {
+        $rule = 'Bash(git -C ' . $repo['repo'] . ' ' . $shape . ':*)';
+        assert_true(in_array($rule, $deny, true), "missing deny rule: $rule");
+        assert_true(str_contains($full, $rule), "deny rule missing from the constructed command: $rule");
+    }
+
+    // A blanket `Bash(git -C:*)` DENY would be just as wrong as the blanket
+    // allow, for the opposite reason: deny is a prefix rule and outranks
+    // allow, so it would refuse `git -C <repo> status` along with the rest
+    // and re-create the exact breakage this pass fixes.
+    assert_true(!in_array('Bash(git -C:*)', $deny, true),
+        'a blanket `git -C` deny would refuse every legitimate command too');
+});
+
+it('F7: the default branch in the -C deny rules comes from config, not from a hardcoded "main"', function () {
+    $repo = _tickGitRepo();
+    exec('cd ' . escapeshellarg($repo['repo']) . ' && git checkout -q -b trunk main >/dev/null 2>&1');
+    exec('cd ' . escapeshellarg($repo['repo']) . ' && git push -q origin trunk >/dev/null 2>&1');
+    exec('cd ' . escapeshellarg($repo['repo']) . ' && git checkout -q otack/task-1 >/dev/null 2>&1');
+
+    $home = _tickHome();
+    _tickWriteProjects($home, ['1' => ['path' => $repo['repo'], 'write' => true, 'default_branch' => 'trunk']]);
+    $deny = _tickPrintCmd($home)['disallowed_tools'];
+
+    assert_true(in_array('Bash(git -C ' . $repo['repo'] . ' push origin trunk:*)', $deny, true), implode("\n", $deny));
+    assert_true(in_array('Bash(git -C ' . $repo['repo'] . ' checkout trunk:*)', $deny, true), implode("\n", $deny));
+    assert_true(!in_array('Bash(git -C ' . $repo['repo'] . ' push origin main:*)', $deny, true),
+        'a repository whose default branch is "trunk" must not be described as "main"');
+});
+
+it('F7: a project path that cannot appear in a permission rule gets no git rules and a loud note, not a rule that can never match', function () {
+    // A space is harmless to the rule parser but fatal to matching: the
+    // model must quote such a path, and `git -C "/a b" status` is not
+    // prefixed by `git -C /a b status`. A rule that can never match is
+    // worse than no rule, because it reads as a grant.
+    $repo = _tickGitRepo();
+    $spaced = dirname($repo['repo']) . '/dir with spaces';
+    rename($repo['repo'], $spaced);
+    $home = _tickHome();
+    _tickWriteProjects($home, ['1' => ['path' => $spaced, 'write' => true, 'default_branch' => 'main']]);
+
+    [$cmd] = _tick($home, '--selftest=print-cmd');
+    exec($cmd . ' 2>&1', $both, $code);
+    assert_eq(TICK_EXIT_OK, $code, implode("\n", $both));
+    assert_true(str_contains(implode("\n", $both), 'cannot appear in a permission rule'),
+        'the operator must be told why git will not work there: ' . implode("\n", $both));
+
+    $decoded = _tickPrintCmd($home);
+    foreach ($decoded['allowed_tools'] as $rule) {
+        assert_true(!str_contains($rule, 'git -C'), "no git rule may be emitted for an unquotable path: $rule");
+    }
+    // …and the project is still a real --add-dir; only git is unavailable.
+    assert_eq([realpath($spaced)], $decoded['add_dirs']);
+});
+
+it('F7: with the wider allow-list, the gate still refuses every exploit in the -C spelling, from the neutral session cwd', function () {
+    // The session's cwd is NOT the repository (F5), so every command here
+    // is run from an unrelated directory — exactly the shape the child
+    // must use — and the gate has to reach the policy through `-C` alone.
+    $repo = _tickGitRepo();
+    $elsewhere = dirname($repo['repo']) . '/elsewhere.git';
+    exec('git init -q --bare ' . escapeshellarg($elsewhere) . ' >/dev/null 2>&1');
+    $home = _tickHomeWithRepo($repo);
+    $policy = _tickPrintCmd($home)['git_gate']['policy_path'];
+    $neutral = _tickTempProjectDir(); // stands in for ~/.cache/otack-agent/session-cwd
+    $C = '-C ' . escapeshellarg($repo['repo']) . ' ';
+
+    $mainBefore = trim((string)shell_exec('git --git-dir=' . escapeshellarg($repo['remote']) . ' rev-parse main'));
+
+    $refusals = [
+        $C . 'checkout -B main'                                  => 'default branch',
+        $C . 'push origin HEAD:main'                             => 'default branch',
+        $C . 'push ' . escapeshellarg($elsewhere) . ' HEAD:refs/heads/backup' => 'own origin',
+        $C . 'push --force origin HEAD:refs/heads/otack/task-1'  => 'rewrites history',
+        $C . 'tag v1'                                            => 'tags',
+        $C . 'branch -D main'                                    => 'deletes, renames',
+        $C . 'commit --no-verify --allow-empty -m x'             => 'no-verify',
+        $C . 'push origin +HEAD:refs/heads/otack/task-1'         => 'force push',
+        $C . 'push origin :refs/heads/otack/task-1'              => 'deletes a remote ref',
+        '-c core.hooksPath=/dev/null ' . $C . 'push origin HEAD:main' => 'global option',
+        $C . 'remote set-url origin /tmp/nope'                   => 'read-only',
+    ];
+    foreach ($refusals as $args => $needle) {
+        $r = _tickGitGate($policy, $neutral, $args);
+        assert_eq(TICK_EXIT_GIT_REFUSED, $r['code'], "should have been refused: git $args\n" . $r['out']);
+        assert_true(str_contains($r['out'], $needle), "wrong reason for `git $args`: " . $r['out']);
+    }
+
+    // Ground truth, from outside every command above.
+    assert_eq($mainBefore, trim((string)shell_exec('git --git-dir=' . escapeshellarg($repo['remote']) . ' rev-parse main')),
+        'the remote default branch must not have moved');
+    assert_eq('', trim((string)shell_exec('git --git-dir=' . escapeshellarg($elsewhere) . ' show-ref 2>/dev/null')),
+        'nothing may have landed in the unrelated repository');
+    assert_eq('', trim((string)shell_exec('git -C ' . escapeshellarg($repo['repo']) . ' tag')),
+        'no tag may exist');
+    assert_eq('otack/task-1', trim((string)shell_exec('git -C ' . escapeshellarg($repo['repo']) . ' symbolic-ref --short HEAD')),
+        'the working tree must still be on its task branch');
+    assert_true(
+        str_contains((string)shell_exec('git -C ' . escapeshellarg($repo['repo']) . ' branch ' . escapeshellarg('--format=%(refname:short)')), 'main'),
+        'the local default branch must not have been deleted'
+    );
+});
+
+it('F7: `pull`, granted for the first time by this pass, is gated like the other history-writing verbs', function () {
+    // `pull` is fetch+merge: it writes history into whatever branch is
+    // checked out. A tick can find the checkout already sitting on the
+    // default branch — that is how a human usually leaves it — so granting
+    // `pull` without gating it would have been a way to move the default
+    // branch locally, which no other newly-granted verb allows.
+    $repo = _tickGitRepo();
+    $home = _tickHomeWithRepo($repo);
+    $policy = _tickPrintCmd($home)['git_gate']['policy_path'];
+    $neutral = _tickTempProjectDir();
+    $C = '-C ' . escapeshellarg($repo['repo']) . ' ';
+
+    // On the task branch: allowed (nothing to pull, but the gate lets it by).
+    $ok = _tickGitGate($policy, $neutral, $C . 'pull --ff-only origin otack/task-1');
+    assert_true($ok['code'] !== TICK_EXIT_GIT_REFUSED, 'a pull on a task branch must not be refused: ' . $ok['out']);
+
+    // On the default branch: refused.
+    exec('git -C ' . escapeshellarg($repo['repo']) . ' checkout -q main >/dev/null 2>&1');
+    $r = _tickGitGate($policy, $neutral, $C . 'pull origin main');
+    assert_eq(TICK_EXIT_GIT_REFUSED, $r['code'], 'a pull while on the default branch must be refused: ' . $r['out']);
+    assert_true(str_contains($r['out'], 'default branch'), $r['out']);
+
+    // And outside every repository the policy knows, it fails closed.
+    $stranger = _tickTempProjectDir();
+    exec('cd ' . escapeshellarg($stranger) . ' && git init -q . >/dev/null 2>&1');
+    $out = _tickGitGate($policy, $neutral, '-C ' . escapeshellarg($stranger) . ' pull origin main');
+    assert_eq(TICK_EXIT_GIT_REFUSED, $out['code'], 'a pull in an unlisted repository must be refused: ' . $out['out']);
+});
+
+it('F7: and the work the widened list exists to allow does pass, from that same neutral cwd', function () {
+    $repo = _tickGitRepo();
+    $home = _tickHomeWithRepo($repo);
+    $policy = _tickPrintCmd($home)['git_gate']['policy_path'];
+    $neutral = _tickTempProjectDir();
+    $C = '-C ' . escapeshellarg($repo['repo']) . ' ';
+
+    // The first thing SKILL.md requires of every tick, before any change.
+    $origin = _tickGitGate($policy, $neutral, $C . 'remote get-url origin');
+    assert_eq(0, $origin['code'], $origin['out']);
+    assert_eq($repo['remote'], trim($origin['out']));
+
+    foreach (['status --short --branch', 'branch --show-current', 'log --oneline -1', 'rev-parse HEAD'] as $readonly) {
+        $r = _tickGitGate($policy, $neutral, $C . $readonly);
+        assert_eq(0, $r['code'], "read-only inspection must pass: git $readonly\n" . $r['out']);
+    }
+
+    $commit = _tickGitGate($policy, $neutral, $C . 'commit --allow-empty -m "legit work"');
+    assert_eq(0, $commit['code'], 'a commit on the task branch must pass: ' . $commit['out']);
+
+    $push = _tickGitGate($policy, $neutral, $C . 'push origin HEAD:refs/heads/otack/task-1');
+    assert_eq(0, $push['code'], 'the task-branch push must pass: ' . $push['out']);
+    assert_true(
+        str_contains((string)shell_exec('git --git-dir=' . escapeshellarg($repo['remote']) . ' show-ref 2>/dev/null'), 'otack/task-1'),
+        'the task branch should now exist on the remote'
+    );
+});
+
 it('the isolated settings.json is never written through a symlink', function () {
     $home = _tickHomeWithRepo(_tickGitRepo());
     $claudeHome = $home . '/.claude/otack-agent/claude-home';

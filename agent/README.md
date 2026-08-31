@@ -286,7 +286,8 @@ inferred from the CLI's documentation:
   personal allow-list is not merged in, an explicit `--allowedTools`, and an
   explicit `--disallowedTools` for the §9 absolutes. Bash fails closed:
   a command matching no allow prefix is not run, because in `-p` mode there
-  is nobody to answer the prompt.
+  is nobody to answer the prompt. What the allow-list contains for git is
+  its own topic — see "What git the session may run" below.
 - **Git.** A real gate, not permission prefixes — see below.
 
 ### The git gate
@@ -328,6 +329,58 @@ must literally begin with `git ` to match an allow prefix, so
 refused by the permission layer before they execute. The one residual path
 is a `test_cmd` broad enough to be a shell (`sh`, `bash`, `make`) invoking
 git by absolute path *and* `--no-verify` — see the `test_cmd` note above.
+
+### What git the session may run
+
+The session's cwd is `~/.cache/otack-agent/session-cwd`, not a project, and
+`cd` is not on the allow-list — so every git command the agent runs names
+its repository: `git -C <project path> …`. For a while the allow-list did
+not know that. It carried bare prefixes (`Bash(git status:*)`,
+`Bash(git commit:*)`, …) written for a git invoked *inside* the checkout,
+and the result was a bot that was perfectly safe and completely useless: a
+real `claude -p` child was refused `git -C <repo> checkout -B main` by the
+permission layer before the branch-policy gate ever saw it, and refused
+`git -C <repo> remote get-url origin` too — the check the skill requires
+before any work at all.
+
+The allow-list now grants, per write-enabled project, one rule per verb:
+
+    git -C <path> status | diff | log | show | rev-parse
+    git -C <path> branch --show-current | branch --list | remote get-url
+    git -C <path> checkout | switch | add | commit
+    git -C <path> fetch | pull | push
+
+Two things it deliberately is not:
+
+- **not** a single `Bash(git -C:*)` grant. That is shorter, and it is
+  `git <anything>` in disguise: inside a policy repository the gate passes
+  `clone`, `archive`, `bundle`, `send-email`, `daemon`, `worktree` and
+  `update-ref` straight through, so one blanket rule would hand back
+  network egress and writes outside every `--add-dir`. (Nor is it a blanket
+  `-C` *deny*: deny is a prefix rule too, and outranks allow, so that one
+  line would refuse `git -C <repo> status` along with everything else.)
+- **not** accompanied by the old bare forms. Those could only ever have
+  authorised a git run in the empty session cwd, where the gate refuses
+  every mutating subcommand anyway — dead weight that also read as though
+  the workflow happened inside the checkout.
+
+Two consequences worth knowing as an operator:
+
+- a project path containing a space, `)` or `:` gets **no** git rules and a
+  note on stderr, because such a path either rewrites the rule parser's
+  input or produces a rule the session's (necessarily quoted) command can
+  never match. Everything else about the project still works; only git is
+  unavailable there. Move the checkout to a plain path to fix it.
+- `pull` is new to the allow-list, so the gate learned about it in the same
+  pass: it is fetch+merge, i.e. it writes history into whatever branch is
+  checked out, and a tick often finds the checkout sitting on the default
+  branch. It is therefore refused on the default branch and in any
+  repository the policy does not list, exactly like `commit` and `merge`.
+- widening the list did not move the branch policy back into it. The policy
+  lives in the gate, which is command-shape independent, and the
+  `-C` spellings of the §9 absolutes (`push --force`, `branch -D`, `tag`,
+  `remote set-url`, `config`, `checkout <default>`, `push origin <default>`)
+  are denied on top of it, exactly as the bare spellings were.
 
 ## Never delete `agent.lock` by hand
 

@@ -117,6 +117,37 @@ ini_set('zend.exception_ignore_args', '1');
  * `default_branch` key in projects.json, falling back to the repository's
  * own `refs/remotes/origin/HEAD`.
  *
+ * F7 (fourth pass) — the gate was correct and the bot was useless: it
+ * could not run git *at all*. The session's cwd is a deliberately neutral
+ * directory (F5), not a project, and `cd` is not on the allow-list, so
+ * every git command the workflow needs takes the form
+ * `git -C <repo> …` — which matched none of the `Bash(git …:*)` prefixes,
+ * all written for a bare git invoked inside the repository. Reproduced
+ * against a real `claude -p` child: `git -C <repo> checkout -B main` was
+ * refused by the permission layer before the branch-policy gate ever saw
+ * it, and so was `git -C <repo> remote get-url origin`, which
+ * agent/skill/SKILL.md requires before any work.
+ *
+ * The fix is the allow-list, not the gate. Since F3 the branch policy is
+ * command-shape independent, so the allow-list no longer has to carry it
+ * and its only job is deciding which *commands* may run. It now grants,
+ * per write-enabled project and one rule per subcommand, exactly the
+ * `git -C <that project> <verb>` forms the documented workflow uses
+ * (see GIT_ALLOWED_SUBCOMMANDS). Two things it deliberately does NOT do:
+ *   - it does not grant `Bash(git -C:*)`. That single rule would be
+ *     shorter, but it is `git <anything>` in disguise: the gate passes
+ *     `clone`, `archive`, `bundle`, `send-email`, `daemon`, `worktree`
+ *     and `update-ref` through inside a policy repository, so a blanket
+ *     `-C` grant would hand back network egress and writes outside every
+ *     --add-dir that the previous list did not permit.
+ *   - it no longer carries the bare `Bash(git add:*)` / `git commit` /
+ *     `git push` / `git status` / `git diff` / `git checkout` forms. cwd
+ *     is not a repository and cannot become one (`cd` matches no allow
+ *     prefix), so those rules could only ever grant a git run in
+ *     ~/.cache/otack-agent/session-cwd, where the gate refuses every
+ *     mutating subcommand anyway. Dead weight, and dead weight that reads
+ *     as though the workflow ran inside the checkout.
+ *
  * Usage:  otack-tick
  *         otack-tick --git-gate <git args…>        (internal: the PATH shim)
  *         otack-tick --git-hook=pre-commit         (internal: git hook)
@@ -209,6 +240,46 @@ const TEST_CMD_SAFE_PATTERN = '/^[A-Za-z0-9 _.\/-]+$/';
 function isSafeTestCmd(string $cmd): bool
 {
     return $cmd !== '' && preg_match(TEST_CMD_SAFE_PATTERN, $cmd) === 1;
+}
+
+// F7: the git subcommands the documented workflow actually needs, each
+// granted only in the `git -C <write-enabled project> …` form (see the
+// docblock for why the bare forms and a blanket `Bash(git -C:*)` are both
+// out). Inspection first, then getting onto a branch and moving history
+// along it, then talking to origin. Everything absent from this list —
+// `tag`, `branch -D`, `remote set-url`, `config` writes, `clone`,
+// `worktree`, `update-ref`, … — is simply not runnable, on top of the gate
+// refusing it.
+//
+// The entries are matched as literal command prefixes, so a two-word entry
+// narrows the grant: `branch --show-current` and `branch --list` are the
+// read-only spellings of a verb whose destructive forms must stay out,
+// and `remote get-url` is the read-only half of a verb that could
+// otherwise re-point the push target.
+const GIT_ALLOWED_SUBCOMMANDS = [
+    'status', 'diff', 'log', 'show', 'rev-parse',
+    'branch --show-current', 'branch --list', 'remote get-url',
+    'checkout', 'switch', 'add', 'commit',
+    'fetch', 'pull', 'push',
+];
+
+/**
+ * F7: is this path safe to interpolate into a `Bash(…)` permission rule?
+ *
+ * Two separate reasons, both learned the hard way (M4, on test_cmd):
+ *   - `)` closes the rule early and turns the tail into new, independent
+ *     rules, and `:` is the rule's own command/pattern separator — either
+ *     one in a path would rewrite the allow-list rather than extend it;
+ *   - a space is harmless to the parser but fatal to matching: the model
+ *     would have to quote such a path, and `git -C "/a b" status` is not
+ *     prefixed by `git -C /a b status`. A rule that can never match is
+ *     worse than no rule, because it looks like a grant.
+ * A path that fails this gets no git rules and a loud note, not a silent
+ * skip — the gate still protects it either way.
+ */
+function isSafeRulePath(string $path): bool
+{
+    return $path !== '' && preg_match('#^[A-Za-z0-9_./-]+$#', $path) === 1;
 }
 
 /**
@@ -320,11 +391,20 @@ const GIT_GATED_SUBCOMMANDS = [
     'reset', 'restore', 'apply', 'checkout', 'switch', 'branch', 'tag',
     'remote', 'config', 'filter-branch', 'update-ref', 'fast-import',
     'bundle', 'archive', 'clone', 'send-email', 'daemon', 'worktree',
+    // F7: `pull` joined the allow-list with this pass. It is fetch+merge,
+    // so it writes history into whatever branch is checked out — it belongs
+    // here and in the history list below, not in the pass-through set with
+    // `status` and `log`.
+    'pull',
 ];
 
 /** Subcommands that write history and so must never run on the default branch. */
 const GIT_HISTORY_SUBCOMMANDS = [
     'commit', 'merge', 'rebase', 'cherry-pick', 'revert', 'am', 'reset', 'restore', 'apply',
+    // F7: a tick can find the checkout already sitting on the default
+    // branch (that is how a human usually leaves it), and `pull` is the one
+    // newly-granted verb that would write to it there.
+    'pull',
 ];
 
 function runGitGate(array $args): void
@@ -1017,14 +1097,27 @@ if ($addDirs === []) {
 // The branch policy is enforced by the git gate (the PATH shim plus
 // core.hooksPath, built below); the deny rules are kept only as a second,
 // cheaper layer against the exact spellings they do match.
-$bashPrefixes = [
-    'Bash(git add:*)',
-    'Bash(git commit:*)',
-    'Bash(git push:*)',
-    'Bash(git status:*)',
-    'Bash(git diff:*)',
-    'Bash(git checkout:*)',
-];
+//
+// F7 (fourth pass): the prefixes are `git -C <project> <verb>`, one rule
+// per (write-enabled project, verb) pair, because the session's cwd is not
+// a repository — see the docblock. The bare forms are gone with them.
+$bashPrefixes = [];
+$gitRulePaths = [];
+foreach ($addDirs as $projectDir) {
+    if (!isSafeRulePath($projectDir)) {
+        fwrite(STDERR,
+            "note: write-enabled project path \"$projectDir\" contains a character that cannot appear in a " .
+            "permission rule (space, \")\", \":\" or similar), so no `git -C` rules were granted for it — " .
+            "the session will be unable to run git there. Move the checkout to a path made of " .
+            "[A-Za-z0-9_./-] to fix it.\n"
+        );
+        continue;
+    }
+    $gitRulePaths[] = $projectDir;
+    foreach (GIT_ALLOWED_SUBCOMMANDS as $sub) {
+        $bashPrefixes[] = 'Bash(git -C ' . $projectDir . ' ' . $sub . ':*)';
+    }
+}
 foreach ($cfg->projects as $idStr => $p) {
     if (empty($p['write']) || empty($p['test_cmd'])) { continue; }
     // M4: reject before interpolating — see TEST_CMD_SAFE_PATTERN above.
@@ -1061,6 +1154,14 @@ $disallowedTools = [
     'Bash(git checkout master:*)',
     'Bash(git push origin main:*)',
     'Bash(git push origin master:*)',
+    // F7: the per-repository `-C` spellings of the rules above are appended
+    // further down, once the policy knows each repository's default branch
+    // by name. Note what is deliberately NOT here: a blanket
+    // `Bash(git -C:*)` deny. Deny is a prefix rule too and outranks allow,
+    // so that one line would refuse `git -C <repo> status` along with
+    // everything else — it would re-create the exact "safe and useless"
+    // state this pass exists to fix. `Bash(git -C:*)` is instead kept out
+    // of the *allow*-list, which the tests assert directly.
     // C1 belt-and-braces: none of these are in $bashPrefixes above, so
     // CLAUDE_CONFIG_DIR isolation is already what keeps them out of the
     // merged allow-list — denying them explicitly means a future edit to
@@ -1110,6 +1211,11 @@ if (is_file($dir . '/projects.json')) {
 }
 
 $gitRepos = [];
+// F7: project path -> that repository's default branch, so the deny rules
+// below can name it. Keyed by the path the session will actually type
+// (`local.path` from `otack next`, i.e. $p['path']), not only by the
+// repository root, since a project may point at a subdirectory.
+$gitDefaultByRulePath = [];
 foreach ($cfg->projects as $idStr => $p) {
     if (empty($p['write'])) { continue; }
     $path = $p['path'];
@@ -1157,7 +1263,41 @@ foreach ($cfg->projects as $idStr => $p) {
         'default_branch' => $default,
         'origin'         => $c3 === 0 ? $origin : '',
     ];
+    $gitDefaultByRulePath[$path]     = $default;
+    $gitDefaultByRulePath[$repoReal] = $default;
 }
+
+// F7: the deny half, in the same `-C` shape the allow half now uses.
+// Everything here is already refused by the gate (proven by tests that
+// drive the shim directly and check the remote's refs afterwards); these
+// rules are the same "second, cheaper layer" the bare spellings above are
+// — without them, widening the allow-list to `git -C <repo> push:*` and
+// `git -C <repo> branch --list:*` would leave the force-push and
+// branch-deletion shapes with no deny rule at all in the form the session
+// can actually type.
+foreach ($gitRulePaths as $rulePath) {
+    foreach ([
+        'push --force', 'push -f', 'push --force-with-lease', 'push --delete',
+        'push --mirror', 'push --tags',
+        'branch -D', 'branch --delete', 'branch -d', 'branch -m', 'branch -M',
+        'tag',
+        'remote set-url', 'remote add', 'remote rename', 'remote remove',
+        'config',
+    ] as $shape) {
+        $disallowedTools[] = 'Bash(git -C ' . $rulePath . ' ' . $shape . ':*)';
+    }
+    $default = $gitDefaultByRulePath[$rulePath] ?? null;
+    if (is_string($default) && $default !== '' && isSafeRulePath($default)) {
+        foreach ([
+            'checkout ' . $default,
+            'switch ' . $default,
+            'push origin ' . $default,
+        ] as $shape) {
+            $disallowedTools[] = 'Bash(git -C ' . $rulePath . ' ' . $shape . ':*)';
+        }
+    }
+}
+$disallowedTools = array_values(array_unique($disallowedTools));
 
 if (!is_dir($gitHooksDir) && !mkdir($gitHooksDir, 0700, true) && !is_dir($gitHooksDir)) {
     fwrite(STDERR, "cannot create $gitHooksDir\n");
