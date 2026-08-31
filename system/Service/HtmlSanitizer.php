@@ -386,51 +386,144 @@ final class HtmlSanitizer
      * Decide whether an href/src value is on the allow-list, and guarantee
      * that the string approved here is the string the browser will receive.
      *
-     * libxml re-serialises attribute values when the document is written out,
-     * and it does NOT round-trip every byte:
+     * Three separate transformations sit between "the value we test" and "the
+     * value the browser parses", and each one has already been a bypass:
      *
-     *   0x01–0x08, 0x0B, 0x0C, 0x0E–0x1F  silently DROPPED
-     *   0x00                              TRUNCATES the value
-     *   0x09, 0x0A, 0x0D, 0x20, 0x7F      kept, percent-encoded as %XX
+     *  1. libxml re-serialises attribute values and does NOT round-trip every
+     *     byte:
      *
-     * So matching against the raw value tests a different string from the one
-     * that ships. "/\x0B/evil.example" passes a naive "slash not followed by
-     * slash" test and then serialises as "//evil.example" — a protocol-relative
-     * URL to an attacker's origin. Two steps close that gap:
+     *       0x01–0x08, 0x0B, 0x0C, 0x0E–0x1F  silently DROPPED
+     *       0x00                              TRUNCATES the value
+     *       0x09, 0x0A, 0x0D, 0x20, 0x7F      kept, percent-encoded as %XX
      *
-     *  1. MATCH against a probe with every C0/space/DEL byte removed. This can
-     *     only ever narrow the accepted set: every prefix the stripping could
-     *     "repair" a value into (https://, mailto:, #, /path) is already on the
-     *     allow-list, while obfuscated forms ("java\tscript:", "/\x0B/host")
-     *     collapse onto their real meaning and get rejected.
+     *     So "/\x0B/evil.example" passes a naive "slash not followed by slash"
+     *     test and then ships as "//evil.example".
      *
-     *  2. WRITE BACK a value with only the non-round-tripping bytes removed —
-     *     the ones libxml drops or truncates on. Whitespace (tab/LF/CR/space)
-     *     and DEL are deliberately KEPT, because libxml preserves them
-     *     losslessly as %09/%0A/%0D/%20/%7F: a space inside "/uploads/a b.png"
-     *     is meaningful path data and percent-encoding is its correct
-     *     serialisation, so deleting it would silently break real links.
-     *     Percent-encoding can never turn into a slash, so keeping those bytes
-     *     cannot resurrect an authority separator.
+     *  2. Writing the normalised value back through `DOMAttr::$value` runs it
+     *     through libxml's ENTITY PARSER. A stored literal "/&#47;host" — what
+     *     Parsedown emits for `[x](/&#47;host)`, because it escapes the "&" —
+     *     was decoded on assignment into "//host". The write-back added to
+     *     close bypass 1 therefore re-opened the hole, and the same entity
+     *     parser emptied "/search?a=1&b=2&lt=3" while printing a PHP warning
+     *     (with an absolute filesystem path in it) into the middle of the
+     *     response.
      *
-     * Net effect: what is stored and served is byte-identical to what was
-     * checked, modulo visible, reversible percent-encoding.
+     *  3. The browser's own HTML parser decodes character references in
+     *     attribute values, so what libxml writes is still not what the URL
+     *     parser sees.
+     *
+     * Rather than enumerate transformations — the last two rounds each fixed
+     * one and were beaten by the next — this method closes the loop:
+     *
+     *  MATCH   against a probe with every C0/space/DEL byte removed. This can
+     *          only narrow the accepted set: every prefix the stripping could
+     *          "repair" a value into (https://, mailto:, #, /path) is already
+     *          allowed, while obfuscated forms ("java\tscript:", "/\x0B/host")
+     *          collapse onto their real meaning and are rejected.
+     *
+     *  STORE   through `DOMElement::setAttribute()`, never `DOMAttr::$value`.
+     *          setAttribute stores the string verbatim and ESCAPES it on
+     *          output ("&" -> "&amp;"); the property setter PARSES it. Only
+     *          the bytes libxml drops or truncates on are stripped first —
+     *          tab/LF/CR/space/DEL are kept, because libxml preserves them
+     *          losslessly as %09/%0A/%0D/%20/%7F and a space inside
+     *          "/uploads/a b.png" is meaningful path data whose correct
+     *          serialisation is "%20". Percent-encoding can never become a
+     *          slash, so keeping them cannot resurrect an authority separator.
+     *
+     *  VERIFY  by serialising the attribute exactly as it will ship, decoding
+     *          character references the way a browser would, and re-running
+     *          the SAME predicate on the result. If it no longer holds, the
+     *          attribute is rejected. Fail closed.
+     *
+     * The VERIFY step is the point. It does not depend on knowing which
+     * transformations exist: any future serialisation quirk — a libxml
+     * upgrade, a byte class nobody thought of, a fourth transformation —
+     * degrades to a stripped attribute instead of an off-origin URL.
      */
     private static function urlAllowed(\DOMAttr $attr, string $pattern): bool
     {
-        $val = trim($attr->value);
+        $el = $attr->ownerElement;
+        if ($el === null) {
+            // A detached attribute cannot be serialised, so we cannot see what
+            // would ship. Never reached from cleanAttributes() (it walks a live
+            // element), but the invariant is "verify or reject", not "assume".
+            return false;
+        }
+        $name = $attr->name;
+        $val  = trim($attr->value);
 
         // Bytes libxml does not round-trip: NUL truncates, the rest vanish.
         $stored = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]+/', '', $val);
-        // Probe: additionally drop tab/LF/CR/space/DEL for matching only.
-        $probe  = preg_replace('/[\x00-\x20\x7F]+/', '', $val);
+        if ($stored === null) {
+            return false; // PCRE failure — fail closed.
+        }
 
-        if (!preg_match($pattern, $probe)) {
+        if (!preg_match($pattern, self::urlProbe($val))) {
             return false;
         }
+
         if ($stored !== $attr->value) {
-            $attr->value = $stored;
+            // setAttribute(), NOT `$attr->value = …` — see step 2 above.
+            $el->setAttribute($name, $stored);
         }
-        return true;
+
+        // Re-assert the predicate against the bytes that actually ship.
+        $served = self::servedAttributeValue($el, $name);
+        if ($served === null) {
+            return false;
+        }
+        return (bool) preg_match($pattern, self::urlProbe($served));
+    }
+
+    /**
+     * Normalise a URL for matching: drop every byte a browser ignores inside a
+     * URL attribute (C0 controls, ASCII whitespace, DEL). Matching against
+     * this collapsed form is what makes "/\x0B/host" and "java\tscript:" test
+     * as the strings they really are.
+     */
+    private static function urlProbe(string $val): string
+    {
+        return preg_replace('/[\x00-\x20\x7F]+/', '', $val) ?? '';
+    }
+
+    /**
+     * The value of `$name` on `$el` as a browser will see it: serialised by
+     * libxml exactly as it will be written into the response, then decoded
+     * once the way an HTML parser decodes attribute character references.
+     *
+     * Serialising a throwaway single-attribute element (rather than `$el`
+     * itself) keeps this O(1) — `$el` may carry an arbitrarily large subtree.
+     * The probe carries the SAME tag name, because libxml's attribute
+     * serialiser is not purely attribute-local: it percent-encodes URI
+     * attributes by name (`href`, `src`, `action`) but also consults the
+     * parent element for `name`. Copying the tag keeps the probe's output
+     * byte-identical to what `$el` itself will emit.
+     *
+     * Returns null when the attribute does not come back as a quoted value at
+     * all — an empty value serialises as a bare `href`, which is precisely the
+     * shape the entity-parser bug used to produce. Callers treat null as
+     * "reject".
+     */
+    private static function servedAttributeValue(\DOMElement $el, string $name): ?string
+    {
+        $doc = $el->ownerDocument;
+        if ($doc === null) {
+            return null;
+        }
+        try {
+            $probe = $doc->createElement($el->tagName);
+            $probe->setAttribute($name, $el->getAttribute($name));
+            $html = $doc->saveHTML($probe);
+        } catch (\DOMException) {
+            return null; // cannot verify what would ship — reject.
+        }
+        if (!is_string($html) || $html === '') {
+            return null;
+        }
+        if (!preg_match('/\s' . preg_quote($name, '/') . '="([^"]*)"/i', $html, $m)) {
+            return null;
+        }
+        return html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 }

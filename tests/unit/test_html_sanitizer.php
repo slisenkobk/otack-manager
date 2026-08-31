@@ -252,6 +252,44 @@ function html_sanitizer_corpus(): array
         "<img src=\"/\\evil.example/x.png\">",
         '<a href="/%2Fevil.example">x</a>',
 
+        // --- HTML character references in the URL (2026-08-31). Two distinct
+        // shapes, and they must NOT be conflated:
+        //   * a real entity in the *source* ("&#47;") is decoded by libxml at
+        //     parse time, so the predicate already sees "//" and blocks it;
+        //   * a *literal* "&#47;" (source "&amp;#47;", which is exactly what
+        //     Parsedown emits for a markdown link) must survive as literal
+        //     text — it is a same-origin path — and must never be handed to
+        //     an entity parser on the way back into the document.
+        '<a href="/&#47;evil.example">x</a>',
+        '<a href="/&#x2F;evil.example">x</a>',
+        '<a href="/&#92;evil.example">x</a>',
+        '<img src="/&#47;evil.example/x.png">',
+        '<a href="/&amp;#47;evil.example">x</a>',
+        '<a href="/&amp;#x2F;evil.example">x</a>',
+        '<a href="/&amp;#92;evil.example">x</a>',
+        '<img src="/&amp;#47;evil.example/x.png">',
+        "<a href=\"/&amp;#47;\x0Bevil.example\">x</a>",
+        "<a href=\"/\x0B&amp;#47;evil.example\">x</a>",
+        "<img src=\"/&amp;#47;\x0Bevil.example/x.png\">",
+
+        // Named references libxml does NOT know (`&sol;` = "/", `&bsol;` = "\\"):
+        // it stores them as literal text and re-serialises them VERBATIM, so
+        // the browser is the first thing that decodes them. `DOMAttr::$value`
+        // assignment turned these into an entity-reference node that shipped
+        // un-escaped; setAttribute() + re-assertion keeps them literal.
+        '<a href="/&sol;evil.example">x</a>',
+        '<a href="/&bsol;evil.example">x</a>',
+        '<img src="/&sol;evil.example/x.png">',
+        "<a href=\"/&sol;\x01evil.example\">x</a>",
+
+        // --- legitimate ampersands: a query string is not an attack, and the
+        // sanitiser must neither drop it nor raise a PHP warning over it.
+        '<a href="/search?a=1&amp;b=2">x</a>',
+        '<a href="/search?a=1&amp;b=2&amp;lt=3">x</a>',
+        '<a href=" /search?a=1&amp;b=2&amp;lt=3">x</a>',
+        '<a href="https://ok.example/?x=1&amp;y=2">x</a>',
+        '<img src="https://ok.example/x.png?a=1&amp;b=2">',
+
         // --- control-byte obfuscation of the same trick (2026-08-31): libxml
         // silently DROPS 0x01–0x08, 0x0B, 0x0C and 0x0E–0x1F when it
         // re-serialises an attribute, so a control byte wedged between the two
@@ -893,4 +931,184 @@ it('serialised value equals the value the predicate approved (no silently-droppe
     $out = HtmlSanitizer::cleanRich("<img src=\"https://ok.exa\x01mple/x.png\">");
     assert_true(strpos($out, 'src="https://ok.example/x.png"') !== false,
         "normalised value not written back on src: $out");
+});
+
+// ---------------------------------------------------------------------------
+// Round 3 (2026-08-31): the *write-back* was itself the bypass.
+//
+// Round 2 added a normalising write-back so that "the string the predicate
+// approved" and "the string that is stored" would be the same string. But it
+// wrote through `DOMAttr::$value`, and assigning to that property runs the
+// string through libxml's **entity parser**. A stored literal "/&#47;host" —
+// exactly what Parsedown emits for `[x](/&#47;host)`, because it escapes the
+// ampersand — was therefore decoded *on assignment* into "//host": the step
+// meant to close the hole re-opened it. The same entity parser choked on a
+// legitimate query string ("/search?a=1&b=2&lt=3"), emptied the attribute and
+// printed a PHP warning carrying an absolute filesystem path mid-render.
+//
+// The structural fix is not "handle entities too". It is:
+//   1. write back with setAttribute(), which ESCAPES instead of parsing; and
+//   2. RE-ASSERT the predicate against the bytes that will actually be
+//      serialised, and drop the attribute if it no longer passes.
+//
+// These tests pin the class of bug, not the instance: the last assertion below
+// checks that *every* href/src the sanitiser ever emits satisfies the very
+// predicate the sanitiser applied — so a fourth transformation nobody
+// predicted degrades to a stripped attribute rather than an off-origin URL.
+// ---------------------------------------------------------------------------
+
+/** The sanitiser's own predicates, mirrored so tests can re-apply them. */
+const SANITISER_URL_PREDICATES = [
+    'href' => '/^(https?:\/\/|mailto:|#|\/(?!\/|\\\\))/i',
+    'src'  => '/^(https?:\/\/|data:image\/|\/(?!\/|\\\\))/i',
+];
+
+/**
+ * Re-parse sanitised output the way a browser would (which decodes character
+ * references) and assert every surviving href/src still satisfies the
+ * predicate the sanitiser claimed to enforce. An attribute that survived with
+ * an empty value fails too — that is the "<a href>" shape the entity-parser
+ * warning used to produce.
+ */
+function assert_serialised_urls_match_predicate(string $out, string $label): void
+{
+    if (trim($out) === '') return;
+    $doc = new \DOMDocument();
+    @$doc->loadHTML('<html><body>' . $out . '</body></html>', \LIBXML_NOWARNING | \LIBXML_NOERROR);
+    foreach ((new \DOMXPath($doc))->query('//*[@href or @src]') as $el) {
+        foreach (SANITISER_URL_PREDICATES as $name => $pattern) {
+            if (!$el->hasAttribute($name)) continue;
+            $raw   = $el->getAttribute($name);
+            // Same probe normalisation the sanitiser matches against: browsers
+            // ignore C0 controls and ASCII whitespace inside URL attributes.
+            $probe = preg_replace('/[\x00-\x20\x7F]+/', '', $raw) ?? '';
+            assert_true(
+                (bool) preg_match($pattern, $probe),
+                "$label: serialised $name=" . var_export($raw, true)
+                    . " does NOT satisfy the sanitiser's own $name predicate => $out"
+            );
+        }
+    }
+}
+
+/** Run $fn with every PHP diagnostic promoted to an exception. */
+function with_warnings_as_errors(callable $fn)
+{
+    set_error_handler(static function (int $no, string $msg, string $file = '', int $line = 0): bool {
+        throw new RuntimeException("PHP diagnostic raised ($no): $msg at $file:$line");
+    });
+    try {
+        return $fn();
+    } finally {
+        restore_error_handler();
+    }
+}
+
+/**
+ * Character-reference spellings of "/" and "\" that a browser WOULD decode
+ * inside an attribute value, so none of them may reach the output un-escaped.
+ *
+ * @return list<string>
+ */
+function url_entity_spellings(): array
+{
+    return ['&#47;', '&#x2F;', '&#x2f;', '&#047;', '&#92;', '&#x5C;', '&sol;', '&bsol;'];
+}
+
+/** Control bytes to wedge into the payload, plus the no-byte case. */
+function url_entity_control_bytes(): array
+{
+    return ['none' => '', '0x0B' => "\x0B", '0x01' => "\x01", '0x1F' => "\x1F", '0x0C' => "\x0C"];
+}
+
+it('Markdown::renderRich() never turns an entity-spelled slash into an off-origin link', function () {
+    $checked = 0;
+    foreach (url_entity_spellings() as $ent) {
+        foreach (url_entity_control_bytes() as $label => $c) {
+            foreach ([
+                "[click](/$ent{$c}evil.example)",
+                "[click](/{$c}{$ent}evil.example)",
+                "![alt](/$ent{$c}evil.example/x.png)",
+                "![alt](/{$c}{$ent}evil.example/x.png)",
+            ] as $md) {
+                $out = with_warnings_as_errors(
+                    static fn() => \App\Service\Markdown::renderRich($md)
+                );
+                $where = "markdown '$ent' ctl=$label";
+                assert_eq([], live_dangers($out), "$where => $out");
+                assert_serialised_urls_match_predicate($out, $where);
+                $checked++;
+            }
+        }
+    }
+    assert_true($checked === 160, "expected 160 markdown variants, checked $checked");
+});
+
+it('clean()/cleanRich() never turn a literal entity-spelled slash into an off-origin URL', function () {
+    foreach (url_entity_spellings() as $ent) {
+        foreach (url_entity_control_bytes() as $label => $c) {
+            // "&amp;#47;" in the source == a LITERAL "&#47;" attribute value,
+            // which is what Parsedown hands the sanitiser.
+            $lit = str_replace('&', '&amp;', $ent);
+            foreach ([
+                '<a href="/' . $lit . $c . 'evil.example">x</a>',
+                '<a href="/' . $c . $lit . 'evil.example">x</a>',
+                '<a href="/' . $ent . $c . 'evil.example">x</a>',
+            ] as $html) {
+                $out = with_warnings_as_errors(static fn() => HtmlSanitizer::clean($html));
+                assert_eq([], live_dangers($out), "literal $ent ctl=$label href => $out");
+                assert_serialised_urls_match_predicate($out, "literal $ent ctl=$label href");
+            }
+            foreach ([
+                '<img src="/' . $lit . $c . 'evil.example/x.png">',
+                '<img src="/' . $c . $lit . 'evil.example/x.png">',
+                '<img src="/' . $ent . $c . 'evil.example/x.png">',
+            ] as $html) {
+                $out = with_warnings_as_errors(static fn() => HtmlSanitizer::cleanRich($html));
+                assert_eq([], live_dangers($out), "literal $ent ctl=$label src => $out");
+                assert_serialised_urls_match_predicate($out, "literal $ent ctl=$label src");
+            }
+        }
+    }
+});
+
+it('keeps legitimate query strings intact and raises no PHP diagnostic doing it', function () {
+    $hrefs = ['/search?a=1&b=2', '/search?a=1&b=2&lt=3', 'https://ok.example/?x=1&y=2'];
+    foreach ($hrefs as $url) {
+        foreach (['', ' '] as $lead) {
+            // "&" written literally in the source parses to a literal "&".
+            $html = '<a href="' . $lead . str_replace('&', '&amp;', $url) . '">x</a>';
+            $out  = with_warnings_as_errors(static fn() => HtmlSanitizer::clean($html));
+            assert_true(
+                strpos($out, 'href="' . str_replace('&', '&amp;', $url) . '"') !== false,
+                "query string '$url' (lead=" . var_export($lead, true) . ") was dropped or mangled: $out"
+            );
+            assert_serialised_urls_match_predicate($out, "query string $url");
+        }
+    }
+
+    $srcs = ['/uploads/a.png?v=1&w=2', 'https://ok.example/x.png?a=1&b=2'];
+    foreach ($srcs as $url) {
+        foreach (['', ' '] as $lead) {
+            $html = '<img src="' . $lead . str_replace('&', '&amp;', $url) . '">';
+            $out  = with_warnings_as_errors(static fn() => HtmlSanitizer::cleanRich($html));
+            assert_true(
+                strpos($out, 'src="' . str_replace('&', '&amp;', $url) . '"') !== false,
+                "query string src '$url' (lead=" . var_export($lead, true) . ") was dropped or mangled: $out"
+            );
+            assert_serialised_urls_match_predicate($out, "query string src $url");
+        }
+    }
+});
+
+it('INVARIANT: every serialised href/src satisfies the predicate the sanitiser applied', function () {
+    foreach (html_sanitizer_corpus() as $in) {
+        foreach (['clean', 'cleanRich', 'cleanRichWithAnchors'] as $method) {
+            $out = with_warnings_as_errors(static fn() => HtmlSanitizer::$method($in));
+            assert_serialised_urls_match_predicate($out, "$method('$in')");
+            // Second generation too: the invariant must hold under re-sanitise.
+            $again = with_warnings_as_errors(static fn() => HtmlSanitizer::$method($out));
+            assert_serialised_urls_match_predicate($again, "$method($method('$in'))");
+        }
+    }
 });
