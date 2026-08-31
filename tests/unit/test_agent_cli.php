@@ -187,46 +187,88 @@ it('otack project refuses a project absent from projects.json', function () {
     assert_true(str_contains($r['err'], 'projects.json'), 'error should point at the local allow-list');
 });
 
+// M3 (adversarial review of 8144dfe): tick-note now fetches the task first
+// and gates on requireLocalProject(), same shape as state/move/comment/
+// new-comments above — so every scenario below that gets past phase
+// validation needs a fixture server answering GET /tasks/{id}, not the
+// server-less _cliHome() the pre-M3 version of these tests used.
+
 it('otack tick-note rewrites the lock file with task_id and phase, keeping the other keys', function () {
-    $home = _cliHome();
-    $lockPath = $home . '/.claude/otack-agent/agent.lock';
-    file_put_contents($lockPath, json_encode([
-        'pid' => 4242, 'host' => 'test-host', 'started_at' => 1700000000, 'started_iso' => '2023-11-14T22:13:20Z',
-    ]));
-    $r = _cli('tick-note 7 implementing', $home);
-    assert_eq(0, $r['code']);
-    $info = json_decode((string)file_get_contents($lockPath), true);
-    assert_eq(7, $info['task_id']);
-    assert_eq('implementing', $info['phase']);
-    assert_eq(4242, $info['pid'], 'tick-note must preserve the keys otack-tick already wrote, not replace the file');
+    _cliFixtureServer([
+        'GET /api/v1/tasks/7' => [['status' => 200, 'body' => json_encode(['id' => 7, 'project_id' => 42])]],
+    ], function (int $port) {
+        $home = _cliHomeForServer($port);
+        $lockPath = $home . '/.claude/otack-agent/agent.lock';
+        file_put_contents($lockPath, json_encode([
+            'pid' => 4242, 'host' => 'test-host', 'started_at' => 1700000000, 'started_iso' => '2023-11-14T22:13:20Z',
+        ]));
+        $r = _cli('tick-note 7 implementing', $home);
+        assert_eq(0, $r['code'], $r['err']);
+        $info = json_decode((string)file_get_contents($lockPath), true);
+        assert_eq(7, $info['task_id']);
+        assert_eq('implementing', $info['phase']);
+        assert_eq(4242, $info['pid'], 'tick-note must preserve the keys otack-tick already wrote, not replace the file');
+    });
 });
 
 it('otack tick-note rejects a phase outside the closed set', function () {
+    // No fixture server needed: phase validation runs before the M3
+    // allow-list gate, so this must fail before any network call.
     $home = _cliHome();
     file_put_contents($home . '/.claude/otack-agent/agent.lock', json_encode(['pid' => 1]));
     $r = _cli('tick-note 7 pondering', $home);
     assert_true($r['code'] !== 0, 'expected a non-zero exit');
     assert_true(str_contains($r['err'], 'researching'), 'error should list the valid phases');
+    assert_true(!str_contains($r['err'], 'HTTP request failed'), 'must reject before ever making a network call');
+});
+
+it('otack tick-note refuses a project absent from projects.json before touching the lock file', function () {
+    // M3: the allow-list gate itself, mirroring the state/move/comment/
+    // new-comments tests above. Deliberately no agent.lock on disk — if
+    // the gate did not run first, this would instead fail with "no
+    // agent.lock", which would be the pre-M3 bug (a task in an unlisted
+    // project reaching the lock-file write at all) reading as a pass.
+    _cliFixtureServer([
+        'GET /api/v1/tasks/40' => [['status' => 200, 'body' => json_encode(['id' => 40, 'project_id' => 999])]],
+    ], function (int $port) {
+        $home = _cliHomeForServer($port);
+        $r = _cli('tick-note 40 implementing', $home);
+        assert_true($r['code'] !== 0, 'expected a non-zero exit');
+        assert_true(str_contains($r['err'], 'projects.json'), 'error should point at the local allow-list');
+        assert_true(!str_contains($r['err'], 'agent.lock'), 'must refuse via the allow-list gate, not the lock-file check');
+    });
 });
 
 it('otack tick-note fails clearly when there is no lock file to write into', function () {
-    $r = _cli('tick-note 7 implementing', _cliHome());
-    assert_true($r['code'] !== 0, 'expected a non-zero exit');
-    assert_true(str_contains($r['err'], 'agent.lock'), 'error should name the lock file it expected to update');
+    _cliFixtureServer([
+        'GET /api/v1/tasks/7' => [['status' => 200, 'body' => json_encode(['id' => 7, 'project_id' => 42])]],
+    ], function (int $port) {
+        $home = _cliHomeForServer($port);
+        // No agent.lock written for this home — the gate above passes
+        // (project 42 is listed), so this exercises the lock-file-specific
+        // failure, not the allow-list one.
+        $r = _cli('tick-note 7 implementing', $home);
+        assert_true($r['code'] !== 0, 'expected a non-zero exit');
+        assert_true(str_contains($r['err'], 'agent.lock'), 'error should name the lock file it expected to update');
+    });
 });
 
 it('otack tick-note fails cleanly when the lock file cannot be written', function () {
     if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
         return; // root bypasses file permission bits — nothing to prove here.
     }
-    $home = _cliHome();
-    $lockPath = $home . '/.claude/otack-agent/agent.lock';
-    file_put_contents($lockPath, json_encode(['pid' => 1]));
-    chmod($lockPath, 0400);
-    $r = _cli('tick-note 7 implementing', $home);
-    chmod($lockPath, 0600); // restore so the temp dir can be cleaned up normally
-    assert_true($r['code'] !== 0, 'expected a non-zero exit');
-    assert_true(str_contains($r['err'], 'failed to write'), 'error should say the lock file could not be written, not crash');
+    _cliFixtureServer([
+        'GET /api/v1/tasks/7' => [['status' => 200, 'body' => json_encode(['id' => 7, 'project_id' => 42])]],
+    ], function (int $port) {
+        $home = _cliHomeForServer($port);
+        $lockPath = $home . '/.claude/otack-agent/agent.lock';
+        file_put_contents($lockPath, json_encode(['pid' => 1]));
+        chmod($lockPath, 0400);
+        $r = _cli('tick-note 7 implementing', $home);
+        chmod($lockPath, 0600); // restore so the temp dir can be cleaned up normally
+        assert_true($r['code'] !== 0, 'expected a non-zero exit');
+        assert_true(str_contains($r['err'], 'failed to write'), 'error should say the lock file could not be written, not crash');
+    });
 });
 
 // --- C1: a non-https, non-loopback config typo must not leak the token -----

@@ -2,6 +2,14 @@
 <?php
 declare(strict_types=1);
 
+// C1 (adversarial review of 8144dfe): same reasoning as agent/bin/otack:13-14
+// — this box has display_errors=STDOUT and zend.exception_ignore_args=Off,
+// and this script also constructs `new Client($cfg->instance, $cfg->token)`,
+// the exact frame whose argument dump leaked the token before. Pin both
+// before anything else runs.
+ini_set('display_errors', 'stderr');
+ini_set('zend.exception_ignore_args', '1');
+
 /**
  * The scheduled entry point. Holds the mutual-exclusion lock for the whole
  * session and runs one Claude Code tick as a child process.
@@ -13,12 +21,48 @@ declare(strict_types=1);
  * this process ends — so a crash, a reboot or a closed laptop cannot leave a
  * stale lock behind, and no TTL or cleanup is needed (spec §5.1).
  *
+ * C1 (adversarial review of 8144dfe): `--allowedTools` on the shipped CLI
+ * (2.1.186) ADDS to `alwaysAllowRules`, merged with the operator's own
+ * `~/.claude/settings.json` (`addRules`, not `replaceRules` — the latter is
+ * reachable only via managed/policy settings). Left alone, this machine's
+ * personal allow-list — arbitrary code execution (`php -r`, `npx tsx -e`),
+ * network egress, ready-made prod ssh commands — becomes part of the bot's
+ * authority too. Verified empirically (not by reading the source): a
+ * `claude -p` child given only this file's allow-list still executed
+ * `php -r` (not in that list) when it inherited the operator's normal
+ * `~/.claude` config, and was refused the identical command once `claude`
+ * was pointed at an isolated `CLAUDE_CONFIG_DIR` whose settings.json grants
+ * nothing. This file always launches the child with `CLAUDE_CONFIG_DIR` set
+ * to such a directory (`CLAUDE_HOME_DIR` below), which this script owns and
+ * rewrites to a known-empty state on every tick.
+ *
+ * Operational prerequisite this implies: `CLAUDE_CONFIG_DIR` isolates
+ * authentication along with everything else on this CLI (verified — an
+ * isolated, freshly-created config dir reports "Not logged in" even though
+ * the operator's own session is authenticated). The directory named by
+ * CLAUDE_HOME_DIR below must be logged in once, out of band
+ * (`CLAUDE_CONFIG_DIR=<dir> claude` interactively, or `claude setup-token`),
+ * before this script can launch a real session. Until then it fails loudly
+ * (the child prints "Not logged in" and exits non-zero, which `exit($code)`
+ * below propagates to cron) rather than silently doing nothing or falling
+ * back to the operator's own credentials.
+ *
  * Usage:  otack-tick
- *         otack-tick --selftest=hold:<seconds>   (tests only: lock, sleep, exit)
+ *         (all --selftest=* flags below require OTACK_TICK_ALLOW_SELFTEST=1
+ *         in the environment — see MINOR below — and are for tests only)
+ *         otack-tick --selftest=hold:<seconds>
  *         otack-tick --selftest=hold:<seconds> --selftest-task-id=<id> --selftest-started-at=<epoch>
- *                     (tests only: same, but fabricates task_id/started_at
- *                     instead of the real values, so a stale-tick scenario
- *                     doesn't require literally waiting three hours)
+ *                     (fabricates task_id/started_at instead of the real
+ *                     values, so a stale-tick scenario doesn't require
+ *                     literally waiting three hours)
+ *         otack-tick --selftest=print-cmd [...same project/task fabrication...]
+ *                     (runs every step through building the child command —
+ *                     lock, config, allow-list, disallow-list, add-dir,
+ *                     CLAUDE_CONFIG_DIR setup, chdir — then prints it as JSON
+ *                     on stdout and exits 0 instead of calling passthru().
+ *                     M6: this is the seam tests assert the constructed
+ *                     command against, instead of trusting it by reading the
+ *                     source.)
  */
 
 require_once __DIR__ . '/../lib/Config.php';
@@ -29,51 +73,202 @@ use App\Agent\{Config, Client};
 const STALE_AFTER_SECONDS = 3 * 3600;
 
 // PERMISSION_MODE: found empirically against a real `claude -p` invocation
-// in Step 5 below — do not change this without re-running that check, and
-// never replace it with `--dangerously-skip-permissions` (forbidden; the
-// point of §9's boundaries is a bounded allow-list actually being honoured
-// non-interactively, not disabled checks).
+// (Step 5, and re-verified for this fix). Never replace it with
+// `--dangerously-skip-permissions` (forbidden; enforced by
+// tests/unit/test_agent_lock.php asserting the constructed command never
+// contains the substring "dangerously").
 const PERMISSION_MODE = 'dontAsk';
+
+// MINOR: distinct exit codes so cron / a human reading logs can tell "did
+// nothing, another tick already holds the lock" apart from "ran and
+// succeeded" — both used to be exit 0.
+const EXIT_OK             = 0;
+const EXIT_CONFIG_ERROR   = 1;
+const EXIT_USAGE_ERROR    = 2;
+const EXIT_BLOCKED        = 75; // sysexits.h EX_TEMPFAIL: not an error, but not "ran" either.
+
+// MINOR: `--selftest=hold:<junk>` used to silently no-op via `(int)` cast,
+// and `hold:999999999` would hold the mutex for days on a typo. Both are
+// cron-log-only failure modes — nothing on stdout/stderr looks wrong, the
+// bot just quietly does nothing (or nothing else can run) until a human
+// notices. `ctype_digit` rejects the junk; this caps the legitimate range.
+const MAX_SELFTEST_HOLD_SECONDS = 60;
+
+// MINOR: the whole --selftest=* surface is test-only scaffolding that
+// fabricates lock state (including a fake stale run) — gate it behind an
+// env var so a stray "--selftest=..." token surviving into a real cron line
+// can never be mistaken for anything but a configuration mistake.
+const SELFTEST_ENV_GATE = 'OTACK_TICK_ALLOW_SELFTEST';
+
+// M4: the allow-list string is built by concatenating each project's
+// test_cmd raw, and the CLI's rule parser splits on spaces/commas *outside
+// parentheses* — a test_cmd containing `)` closes the `Bash(...)` rule
+// early and turns everything after it into new, independent rules (the
+// reviewer demonstrated `"make test) Bash(rm -rf /tmp/x"` yielding two
+// rules from one config value). Reject anything outside a conservative
+// character allow-list before it is ever interpolated, rather than trying
+// to escape the characters the parser treats specially.
+const TEST_CMD_SAFE_PATTERN = '/^[A-Za-z0-9 _.\/-]+$/';
+
+function isSafeTestCmd(string $cmd): bool
+{
+    return $cmd !== '' && preg_match(TEST_CMD_SAFE_PATTERN, $cmd) === 1;
+}
 
 $home = getenv('HOME') ?: '';
 $dir  = rtrim($home, '/') . '/.claude/otack-agent';
 if (!is_dir($dir)) {
     fwrite(STDERR, "agent config directory missing: $dir\n");
-    exit(1);
+    exit(EXIT_CONFIG_ERROR);
 }
 
-$lockPath = $dir . '/agent.lock';
+$lockPath      = $dir . '/agent.lock';
+// M1, see the long comment further down at the point this is used.
+$initMarker    = $dir . '/.agent-lock-initialized';
+// C1: the isolated, otack-tick-owned Claude Code config directory (see the
+// docblock above). Never the operator's own ~/.claude.
+$claudeHomeDir = $dir . '/claude-home';
+// C2: a directory that exists only so the child's cwd is a deliberate,
+// inert choice instead of whatever $HOME or the caller's shell happened to
+// leave it at — see the C2 comment further down.
+$sessionCwdDir = $dir . '/session-cwd';
+
+// --- Argument parsing --------------------------------------------------
+//
+// MINOR: every flag is validated strictly; anything unrecognised exits
+// non-zero instead of being silently ignored (a typo'd cron line used to
+// leave a healthy-looking bot doing nothing).
+$selftest          = null;   // null | 'print-cmd' | int (hold seconds)
+$selftestTaskId    = null;
+$selftestStartedAt = null;
+$selftestGateOpen  = getenv(SELFTEST_ENV_GATE) === '1';
+
+foreach (array_slice($argv, 1) as $a) {
+    if (str_starts_with($a, '--selftest=')) {
+        if (!$selftestGateOpen) {
+            fwrite(STDERR, "--selftest=* requires " . SELFTEST_ENV_GATE . "=1 in the environment (test-only flag)\n");
+            exit(EXIT_USAGE_ERROR);
+        }
+        $value = substr($a, strlen('--selftest='));
+        if ($value === 'print-cmd') {
+            $selftest = 'print-cmd';
+            continue;
+        }
+        if (str_starts_with($value, 'hold:')) {
+            $raw = substr($value, strlen('hold:'));
+            if (!ctype_digit($raw)) {
+                fwrite(STDERR, "--selftest=hold:<seconds> requires a non-negative integer, got \"$raw\"\n");
+                exit(EXIT_USAGE_ERROR);
+            }
+            $n = (int)$raw;
+            if ($n > MAX_SELFTEST_HOLD_SECONDS) {
+                fwrite(STDERR, "--selftest=hold:$n exceeds the cap of " . MAX_SELFTEST_HOLD_SECONDS . "s\n");
+                exit(EXIT_USAGE_ERROR);
+            }
+            $selftest = $n;
+            continue;
+        }
+        fwrite(STDERR, "unrecognised --selftest= value \"$value\"\n");
+        exit(EXIT_USAGE_ERROR);
+    }
+    if (str_starts_with($a, '--selftest-task-id=')) {
+        if (!$selftestGateOpen) {
+            fwrite(STDERR, "--selftest-task-id requires " . SELFTEST_ENV_GATE . "=1 in the environment\n");
+            exit(EXIT_USAGE_ERROR);
+        }
+        $raw = substr($a, strlen('--selftest-task-id='));
+        if (!ctype_digit($raw)) {
+            fwrite(STDERR, "--selftest-task-id requires a non-negative integer, got \"$raw\"\n");
+            exit(EXIT_USAGE_ERROR);
+        }
+        $selftestTaskId = (int)$raw;
+        continue;
+    }
+    if (str_starts_with($a, '--selftest-started-at=')) {
+        if (!$selftestGateOpen) {
+            fwrite(STDERR, "--selftest-started-at requires " . SELFTEST_ENV_GATE . "=1 in the environment\n");
+            exit(EXIT_USAGE_ERROR);
+        }
+        $raw = substr($a, strlen('--selftest-started-at='));
+        if (!ctype_digit($raw)) {
+            fwrite(STDERR, "--selftest-started-at requires a non-negative integer epoch, got \"$raw\"\n");
+            exit(EXIT_USAGE_ERROR);
+        }
+        $selftestStartedAt = (int)$raw;
+        continue;
+    }
+    fwrite(STDERR, "unrecognised argument \"$a\"\n");
+    exit(EXIT_USAGE_ERROR);
+}
+
+// --- Lock acquisition ----------------------------------------------------
+//
+// M1 (adversarial review of 8144dfe): `agent.lock` is not just a status
+// file — the flock held on its inode IS the mutex. `rm agent.lock` while a
+// session holds it does not release that mutex (only closing the fd does,
+// and the kernel only does that when the process exits); it just detaches
+// the path from the locked inode. A second tick's `fopen($lockPath, 'c')`
+// then silently creates a brand-new, wholly uncontended inode at that path
+// and locks *that* — flock() has no way to know the old inode is still
+// spoken for, because the two inodes can never conflict with each other.
+// Reproduced: holder running, `rm agent.lock`, second tick creates a fresh
+// inode, locks it, and launches a second concurrent session — exactly the
+// failure this file exists to prevent. Every cue in the product points a
+// frustrated operator at `rm`: the file is called a lock, and a missing
+// file reads as "nothing is running".
+//
+// A single point-in-time inode comparison cannot detect this by itself: a
+// tick that (re)creates the file because it is missing will always see its
+// own brand-new inode as internally consistent. What actually closes the
+// gap is a persistent record, written once and never removed, of "this
+// machine has taken the lock before" — so a *missing* agent.lock can be
+// told apart from "first run ever" (marker also absent — bootstrap
+// normally) versus "someone deleted it out from under a holder" (marker
+// present — refuse, do not silently recreate).
+$lockExisted   = file_exists($lockPath);
+$markerExisted = file_exists($initMarker);
+if (!$lockExisted && $markerExisted) {
+    fwrite(STDERR,
+        "agent.lock is missing at $lockPath, but $initMarker records that this machine has run " .
+        "before. Refusing to create a replacement: a session started before this tick may still " .
+        "hold the deleted file open, and a fresh lock here would let it run concurrently with a " .
+        "second session — exactly the failure this check exists to prevent.\n" .
+        "Do NOT delete agent.lock to \"fix\" a stuck tick — deletion does not free the mutex.\n" .
+        "Check for a live process first (e.g. `ps aux | grep otack-tick`), kill it if it is " .
+        "genuinely dead, and only then remove $initMarker to let this script bootstrap again.\n"
+    );
+    exit(EXIT_CONFIG_ERROR);
+}
+
 $lock = fopen($lockPath, 'c');
 if ($lock === false) {
     fwrite(STDERR, "cannot open lock file: $lockPath\n");
-    exit(1);
-}
-
-// Test hooks: fabricate task_id/started_at instead of the real values, so a
-// test can simulate "this tick has been stuck for 3+ hours" without waiting.
-$selftest = null;
-$selftestTaskId = null;
-$selftestStartedAt = null;
-foreach (array_slice($argv, 1) as $a) {
-    if (str_starts_with($a, '--selftest=hold:'))       { $selftest = (int)substr($a, 16); }
-    if (str_starts_with($a, '--selftest-task-id='))    { $selftestTaskId = (int)substr($a, 20); }
-    if (str_starts_with($a, '--selftest-started-at=')) { $selftestStartedAt = (int)substr($a, 22); }
+    exit(EXIT_CONFIG_ERROR);
 }
 
 if (!flock($lock, LOCK_EX | LOCK_NB)) {
-    // Someone else is mid-tick. Exiting 0 is correct: an overlapping tick is
-    // the normal case when work runs longer than the schedule interval, not
-    // an error condition worth alerting on.
+    // Someone else is mid-tick. Exiting EXIT_BLOCKED (not EXIT_OK) is
+    // correct: an overlapping tick is the normal case when work runs longer
+    // than the schedule interval, not an error condition worth alerting on
+    // — but it is also not "ran and succeeded", and the two used to be
+    // indistinguishable from cron's point of view.
     $held = json_decode((string)file_get_contents($lockPath), true) ?: [];
     $since = isset($held['started_at']) ? time() - (int)$held['started_at'] : 0;
     $for = $since > 0 ? ' for ' . intdiv($since, 60) . 'm' : '';
-    echo "tick already running$for (pid " . ($held['pid'] ?? '?') . "), doing nothing\n";
+    $pid = $held['pid'] ?? '?';
+    // M1: reworded so the message does not invite the exact remedy that
+    // causes the bug above.
+    echo "tick already running$for (pid $pid), doing nothing. " .
+         "Do not delete agent.lock — that will not free the mutex and lets a second session start concurrently.\n";
 
     if ($since > STALE_AFTER_SECONDS) {
         // Do not kill it — a long implementation phase is legitimate. Say so
         // loudly enough that a human notices a genuinely wedged run, every
         // time this observation is made.
-        fwrite(STDERR, "WARNING: the running tick has held the lock for " . intdiv($since, 3600) . "h; check it\n");
+        fwrite(STDERR,
+            "WARNING: the running tick has held the lock for " . intdiv($since, 3600) . "h; check it. " .
+            "If it is genuinely wedged, kill pid $pid — do not remove agent.lock.\n"
+        );
 
         // But only ATTEMPT the "работаю подозрительно долго" comment once
         // per lock generation (spec §5.2, D7) — a 30-minute schedule would
@@ -87,10 +282,42 @@ if (!flock($lock, LOCK_EX | LOCK_NB)) {
         $taskId = isset($held['task_id']) ? (int)$held['task_id'] : 0;
 
         if ($startedAt !== '' && $startedAt !== $alreadyWarned) {
+            // M2 (adversarial review of 8144dfe): the marker write used to
+            // sit outside this `if ($taskId > 0)` guard. The lock starts
+            // with task_id: null (Task 4/6 fill it in later via
+            // `otack tick-note`), so a run that wedges *before* the skill
+            // picks a task burned the marker without ever posting anything
+            // — once tick-note later set the id, every subsequent tick saw
+            // this generation already "warned" and stayed silent forever.
+            // §5.2's "работаю подозрительно долго" would then never fire
+            // for that generation. task_id<=0 means we have not attempted
+            // anything yet, so do not mark it attempted.
             if ($taskId > 0) {
                 try {
                     $cfg = Config::load($home);
                     $client = new Client($cfg->instance, $cfg->token);
+
+                    // M3 (adversarial review of b4a4c4f): this POST took
+                    // task_id straight from the lock file with no allow-list
+                    // check at all — every other write in agent/bin/otack
+                    // gates on requireLocalProject() (since b4a4c4f), but a
+                    // task sitting in a project absent from
+                    // ~/.claude/otack-agent/projects.json would still
+                    // receive a comment from the bot. Fetch the task to
+                    // learn its project and refuse exactly like the CLI
+                    // does before posting.
+                    $t = $client->get("/tasks/$taskId");
+                    if ($t['status'] !== 200) {
+                        throw new \RuntimeException("GET /tasks/$taskId returned " . $t['status']);
+                    }
+                    $projectId = (int)($t['json']['project_id'] ?? 0);
+                    if ($cfg->projectPath($projectId) === null) {
+                        throw new \RuntimeException(
+                            "project $projectId is not listed in ~/.claude/otack-agent/projects.json — " .
+                            'refusing to post the stale-tick warning'
+                        );
+                    }
+
                     $hours = intdiv($since, 3600);
                     $client->post('/comments', [
                         'entity'    => 'task',
@@ -100,15 +327,50 @@ if (!flock($lock, LOCK_EX | LOCK_NB)) {
                 } catch (\Throwable $e) {
                     // Best-effort: the mutual exclusion itself does not
                     // depend on this comment landing. Still mark it
-                    // attempted below so a genuinely unreachable API
-                    // doesn't retry every single tick forever.
+                    // attempted below so a genuinely unreachable API, or a
+                    // project this machine is not allowed to touch, doesn't
+                    // retry every single tick forever.
                     fwrite(STDERR, 'could not post the stale-tick warning comment: ' . $e->getMessage() . "\n");
                 }
+
+                // Mark this generation attempted regardless of how the try
+                // block above ended (posted, API failure, or the allow-list
+                // gate refusing) — task_id > 0 is the only thing that needs
+                // to be true for "we tried" to be accurate.
+                if (file_put_contents($warnedPath, $startedAt) === false) {
+                    // M2: an unwritable config dir must not mean "re-attempt
+                    // (and re-fail, and re-log) every single tick forever" —
+                    // at least say so once per occurrence.
+                    fwrite(STDERR, "warning: could not write $warnedPath — will keep re-attempting the stale-tick warning every tick\n");
+                }
             }
-            file_put_contents($warnedPath, $startedAt);
         }
     }
-    exit(0);
+    exit(EXIT_BLOCKED);
+}
+
+// Defense-in-depth against the tight fopen()-to-flock() TOCTOU window
+// (distinct from, and narrower than, the M1 scenario above): if the path
+// was replaced by someone racing us between our fopen() and our flock() —
+// e.g. a concurrent delete-and-recreate — what we just locked may already
+// be orphaned at this path. Compare device+inode of our open handle
+// against a fresh stat() of the path and back off on any mismatch rather
+// than proceed as if nothing happened. This is the standard defensive
+// idiom for path-based advisory locks (see flock(2)'s own notes on races
+// between unlink() and a waiter's lock).
+$fstat = fstat($lock);
+$pstat = @stat($lockPath);
+if ($fstat === false || $pstat === false || $fstat['dev'] !== $pstat['dev'] || $fstat['ino'] !== $pstat['ino']) {
+    fwrite(STDERR, "agent.lock at $lockPath was replaced while being acquired — refusing to proceed\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+
+if (!$markerExisted) {
+    // First-ever successful acquisition on this machine — lay the marker
+    // the M1 guard above depends on. Never removed by this script.
+    if (file_put_contents($initMarker, (string)time()) === false) {
+        fwrite(STDERR, "warning: could not write $initMarker — the rm-while-held guard will not protect the next tick\n");
+    }
 }
 
 ftruncate($lock, 0);
@@ -126,9 +388,9 @@ fwrite($lock, json_encode([
 ], JSON_PRETTY_PRINT));
 fflush($lock);
 
-if ($selftest !== null) {
+if (is_int($selftest)) {
     sleep(max(0, $selftest));
-    exit(0);
+    exit(EXIT_OK);
 }
 
 // Fail fast if the agent cannot even authenticate — better a clear message in
@@ -137,7 +399,7 @@ try {
     $cfg = Config::load($home);
 } catch (\RuntimeException $e) {
     fwrite(STDERR, 'agent config unusable: ' . $e->getMessage() . "\n");
-    exit(1);
+    exit(EXIT_CONFIG_ERROR);
 }
 
 // Bounded allow-list for the child session (spec §9, D11) — built from
@@ -149,21 +411,173 @@ try {
 // once a task is actually picked (project must be in projects.json,
 // write:true, repo_url matches origin — Task 6's SKILL.md).
 $addDirs = [];
-$bashPrefixes = [
-    'Bash(git add:*)', 'Bash(git commit:*)', 'Bash(git push:*)',
-    'Bash(git status:*)', 'Bash(git diff:*)', 'Bash(git checkout:*)', 'Bash(git branch:*)',
-];
 foreach ($cfg->projects as $p) {
     if (empty($p['write'])) { continue; }
     $addDirs[] = $p['path'];
-    if (!empty($p['test_cmd'])) {
-        $bashPrefixes[] = 'Bash(' . $p['test_cmd'] . ':*)';
-    }
 }
+
+// C2 (adversarial review of 8144dfe): with zero write-enabled projects —
+// including no projects.json at all, which per spec §7.3 means "the agent
+// may touch nothing" — the session used to launch anyway, with write tools
+// and no --add-dir at all. The documented crontab line is
+// `cd /path/to/otack-tasks && agent/bin/otack-tick`, so cwd is this
+// repository: the bot would get unconditional Edit/Write/commit/push over
+// its own control plane and the server code. Refuse outright instead.
+if ($addDirs === []) {
+    fwrite(STDERR,
+        "no write-enabled projects in ~/.claude/otack-agent/projects.json — refusing to launch a " .
+        "session (spec §7.3: no listed, write:true project means the agent may touch nothing).\n"
+    );
+    exit(EXIT_CONFIG_ERROR);
+}
+
+// M5 (adversarial review of 8144dfe): the previous git prefixes granted
+// exactly what spec §9 forbids — Bash(git push:*) matches
+// `git push --force origin main`, Bash(git branch:*) matches
+// `git branch -D`, and Bash(git checkout:*) plus Bash(git commit:*) let a
+// session check out `main` and commit straight onto it. `git branch` is
+// dropped entirely (branch creation goes through `git checkout -b`, already
+// covered by the broader checkout prefix below; §9 never asks the bot to
+// delete or list branches). The remaining broad verbs (push, checkout) are
+// kept — dev_branch names and existing task branches the bot may need to
+// resume (§5.3) are not known ahead of time and can't be expressed as a
+// static prefix — and narrowed instead via --disallowedTools below, which
+// the CLI evaluates with higher precedence than --allowedTools. Verified
+// empirically (not assumed from syntax): under this exact
+// --permission-mode, `Bash(git checkout:*)` combined with a
+// `Bash(git checkout main:*)` disallow rule still permits
+// `git checkout otack/task-1` and refuses `git checkout main`; the same
+// allow/disallow pairing was verified for `git push` against
+// `git push --force`.
+$bashPrefixes = [
+    'Bash(git add:*)',
+    'Bash(git commit:*)',
+    'Bash(git push:*)',
+    'Bash(git status:*)',
+    'Bash(git diff:*)',
+    'Bash(git checkout:*)',
+];
+foreach ($cfg->projects as $idStr => $p) {
+    if (empty($p['write']) || empty($p['test_cmd'])) { continue; }
+    // M4: reject before interpolating — see isSafeTestCmd()'s docblock
+    // constant above. A project with an unsafe test_cmd is a config
+    // mistake, not something to silently drop (this codebase's convention,
+    // per agent/lib/Config.php, is to fail loud on ambiguous config rather
+    // than degrade quietly).
+    if (!isSafeTestCmd($p['test_cmd'])) {
+        fwrite(STDERR,
+            "project \"$idStr\" has a test_cmd containing characters outside the safe set " .
+            "[A-Za-z0-9 _.\\/-]: \"{$p['test_cmd']}\" — refusing to build the allow-list " .
+            "(a `)` or `:` there can inject additional permission rules; spaces alone, e.g. " .
+            "\"make test\", are fine).\n"
+        );
+        exit(EXIT_CONFIG_ERROR);
+    }
+    $bashPrefixes[] = 'Bash(' . $p['test_cmd'] . ':*)';
+}
+
+// §9 absolutes, enforced twice: never placed in $bashPrefixes above (so
+// nothing here can widen the allow-list), and explicitly denied too, since
+// deny outranks allow and a future change to $bashPrefixes should not be
+// able to silently re-open one of these by accident.
+$disallowedTools = [
+    // Force-push and branch/tag deletion — §9 "force-push", "удаление
+    // чужих веток, теги".
+    'Bash(git push --force:*)',
+    'Bash(git push -f:*)',
+    'Bash(git push --force-with-lease:*)',
+    'Bash(git push --delete:*)',
+    'Bash(git push --mirror:*)',
+    'Bash(git push --tags:*)',
+    'Bash(git branch -D:*)',
+    'Bash(git branch --delete:*)',
+    'Bash(git tag:*)',
+    // A (non-force) push or checkout that lands on the default branch is
+    // still forbidden by §9 — "пуш и мерж в default_branch" is not
+    // conditioned on --force. default_branch is a per-project, server-side
+    // field this wrapper cannot know at launch time (Task 6's job, once a
+    // task is picked); main/master cover the overwhelming majority of
+    // projects this machine will ever point at. Residual risk, not fully
+    // closable from a static CLI rule: a project whose default branch is
+    // named something else, or a push that targets main via a different
+    // remote ref spec (e.g. `git push origin HEAD:main`).
+    'Bash(git checkout main:*)',
+    'Bash(git checkout master:*)',
+    'Bash(git push origin main:*)',
+    'Bash(git push origin master:*)',
+    // C1 belt-and-braces: none of these are in $bashPrefixes above, so
+    // CLAUDE_CONFIG_DIR isolation is already what keeps them out of the
+    // merged allow-list — denying them explicitly means a future edit to
+    // this file, or an unexpected CLI merge behaviour, can't silently
+    // re-open them. Named in the review as concretely reachable before
+    // this fix: arbitrary code execution, network egress.
+    'Bash(php -r:*)',
+    'Bash(npx tsx -e:*)',
+    'Bash(curl:*)',
+    'Bash(wget:*)',
+    'Bash(ssh:*)',
+    'WebFetch',
+];
+
 $allowedTools = array_values(array_unique(array_merge(
     ['Read', 'Edit', 'Write', 'Grep', 'Glob'],
     $bashPrefixes
 )));
+// M6: never a bare wildcard — see the "not a wildcard" assertion in
+// tests/unit/test_agent_lock.php. Edit/Write are intentionally left
+// unscoped to a directory: `Edit(//<dir>/**)` / `Write(//<dir>/**)`
+// path-scoping was tried and verified NOT to hold under
+// --permission-mode dontAsk on this CLI (2.1.186) — a scoped Write rule
+// denied writes *inside* its own scope, and under acceptEdits mode a
+// scoped rule was ignored entirely (a write outside the declared directory
+// still succeeded). Relying on it would have been worse than not trying:
+// a false sense of a boundary that isn't enforced. --add-dir was checked
+// the same way and found not to bound Write's reach either. The real
+// boundary this file provides is CLAUDE_CONFIG_DIR (arbitrary code
+// execution / network egress) plus the narrowed git prefixes above
+// (destructive git operations); which *files* get edited within a project
+// is a behavioural boundary enforced by the skill and the task prompt, not
+// by this CLI's tool-permission syntax. See the fix report for the full
+// experiment.
+
+// C2: cwd must never be incidental. The documented crontab line
+// (`cd /path/to/otack-tasks && agent/bin/otack-tick`) puts this
+// repository's working tree in cwd; without the `cd`, a bare crontab entry
+// leaves it at $HOME, which holds this bot's own token (.env) and the
+// settings file it could otherwise widen its own permissions through.
+// Neither is a place an autonomous writer should ever start from by
+// accident. There is no single "the" project directory to chdir into at
+// this point (the task, and therefore its project, is picked later by the
+// skill via `otack next`) — so this points at a directory that exists
+// solely to be an inert default: nothing lives here for a stray relative
+// path to touch.
+if (!is_dir($sessionCwdDir) && !mkdir($sessionCwdDir, 0700, true) && !is_dir($sessionCwdDir)) {
+    fwrite(STDERR, "cannot create $sessionCwdDir\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+if (!chdir($sessionCwdDir)) {
+    fwrite(STDERR, "cannot chdir into $sessionCwdDir\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+
+// C1: create (or reset) the isolated Claude Code config directory and give
+// it a settings.json that grants nothing beyond what --allowedTools /
+// --disallowedTools supply on the command line below. Rewritten on every
+// tick rather than checked-once, so this directory can never drift toward
+// something permissive even if it were ever tampered with.
+if (!is_dir($claudeHomeDir) && !mkdir($claudeHomeDir, 0700, true) && !is_dir($claudeHomeDir)) {
+    fwrite(STDERR, "cannot create $claudeHomeDir\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+$isolatedSettings = json_encode(
+    ['permissions' => ['allow' => [], 'deny' => []]],
+    JSON_PRETTY_PRINT
+);
+if (file_put_contents($claudeHomeDir . '/settings.json', $isolatedSettings) === false) {
+    fwrite(STDERR, "cannot write $claudeHomeDir/settings.json\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+putenv("CLAUDE_CONFIG_DIR=$claudeHomeDir");
 
 $prompt = 'Use the otack-agent skill to run one tick.';
 $cmdParts = ['claude', '-p', escapeshellarg($prompt), '--permission-mode', escapeshellarg(PERMISSION_MODE)];
@@ -173,7 +587,26 @@ foreach ($addDirs as $projectDir) {
 }
 $cmdParts[] = '--allowedTools';
 $cmdParts[] = escapeshellarg(implode(' ', $allowedTools));
+$cmdParts[] = '--disallowedTools';
+$cmdParts[] = escapeshellarg(implode(' ', $disallowedTools));
 $cmd = implode(' ', $cmdParts);
+
+if ($selftest === 'print-cmd') {
+    // M6: the seam tests assert the constructed command against, instead of
+    // trusting the source. Everything above this point (lock, config,
+    // allow/disallow-list construction, chdir, CLAUDE_CONFIG_DIR setup) has
+    // already run for real; only the final passthru() is skipped.
+    echo json_encode([
+        'cmd'              => $cmd,
+        'cwd'              => getcwd(),
+        'claude_config_dir'=> getenv('CLAUDE_CONFIG_DIR'),
+        'permission_mode'  => PERMISSION_MODE,
+        'add_dirs'         => $addDirs,
+        'allowed_tools'    => $allowedTools,
+        'disallowed_tools' => $disallowedTools,
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+    exit(EXIT_OK);
+}
 
 passthru($cmd, $code);
 exit($code);

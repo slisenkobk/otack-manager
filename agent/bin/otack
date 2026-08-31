@@ -366,6 +366,16 @@ try {
             if (!in_array($phase, PHASES, true)) {
                 fail('unknown phase "' . $phase . '" — valid: ' . implode('|', PHASES));
             }
+            // M3 (adversarial review of 8144dfe): this command used to
+            // validate only that <id> is a positive integer — every other
+            // write here gates on requireLocalProject() (since b4a4c4f),
+            // but tick-note took the id at face value and rewrote
+            // agent.lock's task_id/phase for a task in a project this
+            // machine isn't even allowed to touch. Same fetch-then-check
+            // shape as `state`/`comment`/`move` above.
+            $t = $client->get("/tasks/$id");
+            if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
+            $requireLocalProject((int)$t['json']['project_id']);
             $lockPath = rtrim(getenv('HOME') ?: '', '/') . '/.claude/otack-agent/agent.lock';
             if (!is_file($lockPath)) {
                 fail("no agent.lock at $lockPath — tick-note must run inside an otack-tick session");
