@@ -324,20 +324,37 @@ final class HtmlSanitizer
                 $removeAttrs[] = $name;
                 continue;
             }
-            // Sanitise href: only http/https/mailto/in-page fragment.
-            // Fragment-only links (#section-name) are the backbone of
-            // wiki Tables-of-Contents — they can't navigate off-site so
-            // they're safe.
+            // Sanitise href: http/https/mailto/in-page fragment, plus a
+            // root-relative path (a single leading "/") so internal links
+            // (e.g. /projects/1) survive. Fragment-only links (#section-name)
+            // are the backbone of wiki Tables-of-Contents — they can't
+            // navigate off-site so they're safe.
+            //
+            // The root-relative branch is deliberately narrow: it matches
+            // "/" NOT followed by another "/" or by "\". A second slash
+            // ("//host/path") is a protocol-relative *absolute* URL to
+            // another origin — that must stay blocked. A backslash right
+            // after the leading slash ("/\host") is the same attack in
+            // disguise: browsers normalise "\" to "/" while parsing special
+            // schemes, so "/\evil.example" is parsed identically to
+            // "//evil.example" and would also jump origin. Encoded slashes
+            // ("/%2Fevil.example") are NOT decoded by the URL parser before
+            // host resolution, so that stays a same-origin path and is
+            // allowed. Deliberately not extended to "./", "../", or bare
+            // relative paths — this application never emits those, so
+            // there's no reason to widen the allow-list to cover them.
             if ($name === 'href') {
                 $val = trim($attr->value);
-                if (!preg_match('/^(https?:\/\/|mailto:|#)/i', $val)) {
+                if (!preg_match('/^(https?:\/\/|mailto:|#|\/(?!\/|\\\\))/i', $val)) {
                     $removeAttrs[] = $name;
                 }
             }
-            // Sanitise img src: only http/https/data:image allowed
+            // Sanitise img src: http/https/data:image, plus the same
+            // root-relative path form as href — every uploaded image is
+            // served from a root-relative path (/uploads/...).
             if ($name === 'src') {
                 $val = trim($attr->value);
-                if (!preg_match('/^(https?:\/\/|data:image\/)/i', $val)) {
+                if (!preg_match('/^(https?:\/\/|data:image\/|\/(?!\/|\\\\))/i', $val)) {
                     $removeAttrs[] = $name;
                 }
             }

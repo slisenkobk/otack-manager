@@ -242,6 +242,16 @@ function html_sanitizer_corpus(): array
         '<a href="//evil.com">x</a>',
         '<a href="data:text/html,<script>alert(1)</script>">x</a>',
 
+        // --- root-relative URL fix (agreed 2026-08-27): "/path" is allowed,
+        // "//host" and the backslash-normalisation trick are not
+        '<a href="/projects/1">x</a>',
+        '<img src="/uploads/2026/06/a.png">',
+        '<a href="//evil.example">x</a>',
+        '<img src="//evil.example/x.png">',
+        "<a href=\"/\\evil.example\">x</a>",
+        "<img src=\"/\\evil.example/x.png\">",
+        '<a href="/%2Fevil.example">x</a>',
+
         // --- attributes beyond on*
         '<a href="https://ok.example" style="position:fixed;inset:0">x</a>',
         '<a href="https://ok.example" srcset="https://evil.example/x 1x">x</a>',
@@ -628,5 +638,55 @@ it('rich-only attribute values stay inert text', function () {
                 );
             }
         }
+    }
+});
+
+// ---------------------------------------------------------------------------
+// Fix 2 (agreed 2026-08-27) — root-relative URLs ("/path", a single leading
+// slash) are additionally allowed for href/src, so internal links and
+// uploaded images survive sanitisation. "//host/path" is protocol-relative
+// (an absolute URL to another origin) and must stay blocked — a naive `^/`
+// would reopen exactly the hole this allow-list exists to close.
+// ---------------------------------------------------------------------------
+
+it('allows root-relative href', function () {
+    $out = HtmlSanitizer::clean('<a href="/projects/1">x</a>');
+    assert_true(strpos($out, 'href="/projects/1"') !== false, "root-relative href stripped: $out");
+});
+
+it('allows root-relative src', function () {
+    $out = HtmlSanitizer::cleanRich('<img src="/uploads/2026/06/a.png">');
+    assert_true(strpos($out, 'src="/uploads/2026/06/a.png"') !== false, "root-relative src stripped: $out");
+});
+
+it('still blocks protocol-relative //host as href', function () {
+    $out = HtmlSanitizer::clean('<a href="//evil.example">x</a>');
+    assert_true(strpos($out, 'href') === false, "protocol-relative href survived: $out");
+});
+
+it('still blocks protocol-relative //host as src', function () {
+    $out = HtmlSanitizer::cleanRich('<img src="//evil.example/x.png">');
+    assert_true(strpos($out, 'src') === false, "protocol-relative src survived: $out");
+});
+
+it('blocks backslash-after-slash href (browsers normalise \\ to / for special schemes, making it protocol-relative)', function () {
+    $out = HtmlSanitizer::clean('<a href="/\\evil.example">x</a>');
+    assert_true(strpos($out, 'href') === false, "backslash-obfuscated protocol-relative href survived: $out");
+});
+
+it('blocks backslash-after-slash src', function () {
+    $out = HtmlSanitizer::cleanRich('<img src="/\\evil.example/x.png">');
+    assert_true(strpos($out, 'src') === false, "backslash-obfuscated protocol-relative src survived: $out");
+});
+
+it('allows a same-origin path containing an encoded slash (%2F is not decoded by the URL parser into a host separator)', function () {
+    $out = HtmlSanitizer::clean('<a href="/%2Fevil.example">x</a>');
+    assert_true(strpos($out, 'href="/%2Fevil.example"') !== false, "encoded-slash same-origin href stripped: $out");
+});
+
+it('does not additionally allow ./, ../, or bare relative paths', function () {
+    foreach (['./x', '../x', 'x/y', 'projects/1'] as $val) {
+        $out = HtmlSanitizer::clean('<a href="' . $val . '">x</a>');
+        assert_true(strpos($out, 'href') === false, "non-root-relative href unexpectedly survived for '$val': $out");
     }
 });
