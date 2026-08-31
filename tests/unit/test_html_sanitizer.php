@@ -519,6 +519,70 @@ it('no corpus payload yields a live img/meta/form/script/style', function () {
 });
 
 /**
+ * Extract every href/src/action/formaction/xlink:href attribute value
+ * exactly as it appears in serialised HTML text, PAIRED with its attribute
+ * name — before any parser decodes so much as a single character
+ * reference.
+ *
+ * This exists because DOMDocument::getAttribute() is not a safe base to
+ * decode on top of for this check, and the problem is not merely "libxml's
+ * named-entity table is incomplete" — it's that going through libxml first
+ * makes the ambiguity unresolvable. libxml performs its OWN single decode
+ * pass during loadHTML(): for numeric references and the XML-core named
+ * ones (`&amp;` `&lt;` `&gt;` `&quot;` `&apos;`) that pass already matches
+ * a real browser's single pass exactly. But for the *extended* HTML5 named
+ * references it doesn't know at all (`&sol;` = /, `&bsol;` = \, …) it
+ * leaves the source text completely untouched. The result: getAttribute()
+ * returns the IDENTICAL string "/&sol;evil.example" whether the raw source
+ * was the dangerous bare `&sol;` (a browser decodes this to "/", making
+ * the fix's job to catch it) or the safely double-escaped `&amp;sol;`
+ * (a browser's single pass already lands on that same literal text, and
+ * decoding it again would be the exact double-decode bug 439cb57 fixed in
+ * production, see the block comment above the URL-predicate tests). Once
+ * both source forms collapse to the same string, no decode rule applied
+ * *after* getAttribute() can tell them apart. Verified directly: decoding
+ * getAttribute()'s result for `HtmlSanitizer::clean('<a href="/&sol;evil.example">')`
+ * — genuinely fixed, safe production output — false-flags it as off-origin.
+ *
+ * Operating on the untouched, pre-parse serialised text removes the
+ * ambiguity instead of guessing through it: html_entity_decode(...,
+ * ENT_HTML5) run ONCE over raw text is a faithful single-pass
+ * browser-equivalent decode for every reference family at once (numeric,
+ * XML-core, and extended named), and a byproduct "&sol;" can never appear
+ * in raw text as a side effect of an author writing "&amp;sol;" — the two
+ * substrings do not overlap character-for-character — so there is nothing
+ * left to disambiguate.
+ *
+ * The regex requires each attribute to sit inside what looks like a tag
+ * (an unescaped "<...>" span) so "href=" cannot match as plain inert text
+ * content — genuine text content never contains a bare "<" in well-formed
+ * sanitiser output (that would itself be a live tag, caught separately by
+ * the live-element checks in this file).
+ *
+ * @return list<array{0: string, 1: string}> [attrNameLower, rawValue] pairs
+ */
+function extract_raw_url_attrs(string $out): array
+{
+    $result = [];
+    if (!preg_match_all('/<[a-zA-Z][^<>]*>/', $out, $tags)) {
+        return $result;
+    }
+    foreach ($tags[0] as $tag) {
+        if (preg_match_all(
+            '/\s(href|src|action|formaction|xlink:href)\s*=\s*"([^"]*)"/i',
+            $tag,
+            $attrs,
+            \PREG_SET_ORDER
+        )) {
+            foreach ($attrs as $a) {
+                $result[] = [strtolower($a[1]), $a[2]];
+            }
+        }
+    }
+    return $result;
+}
+
+/**
  * Re-parse sanitised output the way a browser would and report only *live*
  * danger. Substring assertions cannot tell `onerror=alert(1)` from
  * `title="…&lt;img onerror=alert(1)&gt;"` — the second is inert text and a
@@ -548,22 +612,25 @@ function live_dangers(string $out): array
                 && preg_match('/^\s*(javascript|vbscript)\s*:/i', $val)) {
                 $bad[] = "live scheme in $name";
             }
-            // Off-origin authority. A value that begins "//host" or "/\host"
-            // is a protocol-relative *absolute* URL to another origin — the
-            // <a> navigation is not covered by any CSP directive (form-action
-            // governs form submission; there is no navigate-to). Browsers
-            // strip leading/trailing ASCII whitespace and ignore C0 controls
-            // in URL attributes, and libxml silently drops most C0 bytes when
-            // it re-serialises, so normalise both away before looking. "%2F"
-            // and "%5C" are NOT decoded into an authority separator by the
-            // WHATWG URL parser, so an encoded slash stays same-origin and
-            // must not be flagged.
-            if (in_array($name, ['href', 'src', 'action', 'formaction', 'xlink:href'], true)) {
-                $origin = preg_replace('/[\x00-\x20\x7F]+/', '', $attr->value);
-                if (preg_match('#^/[/\\\\]#', $origin)) {
-                    $bad[] = "off-origin authority in $name";
-                }
-            }
+        }
+    }
+    // Off-origin authority. A value that begins "//host" or "/\host" is a
+    // protocol-relative *absolute* URL to another origin — the <a>
+    // navigation is not covered by any CSP directive (form-action governs
+    // form submission; there is no navigate-to). Browsers strip
+    // leading/trailing ASCII whitespace and ignore C0 controls in URL
+    // attributes, so normalise both away before looking. "%2F" and "%5C"
+    // are NOT decoded into an authority separator by the WHATWG URL parser,
+    // so an encoded slash stays same-origin and must not be flagged.
+    //
+    // Checked against extract_raw_url_attrs()'s pre-parse text rather than
+    // DOMAttr::value — see that function's docblock for why going through
+    // libxml first makes the safe and the dangerous case indistinguishable.
+    foreach (extract_raw_url_attrs($out) as [$name, $rawVal]) {
+        $decoded = html_entity_decode($rawVal, \ENT_QUOTES | \ENT_HTML5, 'UTF-8');
+        $origin  = preg_replace('/[\x00-\x20\x7F]+/', '', $decoded) ?? '';
+        if (preg_match('#^/[/\\\\]#', $origin)) {
+            $bad[] = "off-origin authority in $name";
         }
     }
     return $bad;
@@ -964,30 +1031,51 @@ const SANITISER_URL_PREDICATES = [
 ];
 
 /**
- * Re-parse sanitised output the way a browser would (which decodes character
- * references) and assert every surviving href/src still satisfies the
- * predicate the sanitiser claimed to enforce. An attribute that survived with
- * an empty value fails too — that is the "<a href>" shape the entity-parser
- * warning used to produce.
+ * Re-parse sanitised output and assert every surviving href/src still
+ * satisfies the predicate the sanitiser claimed to enforce. An attribute
+ * that survived with an empty value fails too — that is the "<a href>"
+ * shape the entity-parser warning used to produce.
+ *
+ * Deliberately does NOT go through DOMDocument::loadHTML() /
+ * DOMAttr::getAttribute() to get the value to probe. libxml is not a
+ * browser-equivalent parser for character references — it resolves numeric
+ * references and the XML-core named ones ("&amp;" etc.) exactly like a
+ * browser's single decode pass would, but it does not know the extended
+ * HTML5 named references ("&sol;" = /, "&bsol;" = \, …) at all, so those
+ * come back from getAttribute() completely undecoded. Worse: because
+ * libxml's pass already matches a browser's for the entities it does know,
+ * a value that survives getAttribute() as e.g. "/&sol;evil.example" is
+ * genuinely ambiguous — it is the identical string whether the raw source
+ * was the dangerous bare "&sol;" (a browser decodes it to "/") or the
+ * safely double-escaped "&amp;sol;" (a browser's own single pass already
+ * lands on that same literal text). No rule applied after getAttribute()
+ * can tell those apart, so any such rule is a coin flip between catching
+ * the real bug and false-flagging safe output. Verified directly: decoding
+ * getAttribute()'s result false-flags genuinely-fixed production output
+ * for exactly this shape of input as off-origin.
+ *
+ * extract_raw_url_attrs() sidesteps the ambiguity by handing back the
+ * untouched, pre-parse attribute text, which a single html_entity_decode()
+ * pass (ENT_HTML5) turns into a faithful single-pass browser-equivalent
+ * value for every reference family — including the extended named ones —
+ * without re-decoding anything already resolved. See its docblock for the
+ * full argument.
  */
 function assert_serialised_urls_match_predicate(string $out, string $label): void
 {
     if (trim($out) === '') return;
-    $doc = new \DOMDocument();
-    @$doc->loadHTML('<html><body>' . $out . '</body></html>', \LIBXML_NOWARNING | \LIBXML_NOERROR);
-    foreach ((new \DOMXPath($doc))->query('//*[@href or @src]') as $el) {
-        foreach (SANITISER_URL_PREDICATES as $name => $pattern) {
-            if (!$el->hasAttribute($name)) continue;
-            $raw   = $el->getAttribute($name);
-            // Same probe normalisation the sanitiser matches against: browsers
-            // ignore C0 controls and ASCII whitespace inside URL attributes.
-            $probe = preg_replace('/[\x00-\x20\x7F]+/', '', $raw) ?? '';
-            assert_true(
-                (bool) preg_match($pattern, $probe),
-                "$label: serialised $name=" . var_export($raw, true)
-                    . " does NOT satisfy the sanitiser's own $name predicate => $out"
-            );
-        }
+    foreach (extract_raw_url_attrs($out) as [$name, $rawVal]) {
+        if (!isset(SANITISER_URL_PREDICATES[$name])) continue;
+        $pattern = SANITISER_URL_PREDICATES[$name];
+        $decoded = html_entity_decode($rawVal, \ENT_QUOTES | \ENT_HTML5, 'UTF-8');
+        // Same probe normalisation the sanitiser matches against: browsers
+        // ignore C0 controls and ASCII whitespace inside URL attributes.
+        $probe = preg_replace('/[\x00-\x20\x7F]+/', '', $decoded) ?? '';
+        assert_true(
+            (bool) preg_match($pattern, $probe),
+            "$label: serialised $name=" . var_export($rawVal, true)
+                . " does NOT satisfy the sanitiser's own $name predicate => $out"
+        );
     }
 }
 
