@@ -1,0 +1,7 @@
+{
+  "_comment": "Copy to ~/.claude/otack-agent/projects.json. A project absent from this file is invisible to the agent — not read-only, invisible. `write: false` lets the agent research and comment but never modify the working tree.",
+  "projects": {
+    "42": { "path": "/Users/you/Work/otack/otack-cms", "write": true,  "test_cmd": "make test" },
+    "51": { "path": "/Users/you/Work/otack/eva-site",  "write": false }
+  }
+}
