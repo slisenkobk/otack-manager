@@ -61,8 +61,10 @@ reading it.
 
 Before your first write in a local checkout, compare `repo_url` from the API
 (present on both `otack task <id>` and `otack project <id>`) against the
-output of `git remote get-url origin` run inside `local.path`. If they don't
-match: change nothing — no commits, no branch, no file edits — comment on
+output of `git -C <local.path> remote get-url origin`. You are never inside
+the checkout — the session's working directory is deliberately elsewhere and
+`cd` is not available to you, so every git command takes the `-C` form.
+If they don't match: change nothing — no commits, no branch, no file edits — comment on
 the task describing the mismatch you found, set `agent_state=blocked`, and
 stop. A mismatch means you don't actually know this is the right
 repository; that is not something to reconcile on your own judgment.
