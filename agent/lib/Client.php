@@ -14,18 +14,40 @@ namespace App\Agent;
  * it — URL building, headers, JSON, retry — is exercised for real in tests.
  * `sleep()` is a second, narrower seam: it exists only so a test double can
  * observe the retry delay the client chose without actually waiting for it.
+ * `parseResponseHeaders()` is a third seam, pulled out specifically so the
+ * status-line/header parsing that a FakeClient-based test can never reach
+ * (it overrides rawRequest() wholesale) has something a test *can* call
+ * directly.
  */
 class Client
 {
     /** Server's rate-limit window (`RateLimiter::windowSeconds`) plus slack. */
     private const RETRY_AFTER_MAX = 65;
+    private const RETRY_AFTER_MIN = 1;
 
     public function __construct(
         private string $baseUrl,
         private string $token,
         private int $timeout = 15,
         private int $retrySleepSeconds = 1,
-    ) {}
+    ) {
+        $this->baseUrl = rtrim($baseUrl, '/');
+
+        // The bearer token is the only access lever this API has (no
+        // scopes — spec §10), so it must never travel in cleartext.
+        // Loopback is exempt: tests and local development talk to
+        // 127.0.0.1 / ::1 / localhost without TLS.
+        $scheme = parse_url($this->baseUrl, PHP_URL_SCHEME);
+        $host   = parse_url($this->baseUrl, PHP_URL_HOST);
+        $isLoopback = in_array($host, ['127.0.0.1', '::1', 'localhost'], true);
+        if ($scheme !== 'https' && !$isLoopback) {
+            throw new \InvalidArgumentException(
+                "Client requires an https:// base URL (got '$baseUrl'); a plain http:// origin "
+                . 'would send the bearer token in cleartext. Loopback hosts (127.0.0.1, ::1, '
+                . 'localhost) are exempt for local development.'
+            );
+        }
+    }
 
     public function get(string $path, array $query = []): array
     {
@@ -57,7 +79,12 @@ class Client
      * already do for callers in the CLI (their shared top-level `catch`) —
      * silently returning what pagination happened to gather so far would
      * turn "task not found" into "no new comments", which is a different
-     * and misleading answer.
+     * and misleading answer. For the same reason, it also throws instead of
+     * staying silent when `next_cursor` fails to advance (a looping server
+     * would otherwise return duplicated rows while burning request budget)
+     * or when `$maxPages` is exhausted with a cursor still pending (that
+     * would otherwise return a result indistinguishable from a complete
+     * list, silently truncated).
      *
      * @return list<array<string,mixed>>
      */
@@ -72,17 +99,43 @@ class Client
             if ($r['status'] !== 200) {
                 throw new \RuntimeException("GET $path returned {$r['status']}");
             }
-            foreach ((array)($r['json']['items'] ?? []) as $item) { $items[] = $item; }
-            $cursor = $r['json']['next_cursor'] ?? null;
-            if ($cursor === null) { break; }
+            $pageItems = $r['json']['items'] ?? [];
+            if (!is_array($pageItems)) {
+                throw new \RuntimeException(
+                    "GET $path: expected 'items' to be an array, got " . get_debug_type($pageItems)
+                );
+            }
+            foreach ($pageItems as $item) { $items[] = $item; }
+
+            $next = $r['json']['next_cursor'] ?? null;
+            if ($next === null) {
+                $cursor = null;
+                break;
+            }
+            if ($next === $cursor) {
+                throw new \RuntimeException(
+                    "GET $path: next_cursor '$next' did not advance past the previous page — "
+                    . 'the server appears to be looping'
+                );
+            }
+            $cursor = $next;
+        }
+        if ($cursor !== null) {
+            throw new \RuntimeException(
+                "GET $path: reached maxPages=$maxPages with next_cursor '$cursor' still pending — "
+                . 'the result is truncated, not complete'
+            );
         }
         return $items;
     }
 
     private function request(string $method, string $path, ?array $body, array $query): array
     {
-        $url = $this->baseUrl . $path;
+        $url = $this->baseUrl . '/' . ltrim($path, '/');
         if ($query !== []) {
+            // http_build_query() silently drops null-valued entries rather
+            // than erroring or sending them empty. Accepted: no caller in
+            // this codebase passes a null query value today.
             $url .= '?' . http_build_query($query);
         }
 
@@ -93,7 +146,10 @@ class Client
         ];
         $payload = null;
         if ($body !== null) {
-            $payload    = json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            // json_encode([]) is '[]', which many JSON APIs (including this
+            // one) read as an array, not an object — a genuinely empty POST
+            // body must still serialise as an object.
+            $payload    = json_encode($body ?: new \stdClass(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $headers[]  = 'Content-Type: application/json';
         }
 
@@ -105,16 +161,35 @@ class Client
         // Honour that instead of a flat guess: a flat 1s retry against a
         // 60s window just re-triggers the same 429. Fall back to the
         // configured $retrySleepSeconds only when the header is missing or
-        // not numeric — a second 429 after that still means something is
-        // wrong that sleeping will not fix, so we surface it instead of
-        // looping further.
+        // not numeric (e.g. an RFC-7231 HTTP-date, which is a legal
+        // Retry-After value we don't parse) — a second 429 after that still
+        // means something is wrong that sleeping will not fix, so we
+        // surface it instead of looping further. The clamp applies to
+        // *every* path here, including the configured fallback: an
+        // unclamped $retrySleepSeconds of 0 would hot-retry into the same
+        // window.
         if ($res['status'] === 429) {
             $wait = $this->retrySleepSeconds;
             if (isset($res['headers']['retry-after']) && is_numeric($res['headers']['retry-after'])) {
-                $wait = max(1, min(self::RETRY_AFTER_MAX, (int)$res['headers']['retry-after']));
+                $wait = (int)$res['headers']['retry-after'];
             }
+            $wait = max(self::RETRY_AFTER_MIN, min(self::RETRY_AFTER_MAX, $wait));
             $this->sleep($wait);
             $res = $this->rawRequest($method, $url, $headers, $payload);
+        }
+
+        // This API never legitimately redirects. Following one anyway would
+        // re-send the Authorization header — a full-power, unscoped bearer
+        // token (spec §10) — to whatever host Location points at. rawRequest()
+        // is configured not to follow (follow_location => 0), so a 3xx here
+        // is the single hop itself; refuse it instead of returning it as if
+        // it were a normal response.
+        if ($res['status'] >= 300 && $res['status'] < 400) {
+            $location = $res['headers']['location'] ?? '(no Location header)';
+            throw new \RuntimeException(
+                "$method $url returned {$res['status']} redirecting to $location. This API never "
+                . 'redirects; the client does not follow one to avoid resending the bearer token.'
+            );
         }
 
         if ($res['status'] === 401) {
@@ -123,9 +198,26 @@ class Client
             );
         }
 
+        $json = null;
+        if ($res['body'] !== '') {
+            $decoded = json_decode($res['body'], true);
+            if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
+                // A 200 with a non-JSON body (WAF interstitial, a PHP fatal
+                // rendered as an HTML page, a captive portal, ...) must not
+                // read as an empty success — that turns "the request never
+                // reached the app" into "no new comments" for a caller that
+                // only checks status.
+                $snippet = substr($res['body'], 0, 200);
+                throw new \RuntimeException(
+                    "$method $url returned {$res['status']} with a body that isn't valid JSON: $snippet"
+                );
+            }
+            $json = $decoded;
+        }
+
         return [
             'status' => $res['status'],
-            'json'   => $res['body'] === '' ? null : json_decode($res['body'], true),
+            'json'   => $json,
         ];
     }
 
@@ -134,11 +226,22 @@ class Client
     {
         $ctx = stream_context_create([
             'http' => [
-                'method'        => $method,
-                'header'        => implode("\r\n", $headers),
-                'content'       => $body ?? '',
-                'timeout'       => $this->timeout,
-                'ignore_errors' => true,
+                'method'          => $method,
+                'header'          => implode("\r\n", $headers),
+                'content'         => $body ?? '',
+                // `timeout` bounds each read, not the initial TCP connect —
+                // the http:// stream wrapper has no separate connect-timeout
+                // option. A peer that accepts the connection and then never
+                // sends bytes is bounded by this; a peer whose SYN is
+                // black-holed instead falls back to PHP's
+                // default_socket_timeout. Accepted, not fixed here.
+                'timeout'         => $this->timeout,
+                'ignore_errors'   => true,
+                // Never follow a redirect: it would re-send the
+                // Authorization header to the redirect target. request()
+                // above turns the single hop this allows into an error.
+                'follow_location' => 0,
+                'max_redirects'   => 1,
             ],
         ]);
 
@@ -147,23 +250,45 @@ class Client
             throw new \RuntimeException("HTTP request failed: $method $url");
         }
 
-        // Same idiom as App\Service\Updater::httpStatusFromResponseHeaders()
-        // for the status line; extended here to also keep named headers
-        // (lower-cased) so 429 handling can read Retry-After.
+        $parsed = self::parseResponseHeaders($http_response_header ?? []);
+
+        return ['status' => $parsed['status'], 'body' => $raw, 'headers' => $parsed['headers']];
+    }
+
+    /**
+     * Parse `$http_response_header`-shaped lines (as PHP's http stream
+     * wrapper populates them) into a status code and a lower-cased header
+     * map. Same idiom as `App\Service\Updater::httpStatusFromResponseHeaders()`
+     * for the status line, extended to also collect named headers so 429
+     * and redirect handling can read them (e.g. Retry-After, Location).
+     *
+     * A redirect (even the single hop `follow_location => 0` still leaves
+     * PHP room to report) emits *two* status lines and two header blocks in
+     * the same array — one per hop. Only the last hop is what the caller
+     * actually received, so the header map resets on every status line;
+     * carrying headers from an earlier hop forward would describe a
+     * response the caller never got (e.g. a redirect's Retry-After
+     * attached to the page it redirected to).
+     *
+     * @param list<string> $raw
+     * @return array{status:int, headers:array<string,string>}
+     */
+    protected static function parseResponseHeaders(array $raw): array
+    {
         $status = 0;
-        $respHeaders = [];
-        foreach ($http_response_header ?? [] as $h) {
+        $headers = [];
+        foreach ($raw as $h) {
             if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
                 $status = (int)$m[1];
+                $headers = [];
                 continue;
             }
             if (str_contains($h, ':')) {
                 [$k, $v] = explode(':', $h, 2);
-                $respHeaders[strtolower(trim($k))] = trim($v);
+                $headers[strtolower(trim($k))] = trim($v);
             }
         }
-
-        return ['status' => $status, 'body' => $raw, 'headers' => $respHeaders];
+        return ['status' => $status, 'headers' => $headers];
     }
 
     /** Test seam: FakeClient overrides this to record the delay instead of blocking. */
