@@ -303,3 +303,124 @@ it('Config::load throws on a non-canonical numeric project id like "042"', funct
     $home = _agentHomeRawProjects(_AGENT_ENV_OK, json_encode(['projects' => ['042' => ['path' => '/tmp']]]));
     _agentAssertThrows(fn() => Config::load($home), '042', 'expected a RuntimeException naming the non-canonical id "042"');
 });
+
+// --- in_progress_column / review_column: machine-local board-column config ---
+//
+// The board's "in progress"/"review" columns are free-text and can be named
+// in any language (Russian/Polish teams), so the phase machine cannot guess
+// them from the server's is_done/is_backlog flags. These two optional keys
+// let the operator name the columns explicitly, either by id (int) or by
+// exact column name (string). Absent means null; any other JSON type must
+// throw naming the project and the offending key — same fail-closed spirit
+// as the "write" boolean check above (C1).
+
+it('Config::projectPath returns null for in_progress_column and review_column when both are absent', function () {
+    mkdir('/tmp/p-col-absent');
+    $home = _agentHome(_AGENT_ENV_OK, ['projects' => ['60' => ['path' => '/tmp/p-col-absent']]]);
+    $c = Config::load($home);
+    assert_eq(null, $c->projectPath(60)['in_progress_column']);
+    assert_eq(null, $c->projectPath(60)['review_column']);
+    _agentConfigRrmdir('/tmp/p-col-absent');
+});
+
+it('Config::projectPath accepts in_progress_column and review_column given as integer column ids', function () {
+    mkdir('/tmp/p-col-int');
+    $home = _agentHome(_AGENT_ENV_OK, ['projects' => ['61' => [
+        'path' => '/tmp/p-col-int',
+        'in_progress_column' => 3,
+        'review_column' => 5,
+    ]]]);
+    $c = Config::load($home);
+    assert_eq(3, $c->projectPath(61)['in_progress_column']);
+    assert_eq(5, $c->projectPath(61)['review_column']);
+    _agentConfigRrmdir('/tmp/p-col-int');
+});
+
+it('Config::projectPath accepts in_progress_column and review_column given as exact column-name strings', function () {
+    mkdir('/tmp/p-col-str');
+    $home = _agentHome(_AGENT_ENV_OK, ['projects' => ['62' => [
+        'path' => '/tmp/p-col-str',
+        'in_progress_column' => 'В работе',
+        'review_column' => 'Na przeglądzie',
+    ]]]);
+    $c = Config::load($home);
+    assert_eq('В работе', $c->projectPath(62)['in_progress_column']);
+    assert_eq('Na przeglądzie', $c->projectPath(62)['review_column']);
+    _agentConfigRrmdir('/tmp/p-col-str');
+});
+
+it('Config::load throws when in_progress_column is a float, naming the project and the key', function () {
+    mkdir('/tmp/p-col-float');
+    $home = _agentHome(_AGENT_ENV_OK, ['projects' => ['63' => [
+        'path' => '/tmp/p-col-float',
+        'in_progress_column' => 3.5,
+    ]]]);
+    _agentAssertThrows(
+        fn() => Config::load($home),
+        '63',
+        'expected a RuntimeException naming project id "63" for a float in_progress_column'
+    );
+    _agentAssertThrows(
+        fn() => Config::load($home),
+        'in_progress_column',
+        'expected a RuntimeException naming the key "in_progress_column" for a float value'
+    );
+    _agentConfigRrmdir('/tmp/p-col-float');
+});
+
+it('Config::load throws when review_column is an array, naming the project and the key', function () {
+    mkdir('/tmp/p-col-array');
+    $home = _agentHomeRawProjects(_AGENT_ENV_OK, json_encode(['projects' => ['64' => [
+        'path' => '/tmp/p-col-array',
+        'review_column' => ['not', 'scalar'],
+    ]]]));
+    _agentAssertThrows(
+        fn() => Config::load($home),
+        '64',
+        'expected a RuntimeException naming project id "64" for an array review_column'
+    );
+    _agentAssertThrows(
+        fn() => Config::load($home),
+        'review_column',
+        'expected a RuntimeException naming the key "review_column" for an array value'
+    );
+    _agentConfigRrmdir('/tmp/p-col-array');
+});
+
+it('Config::load throws when in_progress_column is a bool, naming the project and the key', function () {
+    mkdir('/tmp/p-col-bool');
+    $home = _agentHome(_AGENT_ENV_OK, ['projects' => ['65' => [
+        'path' => '/tmp/p-col-bool',
+        'in_progress_column' => true,
+    ]]]);
+    _agentAssertThrows(
+        fn() => Config::load($home),
+        '65',
+        'expected a RuntimeException naming project id "65" for a boolean in_progress_column'
+    );
+    _agentAssertThrows(
+        fn() => Config::load($home),
+        'in_progress_column',
+        'expected a RuntimeException naming the key "in_progress_column" for a boolean value'
+    );
+    _agentConfigRrmdir('/tmp/p-col-bool');
+});
+
+it('Config::load throws when review_column is a bool, naming the project and the key', function () {
+    mkdir('/tmp/p-col-bool2');
+    $home = _agentHome(_AGENT_ENV_OK, ['projects' => ['66' => [
+        'path' => '/tmp/p-col-bool2',
+        'review_column' => false,
+    ]]]);
+    _agentAssertThrows(
+        fn() => Config::load($home),
+        '66',
+        'expected a RuntimeException naming project id "66" for a boolean review_column'
+    );
+    _agentAssertThrows(
+        fn() => Config::load($home),
+        'review_column',
+        'expected a RuntimeException naming the key "review_column" for a boolean value'
+    );
+    _agentConfigRrmdir('/tmp/p-col-bool2');
+});

@@ -17,17 +17,58 @@ whenever you change phase, not just at the start of the tick.
 Steps below tell you to move the card into an in-progress column, or later
 into a review column. The API only marks two columns specially —
 `is_done` and `is_backlog`, both visible on each entry of the project's
-`columns` array (from `otack task <id>`). Every other column is an ordinary
-board column with a free-text `name`; there is no field saying "this is the
-in-progress column" the way there is for done/backlog, and a board can have
-more than one column that is neither done nor backlog. Match by name: look
-for something containing "progress" (case-insensitive) for the in-progress
-move, "review" for the review move — that matches the naming this system's
-own docs use as an example (`"In review"`). If nothing matches, or more
-than one column plausibly does, pick the most reasonable candidate rather
-than stall the tick over it — the column is there for a human glancing at
-the board, not something `otack next` or any other command reads back.
-`agent_state` is the field that actually drives the state machine.
+`columns` array (from `otack task <id>` or `GET /projects/{id}`). Every
+other column is an ordinary board column with a free-text `name`, and a
+fresh board isn't even seeded with a review column at all. Column names
+also aren't in English on every board — a Russian- or Polish-speaking
+team's board will have columns named things like «В работе» or «Na
+przeglądzie», so matching on the English words "progress"/"review" fails
+silently on exactly those boards. Resolve the column in this order, and do
+not skip straight to guessing:
+
+1. **Config names it — use that.** `local` (from `otack next` or
+   `otack task <id>`) carries `in_progress_column` and `review_column` from
+   this machine's `~/.claude/otack-agent/projects.json`, when the operator
+   set them. Each is either an integer column id (match it directly against
+   a column's `id`) or a string (match it by **exact** name against a
+   column's `name` in the project's `columns` array). If the configured
+   value doesn't resolve to any column on the board — id not found, or
+   string doesn't exactly match any `name` — treat that the same as "config
+   does not name a usable column" and fall through to step 2/3; do not
+   silently drop the move.
+
+2. **Config doesn't name it, but exactly one candidate is obvious — for
+   the in-progress move only.** If, among the columns that are neither
+   `is_done` nor `is_backlog`, exactly one has a name you're genuinely
+   confident is "in progress" in that board's language, moving into it is
+   acceptable. This narrow allowance exists **only** for the in-progress
+   move. Never use it for the review move: a board with no review column is
+   common (the default seed doesn't create one), and guessing which
+   leftover column is "review" risks filing the card somewhere a human
+   isn't watching for it.
+
+3. **Otherwise, do not guess.** Post a comment naming the columns the
+   board actually has (`columns[].name`) and asking the human which one to
+   use. What happens next differs by which move this is — see below.
+
+**The card move is cosmetic; `agent_state` is what actually drives the
+phase machine.** `otack next`'s picking logic and every phase in this file
+key off `agent_state`, never off which column a card visually sits in. That
+difference matters for what step 3 means in practice:
+
+- **In-progress move** (reason: `new`, step 1, before any work has
+  started): unresolved means `otack state <id> blocked` and stop the tick —
+  nothing has been done yet, so pausing to ask costs nothing.
+- **Review move** (see "Finishing: handing over to review" below):
+  unresolved does **not** mean `blocked`. The implementation is already
+  done and waiting on a human; blocking it behind a cosmetic move failure
+  would hide a finished task from review for no reason. Instead: say in the
+  handover comment that the board has no column you could confidently use
+  for review (naming the columns it does have), skip the `otack move` call,
+  and still run `otack state <id> review` exactly as you would if the move
+  had succeeded. A board with no review column, or one you can't confidently
+  identify, is a reason to skip the *move* and mention it, never a reason to
+  skip setting the state.
 
 ## reason: new — nobody has started this
 
@@ -97,5 +138,10 @@ for you to do on it once the comment is posted and the state is set.
 - No `dev_branch`: say plainly in the comment that it must be checked
   locally, and give the exact commands to run it.
 
-Then `otack move <id> <column-id>` into the review column (see "Finding
-'the' in-progress or review column" above), and `otack state <id> review`.
+Resolve the review column per "Finding 'the' in-progress or review column"
+above. If it resolves, `otack move <id> <column-id>` into it. If it
+doesn't, skip the move and say so in the same comment, naming the columns
+the board actually has. Either way, finish with `otack state <id> review` —
+the move is cosmetic, the state change is not, and a board with no review
+column is never a reason to leave the card's `agent_state` behind at
+`implementing`.

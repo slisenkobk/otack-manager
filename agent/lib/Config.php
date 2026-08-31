@@ -29,7 +29,15 @@ namespace App\Agent;
  */
 final class Config
 {
-    /** @param array<string, array{path:string, write:bool, test_cmd:?string}> $projects */
+    /**
+     * @param array<string, array{
+     *     path: string,
+     *     write: bool,
+     *     test_cmd: ?string,
+     *     in_progress_column: int|string|null,
+     *     review_column: int|string|null,
+     * }> $projects
+     */
     private function __construct(
         public readonly string $instance,
         public readonly string $token,
@@ -181,10 +189,26 @@ final class Config
                     );
                 }
 
+                // The board's in-progress/review columns are free-text and
+                // vary by team language (Russian/Polish boards won't contain
+                // the English words "progress"/"review"), so the phase
+                // machine cannot infer them from the server's is_done/
+                // is_backlog flags — the operator names them here instead.
+                // Each is either an integer column id or an exact column
+                // name (string); anything else (float, bool, array, object)
+                // is a hand-editing mistake and must throw naming the
+                // project and the key, the same fail-closed spirit as the
+                // "write" boolean check above (C1) — never silently
+                // stringify or truncate it into something that looks valid.
+                $inProgressColumn = self::readColumnRef($p, 'in_progress_column', $idStr, $projPath);
+                $reviewColumn     = self::readColumnRef($p, 'review_column', $idStr, $projPath);
+
                 $projects[$idStr] = [
-                    'path'     => $real,
-                    'write'    => $write,
-                    'test_cmd' => isset($p['test_cmd']) && $p['test_cmd'] !== '' ? (string)$p['test_cmd'] : null,
+                    'path'               => $real,
+                    'write'              => $write,
+                    'test_cmd'           => isset($p['test_cmd']) && $p['test_cmd'] !== '' ? (string)$p['test_cmd'] : null,
+                    'in_progress_column' => $inProgressColumn,
+                    'review_column'      => $reviewColumn,
                 ];
             }
         }
@@ -192,10 +216,44 @@ final class Config
         return new self(rtrim($env['OTACK_API_URL'], '/'), $env['OTACK_API_TOKEN'], $projects);
     }
 
-    /** @return array{path:string, write:bool, test_cmd:?string}|null */
+    /**
+     * @return array{
+     *     path: string,
+     *     write: bool,
+     *     test_cmd: ?string,
+     *     in_progress_column: int|string|null,
+     *     review_column: int|string|null,
+     * }|null
+     */
     public function projectPath(int $id): ?array
     {
         return $this->projects[(string)$id] ?? null;
+    }
+
+    // Reads an optional in_progress_column / review_column value out of one
+    // project entry. Absent -> null. Present -> must be a JSON integer or a
+    // JSON string (a column id or an exact column name); any other type
+    // (float, bool, array, object) throws, naming both the project id and
+    // the key, so a hand-editing mistake reads to the operator as "this
+    // project's config is broken" rather than being coerced into something
+    // that silently resolves to the wrong column.
+    private static function readColumnRef(array $p, string $key, string $idStr, string $projPath): int|string|null
+    {
+        if (!array_key_exists($key, $p) || $p[$key] === null) {
+            return null;
+        }
+        $v = $p[$key];
+        if (is_int($v)) {
+            return $v;
+        }
+        if (is_string($v) && $v !== '') {
+            return $v;
+        }
+        $got = var_export($v, true);
+        throw new \RuntimeException(
+            "Project \"$idStr\" in $projPath has an invalid \"$key\" value ($got); "
+            . 'use either an integer column id or a non-empty string with the exact column name'
+        );
     }
 
     // M1 + m1: reject a path that is group- or world-writable. fileperms()
