@@ -651,11 +651,60 @@ it('assign me PATCHes assignee_id with my id; assign none sends null', function 
         $patches = array_values(array_filter(_requestLog($log), fn($e) => $e['method'] === 'PATCH'));
         assert_eq(['assignee_id' => 3], $patches[0]['body']);
         assert_eq(['assignee_id' => null], $patches[1]['body']);
+        $before = count(_requestLog($log));
         assert_eq(2, _cli('assign 77 me', $home, '', 'agent')['code'], 'assign is manager-only');
+        assert_eq($before, count(_requestLog($log)), 'agent-scope assign must refuse before any request');
         assert_eq(2, _cli('assign 77 bob', $home, '', 'manager')['code']);
     });
 });
 
 it('unknown options are refused', function () {
     assert_eq(2, _cli('todo --everything', _cliHome(), '', 'agent')['code']);
+});
+
+it('projects in agent scope lists only projects present in projects.json', function () {
+    _cliFixtureServer([
+        'GET /api/v1/projects' => [['status' => 200, 'body' => json_encode(['items' => [
+            ['id' => 42, 'name' => 'Listed', 'slug' => 'listed'],
+            ['id' => 900, 'name' => 'New one', 'slug' => 'new-one'],
+        ], 'next_cursor' => null])]],
+    ], function (int $port) {
+        $r = _cli('projects', _cliManagerHome($port), '', 'agent');
+        assert_eq(0, $r['code'], $r['err']);
+        assert_eq([42], array_map(fn($i) => $i['id'], json_decode($r['out'], true)['items']));
+    });
+});
+
+it('todo --project in agent scope refuses an unlisted project before fetching it', function () {
+    _cliFixtureServer([
+        'GET /api/v1/me' => [['status' => 200, 'body' => json_encode(['id' => 3])]],
+    ], function (int $port, string $log) {
+        $r = _cli('todo --project 900', _cliManagerHome($port), '', 'agent');
+        assert_eq(1, $r['code']);
+        assert_true(str_contains($r['err'], 'is not listed'), $r['err']);
+        assert_eq([], array_values(array_filter(_requestLog($log), fn($e) => str_starts_with($e['path'], '/api/v1/projects/900'))));
+    });
+});
+
+it('todo without --project in agent scope drops tasks of unlisted projects', function () {
+    _cliFixtureServer([
+        'GET /api/v1/me'               => [['status' => 200, 'body' => json_encode(['id' => 3])]],
+        'GET /api/v1/tasks'            => [['status' => 200, 'body' => json_encode(['items' => [
+            ['id' => 20, 'project_id' => 42, 'column_id' => 2, 'priority' => 'high', 'assignee_id' => 3],
+            ['id' => 21, 'project_id' => 900, 'column_id' => 5, 'priority' => 'urgent', 'assignee_id' => 3],
+        ], 'next_cursor' => null])]],
+        'GET /api/v1/projects/42'      => [['status' => 200, 'body' => json_encode(['id' => 42, 'name' => 'Listed', 'columns' => [['id' => 2]]])]],
+        'GET /api/v1/projects/42/tags' => [['status' => 200, 'body' => json_encode(['items' => []])]],
+    ], function (int $port, string $log) {
+        $r = _cli('todo', _cliManagerHome($port), '', 'agent');
+        assert_eq(0, $r['code'], $r['err']);
+        assert_eq([20], array_map(fn($i) => $i['task']['id'], json_decode($r['out'], true)['items']));
+        assert_eq([], array_values(array_filter(_requestLog($log), fn($e) => str_starts_with($e['path'], '/api/v1/projects/900'))));
+    });
+});
+
+it('todo --project with a non-numeric id is a usage error (exit 2)', function () {
+    foreach (['abc', '0', '-1', '5x'] as $bad) {
+        assert_eq(2, _cli('todo --project ' . escapeshellarg($bad), _cliHome(), '', 'agent')['code'], $bad);
+    }
 });

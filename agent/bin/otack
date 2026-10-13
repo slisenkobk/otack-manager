@@ -104,7 +104,7 @@ if ($cmd === '' || $cmd === '-h' || $cmd === '--help') { usage(); }
 
 $scope = getenv('OTACK_SCOPE');
 if (!is_string($scope) || !in_array($scope, Config::SCOPES, true)) {
-    fail('OTACK_SCOPE is not set — run the installed wrapper (~/.claude/otack-agent/bin/otack or otack-manager), not agent/bin/otack directly', 2);
+    fail('OTACK_SCOPE is not set or invalid — run the installed wrapper (~/.claude/otack-agent/bin/otack or otack-manager), not agent/bin/otack directly', 2);
 }
 
 try {
@@ -437,6 +437,12 @@ try {
 
         case 'projects': {
             $items = $client->getAll('/projects', ['limit' => 100]);
+            // Bot scope sees only what projects.json lists — same boundary
+            // as every other command; the owner's scope sees everything its
+            // token can, with `local` null for unlisted projects.
+            if ($scope === 'agent') {
+                $items = array_values(array_filter($items, fn($p) => $cfg->projectPath((int)$p['id']) !== null));
+            }
             out(['items' => array_map(fn($p) => [
                 'id'             => (int)$p['id'],
                 'name'           => (string)($p['name'] ?? ''),
@@ -454,6 +460,7 @@ try {
             // Validate before any network call: a bad value must not cost a
             // round trip (or a project fetch) first.
             if (isset($o['assignee']) && !in_array($o['assignee'], ['me', 'any'], true)) { fail($usageTodo, 2); }
+            if (isset($o['project']) && (!ctype_digit($o['project']) || (int)$o['project'] <= 0)) { fail($usageTodo, 2); }
             $selfId = (int)$self()['id'];
             $byProject = [];
             $projects = [];
