@@ -243,6 +243,9 @@ selection it starts a new task only after you tap it in a digest.
    in a browser and read `message.chat.id` (numeric).
 4. In `~/.claude/otack-agent/.env` set `OTACK_TG_BOT_TOKEN` and
    `OTACK_TG_CHAT_ID` (the installed template has them commented out).
+   Personal chat only: the id must be your own positive user chat id. A
+   group or channel id (negative) is refused — everyone in that chat could
+   approve work for the bot.
 5. In `~/.claude/otack-agent/projects.json` set the approval block. Keys and
    defaults:
    ```json
