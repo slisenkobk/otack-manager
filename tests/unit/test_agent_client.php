@@ -39,43 +39,9 @@ final class FakeClient extends Client {
     }
 }
 
-/**
- * Spin up PHP's built-in server for exactly one test — proving the real
- * rawRequest() reads a non-2xx response body instead of treating it as a
- * connection failure, which is what an `ignore_errors => false` regression
- * would cause. Mirrors tests/api/run.php's php-S-in-the-background pattern,
- * scoped to a single throwaway static response instead of the whole app.
- */
-function agent_client_with_fixture_server(int $status, string $body, callable $fn): void
-{
-    $dir = sys_get_temp_dir() . '/otack-agent-client-fixture-' . getmypid();
-    @mkdir($dir);
-    $router = $dir . '/router.php';
-    file_put_contents(
-        $router,
-        '<?php http_response_code(' . $status . '); '
-        . "header('Content-Type: application/json'); echo " . var_export($body, true) . ';'
-    );
-    $port = random_int(40000, 44999);
-    $cmd = '/usr/bin/env php -S 127.0.0.1:' . $port . ' ' . escapeshellarg($router)
-        . ' > /dev/null 2>&1 & echo $!';
-    $pid = (int)trim((string)shell_exec($cmd));
-    for ($i = 0; $i < 50; $i++) {
-        $s = @fsockopen('127.0.0.1', $port, $errno, $errstr, 0.1);
-        if ($s) { fclose($s); break; }
-        usleep(50_000);
-    }
-    try {
-        $fn($port);
-    } finally {
-        if ($pid > 0) {
-            if (function_exists('posix_kill')) { @posix_kill($pid, 15); }
-            else { @shell_exec('kill ' . $pid . ' 2>/dev/null'); }
-        }
-        @unlink($router);
-        @rmdir($dir);
-    }
-}
+// Real-HTTP tests use the shared fixture server (kernel-picked free port,
+// marker-checked start, reaped by PID) — the same helper the CLI tests use.
+require_once __DIR__ . '/agent_fixture_server.php';
 
 it('Client::get builds the URL with a query string and sends the bearer token', function () {
     $c = new FakeClient('https://x.example/api/v1', 'otk_abc');
@@ -291,7 +257,9 @@ it('Client (real HTTP) reads a non-2xx body instead of treating it as a connecti
     // returns false from file_get_contents() on a 4xx/5xx status unless
     // ignore_errors is set — which would make rawRequest() throw "HTTP
     // request failed" for a perfectly well-formed error response.
-    agent_client_with_fixture_server(404, '{"error":"not_found"}', function (int $port) {
+    _cliFixtureServer([
+        'GET /missing' => [['status' => 404, 'body' => '{"error":"not_found"}']],
+    ], function (int $port) {
         $c = new Client('http://127.0.0.1:' . $port, 'otk_abc', 5);
         $r = $c->get('/missing');
         assert_eq(404, $r['status']);

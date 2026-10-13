@@ -3,10 +3,9 @@ if (!function_exists('_cliFixtureServer')) {
 
 // --- fixture HTTP server: the CLI's OWN process makes real HTTP calls ------
 //
-// Generalises tests/unit/test_agent_client.php:49's
-// agent_client_with_fixture_server() (background `php -S` on a kernel-picked
-// free port, marker poll, reaped in finally) into a small router keyed on
-// method+path instead of one canned response: the CLI issues several
+// Background `php -S` on a kernel-picked free port, marker poll, reaped in
+// finally — shared by the CLI, Board, Approval and Client tests. A small
+// router keyed on method+path, not one canned response: the CLI issues several
 // different requests per command (GET /me, GET /tasks, GET /projects/{id},
 // GET /tasks/{id}, ...) and each needs its own canned reply. Routes are dumped to a JSON file
 // beside the router script and re-read on every request (the built-in
