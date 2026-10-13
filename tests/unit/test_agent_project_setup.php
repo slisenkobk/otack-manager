@@ -54,3 +54,29 @@ it('cloneInto clones a local repo and fails with git\'s message on a bad url', f
     catch (RuntimeException $e) { assert_true(str_contains($e->getMessage(), 'git clone'), $e->getMessage()); }
     finally { shell_exec('rm -rf ' . escapeshellarg($src) . ' ' . escapeshellarg($dst) . ' ' . escapeshellarg($dst . '-2')); }
 });
+
+it('originOf returns null for a plain subfolder of another checkout', function () {
+    $d = sys_get_temp_dir() . '/otack-ps-sub-' . bin2hex(random_bytes(4));
+    mkdir("$d/inner", 0777, true);
+    shell_exec('git -C ' . escapeshellarg($d) . ' init -q && git -C ' . escapeshellarg($d) . ' remote add origin git@github.com:o/r.git');
+    assert_eq('git@github.com:o/r.git', ProjectSetup::originOf($d));
+    assert_eq(null, ProjectSetup::originOf("$d/inner"));
+    shell_exec('rm -rf ' . escapeshellarg($d));
+});
+
+it('cloneInto refuses disallowed protocols and does not leak URL credentials', function () {
+    $dst = sys_get_temp_dir() . '/otack-ps-bad-' . bin2hex(random_bytes(4));
+    try { ProjectSetup::cloneInto('ext::sh -c "touch ' . $dst . '-pwn"', $dst); assert_true(false, 'expected throw'); }
+    catch (RuntimeException $e) { assert_true(str_contains($e->getMessage(), 'git clone'), $e->getMessage()); }
+    assert_true(!file_exists($dst . '-pwn'));
+    try { ProjectSetup::cloneInto('https://user:secret@127.0.0.1:1/x', $dst); assert_true(false, 'expected throw'); }
+    catch (RuntimeException $e) { assert_true(!str_contains($e->getMessage(), 'secret'), $e->getMessage()); }
+    shell_exec('rm -rf ' . escapeshellarg($dst));
+});
+
+it('sameRepo is false for empty identities; scp form keeps numeric path segment', function () {
+    assert_true(!ProjectSetup::sameRepo('', ''));
+    assert_true(!ProjectSetup::sameRepo('/', '  '));
+    assert_eq('host.example/123/repo', ProjectSetup::normalizeRepo('git@host.example:123/repo.git'));
+    assert_eq('host.example/org/repo', ProjectSetup::normalizeRepo('ssh://git@host.example:2222/org/repo.git'));
+});

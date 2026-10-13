@@ -51,24 +51,35 @@ final class ProjectSetup
     public static function normalizeRepo(string $url): string
     {
         $u = trim($url);
-        if (preg_match('#^[\w.-]+@([^:/]+):(?!\d+/)(.+)$#', $u, $m)) {
+        $scheme = str_contains($u, '://');
+        if (!str_contains($u, '://') && preg_match('#^[\w.-]+@([^:/]+):(.+)$#', $u, $m)) {
             $u = $m[1] . '/' . $m[2];                                   // git@host:org/repo
         } else {
             $u = (string)preg_replace('#^[a-z][a-z0-9+.-]*://([^@/]+@)?#i', '', $u); // scheme + userinfo
         }
         $u = (string)preg_replace('#(\.git)?/*$#i', '', $u);
         [$host, $rest] = array_pad(explode('/', $u, 2), 2, '');
-        $host = (string)preg_replace('/:\d+$/', '', strtolower($host));
+        $host = strtolower($host);
+        if ($scheme) { $host = (string)preg_replace('/:\d+$/', '', $host); } // port only in scheme URLs
         return $host . '/' . $rest;
     }
 
     public static function sameRepo(string $a, string $b): bool
     {
-        return self::normalizeRepo($a) === self::normalizeRepo($b);
+        $na = self::normalizeRepo($a);
+        $nb = self::normalizeRepo($b);
+        foreach ([$na, $nb] as $n) {
+            if (trim($n, '/') === '') { return false; }
+        }
+        return $na === $nb;
     }
 
     public static function originOf(string $dir): ?string
     {
+        $real = realpath($dir);
+        if ($real === false) { return null; }
+        [$tc, $top] = self::git(['git', '-C', $dir, 'rev-parse', '--show-toplevel']);
+        if ($tc !== 0 || realpath(trim($top)) !== $real) { return null; } // not the root of its own checkout
         [$code, $out] = self::git(['git', '-C', $dir, 'remote', 'get-url', 'origin']);
         return $code === 0 && trim($out) !== '' ? trim($out) : null;
     }
@@ -77,14 +88,20 @@ final class ProjectSetup
     {
         [$code, , $err] = self::git(['git', 'clone', '--quiet', '--', $repoUrl, $dir]);
         if ($code !== 0) {
-            throw new \RuntimeException('git clone failed: ' . trim($err));
+            $err = (string)preg_replace('#(://)[^/@\s]+@#', '$1', trim($err)); // never leak URL credentials
+            throw new \RuntimeException('git clone failed: ' . $err);
         }
     }
 
     /** @return array{0:int,1:string,2:string} exit code, stdout, stderr — no shell involved. */
     private static function git(array $argv): array
     {
-        $p = proc_open($argv, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        $env = array_merge(getenv(), [
+            'GIT_TERMINAL_PROMPT' => '0',
+            'GIT_SSH_COMMAND' => 'ssh -o BatchMode=yes',
+            'GIT_ALLOW_PROTOCOL' => 'https:ssh:git:file',
+        ]);
+        $p = proc_open($argv, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, null, $env);
         if (!is_resource($p)) { return [127, '', 'cannot start git']; }
         fclose($pipes[0]);
         $out = (string)stream_get_contents($pipes[1]); fclose($pipes[1]);
