@@ -92,6 +92,19 @@ function refuseSecrets(string $text, array $secrets, string $what): void {
     }
 }
 
+/** redactUrl() on every string value whose key ends in "url" (repo_url, …), at any depth. */
+function redactUrlFields(mixed $data): mixed {
+    if (!is_array($data)) { return $data; }
+    foreach ($data as $k => $v) {
+        if (is_array($v)) {
+            $data[$k] = redactUrlFields($v);
+        } elseif (is_string($v) && is_string($k) && preg_match('/url$/i', $k)) {
+            $data[$k] = ProjectSetup::redactUrl($v);
+        }
+    }
+    return $data;
+}
+
 function usage(): never {
     fwrite(STDERR, <<<TXT
     otack — Otack Manager CLI (run through the installed wrappers: otack = bot scope, otack-manager = your scope)
@@ -345,8 +358,8 @@ try {
             $p = $client->get("/projects/$projectId");
             $comments = $client->getAll("/tasks/$id/comments", ['limit' => 100]);
             out([
-                'task'     => $t['json'],
-                'project'  => $p['json'],
+                'task'     => redactUrlFields($t['json']),
+                'project'  => redactUrlFields($p['json']),
                 'local'    => $local,
                 'comments' => $comments,
                 'new_comments' => Triage::newComments($comments, (int)$self()['id']),
@@ -358,7 +371,7 @@ try {
             $local = $localFor($id);
             $p = $client->get("/projects/$id");
             if ($p['status'] !== 200) { fail("GET /projects/$id returned " . $p['status']); }
-            out(['project' => $p['json'], 'local' => $local]);
+            out(['project' => redactUrlFields($p['json']), 'local' => $local]);
         }
 
         case 'new-comments': {
@@ -508,7 +521,7 @@ try {
                 'name'           => (string)($p['name'] ?? ''),
                 'slug'           => $p['slug'] ?? null,
                 'status'         => $p['status'] ?? null,
-                'repo_url'       => $p['repo_url'] ?? null,
+                'repo_url'       => is_string($p['repo_url'] ?? null) ? redactUrl($p['repo_url']) : null,
                 'default_branch' => $p['default_branch'] ?? null,
                 'local'          => $cfg->projectPath((int)$p['id']),
             ], $items)]);

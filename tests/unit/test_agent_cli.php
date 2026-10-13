@@ -1142,3 +1142,28 @@ it('comment refuses a body carrying a token or an .env line (exit 2, no request,
         assert_eq($ok, $posts[0]['body']['body']);
     });
 });
+
+it('projects, project and task never echo credentials embedded in URL fields', function () {
+    $secretUrl = 'https://bot:otk_secretXYZ1@github.com/o/r.git';
+    $project = ['id' => 42, 'name' => 'P', 'repo_url' => $secretUrl, 'columns' => [],
+        'links' => [['site_url' => 'https://u:pw123@example.com/x']]];
+    _cliFixtureServer([
+        'GET /api/v1/projects'          => [['status' => 200, 'body' => json_encode(['items' => [$project], 'next_cursor' => null])]],
+        'GET /api/v1/projects/42'       => [['status' => 200, 'body' => json_encode($project)]],
+        'GET /api/v1/tasks/7'           => [['status' => 200, 'body' => json_encode(['id' => 7, 'project_id' => 42, 'preview_url' => 'https://a:b@h.example/'])]],
+        'GET /api/v1/tasks/7/comments'  => [['status' => 200, 'body' => json_encode(['items' => [], 'next_cursor' => null])]],
+        'GET /api/v1/me'                => [['status' => 200, 'body' => json_encode(['id' => 3])]],
+    ], function (int $port) {
+        $home = _cliManagerHome($port);
+        foreach (['projects', 'project 42', 'task 7'] as $cmd) {
+            foreach (['manager', 'agent'] as $scope) {
+                $r = _cli($cmd, $home, '', $scope);
+                assert_eq(0, $r['code'], "$scope $cmd: " . $r['err']);
+                foreach (['otk_secretXYZ1', 'pw123', 'a:b@'] as $leak) {
+                    assert_true(!str_contains($r['out'], $leak), "$scope $cmd leaked $leak: " . $r['out']);
+                }
+                assert_true(str_contains($r['out'], 'https://github.com/o/r.git'), "$scope $cmd: " . $r['out']);
+            }
+        }
+    });
+});
