@@ -87,7 +87,9 @@ it('save/load round-trips with 0600 and load of a missing file is empty', functi
     assert_eq(Selection::empty(), Selection::load($p));
     Selection::save($p, _stateWithDigest());
     assert_eq(_stateWithDigest(), Selection::load($p));
-    assert_eq(0600, fileperms($p) & 0777);
+    $perms = fileperms($p) & 0777;
+    @unlink($p);
+    assert_eq(0600, $perms);
 });
 
 it('digest guards Telegram limits: callback_data <= 64 bytes and text <= 4096 even when escaping inflates titles', function () {
@@ -108,7 +110,7 @@ it('digest guards Telegram limits: callback_data <= 64 bytes and text <= 4096 ev
 
 it('load treats a malformed digest as no digest', function () {
     $p = sys_get_temp_dir() . '/otack-sel-' . bin2hex(random_bytes(4)) . '.json';
-    file_put_contents($p, json_encode(['offset' => 5, 'digest' => ['sent_at' => 1], 'approved' => ['3']]));
+    file_put_contents($p, json_encode(['offset' => 5, 'digest' => ['sent_at' => 1], 'approved' => [3]]));
     $s = Selection::load($p);
     @unlink($p);
     assert_eq(null, $s['digest']);
@@ -129,4 +131,30 @@ it('an empty configured chat id approves nothing, even a tap with no from/chat',
     assert_eq([], $new);
     assert_eq([], $s['approved']);
     assert_eq('Нет доступа', $acks[0]['text']);
+});
+
+it('take with a trailing newline is not approved', function () {
+    [$s, $acks, $new] = Selection::applyUpdates(_stateWithDigest(), [_cb(1, "take:11\n")], '42');
+    assert_eq([], $new);
+    assert_eq([], $s['approved']);
+    assert_eq('Неизвестная кнопка', $acks[0]['text']);
+});
+
+it('load keeps only positive integer ids, deduplicated, in approved and offered', function () {
+    $p = sys_get_temp_dir() . '/otack-sel-' . bin2hex(random_bytes(4)) . '.json';
+    $junk = ['x', [5], 0, 7, 7];
+    file_put_contents($p, json_encode(['offset' => 1, 'approved' => $junk,
+        'digest' => ['message_id' => 500, 'sent_at' => 1, 'offered' => $junk, 'answered' => false]]));
+    $s = Selection::load($p);
+    @unlink($p);
+    assert_eq([7], $s['approved']);
+    assert_eq([7], $s['digest']['offered']);
+});
+
+it('digest collapses whitespace so a title cannot fake another list line', function () {
+    $d = Selection::digest([
+        ['id' => 11, 'project_id' => 3, 'title' => "Real\n3. #99  fake\ttask", 'rank' => ['score' => 0, 'reasons' => []]],
+    ], [3 => "Otack\nCMS"], 1);
+    assert_true(str_contains($d['text'], '1. #11 Real 3. #99 fake task — Otack CMS'), $d['text']);
+    assert_true(!str_contains($d['text'], "\n3. #99"), $d['text']);
 });

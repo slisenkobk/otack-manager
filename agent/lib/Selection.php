@@ -32,9 +32,9 @@ final class Selection
         $d = $s['digest'];
         $s['digest'] = is_array($d) && isset($d['message_id'], $d['sent_at']) && is_array($d['offered'] ?? null)
             ? ['message_id' => (int)$d['message_id'], 'sent_at' => (int)$d['sent_at'],
-               'offered' => array_values(array_map('intval', $d['offered'])), 'answered' => (bool)($d['answered'] ?? false)]
+               'offered' => self::ids($d['offered']), 'answered' => (bool)($d['answered'] ?? false)]
             : null;
-        $s['approved'] = array_values(array_map('intval', is_array($s['approved']) ? $s['approved'] : []));
+        $s['approved'] = self::ids($s['approved']);
         return $s;
     }
 
@@ -43,7 +43,7 @@ final class Selection
         $tmp = $path . '.tmp-' . bin2hex(random_bytes(4));
         $old = umask(077);
         try {
-            if (file_put_contents($tmp, json_encode($s, JSON_PRETTY_PRINT) . "\n") === false) {
+            if (file_put_contents($tmp, json_encode($s, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . "\n") === false) {
                 throw new \RuntimeException("cannot write $tmp");
             }
             chmod($tmp, 0600);
@@ -80,7 +80,7 @@ final class Selection
                 $ack('Ок, ничего не берём');
                 continue;
             }
-            if (preg_match('/^take:(\d{1,10})$/', $data, $m) && in_array((int)$m[1], $digest['offered'], true)) {
+            if (preg_match('/^take:(\d{1,10})\z/', $data, $m) && in_array((int)$m[1], $digest['offered'], true)) {
                 $id = (int)$m[1];
                 if (!in_array($id, $state['approved'], true)) {
                     $state['approved'][] = $id;
@@ -114,8 +114,8 @@ final class Selection
                 'id'     => $id,
                 'line'   => sprintf('%d. #%d %s — %s%s',
                     $n, $id,
-                    self::esc(mb_substr((string)($t['title'] ?? ''), 0, 90)),
-                    self::esc(mb_substr($project, 0, 30)),
+                    self::esc(mb_substr(self::oneLine((string)($t['title'] ?? '')), 0, 90)),
+                    self::esc(mb_substr(self::oneLine((string)$project), 0, 30)),
                     $why !== '' ? ' <i>(' . self::esc($why) . ')</i>' : ''),
                 'button' => ['text' => "✅ $n · #$id", 'callback_data' => "take:$id"],
             ];
@@ -155,6 +155,19 @@ final class Selection
             'due_week'     => 'срок ≤ 7 дней',
             default        => $r,
         };
+    }
+
+    /** Positive integer ids only, each once — anything else in the file is dropped. */
+    private static function ids(mixed $list): array
+    {
+        if (!is_array($list)) { return []; }
+        return array_values(array_unique(array_filter($list, fn($x) => is_int($x) && $x > 0)));
+    }
+
+    /** A title must not break the numbered list with its own newlines. */
+    private static function oneLine(string $s): string
+    {
+        return trim((string)preg_replace('/\s+/u', ' ', $s));
     }
 
     private static function utf16Len(string $s): int
