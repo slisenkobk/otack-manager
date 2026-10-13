@@ -134,9 +134,23 @@ try {
         writeFile("$managerHome/.env", $url . "OTACK_API_TOKEN=\n", 0600);
         echo "Created $managerHome/.env — put YOUR personal token in it\n";
     }
-    if (!is_file("$agentHome/projects.json")) {
-        writeFile("$agentHome/projects.json", (string)file_get_contents("$repo/agent/projects.example.json"), 0600);
-        echo "Created $agentHome/projects.json from the example — replace the example projects\n";
+    // First install only — an existing projects.json is the owner's, never
+    // touched. No example projects: Config::load() requires every listed
+    // path to exist, so the example's would break both scopes. Roots are the
+    // usual workspace folders that exist on this machine.
+    if (!file_exists("$agentHome/projects.json")) {
+        $roots = [];
+        foreach (['otack' => "$home/Work/AINeoLab/internal/otack", 'internal' => "$home/Work/AINeoLab/internal",
+                  'external' => "$home/Work/AINeoLab/external"] as $key => $dir) {
+            if (is_dir($dir)) { $roots[$key] = $dir; }
+        }
+        writeFile("$agentHome/projects.json", json_encode([
+            '_comment' => 'Format: agent/projects.example.json in the otack-tasks repo. Add projects with otack-manager setup-project.',
+            'roots'    => $roots === [] ? new stdClass() : $roots,
+            'projects' => new stdClass(),
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n", 0600);
+        echo "Created $agentHome/projects.json (roots: " . ($roots === [] ? 'none found' : implode(', ', array_keys($roots)))
+            . ", no projects yet)\n";
     }
 
     $commit = trim((string)shell_exec('git -C ' . escapeshellarg($repo) . ' rev-parse --short HEAD 2>/dev/null'));

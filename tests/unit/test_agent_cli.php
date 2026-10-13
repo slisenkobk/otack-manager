@@ -1060,3 +1060,41 @@ it('mode none: next ignores selection.json and the marker entirely', function ()
         assert_eq(10, $out['task']['id']);
     });
 });
+
+// ---------------------------------------------------------------------
+// Final fix round.
+// ---------------------------------------------------------------------
+
+it('manager scope survives a broken projects.json entry (local.error) and --replace repairs it; agent scope fails closed', function () {
+    $routes = _setupFixtureRoutes();
+    $routes['GET /api/v1/projects'] = [['status' => 200, 'body' => json_encode(['items' => [['id' => 900, 'name' => 'Тілі-Тісто']], 'next_cursor' => null])]];
+    _cliFixtureServer($routes, function (int $port, string $log) {
+        [$home, $root] = _setupHome($port);
+        $file = $home . '/.claude/otack-agent/projects.json';
+        $raw = json_decode(file_get_contents($file), true);
+        $raw['projects']['900'] = ['path' => $home . '/gone', 'write' => true];
+        file_put_contents($file, json_encode($raw));
+        $r = _cli('projects', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        $local = json_decode($r['out'], true)['items'][0]['local'];
+        assert_true(str_contains($local['error'] ?? '', 'does not exist'), $r['out']);
+        $r = _cli('project 900', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        assert_true(isset(json_decode($r['out'], true)['local']['error']), $r['out']);
+        $r = _cli('setup-project 900 --root otack', $home, '', 'manager');
+        assert_eq(1, $r['code']);
+        assert_true(str_contains($r['err'], '--replace'), $r['err']);
+        $r = _cli('setup-project 900 --root otack --replace', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        assert_eq("$root/tili-tisto", json_decode(file_get_contents($file), true)['projects']['900']['path']);
+
+        $raw = json_decode(file_get_contents($file), true);
+        $raw['projects']['900']['path'] = $home . '/gone';
+        file_put_contents($file, json_encode($raw));
+        $before = count(_requestLog($log));
+        $r = _cli('projects', $home, '', 'agent');
+        assert_eq(1, $r['code']);
+        assert_true(str_contains($r['err'], 'does not exist'), $r['err']);
+        assert_eq($before, count(_requestLog($log)), 'agent scope makes no request');
+    });
+});

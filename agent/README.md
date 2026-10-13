@@ -41,8 +41,10 @@ silently ignores; `otack-tick` refuses to launch on an older git with exit
    Directories `~/.claude/otack-agent/`, `~/.claude/otack-manager/` and
    `claude-home/` are mode `0700`. It also creates, only if missing and never
    overwriting: the bot's `~/.claude/otack-agent/.env` and
-   `~/.claude/otack-agent/projects.json` (copied from
-   `agent/projects.example.json`), and **your** `~/.claude/otack-manager/.env`
+   `~/.claude/otack-agent/projects.json` (an empty `projects` object plus
+   `roots` for those of `~/Work/AINeoLab/internal/otack`, `…/internal` and
+   `…/external` that exist on this machine; `agent/projects.example.json`
+   shows the full format), and **your** `~/.claude/otack-manager/.env`
    — all mode `0600`. There are two tokens: the bot's goes into
    `~/.claude/otack-agent/.env`, yours (your personal token from
    `/profile/tokens`) into `~/.claude/otack-manager/.env`. A leftover
@@ -217,8 +219,8 @@ Do not allow-list the write commands (`comment`, `move`, `assign`, `state`,
 `projects.json` may carry a `roots` object: name → absolute directory that
 must exist. `otack-manager setup-project` creates (or registers) a project
 folder under one of them and writes the `projects.json` entry; it always asks
-which root, never defaults. Key names match `[a-z][a-z0-9-]*`. The example
-file ships three:
+which root, never defaults. Key names match `[a-z][a-z0-9-]*`. The first
+install fills in those of these three that exist under your `$HOME`:
 
 | root | path | what goes there |
 |---|---|---|
@@ -226,7 +228,7 @@ file ships three:
 | `internal` | `…/AINeoLab/internal` | internal products |
 | `external` | `…/AINeoLab/external` | client projects |
 
-Edit the paths to your machine. With an empty or missing `roots`, the skill
+Add or edit roots by hand. With an empty or missing `roots`, the skill
 tells you to add them and stops.
 
 ## Telegram selection
@@ -312,7 +314,10 @@ In the bot scope, every command that names a project or task (`task`,
 checks that its project is listed in `~/.claude/otack-agent/projects.json`
 and refuses outright if it isn't. In the manager scope the project need not
 be listed: your token's own membership bounds what you see, and `projects`
-and `task` return the local entry when there is one. `next` and `tick-note`
+and `task` return the local entry when there is one. A broken entry (its
+folder is gone, a hand-editing typo) stops the bot outright, but in the
+manager scope it shows up as `local: {"error": "<reason>"}` so you can repair
+it with `setup-project <id> … --replace`. `next` and `tick-note`
 are meant to be called by the skill during a tick, not usually by hand.
 
 ## Running on a schedule

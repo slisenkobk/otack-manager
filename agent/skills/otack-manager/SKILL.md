@@ -22,7 +22,7 @@ Read (no confirmation needed):
 | need | command |
 |---|---|
 | who am I | `{{OTACK_MANAGER}} whoami` |
-| projects the token sees (`local` = its projects.json entry, null if unlisted) | `{{OTACK_MANAGER}} projects` |
+| projects the token sees (`local` = its projects.json entry, null if unlisted, `{"error": …}` if the entry is broken — fix with setup-project `--replace`) | `{{OTACK_MANAGER}} projects` |
 | one project: repo, branches, columns, members, agent instructions | `{{OTACK_MANAGER}} project <id>` |
 | a task with its whole thread | `{{OTACK_MANAGER}} task <id>` |
 | ranked open tasks | `{{OTACK_MANAGER}} todo` (only mine) · `{{OTACK_MANAGER}} todo --project <id>` (whole project; add `--assignee me` to narrow) |

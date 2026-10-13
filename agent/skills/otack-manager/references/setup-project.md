@@ -15,7 +15,9 @@ on any error nothing is changed.
    - `roots` empty → tell the user that `roots` must be added to
      projects.json (see agent/README.md) and stop.
    - `local` not null → the project is already set up; ask whether to
-     change it (then `--replace` is needed).
+     change it (then `--replace` is needed). `local.error` means the entry
+     is broken (e.g. its folder is gone): say why and offer to rewrite it
+     with `--replace`.
 
 2. **Ask which root — always, never default it.** List each root with its
    path and what it usually holds, judging by the path:

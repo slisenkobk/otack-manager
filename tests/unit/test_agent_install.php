@@ -106,3 +106,33 @@ it('install.php refuses a relative or non-executable php path', function () {
     assert_eq(1, _installRun($home, 'php')['code']);
     assert_eq(1, _installRun($home, "$home/nope/php")['code']);
 });
+
+it('install.php writes projects.json with roots that exist under $HOME and no projects; never overwrites it', function () {
+    $home = _installHome();
+    mkdir("$home/Work/AINeoLab/internal/otack", 0700, true);   // external is absent on purpose
+    $r = _installRun($home);
+    assert_eq(0, $r['code'], $r['err']);
+    $file = "$home/.claude/otack-agent/projects.json";
+    assert_eq(0600, fileperms($file) & 0777);
+    $raw = json_decode(file_get_contents($file));
+    assert_eq(['otack' => "$home/Work/AINeoLab/internal/otack", 'internal' => "$home/Work/AINeoLab/internal"], (array)$raw->roots);
+    assert_true($raw->projects instanceof stdClass && (array)$raw->projects === [], file_get_contents($file));
+    file_put_contents($file, '{"projects": {"1": {"path": "/keep"}}}');
+    assert_eq(0, _installRun($home)['code']);
+    assert_eq('{"projects": {"1": {"path": "/keep"}}}', file_get_contents($file));
+});
+
+it('a fresh install loads in both scopes (no example paths that do not exist)', function () {
+    require_once dirname(__DIR__, 2) . '/agent/lib/Config.php';
+    $home = _installHome();
+    assert_eq(0, _installRun($home)['code']);
+    assert_eq('{}', json_encode(json_decode(file_get_contents("$home/.claude/otack-agent/projects.json"))->roots));
+    foreach (['otack-agent', 'otack-manager'] as $d) {
+        file_put_contents("$home/.claude/$d/.env", "OTACK_API_URL=https://x.example/api/v1\nOTACK_API_TOKEN=otk_x\n");
+    }
+    foreach (['agent', 'manager'] as $scope) {
+        $c = App\Agent\Config::load($home, $scope);
+        assert_eq([], $c->projects);
+        assert_eq([], $c->roots);
+    }
+});
