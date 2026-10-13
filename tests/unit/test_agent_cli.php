@@ -1167,3 +1167,74 @@ it('projects, project and task never echo credentials embedded in URL fields', f
         }
     });
 });
+
+/** _setupFixtureRoutes() with default_branch null on the server. */
+function _setupRoutesNoBranch(?string $repoUrl): array {
+    $routes = _setupFixtureRoutes($repoUrl);
+    $p = json_decode($routes['GET /api/v1/projects/900'][0]['body'], true);
+    $p['default_branch'] = null;
+    $routes['GET /api/v1/projects/900'][0]['body'] = json_encode($p);
+    return $routes;
+}
+
+it('setup-project --write with no default branch: origin/HEAD of the checkout, else a refusal asking for --default-branch', function () {
+    $src = _setupSrcRepo();
+    $folder = basename($src);
+    _cliFixtureServer(_setupRoutesNoBranch($src), function (int $port) use ($src, $folder) {
+        [$home, $root] = _setupHome($port);
+        $file = $home . '/.claude/otack-agent/projects.json';
+        $entry = fn() => json_decode(file_get_contents($file), true)['projects']['900'] ?? null;
+
+        // Not a checkout and nothing to clone -> refuse, create nothing.
+        $r = _cli('setup-project 900 --root otack --write', $home, '', 'manager');
+        assert_eq(1, $r['code'], $r['err']);
+        assert_true(str_contains($r['err'], 'pass --default-branch'), $r['err']);
+        assert_eq(['.', '..'], scandir($root));
+
+        // Read-only entry needs no branch: unchanged behaviour.
+        $r = _cli('setup-project 900 --root otack --folder ro', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        assert_true(!array_key_exists('default_branch', $entry()));
+
+        // Fresh clone -> origin/HEAD.
+        $r = _cli('setup-project 900 --root otack --write --clone --replace', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        assert_eq('main', $entry()['default_branch']);
+        assert_eq("$root/$folder", $entry()['path']);
+
+        // Existing checkout of the same repo -> origin/HEAD, folder untouched.
+        $r = _cli("setup-project 900 --root otack --folder $folder --write --replace", $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        assert_eq('main', $entry()['default_branch']);
+
+        // A checkout without origin/HEAD -> refusal naming set-head; --default-branch wins.
+        mkdir("$root/bare");
+        shell_exec('git -C ' . escapeshellarg("$root/bare") . ' init -q && git -C ' . escapeshellarg("$root/bare")
+            . ' remote add origin ' . escapeshellarg($src));
+        $r = _cli('setup-project 900 --root otack --folder bare --write --replace', $home, '', 'manager');
+        assert_eq(1, $r['code'], $r['err']);
+        assert_true(str_contains($r['err'], 'set-head') && str_contains($r['err'], '--default-branch'), $r['err']);
+        assert_true(is_dir("$root/bare/.git"), 'an existing folder is never removed');
+        $r = _cli('setup-project 900 --root otack --folder bare --write --replace --default-branch develop', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        assert_eq('develop', $entry()['default_branch']);
+    });
+    shell_exec('rm -rf ' . escapeshellarg($src));
+});
+
+it('setup-project --write --clone rolls the clone back when origin/HEAD names a branch the tick would reject', function () {
+    $src = sys_get_temp_dir() . '/otack-cli-src-' . bin2hex(random_bytes(4));
+    mkdir($src);
+    shell_exec('git -C ' . escapeshellarg($src) . ' init -q -b rel+1 && git -C ' . escapeshellarg($src)
+        . ' -c user.name=t -c user.email=t@t commit -q --allow-empty -m init');
+    _cliFixtureServer(_setupRoutesNoBranch($src), function (int $port) use ($src) {
+        [$home, $root] = _setupHome($port);
+        $before = file_get_contents($home . '/.claude/otack-agent/projects.json');
+        $r = _cli('setup-project 900 --root otack --write --clone', $home, '', 'manager');
+        assert_eq(1, $r['code'], $r['err']);
+        assert_true(str_contains($r['err'], 'rel+1') && str_contains($r['err'], '--default-branch'), $r['err']);
+        assert_eq(['.', '..'], scandir($root), 'the fresh clone is rolled back');
+        assert_eq($before, file_get_contents($home . '/.claude/otack-agent/projects.json'));
+    });
+    shell_exec('rm -rf ' . escapeshellarg($src));
+});

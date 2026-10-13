@@ -681,14 +681,32 @@ try {
             $review = $colRef($o['review'] ?? null);
             if ($review !== null) { $entry['review_column'] = $review; }
             // Same rule as otack-tick: a branch it rejects would stop the tick for every project.
+            // Throws (not fail()) so a refusal after a clone still rolls it back.
+            $checkBranch = function (string $branch, string $source): void {
+                if (strlen($branch) > 100 || !Config::isSafeBranchName($branch)) {
+                    throw new \RuntimeException("invalid default branch \"$branch\" (letters, digits, . _ / -; starts with a letter or digit; no \"..\")"
+                        . ($source === 'option' ? '' : " — it comes from the $source; pass --default-branch"));
+                }
+            };
             $branch = $o['default-branch'] ?? ($project['default_branch'] ?? null);
             if (is_string($branch) && $branch !== '') {
-                if (strlen($branch) > 100 || !Config::isSafeBranchName($branch)) {
-                    fail("invalid default branch \"$branch\" (letters, digits, . _ / -; starts with a letter or digit; no \"..\")"
-                        . (isset($o['default-branch']) ? '' : ' — it comes from the server; pass --default-branch'));
-                }
+                $checkBranch($branch, isset($o['default-branch']) ? 'option' : 'server');
                 $entry['default_branch'] = $branch;
             }
+            // A write-enabled project needs its default branch (the tick refuses
+            // to start without one). With none from the server or the option,
+            // take the checkout's origin/HEAD — read below, once the folder is
+            // known to be (or has just become) a checkout.
+            $branchFromRepo = $entry['write'] && !isset($entry['default_branch']);
+            $noBranchMsg = "project $pid has no default_branch on the server and %s — pass --default-branch <branch>";
+            $resolveBranch = function (string $dir) use ($checkBranch, $noBranchMsg, &$entry): void {
+                $b = ProjectSetup::originHead($dir);
+                if ($b === null) {
+                    throw new \RuntimeException(sprintf($noBranchMsg, "$dir has no origin/HEAD (`git remote set-head origin -a` sets it)"));
+                }
+                $checkBranch($b, 'checkout\'s origin/HEAD');
+                $entry['default_branch'] = $b;
+            };
             $repoUrl = is_string($project['repo_url'] ?? null) && $project['repo_url'] !== '' ? $project['repo_url'] : null;
             $wantClone = !empty($o['clone']);
             if ($wantClone && $repoUrl === null) {
@@ -722,7 +740,11 @@ try {
                     }
                     $wasEmptyDir = true;
                 }
+                if ($branchFromRepo && !$wasEmptyDir) { $resolveBranch($path); }
             } else {
+                if ($branchFromRepo && !$wantClone) {
+                    fail(sprintf($noBranchMsg, "$path is not a checkout yet (add --clone)"));
+                }
                 // mkdir() first, atomically: if anything appeared at $path since the
                 // checks above it fails, and from here on every byte under $path is ours.
                 if (!@mkdir($path, 0755)) { fail("cannot create $path"); }
@@ -736,6 +758,13 @@ try {
                     $rollback($e);
                 }
                 $cloned = true;
+                if ($branchFromRepo) {
+                    try {
+                        $resolveBranch($path);
+                    } catch (\Throwable $e) {
+                        $rollback($e);
+                    }
+                }
             }
 
             // 3. Write the entry (validated again by Config with load()'s rules).

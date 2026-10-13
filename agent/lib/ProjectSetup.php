@@ -84,6 +84,24 @@ final class ProjectSetup
         return $code === 0 && trim($out) !== '' ? trim($out) : null;
     }
 
+    /**
+     * The branch origin/HEAD points at (`main` for `origin/main`), when $dir
+     * is the root of its own checkout; null otherwise. A fresh clone always
+     * has it; an older checkout may need `git remote set-head origin -a`.
+     */
+    public static function originHead(string $dir): ?string
+    {
+        $real = realpath($dir);
+        if ($real === false) { return null; }
+        [$tc, $top] = self::git(['git', '-C', $dir, 'rev-parse', '--show-toplevel']);
+        if ($tc !== 0 || realpath(trim($top)) !== $real) { return null; }
+        [$code, $out] = self::git(['git', '-C', $dir, 'symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']);
+        $head = trim($out);
+        if ($code !== 0 || !str_starts_with($head, 'origin/')) { return null; }
+        $branch = substr($head, strlen('origin/'));
+        return $branch !== '' ? $branch : null;
+    }
+
     /** Drops "user:pass@" after every "://" — greedy up to the last "@" before the host, so a password containing "@" goes too. */
     public static function redactUrl(string $s): string
     {

@@ -45,6 +45,9 @@ on any error nothing is changed.
      the columns from step 1);
    - `--default-branch` — defaults to the project's `default_branch`; a
      branch name must start with a letter or digit and must not contain `..`.
+     When the server has none and `--write` is on, the CLI takes the
+     checkout's `origin/HEAD` (an existing checkout or the fresh `--clone`);
+     with neither it refuses — then ask the owner for the branch.
 
 5. **Say plainly when the target already exists.** Before running, show the
    owner which case applies, from the `candidates` row of the chosen root:
