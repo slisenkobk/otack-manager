@@ -43,38 +43,21 @@ setup:
 	@chmod 700 data/sessions
 	@php bin/check-env.php
 
-# Install the agent skill into the user's Claude Code skills directory as a
-# symlink, so the repository stays the single source of truth. The skill must
-# live outside this repo because it works inside *other* repositories, and a
-# project skill is only visible within its own project.
-#
-# `rm -f` alone would silently no-op on a directory (a stale non-symlink
-# ~/.claude/skills/otack-agent/ — e.g. from before this target existed, or a
-# manual mkdir), after which `ln -s` creates the symlink *inside* it instead
-# of replacing it and the skill loader never finds SKILL.md where it expects
-# — so this removes a directory target explicitly first. `.env` is written
-# under `umask 077` rather than written-then-chmodded, since Config::load is
-# fail-closed on any group/other bit and a plain printf-then-chmod leaves a
-# world-readable window between those two steps.
+# Install the agent bridge into ~/.claude, outside this checkout:
+# agent/bin/install.php copies the runtime (agent/bin + agent/lib) into
+# ~/.claude/otack-agent/app, writes the scope-fixing wrappers
+# (~/.claude/otack-agent/bin/{otack,otack-manager,otack-tick}), and installs
+# both skills — the interactive one globally, the bot one inside the tick's
+# isolated claude-home. Nothing is symlinked into the checkout, so switching
+# branches here never changes what a running bot executes. Re-run after
+# every pull. Missing .env / projects.json files are created 0600; existing
+# ones are never overwritten.
+
+# Absolute php binary baked into the installed wrappers (cron has a minimal PATH).
+PHP_BIN ?= $(shell command -v php 2>/dev/null || echo /usr/local/opt/php/bin/php)
+
 install-agent:
-	@mkdir -p $(HOME)/.claude/skills $(HOME)/.claude/otack-agent
-	@chmod 700 $(HOME)/.claude/otack-agent
-	@if [ -d $(HOME)/.claude/skills/otack-agent ] && [ ! -L $(HOME)/.claude/skills/otack-agent ]; then \
-		rm -rf $(HOME)/.claude/skills/otack-agent; \
-	else \
-		rm -f $(HOME)/.claude/skills/otack-agent; \
-	fi
-	@ln -s $(CURDIR)/agent/skill $(HOME)/.claude/skills/otack-agent
-	@chmod +x agent/bin/otack agent/bin/otack-tick
-	@if [ ! -f $(HOME)/.claude/otack-agent/.env ]; then \
-		(umask 077 && printf 'OTACK_API_URL=https://otack-manager.neoweblab.eu/api/v1\nOTACK_API_TOKEN=\n' > $(HOME)/.claude/otack-agent/.env); \
-		echo "Created ~/.claude/otack-agent/.env — put your token in it (mode 0600)"; \
-	fi
-	@if [ ! -f $(HOME)/.claude/otack-agent/projects.json ]; then \
-		cp agent/projects.example.json $(HOME)/.claude/otack-agent/projects.json; \
-		echo "Created ~/.claude/otack-agent/projects.json — list the projects the agent may touch"; \
-	fi
-	@echo "Agent installed. Verify with: agent/bin/otack whoami"
+	@$(PHP_BIN) agent/bin/install.php "$(PHP_BIN)" "$(CURDIR)"
 	@echo "One-time login required before the bot works — see agent/README.md's 'One-time login' section."
 
 serve:

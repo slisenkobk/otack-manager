@@ -126,7 +126,7 @@ ini_set('zend.exception_ignore_args', '1');
  * against a real `claude -p` child: `git -C <repo> checkout -B main` was
  * refused by the permission layer before the branch-policy gate ever saw
  * it, and so was `git -C <repo> remote get-url origin`, which
- * agent/skill/SKILL.md requires before any work.
+ * agent/skills/otack-manager-agent/SKILL.md requires before any work.
  *
  * The fix is the allow-list, not the gate. Since F3 the branch policy is
  * command-shape independent, so the allow-list no longer has to carry it
@@ -1132,6 +1132,21 @@ foreach ($cfg->projects as $idStr => $p) {
     }
     $bashPrefixes[] = 'Bash(' . $p['test_cmd'] . ':*)';
 }
+// otack-manager skills, Task 1: the bot reaches the tracker only through the
+// installed agent-scope wrapper (agent/bin/install.php writes it and exports
+// OTACK_SCOPE=agent inside it). Without this rule every `otack …` call in the
+// session was denied. The rule is the literal absolute path, so a relative
+// path, `php …/otack` or a `VAR=… ` prefix does not match and stays denied.
+$otackBin = $dir . '/bin/otack';
+if (!is_file($otackBin) || !is_executable($otackBin)) {
+    fwrite(STDERR, "$otackBin is missing or not executable — run `make install-agent` from the otack-tasks checkout\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+if (!isSafeRulePath($otackBin) || !isSafeRulePath($home)) {
+    fwrite(STDERR, "HOME \"$home\" contains a character that cannot appear in a permission rule — refusing to run\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+$bashPrefixes[] = 'Bash(' . $otackBin . ':*)';
 
 // §9 absolutes, enforced twice: never placed in $bashPrefixes above (so
 // nothing here can widen the allow-list), and explicitly denied too, since
@@ -1175,6 +1190,13 @@ $disallowedTools = [
     'Bash(ssh:*)',
     'WebFetch',
 ];
+// The owner's personal token (interactive scope) must never be reachable from
+// the bot: neither its wrapper nor its .env, nor the bot's own .env. `Read`
+// is otherwise unrestricted (see F1 above); deny outranks allow. "/" + an
+// absolute path is Claude Code's "//abs/path" form for filesystem-root paths.
+$disallowedTools[] = 'Bash(' . $dir . '/bin/otack-manager:*)';
+$disallowedTools[] = 'Read(/' . $dir . '/.env)';
+$disallowedTools[] = 'Read(/' . rtrim($home, '/') . '/.claude/otack-manager/**)';
 
 // F1: Edit and Write are deliberately absent. A bare tool name in
 // --allowedTools is an unconditional grant that short-circuits the
@@ -1195,6 +1217,22 @@ if ($realGit === '' || !is_executable($realGit)) {
 }
 if (!is_executable($realGit)) {
     fwrite(STDERR, "cannot find a git executable to build the branch-policy gate — refusing to launch\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+// Mechanism 2 below (GIT_CONFIG_COUNT → core.hooksPath) needs git >= 2.31.
+// An older git ignores those variables without a word, so the pre-push and
+// pre-commit hooks never run — found in Task 0 of the otack-manager skills
+// plan, where git 2.28 let a push to main through. A version that cannot be
+// read is refused too: the gate cannot be shown to work with it.
+[$gitVerRc, $gitVerOut] = runCapture([$realGit, '--version']);
+if ($gitVerRc !== 0 || preg_match('/^git version (\d+)\.(\d+)/', $gitVerOut, $gitVerM) !== 1) {
+    fwrite(STDERR, "cannot read the version of git at $realGit — refusing to launch without a working branch-policy gate\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+if ([(int)$gitVerM[1], (int)$gitVerM[2]] < [2, 31]) {
+    $gitVersion = $gitVerM[1] . '.' . $gitVerM[2];
+    fwrite(STDERR, "git $gitVersion at $realGit is older than 2.31 and ignores GIT_CONFIG_COUNT — the injected " .
+        "pre-push/pre-commit hooks would be silently skipped; upgrade git (or `brew unlink git` to use /usr/bin/git)\n");
     exit(EXIT_CONFIG_ERROR);
 }
 
@@ -1462,7 +1500,13 @@ if (is_file($sessionLog) && filesize($sessionLog) > 5 * 1024 * 1024) {
 if (!is_file($sessionLog)) { @touch($sessionLog); }
 @chmod($sessionLog, 0600);
 
-$prompt = 'Use the otack-agent skill to run one tick.';
+$skillFile = $claudeHomeDir . '/skills/otack-manager-agent/SKILL.md';
+if (!is_file($skillFile)) {
+    fwrite(STDERR, "$skillFile is missing — the isolated session cannot see the otack-manager-agent skill; run `make install-agent`\n");
+    exit(EXIT_CONFIG_ERROR);
+}
+
+$prompt = 'Use the otack-manager-agent skill to run one tick.';
 $cmdParts = [escapeshellarg($claudeBin), '-p', escapeshellarg($prompt), '--permission-mode', escapeshellarg(PERMISSION_MODE)];
 foreach ($addDirs as $projectDir) {
     $cmdParts[] = '--add-dir';

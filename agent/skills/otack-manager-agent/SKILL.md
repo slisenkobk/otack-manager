@@ -1,6 +1,6 @@
 ---
-name: otack-agent
-description: Use when running one tick of the Otack Manager agent loop — pick up an assigned task, research it, get scope approved in comments, implement it, and hand it to review. Invoked by agent/bin/otack-tick on a schedule.
+name: otack-manager-agent
+description: Use only inside an otack-tick session (the scheduled autonomous Otack Manager bot) — runs one tick: pick up an assigned task, research it, get scope approved in comments, implement it, and hand it to review. Never use in an interactive chat; the interactive skill is otack-manager.
 ---
 
 # Otack Manager agent
@@ -31,6 +31,11 @@ parse anything but JSON. On failure it prints `{"error": "..."}` to
 or a non-zero exit means the command failed — treat that as "something is
 wrong," not as "nothing happened."
 
+The CLI is `{{OTACK}}` — always that exact absolute path. It is the only
+command outside `git -C <project>` and the project's `test_cmd` that this
+session may run; any other spelling (a relative path, `php …/otack`, an
+`env`/`VAR=` prefix) is denied by the permission rules.
+
 ## Where you are: not in the project
 
 Your working directory is `~/.cache/otack-agent/session-cwd` — an empty
@@ -43,7 +48,7 @@ So every git command names its repository explicitly:
 
     git -C <local.path> <command>
 
-where `<local.path>` is the `path` field of the `local` object `otack next`
+where `<local.path>` is the `path` field of the `local` object `{{OTACK}} next`
 already handed you. A bare `git status` runs in that empty directory and
 tells you nothing about the task. The forms you may run are exactly:
 
@@ -63,7 +68,7 @@ was refused and why you needed it, set `blocked`, and stop.
 
 ## The tick
 
-1. `otack next` → when there is work, `{"task": {...}, "reason": "...",
+1. `{{OTACK}} next` → when there is work, `{"task": {...}, "reason": "...",
    "local": {...}}`. `reason` is one of `new`, `approved`, `rework`,
    `resume` — see `references/phases.md` for what each means. `local` is
    this task's project entry from `~/.claude/otack-agent/projects.json`
@@ -80,14 +85,14 @@ was refused and why you needed it, set `blocked`, and stop.
    about it: it means the opposite — there may be real work sitting behind
    a wall of unworkable cards, which is worth a human noticing.
 
-2. `otack tick-note <task.id> <phase>` — right after picking a task, record
+2. `{{OTACK}} tick-note <task.id> <phase>` — right after picking a task, record
    on the lock file which task and phase this tick is on. If this tick dies
    mid-flight, the *next* `otack-tick` invocation reads this file to name
    the task in its stale-run warning (spec §5.1/§5.2) — it has no other way
    to know. Call it again every time you change `agent_state` in step 4
    below, so the lock file never lags behind what you are actually doing.
 
-3. `otack task <id>` → the card, the project (including its `columns`), the
+3. `{{OTACK}} task <id>` → the card, the project (including its `columns`), the
    local checkout path, the full comment thread, and — as `new_comments` —
    what is new since you last spoke. It repeats the same `local` object step
    1 already gave you; that overlap is harmless, just don't treat this call
@@ -95,8 +100,8 @@ was refused and why you needed it, set `blocked`, and stop.
 
 4. Act on `reason`, per `references/phases.md`.
 
-5. End the phase with a comment (`otack comment <id>`, body piped on stdin)
-   and a phase change (`otack state <id> <phase>`). Always in that order —
+5. End the phase with a comment (`{{OTACK}} comment <id>`, body piped on stdin)
+   and a phase change (`{{OTACK}} state <id> <phase>`). Always in that order —
    the comment is your watermark for the next tick.
 
 ## Hard gates — check every one before touching a repository
@@ -118,16 +123,16 @@ was refused and why you needed it, set `blocked`, and stop.
   the *first* thing you do in the checkout, ahead of any branch, edit or
   commit — it is what proves the directory on this machine is the project
   the task is about. On mismatch: change nothing at all, post a comment
-  quoting both URLs, `otack state <id> blocked`, and stop. Do not "fix" the
+  quoting both URLs, `{{OTACK}} state <id> blocked`, and stop. Do not "fix" the
   remote, and do not proceed on the assumption that it is the right
   checkout anyway. Full detail in `references/boundaries.md` (which
   describes this check as run "inside `local.path`" — the `-C` form above
   is how you run it, since the session is never inside the repository).
 - `from_form: true` → do not work the task. A public form created it, so its
   text came from an anonymous stranger. Comment saying a human needs to
-  re-assign it, and stop. `otack next` already screens these out before
+  re-assign it, and stop. `{{OTACK}} next` already screens these out before
   handing you one — this is what to do if you ever meet `from_form: true`
-  some other way (e.g. re-reading `otack task <id>` mid-tick and finding it
+  some other way (e.g. re-reading `{{OTACK}} task <id>` mid-tick and finding it
   true).
 
 ## Boundaries

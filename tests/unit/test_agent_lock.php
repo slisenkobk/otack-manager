@@ -41,6 +41,13 @@ function _tickHome(): string {
     file_put_contents($home . '/.claude/otack-agent/.env',
         "OTACK_API_URL=http://localhost:8771/api/v1\nOTACK_API_TOKEN=otk_test\n");
     chmod($home . '/.claude/otack-agent/.env', 0600);
+    // Task 1 (otack-manager skills): the tick refuses to start without the
+    // installed agent wrapper and the bot skill inside claude-home.
+    mkdir($home . '/.claude/otack-agent/bin', 0700, true);
+    file_put_contents($home . '/.claude/otack-agent/bin/otack', "#!/bin/sh\nexit 0\n");
+    chmod($home . '/.claude/otack-agent/bin/otack', 0755);
+    mkdir($home . '/.claude/otack-agent/claude-home/skills/otack-manager-agent', 0700, true);
+    file_put_contents($home . '/.claude/otack-agent/claude-home/skills/otack-manager-agent/SKILL.md', "---\nname: otack-manager-agent\n---\n");
     return $home;
 }
 
@@ -105,6 +112,15 @@ function _tick(string $home, string $args, array $extraEnv = []): array {
     foreach ($env as $k => $v) { $envStr .= $k . '=' . escapeshellarg((string)$v) . ' '; }
     $cmd = $envStr . PHP_BINARY . ' ' . escapeshellarg($bin) . ' ' . $args;
     return [$cmd];
+}
+
+/** Runs `otack-tick --selftest=<mode>` and returns its exit code and both streams. */
+function _tickRunSelftest(string $home, string $mode, array $extraEnv = []): array {
+    [$cmd] = _tick($home, '--selftest=' . $mode, $extraEnv);
+    $p = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    $out = stream_get_contents($pipes[1]); fclose($pipes[1]);
+    $err = stream_get_contents($pipes[2]); fclose($pipes[2]);
+    return ['code' => proc_close($p), 'out' => $out, 'err' => $err];
 }
 
 /** A fresh, independent flock() attempt on $path — proves kernel-level exclusion, not otack-tick's own self-reporting. */
@@ -1353,4 +1369,61 @@ it('M3: the stale-tick comment is refused by the projects.json gate, not merely 
 
         fclose($pipes[1]); fclose($pipes[2]); proc_close($p);
     });
+});
+
+// ---------------------------------------------------------------------
+// otack-manager skills, Task 1: the bot's CLI, the owner's token, the
+// renamed skill, and the git version the hooks depend on.
+// ---------------------------------------------------------------------
+
+it('print-cmd: the child may run the installed agent CLI and nothing else of ours', function () {
+    $home = _tickHomeWithRepo(_tickGitRepo());
+    $cmd = _tickPrintCmd($home);
+    $bin = $home . '/.claude/otack-agent/bin/otack';
+    assert_true(in_array("Bash($bin:*)", $cmd['allowed_tools'], true), json_encode($cmd['allowed_tools']));
+    assert_true(in_array("Bash({$home}/.claude/otack-agent/bin/otack-manager:*)", $cmd['disallowed_tools'], true));
+});
+
+it('print-cmd: the child may not read either token file', function () {
+    $home = _tickHomeWithRepo(_tickGitRepo());
+    $cmd = _tickPrintCmd($home);
+    assert_true(in_array("Read(/{$home}/.claude/otack-agent/.env)", $cmd['disallowed_tools'], true));
+    assert_true(in_array("Read(/{$home}/.claude/otack-manager/**)", $cmd['disallowed_tools'], true));
+});
+
+it('print-cmd: the prompt names the renamed skill', function () {
+    $home = _tickHomeWithRepo(_tickGitRepo());
+    $cmd = _tickPrintCmd($home);
+    assert_true(str_contains($cmd['cmd'], 'otack-manager-agent skill'), $cmd['cmd']);
+});
+
+it('tick refuses to start without the installed agent wrapper', function () {
+    $home = _tickHomeWithRepo(_tickGitRepo());
+    unlink($home . '/.claude/otack-agent/bin/otack');
+    $r = _tickRunSelftest($home, 'print-cmd');
+    assert_eq(1, $r['code']);
+    assert_true(str_contains($r['err'], 'make install-agent'), $r['err']);
+});
+
+it('tick refuses to start without the bot skill in claude-home', function () {
+    $home = _tickHomeWithRepo(_tickGitRepo());
+    unlink($home . '/.claude/otack-agent/claude-home/skills/otack-manager-agent/SKILL.md');
+    $r = _tickRunSelftest($home, 'print-cmd');
+    assert_eq(1, $r['code']);
+    assert_true(str_contains($r['err'], 'otack-manager-agent'), $r['err']);
+});
+
+it('tick refuses to start with a git older than 2.31 (it ignores GIT_CONFIG_COUNT, so the hooks would be skipped)', function () {
+    // Found in Task 0: git 2.28 silently ignored the injected core.hooksPath
+    // and a push to main went through.
+    $home = _tickHomeWithRepo(_tickGitRepo());
+    $fakeDir = sys_get_temp_dir() . '/otack-tick-old-git-' . bin2hex(random_bytes(4));
+    mkdir($fakeDir, 0700, true);
+    register_shutdown_function(fn() => _tickRrmdir($fakeDir));
+    file_put_contents($fakeDir . '/git',
+        "#!/bin/sh\nif [ \"\$1\" = --version ]; then echo 'git version 2.28.0'; exit 0; fi\nexec /usr/bin/git \"\$@\"\n");
+    chmod($fakeDir . '/git', 0755);
+    $r = _tickRunSelftest($home, 'print-cmd', ['PATH' => $fakeDir . ':' . _tickDefaultStubBin() . ':' . getenv('PATH')]);
+    assert_eq(1, $r['code'], $r['out'] . $r['err']);
+    assert_true(str_contains($r['err'], 'older than 2.31'), $r['err']);
 });
