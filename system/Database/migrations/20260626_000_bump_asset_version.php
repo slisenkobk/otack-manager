@@ -16,19 +16,20 @@ declare(strict_types=1);
 //
 // Idempotent: upserts a fixed value. Re-running sets the same string.
 // Driver-portable: SELECT-then-UPDATE/INSERT instead of dialect-specific
-// UPSERT syntax.
+// UPSERT syntax. `key` is backtick-quoted: it is a reserved word in MySQL
+// (SQLite accepts backticks too), same as SettingsRepository.
 return function (\PDO $pdo): void {
     $value = '1.6.7';
 
-    $existing = $pdo->prepare("SELECT value FROM settings WHERE key='asset_version'");
+    $existing = $pdo->prepare("SELECT value FROM settings WHERE `key`='asset_version'");
     $existing->execute();
     $row = $existing->fetch();
 
     if ($row === false) {
-        $ins = $pdo->prepare("INSERT INTO settings (key, value) VALUES ('asset_version', :v)");
+        $ins = $pdo->prepare("INSERT INTO settings (`key`, value) VALUES ('asset_version', :v)");
         $ins->execute([':v' => $value]);
     } else {
-        $upd = $pdo->prepare("UPDATE settings SET value = :v WHERE key='asset_version'");
+        $upd = $pdo->prepare("UPDATE settings SET value = :v WHERE `key`='asset_version'");
         $upd->execute([':v' => $value]);
     }
 };

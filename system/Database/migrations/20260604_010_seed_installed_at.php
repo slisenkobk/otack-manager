@@ -19,10 +19,10 @@ return function (\PDO $pdo): void {
     )->fetchColumn();
     if ($countAdmins === 0) return;
 
-    $existing = $pdo->prepare("SELECT value FROM settings WHERE key='installed_at'");
+    $existing = $pdo->prepare("SELECT value FROM settings WHERE `key`='installed_at'");
     $existing->execute();
     if ((string)$existing->fetchColumn() !== '') return;
 
-    $ins = $pdo->prepare("INSERT INTO settings (key, value) VALUES ('installed_at', :v)");
+    $ins = $pdo->prepare("INSERT INTO settings (`key`, value) VALUES ('installed_at', :v)");
     $ins->execute([':v' => gmdate('Y-m-d\TH:i:s\Z')]);
 };
