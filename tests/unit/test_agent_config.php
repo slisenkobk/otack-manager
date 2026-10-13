@@ -573,3 +573,43 @@ it('Config::isSafeBranchName agrees with otack-tick on a table of names, and loa
         catch (RuntimeException $e) { assert_true(str_contains($e->getMessage(), 'default_branch'), $e->getMessage()); }
     }
 });
+
+// --- final fix round: broken entries per scope, chat id, realpath, {} ---
+
+it('a broken projects.json entry: agent scope fails closed, manager scope exposes it as {error}', function () {
+    $ok = sys_get_temp_dir() . '/otack-cfg2-p-' . bin2hex(random_bytes(4)); mkdir($ok);
+    $gone = '/nonexistent-' . bin2hex(random_bytes(3));
+    $home = _cfg2Home(['projects' => ['7' => ['path' => $ok], '8' => ['path' => $gone, 'write' => true]]]);
+    try { App\Agent\Config::load($home, 'agent'); assert_true(false, 'agent scope must throw'); }
+    catch (RuntimeException $e) { assert_true(str_contains($e->getMessage(), $gone), $e->getMessage()); }
+    $m = App\Agent\Config::load($home, 'manager');
+    assert_eq(realpath($ok), $m->projectPath(7)['path']);
+    assert_eq(['error'], array_keys($m->projectPath(8)));
+    assert_true(str_contains($m->projectPath(8)['error'], 'does not exist'), $m->projectPath(8)['error']);
+    // --replace path: the owner rewrites the broken entry, then both scopes load.
+    $m->writeProjectEntry(8, ['path' => $ok]);
+    assert_eq(realpath($ok), App\Agent\Config::load($home, 'agent')->projectPath(8)['path']);
+});
+
+it('Config rejects a non-positive OTACK_TG_CHAT_ID: personal chat id only', function () {
+    foreach (['-1001234567', '0', '00', 'abc'] as $bad) {
+        $home = _cfg2Home(['projects' => [], 'approval' => ['mode' => 'telegram']],
+            "OTACK_API_URL=https://m.example/api/v1\nOTACK_API_TOKEN=otk_owner\n",
+            "OTACK_TG_BOT_TOKEN=123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ\nOTACK_TG_CHAT_ID=$bad\n");
+        try { App\Agent\Config::load($home, 'agent'); assert_true(false, "expected throw for $bad"); }
+        catch (RuntimeException $e) { assert_true(str_contains($e->getMessage(), 'personal chat id only'), $e->getMessage()); }
+    }
+});
+
+it('writeProjectEntry stores the realpath of a symlinked path and keeps {} for empty objects', function () {
+    $real = sys_get_temp_dir() . '/otack-cfg2-p-' . bin2hex(random_bytes(4)); mkdir($real);
+    $link = sys_get_temp_dir() . '/otack-cfg2-l-' . bin2hex(random_bytes(4)); symlink($real, $link);
+    register_shutdown_function(fn() => @unlink($link));
+    $home = _cfg2Home(['roots' => new stdClass(), 'approval' => new stdClass(), 'projects' => new stdClass()]);
+    App\Agent\Config::load($home, 'manager')->writeProjectEntry(9, ['path' => $link]);
+    $text = file_get_contents("$home/.claude/otack-agent/projects.json");
+    $raw = json_decode($text);
+    assert_eq(realpath($real), $raw->projects->{'9'}->path);
+    assert_true($raw->roots instanceof stdClass, $text);
+    assert_true($raw->approval instanceof stdClass, $text);
+});

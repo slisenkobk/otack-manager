@@ -141,7 +141,16 @@ final class Config
 
             foreach ($raw['projects'] as $id => $p) {
                 $idStr = (string)$id;
-                $projects[$idStr] = self::parseProject($idStr, $p, $projPath);
+                try {
+                    $projects[$idStr] = self::parseProject($idStr, $p, $projPath);
+                } catch (\RuntimeException $e) {
+                    // The bot stays fail-closed on any broken entry. The
+                    // owner's scope must survive one (a moved folder, a typo)
+                    // so `setup-project --replace` can repair it: the entry is
+                    // kept as {"error": reason} and never counts as a path.
+                    if ($scope === 'agent') { throw $e; }
+                    $projects[$idStr] = ['error' => $e->getMessage()];
+                }
             }
             $roots = self::parseRoots($raw['roots'] ?? null, $projPath);
             $approval = self::parseApproval($raw['approval'] ?? null, $projPath);
@@ -153,9 +162,16 @@ final class Config
         if ($scope === 'agent' && $approval['mode'] === 'telegram') {
             $tgToken = $env['OTACK_TG_BOT_TOKEN'] ?? '';
             $tgChat  = $env['OTACK_TG_CHAT_ID'] ?? '';
-            if ($tgToken === '' || !preg_match('/^-?\d{1,20}$/', $tgChat)) {
+            if ($tgToken === '' || $tgChat === '') {
                 throw new \RuntimeException(
-                    "approval.mode is \"telegram\" but OTACK_TG_BOT_TOKEN / OTACK_TG_CHAT_ID (numeric) are not both set in $envPath"
+                    "approval.mode is \"telegram\" but OTACK_TG_BOT_TOKEN / OTACK_TG_CHAT_ID are not both set in $envPath"
+                );
+            }
+            // The digest offers tasks to whoever is in this chat; a group or
+            // channel (negative id) would let every member approve work.
+            if (!preg_match('/^\d{1,20}$/', $tgChat) || ltrim($tgChat, '0') === '') {
+                throw new \RuntimeException(
+                    "OTACK_TG_CHAT_ID in $envPath must be a positive number — personal chat id only (no groups or channels)"
                 );
             }
             $telegram = ['token' => $tgToken, 'chat_id' => $tgChat];
@@ -406,7 +422,13 @@ final class Config
             }
         }
         $parsed = self::parseProject((string)$id, $entry, $path);
+        // The resolved directory, not a symlink that could be repointed later.
+        $entry['path'] = $parsed['path'];
         $raw['projects'][(string)$id] = $entry;
+        // json_decode(..., true) turns {} into []; keep the file's objects objects.
+        foreach (['roots', 'approval', 'projects'] as $k) {
+            if (($raw[$k] ?? null) === []) { $raw[$k] = new \stdClass(); }
+        }
         $json = json_encode($raw, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if ($json === false) {
             throw new \RuntimeException('cannot encode projects.json: ' . json_last_error_msg());
@@ -436,7 +458,10 @@ final class Config
      *     in_progress_column: int|string|null,
      *     review_column: int|string|null,
      *     default_branch: ?string,
-     * }|null
+     * }|array{error: string}|null
+     *
+     * `{error}` only in the manager scope: a broken entry the owner can see
+     * and repair (`setup-project --replace`); the agent scope throws instead.
      */
     public function projectPath(int $id): ?array
     {
