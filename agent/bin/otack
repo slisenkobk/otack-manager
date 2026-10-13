@@ -66,6 +66,32 @@ function redactUrl(?string $url): ?string {
     return $url === null ? null : ProjectSetup::redactUrl($url);
 }
 
+/**
+ * Refuses (exit 2) free text bound for the server that carries a credential.
+ * The bot session may run this CLI with any arguments and any stdin, so
+ * `otack comment 5 < ~/.claude/otack-manager/.env` must not post the
+ * owner's token to a task thread (Claude's Read deny covers only its own
+ * tools, not a shell redirect). The message never echoes the text.
+ *
+ * @param list<string> $secrets Config::secretValues()
+ */
+function refuseSecrets(string $text, array $secrets, string $what): void {
+    foreach ($secrets as $secret) {
+        if ($secret !== '' && str_contains($text, $secret)) {
+            fail("$what contains one of this machine's tokens — refusing to send it", 2);
+        }
+    }
+    foreach ([
+        '/\botk_[A-Za-z0-9]{8,}/',                              // Otack API token
+        '/\b\d{3,20}:[A-Za-z0-9_-]{30,}\b/',                     // Telegram bot token
+        '/^\s*(OTACK_[A-Z_]*TOKEN|OTACK_TG_[A-Z_]*)\s*=/m',       // a line of an otack .env
+    ] as $pattern) {
+        if (preg_match($pattern, $text) === 1) {
+            fail("$what looks like it contains a token or an .env line — refusing to send it", 2);
+        }
+    }
+}
+
 function usage(): never {
     fwrite(STDERR, <<<TXT
     otack — Otack Manager CLI (run through the installed wrappers: otack = bot scope, otack-manager = your scope)
@@ -77,7 +103,7 @@ function usage(): never {
       todo [--project <id>] [--assignee me|any]
                                 open tasks, ranked (priority, due date, critical tags, age)
       new-comments <id>         comments written since this user last spoke
-      comment <id>              post a comment, body read from stdin
+      comment <id>              post a comment, body read from stdin (refused if it looks like a token)
       move <id> <column-id>     move the card
       state <id> <phase>        set agent_state (researching|awaiting_approval|implementing|review|blocked)
       assign <id> <me|none|user-id>              (manager scope)
@@ -394,11 +420,8 @@ try {
 
         case 'comment': {
             $id = positiveIntArg($argvRest[1] ?? null, 'usage: otack comment <id>  (body on stdin)');
-            // C3: gate before touching stdin or the network.
-            $t = $client->get("/tasks/$id");
-            if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
-            $localFor((int)$t['json']['project_id']);
-
+            // The body is checked before any request: a refused body costs
+            // no round trip and reveals nothing to the server.
             $body = stream_get_contents(STDIN);
             if ($body === false) { $body = ''; }
             if (trim($body) === '') { fail('refusing to post an empty comment'); }
@@ -412,6 +435,12 @@ try {
             if (!mb_check_encoding($body, 'UTF-8')) {
                 fail('comment body is not valid UTF-8 — refusing to post it');
             }
+            refuseSecrets($body, $cfg->secretValues(), 'comment body');
+
+            // C3: gate before writing.
+            $t = $client->get("/tasks/$id");
+            if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
+            $localFor((int)$t['json']['project_id']);
             $r = $client->post('/comments', ['entity' => 'task', 'entity_id' => $id, 'body' => $body]);
             if ($r['status'] !== 201) { fail('POST /comments returned ' . $r['status']); }
             out($r['json']);

@@ -303,7 +303,7 @@ whichever wrapper the scope column allows.
 | `task <id>` | both | Task + project + local path + full thread + what's new since this user last spoke |
 | `todo [--project <id>] [--assignee me\|any]` | both | Open tasks, ranked (priority, due date, critical tags, age) |
 | `new-comments <id>` | both | Comments written after this user's own last one on that task (spec §4.1) |
-| `comment <id>` | both | Post a comment; body is read from stdin: `echo "done" \| ~/.claude/otack-agent/bin/otack comment 123` |
+| `comment <id>` | both | Post a comment; body is read from stdin: `echo "done" \| ~/.claude/otack-agent/bin/otack comment 123`. A body holding a token (`otk_…`, a Telegram bot token, any token from the two `.env` files) or an `OTACK_…TOKEN=` / `OTACK_TG_…=` line is refused with exit 2 before any request |
 | `move <id> <column-id>` | both | Move the card; position is computed to append past the column's current end |
 | `state <id> <phase>` | both | Set `agent_state` — `researching`, `awaiting_approval`, `implementing`, `review`, `blocked` |
 | `assign <id> <me\|none\|user-id>` | manager | Change the assignee |

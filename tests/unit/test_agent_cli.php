@@ -1098,3 +1098,47 @@ it('manager scope survives a broken projects.json entry (local.error) and --repl
         assert_eq($before, count(_requestLog($log)), 'agent scope makes no request');
     });
 });
+
+it('comment refuses a body carrying a token or an .env line (exit 2, no request, body not echoed) in both scopes', function () {
+    _cliFixtureServer([
+        'GET /api/v1/tasks/30'  => [['status' => 200, 'body' => json_encode(['id' => 30, 'project_id' => 42])]],
+        'POST /api/v1/comments' => [['status' => 201, 'body' => json_encode(['id' => 1])]],
+    ], function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        $tg = '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ';   // short enough to dodge the pattern: caught as a configured secret
+        file_put_contents($home . '/.claude/otack-agent/.env',
+            "OTACK_API_URL=http://127.0.0.1:$port/api/v1\nOTACK_API_TOKEN=botPlainSecret77\nOTACK_TG_BOT_TOKEN=$tg\n");
+        file_put_contents($home . '/.claude/otack-manager/.env',
+            "OTACK_API_URL=http://127.0.0.1:$port/api/v1\nOTACK_API_TOKEN=ownerPlainSecret88\n");
+        $bodies = [
+            'otk pattern'      => "see otk_ABCDEFGH12 above\n",
+            'telegram pattern' => "bot 123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw1 ok\n",
+            'env token line'   => "x\n  OTACK_API_TOKEN = anything\n",
+            'env tg line'      => "OTACK_TG_CHAT_ID=42\n",
+            'own token'        => "token is ownerPlainSecret88\n",
+            'bot token'        => "botPlainSecret77\n",
+            'configured tg'    => "use $tg\n",
+            'manager .env'     => file_get_contents($home . '/.claude/otack-manager/.env'),
+            'agent .env'       => file_get_contents($home . '/.claude/otack-agent/.env'),
+        ];
+        foreach (['manager', 'agent'] as $scope) {
+            foreach ($bodies as $name => $body) {
+                $r = _cli('comment 30', $home, $body, $scope);
+                assert_eq(2, $r['code'], "$scope/$name: " . $r['err']);
+                assert_true(str_contains($r['err'], 'refusing to send it'), "$scope/$name: " . $r['err']);
+                foreach (['otk_ABCDEFGH12', 'AAHdqTcv', 'anything', 'ownerPlainSecret88', 'botPlainSecret77', $tg] as $leak) {
+                    assert_true(!str_contains($r['err'] . $r['out'], $leak), "$scope/$name echoed the body");
+                }
+            }
+        }
+        assert_eq([], _requestLog($log), 'no request for a refused body');
+        $ok = "Готово — перевірила, працює. Сделано 3 из 5 пунктов, созвон в 12:30.\n";
+        foreach (['manager', 'agent'] as $scope) {
+            $r = _cli('comment 30', $home, $ok, $scope);
+            assert_eq(0, $r['code'], "$scope: " . $r['err']);
+        }
+        $posts = array_values(array_filter(_requestLog($log), fn($e) => $e['method'] === 'POST'));
+        assert_eq(2, count($posts));
+        assert_eq($ok, $posts[0]['body']['body']);
+    });
+});

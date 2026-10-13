@@ -73,7 +73,20 @@ final class Config
         public readonly array $approval,
         public readonly ?array $telegram,
         public readonly string $projectsFile,
+        private readonly array $secrets = [],
     ) {}
+
+    /**
+     * Every credential this machine's two .env files hold (API tokens, the
+     * Telegram bot token), for `otack comment`'s outgoing-body check. Never
+     * print these.
+     *
+     * @return list<string>
+     */
+    public function secretValues(): array
+    {
+        return $this->secrets;
+    }
 
     /**
      * `agent` scope: the bot's token from ~/.claude/otack-agent/.env.
@@ -177,8 +190,24 @@ final class Config
             $telegram = ['token' => $tgToken, 'chat_id' => $tgChat];
         }
 
+        // Secrets for the outgoing-comment check: this scope's file strictly
+        // (already read), the other scope's best-effort — a missing or
+        // unreadable file there just contributes nothing.
+        $secretEnvs = [$env];
+        $otherEnv = ($scope === 'agent' ? rtrim($home, '/') . '/.claude/otack-manager' : $dir) . '/.env';
+        try {
+            $secretEnvs[] = self::readEnv($otherEnv);
+        } catch (\RuntimeException) {
+        }
+        $secrets = [];
+        foreach ($secretEnvs as $e) {
+            foreach ($e as $k => $v) {
+                if (str_ends_with((string)$k, 'TOKEN') && strlen($v) >= 8) { $secrets[] = $v; }
+            }
+        }
+
         return new self(rtrim($env['OTACK_API_URL'], '/'), $env['OTACK_API_TOKEN'], $projects,
-            $scope, $roots, $approval, $telegram, $projPath);
+            $scope, $roots, $approval, $telegram, $projPath, array_values(array_unique($secrets)));
     }
 
     /** @return array<string, string> */
@@ -192,7 +221,7 @@ final class Config
         // handle — so the permission bits we approve are provably the ones
         // guarding the bytes we then read, instead of checking the path
         // and reopening it moments later.
-        $envHandle = fopen($envPath, 'rb');
+        $envHandle = @fopen($envPath, 'rb'); // failure becomes the exception below, not a stray warning
         if ($envHandle === false) {
             throw new \RuntimeException("cannot read $envPath (permission denied?)");
         }

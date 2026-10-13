@@ -613,3 +613,16 @@ it('writeProjectEntry stores the realpath of a symlinked path and keeps {} for e
     assert_true($raw->roots instanceof stdClass, $text);
     assert_true($raw->approval instanceof stdClass, $text);
 });
+
+it('Config::secretValues holds both scopes\' tokens and the Telegram token, read best-effort', function () {
+    $home = _cfg2Home(['projects' => []], "OTACK_API_URL=https://m.example/api/v1\nOTACK_API_TOKEN=otk_owner_long\n",
+        "OTACK_TG_BOT_TOKEN=123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ\n");
+    foreach (['agent', 'manager'] as $scope) {
+        $s = App\Agent\Config::load($home, $scope)->secretValues();
+        foreach (['otk_owner_long', '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ'] as $want) {
+            assert_true(in_array($want, $s, true), "$scope scope misses a secret");
+        }
+    }
+    $home = _cfg2Home(['projects' => []], null);
+    assert_true(in_array('otk_bot', App\Agent\Config::load($home, 'agent')->secretValues(), true) === false, 'shorter than 8 chars is not a secret');
+});
