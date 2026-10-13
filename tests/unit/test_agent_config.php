@@ -552,3 +552,24 @@ it('writeProjectEntry is refused in agent scope', function () {
     try { App\Agent\Config::load($home, 'agent')->writeProjectEntry(9, ['path' => sys_get_temp_dir()]); assert_true(false, 'expected throw'); }
     catch (RuntimeException $e) { assert_true(str_contains($e->getMessage(), 'manager'), $e->getMessage()); }
 });
+
+it('Config::isSafeBranchName agrees with otack-tick on a table of names, and load() applies it', function () {
+    $tick = (string)file_get_contents(dirname(__DIR__, 2) . '/agent/bin/otack-tick');
+    assert_true(preg_match('/^function isSafeBranchName\(string \$name\): bool\n\{.*?\n\}\n/ms', $tick, $m) === 1, 'tick function not found');
+    if (!function_exists('_tickIsSafeBranchName')) {
+        eval(str_replace('function isSafeBranchName(', 'function _tickIsSafeBranchName(', $m[0]));
+    }
+    $table = ['-x' => false, 'a..b' => false, '.foo' => false, '' => false, 'main;rm' => false,
+              'main' => true, 'release/1.2' => true, 'feat/x-y' => true];
+    foreach ($table as $name => $ok) {
+        $name = (string)$name;
+        assert_eq($ok, _tickIsSafeBranchName($name), "tick: '$name'");
+        assert_eq($ok, App\Agent\Config::isSafeBranchName($name), "Config: '$name'");
+    }
+    $dir = sys_get_temp_dir() . '/otack-cfg2-p-' . bin2hex(random_bytes(4)); mkdir($dir);
+    foreach (['-x', 'a..b', '.foo'] as $bad) {
+        $home = _cfg2Home(['projects' => ['7' => ['path' => $dir, 'default_branch' => $bad]]]);
+        try { App\Agent\Config::load($home); assert_true(false, "expected throw for '$bad'"); }
+        catch (RuntimeException $e) { assert_true(str_contains($e->getMessage(), 'default_branch'), $e->getMessage()); }
+    }
+});

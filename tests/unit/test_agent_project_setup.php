@@ -80,3 +80,26 @@ it('sameRepo is false for empty identities; scp form keeps numeric path segment'
     assert_eq('host.example/123/repo', ProjectSetup::normalizeRepo('git@host.example:123/repo.git'));
     assert_eq('host.example/org/repo', ProjectSetup::normalizeRepo('ssh://git@host.example:2222/org/repo.git'));
 });
+
+it('redactUrl removes the whole userinfo, even a password containing "@"', function () {
+    assert_eq('https://host/r', ProjectSetup::redactUrl('https://u:p@ss@host/r'));
+    assert_eq('https://host/r', ProjectSetup::redactUrl('https://tok@host/r'));
+    assert_eq("fatal: 'https://host/r' and 'ssh://h/x'", ProjectSetup::redactUrl("fatal: 'https://a:b@c@host/r' and 'ssh://git@h/x'"));
+    assert_eq('git@github.com:org/r.git', ProjectSetup::redactUrl('git@github.com:org/r.git'));
+});
+
+it('removeTree deletes a tree without following symlinks; keepRoot keeps the folder', function () {
+    $base = sys_get_temp_dir() . '/otack-ps-rt-' . bin2hex(random_bytes(4));
+    mkdir("$base/outside", 0755, true);
+    file_put_contents("$base/outside/keep.txt", 'k');
+    mkdir("$base/t/sub", 0755, true);
+    file_put_contents("$base/t/sub/f", 'x');
+    chmod("$base/t/sub/f", 0444);
+    symlink("$base/outside", "$base/t/link");
+    ProjectSetup::removeTree("$base/t", true);
+    assert_eq(['.', '..'], scandir("$base/t"));
+    ProjectSetup::removeTree("$base/t");
+    assert_true(!file_exists("$base/t"));
+    assert_eq('k', file_get_contents("$base/outside/keep.txt"));
+    shell_exec('rm -rf ' . escapeshellarg($base));
+});

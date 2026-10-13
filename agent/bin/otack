@@ -42,7 +42,7 @@ function out(array $data): never {
 }
 
 function fail(string $message, int $code = 1): never {
-    fwrite(STDERR, json_encode(['error' => $message], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
+    fwrite(STDERR, json_encode(['error' => $message], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) . "\n");
     exit($code);
 }
 
@@ -62,7 +62,7 @@ function positiveIntArg(?string $raw, string $usage): int {
 
 /** Drops "user:pass@" from a scheme URL — repo URLs may carry a token and are echoed back to the chat. */
 function redactUrl(?string $url): ?string {
-    return $url === null ? null : (string)preg_replace('#(://)[^/@\s]+@#', '$1', $url);
+    return $url === null ? null : ProjectSetup::redactUrl($url);
 }
 
 function usage(): never {
@@ -594,7 +594,7 @@ try {
             if (!preg_match(ProjectSetup::RULE_SAFE_PATH, $path)) {
                 fail("$path contains characters the bot's permission rules cannot carry — choose a root/folder made of [A-Za-z0-9_./-]");
             }
-            if (isset($o['test-cmd']) && !preg_match(Config::TEST_CMD_PATTERN, $o['test-cmd'])) {
+            if (isset($o['test-cmd']) && $o['test-cmd'] !== '' && !preg_match(Config::TEST_CMD_PATTERN, $o['test-cmd'])) {
                 fail('test_cmd may contain only [A-Za-z0-9 _./-] (a ")" or ":" would inject permission rules)');
             }
             $columns = $project['columns'];
@@ -613,9 +613,13 @@ try {
             if ($inProgress !== null) { $entry['in_progress_column'] = $inProgress; }
             $review = $colRef($o['review'] ?? null);
             if ($review !== null) { $entry['review_column'] = $review; }
+            // Same rule as otack-tick: a branch it rejects would stop the tick for every project.
             $branch = $o['default-branch'] ?? ($project['default_branch'] ?? null);
             if (is_string($branch) && $branch !== '') {
-                if (!preg_match('#^[A-Za-z0-9._/-]{1,100}$#', $branch)) { fail("invalid default branch \"$branch\""); }
+                if (strlen($branch) > 100 || !Config::isSafeBranchName($branch)) {
+                    fail("invalid default branch \"$branch\" (letters, digits, . _ / -; starts with a letter or digit; no \"..\")"
+                        . (isset($o['default-branch']) ? '' : ' — it comes from the server; pass --default-branch'));
+                }
                 $entry['default_branch'] = $branch;
             }
             $repoUrl = is_string($project['repo_url'] ?? null) && $project['repo_url'] !== '' ? $project['repo_url'] : null;
@@ -627,6 +631,13 @@ try {
             // 2. Inspect what is already on disk.
             $created = false;
             $cloned = false;
+            $madeByRun = false;    // $path did not exist before this run — rollback removes it
+            $wasEmptyDir = false;  // $path was an empty folder we clone into — rollback empties it again
+            // Leave the disk as it was found: only what this run made goes.
+            $rollback = function (\Throwable $e) use (&$madeByRun, &$wasEmptyDir, $path): never {
+                if ($madeByRun || $wasEmptyDir) { ProjectSetup::removeTree($path, $wasEmptyDir); }
+                throw $e;
+            };
             if (is_link($path)) { fail("$path is a symlink — refusing"); }
             if (file_exists($path)) {
                 if (!is_dir($path)) { fail("$path exists and is not a directory"); }
@@ -636,32 +647,35 @@ try {
                         . redactUrl($repoUrl) . ' — choose another --folder');
                 }
                 if ($wantClone && $origin === null) {
+                    if (file_exists($path . '/.git')) {
+                        fail("$path is a git checkout without an \"origin\" remote — add origin there or choose another --folder");
+                    }
                     if (count(scandir($path) ?: []) > 2) {
                         fail("$path exists, is not empty and is not a git checkout — refusing to clone into it");
                     }
-                    rmdir($path);
-                    try {
-                        ProjectSetup::cloneInto($repoUrl, $path);
-                    } catch (\Throwable $e) {
-                        if (!file_exists($path)) { @mkdir($path, 0755); } // put back the empty folder we removed
-                        throw $e;
-                    }
-                    $cloned = true;
+                    $wasEmptyDir = true;
                 }
-            } elseif ($wantClone) {
-                ProjectSetup::cloneInto($repoUrl, $path);
-                $cloned = true;
             } else {
-                if (!mkdir($path, 0755)) { fail("cannot create $path"); }
-                $created = true;
+                // mkdir() first, atomically: if anything appeared at $path since the
+                // checks above it fails, and from here on every byte under $path is ours.
+                if (!@mkdir($path, 0755)) { fail("cannot create $path"); }
+                $madeByRun = true;
+                $created = !$wantClone;
+            }
+            if ($wantClone && ($madeByRun || $wasEmptyDir)) {
+                try {
+                    ProjectSetup::cloneInto($repoUrl, $path);   // git clones into an existing empty folder
+                } catch (\Throwable $e) {
+                    $rollback($e);
+                }
+                $cloned = true;
             }
 
             // 3. Write the entry (validated again by Config with load()'s rules).
             try {
                 $parsed = $cfg->writeProjectEntry($pid, $entry);
             } catch (\Throwable $e) {
-                if ($created) { @rmdir($path); } // leave the disk as it was found
-                throw $e;
+                $rollback($e);
             }
             out(['project_id' => $pid, 'entry' => $parsed, 'created_folder' => $created, 'cloned' => $cloned]);
         }

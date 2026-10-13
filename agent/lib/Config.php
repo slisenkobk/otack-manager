@@ -40,6 +40,18 @@ final class Config
     ];
 
     /**
+     * Same rule as otack-tick's isSafeBranchName() (pinned by a test): a
+     * branch the tick would reject makes it exit for every project, so it must
+     * never get into projects.json in the first place.
+     */
+    public static function isSafeBranchName(string $name): bool
+    {
+        if ($name === '' || $name[0] === '-' || str_contains($name, '..')) { return false; }
+        return preg_match('#^[A-Za-z0-9][A-Za-z0-9._/-]*$#', $name) === 1;
+    }
+
+
+    /**
      * @param array<string, array{
      *     path: string,
      *     write: bool,
@@ -291,9 +303,10 @@ final class Config
         }
         $defaultBranch = null;
         if (array_key_exists('default_branch', $p) && $p['default_branch'] !== null) {
-            if (!is_string($p['default_branch']) || !preg_match('#^[A-Za-z0-9._/-]{1,100}$#', $p['default_branch'])) {
+            if (!is_string($p['default_branch']) || strlen($p['default_branch']) > 100 || !self::isSafeBranchName($p['default_branch'])) {
                 throw new \RuntimeException(
-                    "Project \"$idStr\" in $projPath has an invalid \"default_branch\" (letters, digits, . _ / - only)"
+                    "Project \"$idStr\" in $projPath has an invalid \"default_branch\" "
+                    . '(letters, digits, . _ / - only; must start with a letter or digit, no "..")'
                 );
             }
             $defaultBranch = $p['default_branch'];

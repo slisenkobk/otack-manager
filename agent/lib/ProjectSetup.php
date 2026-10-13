@@ -84,11 +84,36 @@ final class ProjectSetup
         return $code === 0 && trim($out) !== '' ? trim($out) : null;
     }
 
+    /** Drops "user:pass@" after every "://" — greedy up to the last "@" before the host, so a password containing "@" goes too. */
+    public static function redactUrl(string $s): string
+    {
+        return (string)preg_replace('#(://)[^/\s]*@#', '$1', $s);
+    }
+
+    /**
+     * Deletes a directory tree this run created (rollback). Never follows
+     * symlinks: a link inside is unlinked, its target left alone. With
+     * $keepRoot only the contents go and $dir itself stays.
+     */
+    public static function removeTree(string $dir, bool $keepRoot = false): void
+    {
+        if (is_link($dir) || !is_dir($dir)) { return; }
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($it as $f) {
+            $p = $f->getPathname();
+            if (is_link($p) || !is_dir($p)) { @unlink($p); } else { @rmdir($p); }
+        }
+        if (!$keepRoot) { @rmdir($dir); }
+    }
+
     public static function cloneInto(string $repoUrl, string $dir): void
     {
         [$code, , $err] = self::git(['git', 'clone', '--quiet', '--', $repoUrl, $dir]);
         if ($code !== 0) {
-            $err = (string)preg_replace('#(://)[^/@\s]+@#', '$1', trim($err)); // never leak URL credentials
+            $err = self::redactUrl(trim($err)); // never leak URL credentials
             throw new \RuntimeException('git clone failed: ' . $err);
         }
     }
