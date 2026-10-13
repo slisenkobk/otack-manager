@@ -92,6 +92,9 @@ was refused and why you needed it, set `blocked`, and stop.
    not describe `idle_form_bound_exceeded` as "no work" if you say anything
    about it: it means the opposite — there may be real work sitting behind
    a wall of unworkable cards, which is worth a human noticing.
+   A third, `{"task": null, "reason": "awaiting_owner_selection"}` (Telegram
+   mode): unstarted tasks exist but the owner has not chosen any — do
+   nothing, end the tick.
 
 2. `{{OTACK}} tick-note <task.id> <phase>` — right after picking a task, record
    on the lock file which task and phase this tick is on. If this tick dies

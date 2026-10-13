@@ -958,3 +958,105 @@ it('folder-name redacts a password that itself contains "@"', function () {
         assert_true(!str_contains($r['out'], 'ss@'), $r['out']);
     });
 });
+
+// ---------------------------------------------------------------------
+// otack-manager skills, Task 10: `next` in Telegram selection mode.
+// ---------------------------------------------------------------------
+
+/** Agent home in approval.mode=telegram; $selection is written raw to selection.json (null = no file). */
+function _cliTgHome(int $port, ?string $selection, bool $gateClosed = false): string {
+    $home = _cliHomeForServer($port);
+    file_put_contents($home . '/.claude/otack-agent/.env',
+        "OTACK_API_URL=http://127.0.0.1:$port/api/v1\nOTACK_API_TOKEN=otk_test\n"
+        . "OTACK_TG_BOT_TOKEN=123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ\nOTACK_TG_CHAT_ID=42\n");
+    chmod($home . '/.claude/otack-agent/.env', 0600);
+    file_put_contents($home . '/.claude/otack-agent/projects.json', json_encode([
+        'approval' => ['mode' => 'telegram'],
+        'projects' => ['42' => ['path' => $home . '/p42', 'write' => true]],
+    ]));
+    if ($selection !== null) { file_put_contents($home . '/.claude/otack-agent/selection.json', $selection); }
+    if ($gateClosed) { file_put_contents($home . '/.claude/otack-agent/approval-closed', "1\n"); }
+    return $home;
+}
+
+function _cliTgRoutes(array $items): array {
+    $routes = [
+        'GET /api/v1/me'          => [['status' => 200, 'body' => json_encode(['id' => 1])]],
+        'GET /api/v1/tasks'       => [['status' => 200, 'body' => json_encode(['items' => $items, 'next_cursor' => null])]],
+        'GET /api/v1/projects/42' => [['status' => 200, 'body' => json_encode(['columns' => [['id' => 5]]])]],
+    ];
+    foreach ($items as $t) {
+        $routes['GET /api/v1/tasks/' . $t['id']] = [['status' => 200, 'body' => json_encode($t + ['from_form' => false])]];
+    }
+    return $routes;
+}
+
+it('telegram mode: next does not start a new task the owner has not chosen', function () {
+    $items = [['id' => 10, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null]];
+    _cliFixtureServer(_cliTgRoutes($items), function (int $port, string $log) {
+        $home = _cliTgHome($port, json_encode(['offset' => 0, 'digest' => null, 'approved' => []]));
+        $r = _cli('next', $home);
+        assert_eq(0, $r['code'], $r['err']);
+        assert_eq(['task' => null, 'reason' => 'awaiting_owner_selection'], json_decode($r['out'], true));
+        assert_true(!in_array('/api/v1/tasks/10', array_column(_requestLog($log), 'path'), true));
+    });
+});
+
+it('telegram mode: next starts a task the owner approved', function () {
+    $items = [['id' => 10, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null],
+              ['id' => 11, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null]];
+    _cliFixtureServer(_cliTgRoutes($items), function (int $port) {
+        $home = _cliTgHome($port, json_encode(['offset' => 0, 'digest' => null, 'approved' => [11]]));
+        $out = json_decode(_cli('next', $home)['out'], true);
+        assert_eq(11, $out['task']['id']);
+        assert_eq('new', $out['reason']);
+    });
+});
+
+it('telegram mode: with no selection.json yet, nothing new is started', function () {
+    $items = [['id' => 10, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null]];
+    _cliFixtureServer(_cliTgRoutes($items), function (int $port) {
+        $home = _cliTgHome($port, null);
+        assert_eq('awaiting_owner_selection', json_decode(_cli('next', $home)['out'], true)['reason']);
+    });
+});
+
+it('telegram mode: a broken selection.json fails closed for new tasks but still resumes work', function () {
+    $items = [['id' => 10, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null]];
+    _cliFixtureServer(_cliTgRoutes($items), function (int $port) {
+        $home = _cliTgHome($port, '{"approved": [10], broken');
+        $r = _cli('next', $home);
+        assert_eq(0, $r['code'], $r['err']);
+        assert_eq('awaiting_owner_selection', json_decode($r['out'], true)['reason']);
+        assert_true(str_contains($r['err'], 'selection.json'), $r['err']);
+    });
+    $items = [['id' => 10, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null],
+              ['id' => 12, 'project_id' => 42, 'column_id' => 5, 'agent_state' => 'implementing']];
+    _cliFixtureServer(_cliTgRoutes($items), function (int $port) {
+        $home = _cliTgHome($port, 'not json');
+        $out = json_decode(_cli('next', $home)['out'], true);
+        assert_eq(12, $out['task']['id']);
+        assert_eq('resume', $out['reason']);
+    });
+});
+
+it('telegram mode: after a failed approval pass (approval-closed marker) nothing new starts, even if approved', function () {
+    $items = [['id' => 10, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null]];
+    _cliFixtureServer(_cliTgRoutes($items), function (int $port) {
+        $home = _cliTgHome($port, json_encode(['offset' => 0, 'digest' => null, 'approved' => [10]]), true);
+        $r = _cli('next', $home);
+        assert_eq('awaiting_owner_selection', json_decode($r['out'], true)['reason']);
+        assert_true(str_contains($r['err'], 'approval'), $r['err']);
+    });
+});
+
+it('mode none: next ignores selection.json and the marker entirely', function () {
+    $items = [['id' => 10, 'project_id' => 42, 'column_id' => 5, 'agent_state' => null]];
+    _cliFixtureServer(_cliTgRoutes($items), function (int $port) {
+        $home = _cliHomeForServer($port);
+        file_put_contents($home . '/.claude/otack-agent/selection.json', 'not json');
+        file_put_contents($home . '/.claude/otack-agent/approval-closed', "1\n");
+        $out = json_decode(_cli('next', $home)['out'], true);
+        assert_eq(10, $out['task']['id']);
+    });
+});

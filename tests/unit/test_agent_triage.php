@@ -212,3 +212,12 @@ it('nextPosition throws instead of producing a non-finite position', function ()
     }
     assert_true($threw, 'expected RuntimeException when the computed position is not finite');
 });
+
+it('pick with an approved list starts only approved new tasks; other rungs unaffected', function () {
+    $tasks = [['id' => 5, 'agent_state' => null], ['id' => 6, 'agent_state' => null], ['id' => 9, 'agent_state' => 'implementing']];
+    assert_eq(['task' => $tasks[2], 'reason' => 'resume'], App\Agent\Triage::pick($tasks, [], []));
+    $new = [['id' => 5, 'agent_state' => null], ['id' => 6, 'agent_state' => null]];
+    assert_eq(null, App\Agent\Triage::pick($new, [], []));
+    assert_eq(6, App\Agent\Triage::pick($new, [], [6])['task']['id']);
+    assert_eq(5, App\Agent\Triage::pick($new, [], null)['task']['id'], 'null = no approval gate');
+});

@@ -175,6 +175,11 @@ ini_set('zend.exception_ignore_args', '1');
 
 require_once __DIR__ . '/../lib/Config.php';
 require_once __DIR__ . '/../lib/Client.php';
+require_once __DIR__ . '/../lib/Rank.php';
+require_once __DIR__ . '/../lib/Board.php';
+require_once __DIR__ . '/../lib/Telegram.php';
+require_once __DIR__ . '/../lib/Selection.php';
+require_once __DIR__ . '/../lib/Approval.php';
 
 use App\Agent\{Config, Client};
 
@@ -1395,6 +1400,40 @@ try {
 } catch (\RuntimeException $e) {
     fwrite(STDERR, 'agent config unusable: ' . $e->getMessage() . "\n");
     exit(EXIT_CONFIG_ERROR);
+}
+
+// Telegram selection (owner decision 2026-10-13). Runs here, in PHP, so the
+// session never sees the Telegram token. A failure is reported and the tick
+// goes on: with nothing newly approved the bot can only continue work it was
+// already given, which is the safe direction. The approval-closed marker is
+// written before the pass and removed only after it succeeds, so a pass that
+// throws (or dies) also keeps `otack next` from starting an earlier-approved
+// task this tick.
+if ($cfg->approval['mode'] === 'telegram') {
+    $approvalClosed = $dir . '/approval-closed';
+    $oldUmask = umask(077);
+    if (file_put_contents($approvalClosed, time() . "\n") === false) {
+        fwrite(STDERR, "warning: could not write $approvalClosed\n");
+    }
+    umask($oldUmask);
+    try {
+        $tgBase = (getenv(SELFTEST_ENV_GATE) === '1' && (string)getenv('OTACK_TG_API_BASE') !== '')
+            ? (string)getenv('OTACK_TG_API_BASE')
+            : 'https://api.telegram.org';
+        $res = \App\Agent\Approval::run(
+            $cfg,
+            new \App\Agent\Client($cfg->instance, $cfg->token),
+            new \App\Agent\Telegram($cfg->telegram['token'], $tgBase),
+            $dir . '/selection.json',
+            new \DateTimeImmutable('now')
+        );
+        foreach ($res['notes'] as $note) { fwrite(STDERR, "telegram: $note\n"); }
+        if (!@unlink($approvalClosed)) {
+            fwrite(STDERR, "warning: could not remove $approvalClosed — no new task starts until it is gone\n");
+        }
+    } catch (\Throwable $e) {
+        fwrite(STDERR, 'telegram selection skipped: ' . $e->getMessage() . "\n");
+    }
 }
 
 // Bounded allow-list for the child session (spec §9, D11) — built from

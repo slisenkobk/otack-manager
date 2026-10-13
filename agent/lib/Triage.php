@@ -82,11 +82,16 @@ final class Triage
      * Sorting explicitly here means a caller that assembles the list
      * differently can never flip the winner tick to tick on identical data.
      *
+     * `$approvedNewIds` (Telegram selection mode): when a list, a task that
+     * nobody has started yet is eligible only if the owner approved it;
+     * resume/rework/approved rungs never consult it.
+     *
      * @param list<array{id:int, agent_state:?string, from_form?:bool}> $tasks
      * @param array<int,int> $newCommentCounts
+     * @param list<int>|null $approvedNewIds
      * @return array{task:array<string,mixed>, reason:string}|null
      */
-    public static function pick(array $tasks, array $newCommentCounts): ?array
+    public static function pick(array $tasks, array $newCommentCounts, ?array $approvedNewIds = null): ?array
     {
         $eligible = array_values(array_filter(
             $tasks,
@@ -104,7 +109,9 @@ final class Triage
             ['resume',   $byState(['researching', 'implementing'])],
             ['rework',   $withComments($byState(['review']))],
             ['approved', $withComments($byState(['awaiting_approval']))],
-            ['new',      $byState([null])],
+            ['new',      $approvedNewIds === null
+                ? $byState([null])
+                : array_values(array_filter($byState([null]), fn($t) => in_array((int)$t['id'], $approvedNewIds, true)))],
         ] as [$reason, $rows]) {
             if ($rows !== []) {
                 usort($rows, fn($a, $b) => (int)$a['id'] <=> (int)$b['id']);

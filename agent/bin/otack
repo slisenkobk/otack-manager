@@ -31,8 +31,9 @@ require_once __DIR__ . '/../lib/Triage.php';
 require_once __DIR__ . '/../lib/Rank.php';
 require_once __DIR__ . '/../lib/Board.php';
 require_once __DIR__ . '/../lib/ProjectSetup.php';
+require_once __DIR__ . '/../lib/Selection.php';
 
-use App\Agent\{Config, Client, Triage, Rank, Board, ProjectSetup};
+use App\Agent\{Config, Client, Triage, Rank, Board, ProjectSetup, Selection};
 
 const PHASES = ['researching', 'awaiting_approval', 'implementing', 'review', 'blocked'];
 
@@ -228,6 +229,26 @@ try {
                 }
             }
 
+            // Telegram selection mode (owner decision 2026-10-13): a task
+            // nobody has started is eligible only after the owner tapped it.
+            // Fail-closed: an unreadable selection.json, or the marker
+            // otack-tick leaves after a failed approval pass, approves
+            // nothing — work the bot already has is unaffected.
+            $approvedNew = null;
+            if ($cfg->approval['mode'] === 'telegram') {
+                $agentDir = dirname($cfg->projectsFile);
+                try {
+                    $approvedNew = Selection::load($agentDir . '/selection.json')['approved'];
+                } catch (\RuntimeException $e) {
+                    fwrite(STDERR, 'telegram selection unreadable, starting no new task: ' . $e->getMessage() . "\n");
+                    $approvedNew = [];
+                }
+                if ($approvedNew !== [] && file_exists($agentDir . '/approval-closed')) {
+                    fwrite(STDERR, "the last approval pass failed (approval-closed) — starting no new task this tick\n");
+                    $approvedNew = [];
+                }
+            }
+
             // Triage::pick()'s from_form check is a second line of defence,
             // not the only one (Task 3's docblock explains why): these
             // $tasks came from GET /tasks list items, which never carry
@@ -243,8 +264,12 @@ try {
             // remaining task form-created) cannot loop forever.
             $pool = $tasks;
             for ($round = 0; $round < 10; $round++) {
-                $picked = Triage::pick($pool, $counts);
-                if ($picked === null) { out(['task' => null, 'reason' => 'idle']); }
+                $picked = Triage::pick($pool, $counts, $approvedNew);
+                if ($picked === null) {
+                    $waiting = $approvedNew !== null && array_filter($pool, fn($t) =>
+                        ($t['agent_state'] ?? null) === null && !in_array((int)$t['id'], $approvedNew, true)) !== [];
+                    out(['task' => null, 'reason' => $waiting ? 'awaiting_owner_selection' : 'idle']);
+                }
 
                 $winnerId = (int)$picked['task']['id'];
                 $detail = $client->get("/tasks/$winnerId");

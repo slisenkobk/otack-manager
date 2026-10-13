@@ -1736,3 +1736,66 @@ it('fix5: fetch and pull refuse refspecs with a colon or a leading +', function 
         assert_true(str_contains($res['out'], 'REFUSED'), $res['out']);
     }
 });
+
+// ---------------------------------------------------------------------
+// otack-manager skills, Task 10: the Telegram approval pass in the tick.
+// ---------------------------------------------------------------------
+require_once __DIR__ . '/agent_fixture_server.php';
+
+const _TICK_TG = '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+/** A print-cmd-ready tick home in approval.mode=telegram, API pointed at the fixture server on $port. */
+function _tickTgHome(int $port): string {
+    $home = _tickHomeWithRepo(_tickGitRepo());
+    register_shutdown_function(fn() => _tickRrmdir($home));
+    file_put_contents($home . '/.claude/otack-agent/.env',
+        "OTACK_API_URL=http://127.0.0.1:$port/api/v1\nOTACK_API_TOKEN=otk_test\n"
+        . 'OTACK_TG_BOT_TOKEN=' . _TICK_TG . "\nOTACK_TG_CHAT_ID=42\n");
+    chmod($home . '/.claude/otack-agent/.env', 0600);
+    $p = json_decode((string)file_get_contents($home . '/.claude/otack-agent/projects.json'), true);
+    $p['approval'] = ['mode' => 'telegram'];
+    file_put_contents($home . '/.claude/otack-agent/projects.json', json_encode($p));
+    return $home;
+}
+
+function _tickTgRoutes(bool $withTelegram): array {
+    $routes = [
+        'GET /api/v1/me'                => [['status' => 200, 'body' => json_encode(['id' => 7])]],
+        'GET /api/v1/projects/1'        => [['status' => 200, 'body' => json_encode(['id' => 1, 'name' => 'Repo', 'columns' => [['id' => 2]]])]],
+        'GET /api/v1/projects/1/tags'   => [['status' => 200, 'body' => json_encode(['items' => []])]],
+        'GET /api/v1/projects/1/tasks'  => [['status' => 200, 'body' => json_encode(['items' => [
+            ['id' => 31, 'project_id' => 1, 'column_id' => 2, 'priority' => 'high', 'assignee_id' => null, 'agent_state' => null, 'title' => 'Do it'],
+        ], 'next_cursor' => null])]],
+    ];
+    if ($withTelegram) {
+        $routes['POST /bot' . _TICK_TG . '/getUpdates']  = [['status' => 200, 'body' => json_encode(['ok' => true, 'result' => []])]];
+        $routes['POST /bot' . _TICK_TG . '/sendMessage'] = [['status' => 200, 'body' => json_encode(['ok' => true, 'result' => ['message_id' => 9]])]];
+    }
+    return $routes;
+}
+
+it('telegram mode: the tick runs the approval pass and sends one digest', function () {
+    _cliFixtureServer(_tickTgRoutes(true), function (int $port, string $log) {
+        $home = _tickTgHome($port);
+        $r = _tickRunSelftest($home, 'print-cmd', ['OTACK_TG_API_BASE' => "http://127.0.0.1:$port"]);
+        assert_eq(TICK_EXIT_OK, $r['code'], $r['err']);
+        $sends = array_filter(_requestLog($log), fn($e) => str_ends_with($e['path'], '/sendMessage'));
+        assert_eq(1, count($sends), $r['err']);
+        $sel = $home . '/.claude/otack-agent/selection.json';
+        assert_true(is_file($sel));
+        assert_eq('600', sprintf('%o', fileperms($sel) & 0777));
+        assert_true(!file_exists($home . '/.claude/otack-agent/approval-closed'), 'a good pass leaves the gate open');
+        assert_true(!str_contains($r['err'] . $r['out'], _TICK_TG), 'the Telegram token must never be printed');
+    });
+});
+
+it('telegram mode: a Telegram failure is logged, the tick goes on, and the gate is closed for this tick', function () {
+    _cliFixtureServer(_tickTgRoutes(false), function (int $port) {
+        $home = _tickTgHome($port);
+        $r = _tickRunSelftest($home, 'print-cmd', ['OTACK_TG_API_BASE' => "http://127.0.0.1:$port"]);
+        assert_eq(TICK_EXIT_OK, $r['code'], $r['err']);
+        assert_true(str_contains($r['err'], 'telegram selection skipped'), $r['err']);
+        assert_true(file_exists($home . '/.claude/otack-agent/approval-closed'), 'a failed pass must close the gate for `next`');
+        assert_true(!str_contains($r['err'] . $r['out'], _TICK_TG), 'the Telegram token must never be printed');
+    });
+});
