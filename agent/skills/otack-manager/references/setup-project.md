@@ -35,7 +35,10 @@ on any error nothing is changed.
      there (it never pushes the default branch); default no;
    - `--test-cmd` — the command the bot runs before handing over (e.g.
      `make test`); characters `[A-Za-z0-9 _./-]` only; `--test-cmd ""`
-     means no test command;
+     means no test command. Say plainly: the bot may run this command,
+     and whatever it executes (a Makefile target, a test script in the
+     repo) runs with no sandbox — anything the project's own code does,
+     the bot can make it do (agent/README.md, "Known limits");
    - `--in-progress` / `--review` — board columns by exact name or id (list
      the columns from step 1);
    - `--default-branch` — defaults to the project's `default_branch`; a
