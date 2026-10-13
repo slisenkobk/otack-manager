@@ -49,9 +49,11 @@ final class Board
         }
         $ids = [];
         foreach (($r['json']['items'] ?? []) as $tag) {
+            // A tag without an id would query tag_id=0 — skip it.
+            if (!is_array($tag) || (int)($tag['id'] ?? 0) <= 0) { continue; }
             if (!in_array(mb_strtolower((string)($tag['name'] ?? '')), $want, true)) { continue; }
             foreach ($c->getAll("/projects/$pid/tasks", ['tag_id' => (int)$tag['id'], 'limit' => 100]) as $t) {
-                $ids[(int)$t['id']] = true;
+                if ((int)($t['id'] ?? 0) > 0) { $ids[(int)$t['id']] = true; }
             }
         }
         return $ids;

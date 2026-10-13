@@ -39,3 +39,20 @@ it('Rank breaks ties by lowest id and uses the critical id map', function () use
     $rows = Rank::sort([['id' => 9], ['id' => 3], ['id' => 7]], [7 => true], $__now);
     assert_eq([7, 3, 9], array_map(fn($r) => $r['id'], $rows));
 });
+
+it('Rank ignores an impossible due date instead of reading it as overdue', function () use ($__now) {
+    foreach (['2026-02-31', '0000-00-00', '2026-13-01'] as $bad) {
+        assert_eq(['score' => 0, 'reasons' => []], Rank::score(['id' => 1, 'due_date' => $bad], false, $__now), $bad);
+    }
+    assert_eq(['overdue'], Rank::score(['id' => 1, 'due_date' => '2026-10-12 00:00:00'], false, $__now)['reasons']);
+});
+
+it('Rank accepts created_at with a space instead of "T"', function () use ($__now) {
+    assert_eq(['age:3w'], Rank::score(['id' => 1, 'created_at' => '2026-09-20 12:00:00'], false, $__now)['reasons']);
+});
+
+it('Rank::sort does not crash on a task without an id', function () use ($__now) {
+    $rows = Rank::sort([['priority' => 'high'], ['id' => 2, 'priority' => 'urgent']], [], $__now);
+    assert_eq(2, $rows[0]['id']);
+    assert_true(!array_key_exists('id', $rows[1]));
+});

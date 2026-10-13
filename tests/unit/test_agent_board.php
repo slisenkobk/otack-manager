@@ -62,3 +62,18 @@ it('Board::criticalTaskIds makes no request when no tag names are configured', f
         assert_eq([], _requestLog($log));
     });
 });
+
+it('Board::criticalTaskIds skips tags without an id and matches Cyrillic names case-insensitively', function () {
+    _cliFixtureServer([
+        'GET /api/v1/projects/42/tags'  => [['status' => 200, 'body' => json_encode(['items' => [
+            ['name' => 'bug'], ['id' => 0, 'name' => 'bug'], ['id' => 8, 'name' => 'Баг'],
+        ]])]],
+        'GET /api/v1/projects/42/tasks' => [['status' => 200, 'body' => json_encode(['items' => [['id' => 21], ['title' => 'no id']], 'next_cursor' => null])]],
+    ], function (int $port, string $log) {
+        $c = new Client("http://127.0.0.1:$port/api/v1", 'otk_test');
+        assert_eq([21 => true], Board::criticalTaskIds($c, 42, ['bug', 'баг']));
+        $tasksCalls = array_values(array_filter(_requestLog($log), fn($e) => $e['path'] === '/api/v1/projects/42/tasks'));
+        assert_eq(1, count($tasksCalls), 'only the tag with an id is queried');
+        assert_eq('8', (string)$tasksCalls[0]['query']['tag_id']);
+    });
+});
