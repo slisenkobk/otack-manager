@@ -72,14 +72,34 @@ final class Approval
         // 2. Every approved id, not only the newly tapped ones: a pass that
         // died between saving a tap and the PATCH leaves an approval the bot
         // does not own yet, and `otack next` sees only the bot's own tasks.
+        // A transient failure (5xx, network, bad body) keeps the approval for
+        // the next pass; only "gone" (404/403) or a decided state drops it.
+        // An approval that can never be picked must leave, or it suppresses
+        // every later digest (Selection::needsDigest).
         $keep = [];
+        $workable = []; // project id => list<int> column ids, fetched once per pass
         foreach ($state['approved'] as $id) {
             $t = $client->get("/tasks/$id");
-            if ($t['status'] !== 200 || !is_array($t['json'])) { $notes[] = "#$id: GET returned {$t['status']} — dropped"; continue; }
+            if (in_array($t['status'], [403, 404], true)) { $notes[] = "#$id: GET returned {$t['status']} — dropped"; continue; }
+            if ($t['status'] !== 200 || !is_array($t['json'])) { $notes[] = "#$id: GET returned {$t['status']} — kept, retry next pass"; $keep[] = $id; continue; }
             $task = $t['json'];
             if (($task['agent_state'] ?? null) !== null) { continue; } // started (or blocked): no longer an approval
             if (!empty($task['from_form'])) { $notes[] = "#$id came from a public form — the bot never works those; dropped"; continue; }
-            if ($cfg->projectPath((int)($task['project_id'] ?? 0)) === null) { $notes[] = "#$id is in a project not listed in projects.json — dropped"; continue; }
+            $pid = (int)($task['project_id'] ?? 0);
+            if ($cfg->projectPath($pid) === null) { $notes[] = "#$id is in a project not listed in projects.json — dropped"; continue; }
+            if (!isset($workable[$pid])) {
+                try {
+                    $workable[$pid] = Board::workableColumnIds(Board::project($client, $pid));
+                } catch (\RuntimeException $e) {
+                    $notes[] = "#$id: " . $e->getMessage() . ' — kept, retry next pass';
+                    $keep[] = $id;
+                    continue;
+                }
+            }
+            if (!in_array((int)($task['column_id'] ?? 0), $workable[$pid], true)) {
+                $notes[] = "#$id is no longer in a workable column (done/backlog) — dropped";
+                continue;
+            }
             $assignee = $task['assignee_id'] ?? null;
             if ($assignee !== null && (int)$assignee !== $botId) { $notes[] = "#$id is assigned to someone else now — left alone"; continue; }
             if ($assignee === null) {

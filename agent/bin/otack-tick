@@ -1420,6 +1420,9 @@ if ($cfg->approval['mode'] === 'telegram') {
         $tgBase = (getenv(SELFTEST_ENV_GATE) === '1' && (string)getenv('OTACK_TG_API_BASE') !== '')
             ? (string)getenv('OTACK_TG_API_BASE')
             : 'https://api.telegram.org';
+        if ($tgBase !== 'https://api.telegram.org') {
+            fwrite(STDERR, "telegram: API base overridden by OTACK_TG_API_BASE (selftest)\n");
+        }
         $res = \App\Agent\Approval::run(
             $cfg,
             new \App\Agent\Client($cfg->instance, $cfg->token),

@@ -71,7 +71,7 @@ it('a tap assigns an unassigned task to the bot, comments, acks, and suppresses 
         'POST /bot' . _AP_TG . '/getUpdates' => [['status' => 200, 'body' => json_encode(['ok' => true, 'result' => [
             ['update_id' => 900, 'callback_query' => ['id' => 'c1', 'from' => ['id' => 42], 'data' => 'take:16', 'message' => ['message_id' => 500, 'chat' => ['id' => 42]]]],
         ]])]],
-        'GET /api/v1/tasks/16'   => [['status' => 200, 'body' => json_encode(['id' => 16, 'project_id' => 42, 'assignee_id' => null, 'agent_state' => null, 'from_form' => false])]],
+        'GET /api/v1/tasks/16'   => [['status' => 200, 'body' => json_encode(['id' => 16, 'project_id' => 42, 'column_id' => 2, 'assignee_id' => null, 'agent_state' => null, 'from_form' => false])]],
         'PATCH /api/v1/tasks/16' => [['status' => 200, 'body' => json_encode(['id' => 16])]],
         'POST /api/v1/comments'  => [['status' => 201, 'body' => json_encode(['id' => 1])]],
     ]), function (int $port, string $log) {
@@ -97,8 +97,8 @@ it('an approved task now assigned to a human, or created from a public form, is 
             ['update_id' => 1, 'callback_query' => ['id' => 'c1', 'from' => ['id' => 42], 'data' => 'take:16', 'message' => ['message_id' => 500, 'chat' => ['id' => 42]]]],
             ['update_id' => 2, 'callback_query' => ['id' => 'c2', 'from' => ['id' => 42], 'data' => 'take:12', 'message' => ['message_id' => 500, 'chat' => ['id' => 42]]]],
         ]])]],
-        'GET /api/v1/tasks/16' => [['status' => 200, 'body' => json_encode(['id' => 16, 'project_id' => 42, 'assignee_id' => 99, 'agent_state' => null])]],
-        'GET /api/v1/tasks/12' => [['status' => 200, 'body' => json_encode(['id' => 12, 'project_id' => 42, 'assignee_id' => 7, 'agent_state' => null, 'from_form' => true])]],
+        'GET /api/v1/tasks/16' => [['status' => 200, 'body' => json_encode(['id' => 16, 'project_id' => 42, 'column_id' => 2, 'assignee_id' => 99, 'agent_state' => null])]],
+        'GET /api/v1/tasks/12' => [['status' => 200, 'body' => json_encode(['id' => 12, 'project_id' => 42, 'column_id' => 2, 'assignee_id' => 7, 'agent_state' => null, 'from_form' => true])]],
     ]), function (int $port, string $log) {
         $home = _apHome($port);
         $s = Selection::empty();
@@ -113,7 +113,7 @@ it('an approved task now assigned to a human, or created from a public form, is 
 
 it('approved tasks the bot has started are pruned', function () {
     _cliFixtureServer(_apRoutes([
-        'GET /api/v1/tasks/16' => [['status' => 200, 'body' => json_encode(['id' => 16, 'project_id' => 42, 'assignee_id' => 7, 'agent_state' => 'researching'])]],
+        'GET /api/v1/tasks/16' => [['status' => 200, 'body' => json_encode(['id' => 16, 'project_id' => 42, 'column_id' => 2, 'assignee_id' => 7, 'agent_state' => 'researching'])]],
     ]), function (int $port) {
         $home = _apHome($port);
         $s = Selection::empty();
@@ -130,7 +130,7 @@ it('an approval whose assignment never happened (earlier pass died after the tap
     // does not own. `next` only sees the bot's own tasks, so without this
     // the id would sit in `approved` forever and suppress every digest.
     _cliFixtureServer(_apRoutes([
-        'GET /api/v1/tasks/16'   => [['status' => 200, 'body' => json_encode(['id' => 16, 'project_id' => 42, 'assignee_id' => null, 'agent_state' => null])]],
+        'GET /api/v1/tasks/16'   => [['status' => 200, 'body' => json_encode(['id' => 16, 'project_id' => 42, 'column_id' => 2, 'assignee_id' => null, 'agent_state' => null])]],
         'PATCH /api/v1/tasks/16' => [['status' => 200, 'body' => json_encode(['id' => 16])]],
         'POST /api/v1/comments'  => [['status' => 201, 'body' => json_encode(['id' => 1])]],
     ]), function (int $port, string $log) {
@@ -193,5 +193,59 @@ it('a failing getUpdates throws with the Telegram token masked, and approves not
         try { _apRun($home, $port); } catch (\RuntimeException $e) { $msg = $e->getMessage(); }
         assert_true($msg !== '', 'expected a RuntimeException');
         assert_true(!str_contains($msg, _AP_TG), $msg);
+    });
+});
+
+it('an approved task moved to a done or backlog column is dropped, and the next digest goes out', function () {
+    _cliFixtureServer(_apRoutes([
+        'GET /api/v1/projects/42' => [['status' => 200, 'body' => json_encode(['id' => 42, 'name' => 'Otack CMS', 'columns' => [
+            ['id' => 2], ['id' => 3, 'is_done' => true], ['id' => 4, 'is_backlog' => true]]])]],
+        'GET /api/v1/tasks/16' => [['status' => 200, 'body' => json_encode(['id' => 16, 'project_id' => 42, 'column_id' => 3, 'assignee_id' => 7, 'agent_state' => null])]],
+        'GET /api/v1/tasks/17' => [['status' => 200, 'body' => json_encode(['id' => 17, 'project_id' => 42, 'column_id' => 4, 'assignee_id' => 7, 'agent_state' => null])]],
+    ]), function (int $port, string $log) {
+        $home = _apHome($port);
+        $s = Selection::empty();
+        $s['approved'] = [16, 17];
+        $s['digest'] = ['message_id' => 500, 'sent_at' => 1_000_000, 'offered' => [16, 17], 'answered' => true];
+        Selection::save("$home/.claude/otack-agent/selection.json", $s);
+        $res = _apRun($home, $port);
+        assert_eq([], $res['approved']);
+        $notes = implode("\n", $res['notes']);
+        assert_true(str_contains($notes, '#16') && str_contains($notes, '#17'), $notes);
+        $entries = _requestLog($log);
+        assert_eq(1, count(array_filter($entries, fn($e) => str_ends_with($e['path'], '/sendMessage'))), 'the digest resumes once the queue is clear');
+        assert_eq(0, count(array_filter($entries, fn($e) => $e['method'] === 'PATCH')));
+    });
+});
+
+it('a transient GET failure keeps the approval; only 404/403 drop it', function () {
+    _cliFixtureServer(_apRoutes([
+        'GET /api/v1/tasks/16' => [['status' => 500, 'body' => json_encode(['error' => 'boom'])]],
+        'GET /api/v1/tasks/17' => [['status' => 404, 'body' => json_encode(['error' => 'gone'])]],
+        'GET /api/v1/tasks/18' => [['status' => 403, 'body' => json_encode(['error' => 'forbidden'])]],
+    ]), function (int $port, string $log) {
+        $home = _apHome($port);
+        $s = Selection::empty();
+        $s['approved'] = [16, 17, 18];
+        $s['digest'] = ['message_id' => 500, 'sent_at' => 1_999_000, 'offered' => [16, 17, 18], 'answered' => true];
+        Selection::save("$home/.claude/otack-agent/selection.json", $s);
+        $res = _apRun($home, $port);
+        assert_eq([16], $res['approved']);
+        assert_eq([16], Selection::load("$home/.claude/otack-agent/selection.json")['approved']);
+        assert_eq(3, count($res['notes']), implode("\n", $res['notes']));
+    });
+});
+
+it('a transient project read failure keeps the approval', function () {
+    _cliFixtureServer(_apRoutes([
+        'GET /api/v1/projects/42' => [['status' => 502, 'body' => '{}']],
+        'GET /api/v1/tasks/16' => [['status' => 200, 'body' => json_encode(['id' => 16, 'project_id' => 42, 'column_id' => 2, 'assignee_id' => 7, 'agent_state' => null])]],
+    ]), function (int $port) {
+        $home = _apHome($port);
+        $s = Selection::empty();
+        $s['approved'] = [16];
+        $s['digest'] = ['message_id' => 500, 'sent_at' => 1_999_000, 'offered' => [16], 'answered' => true];
+        Selection::save("$home/.claude/otack-agent/selection.json", $s);
+        assert_eq([16], _apRun($home, $port)['approved']);
     });
 });

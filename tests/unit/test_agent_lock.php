@@ -1785,6 +1785,7 @@ it('telegram mode: the tick runs the approval pass and sends one digest', functi
         assert_true(is_file($sel));
         assert_eq('600', sprintf('%o', fileperms($sel) & 0777));
         assert_true(!file_exists($home . '/.claude/otack-agent/approval-closed'), 'a good pass leaves the gate open');
+        assert_true(str_contains($r['err'], 'API base overridden'), $r['err']);
         assert_true(!str_contains($r['err'] . $r['out'], _TICK_TG), 'the Telegram token must never be printed');
     });
 });
@@ -1797,5 +1798,23 @@ it('telegram mode: a Telegram failure is logged, the tick goes on, and the gate 
         assert_true(str_contains($r['err'], 'telegram selection skipped'), $r['err']);
         assert_true(file_exists($home . '/.claude/otack-agent/approval-closed'), 'a failed pass must close the gate for `next`');
         assert_true(!str_contains($r['err'] . $r['out'], _TICK_TG), 'the Telegram token must never be printed');
+    });
+});
+
+it('telegram mode: OTACK_TG_API_BASE is ignored without OTACK_TICK_ALLOW_SELFTEST=1', function () {
+    // No real network: GET /me fails at the fixture, and Approval::run reads
+    // it before any Telegram call, so the pass stops before reaching either
+    // base. What is asserted is the base the tick chose (its stderr line)
+    // and that the fixture saw no Telegram request.
+    $routes = _tickTgRoutes(true);
+    $routes['GET /api/v1/me'] = [['status' => 500, 'body' => '{}']];
+    _cliFixtureServer($routes, function (int $port, string $log) {
+        $home = _tickTgHome($port);
+        [$cmd] = _tick($home, '', ['OTACK_TICK_ALLOW_SELFTEST' => '0', 'OTACK_TG_API_BASE' => "http://127.0.0.1:$port"]);
+        exec($cmd . ' 2>&1', $out, $code);
+        $text = implode("\n", $out);
+        assert_true(!str_contains($text, 'API base overridden'), $text);
+        assert_true(str_contains($text, 'telegram selection skipped: GET /me failed (500)'), $text);
+        assert_eq(0, count(array_filter(_requestLog($log), fn($e) => str_starts_with($e['path'], '/bot'))));
     });
 });
