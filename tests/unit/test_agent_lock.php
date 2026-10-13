@@ -1513,3 +1513,97 @@ it('fix1: print-cmd denies the file-reading git shapes in the -C spelling', func
         assert_true(in_array($rule, $cmd['disallowed_tools'], true), "missing deny $rule");
     }
 });
+
+// ---------------------------------------------------------------------
+// Task 1 review, fix round 2: options that make git run a command of the
+// caller's choosing (upload-pack/receive-pack/exec, config overrides) and
+// options that write a file of the caller's choosing (--output, -o).
+// ---------------------------------------------------------------------
+
+it('fix2: the gate refuses every option that makes git run a command of the caller\'s choosing', function () {
+    [$repo, $policy] = _tickGateFileFixture();
+    $r = escapeshellarg($repo['repo']);
+    $marker = dirname($repo['repo']) . '/pwned';
+    $c = escapeshellarg('touch ' . $marker . ';git-upload-pack');
+    $rp = escapeshellarg('touch ' . $marker . ';git-receive-pack');
+    $remote = escapeshellarg($repo['remote']);
+    $dst = escapeshellarg(dirname($repo['repo']) . '/clone-dst');
+    $forms = [
+        "-C $r fetch --upload-pack=$c origin",
+        "-C $r fetch --upload-pack $c origin",
+        "-C $r fetch --upl=$c origin",
+        "-C $r pull --upload-pack=$c origin otack/task-1",
+        "-C $r push --receive-pack=$rp origin otack/task-1",
+        "-C $r push --receive-pack $rp origin otack/task-1",
+        "-C $r push --exec=$rp origin otack/task-1",
+        "-C $r push --exec $rp origin otack/task-1",
+        "-C $r ls-remote --upload-pack=$c origin",
+        "-C $r ls-remote -u $c origin",
+        "-C $r clone -u $c $remote $dst",
+        "-C $r clone --upload-pack=$c $remote $dst",
+        "-C $r clone -c core.sshCommand=x $remote $dst",
+        "-C $r clone --config=core.sshCommand=x $remote $dst",
+        "-C $r archive --exec=$c --remote=$remote HEAD",
+        "-C $r -c core.sshCommand=x fetch origin",
+        "-C $r --config-env=core.sshCommand=X fetch origin",
+        "--upload-pack=$c -C $r fetch origin",
+    ];
+    foreach ($forms as $args) {
+        $res = _tickGitGate($policy, $repo['repo'], $args);
+        assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], "should have been refused: git $args\n" . $res['out']);
+        assert_true(!file_exists($marker), "the command ran: git $args");
+    }
+});
+
+it('fix2: the gate refuses --output / -o that writes outside the repository or into .git', function () {
+    [$repo, $policy] = _tickGateFileFixture();
+    $r = escapeshellarg($repo['repo']);
+    $out = dirname($repo['repo']) . '/written-outside';
+    $o = escapeshellarg($out);
+    $forms = [
+        "-C $r diff --output=$o HEAD~1",
+        "-C $r diff --output $o HEAD~1",
+        "-C $r log --output=$o",
+        "-C $r show --outp=$o",
+        "-C $r format-patch -o $o HEAD~1",
+        "-C $r format-patch -o$o HEAD~1",
+        "-C $r format-patch --output-directory=$o HEAD~1",
+        "-C $r format-patch --output=$o HEAD~1",
+        "-C $r archive --output=$o HEAD",
+        "-C $r archive -o $o HEAD",
+        "-C $r diff --output=.git/config HEAD~1",
+    ];
+    $configBefore = file_get_contents($repo['repo'] . '/.git/config');
+    foreach ($forms as $args) {
+        $res = _tickGitGate($policy, $repo['repo'], $args);
+        assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], "should have been refused: git $args\n" . $res['out']);
+        assert_true(!file_exists($out), "the file was written: git $args");
+    }
+    assert_eq($configBefore, file_get_contents($repo['repo'] . '/.git/config'), '.git/config must be untouched');
+});
+
+it('fix2: push -u, fetch, pull and --output inside the repository still work', function () {
+    [$repo, $policy] = _tickGateFileFixture();
+    $r = escapeshellarg($repo['repo']);
+    $res = _tickGitGate($policy, $repo['repo'], "-C $r push -u origin otack/task-1");
+    assert_eq(0, $res['code'], $res['out']);
+    assert_true(trim((string)shell_exec('git --git-dir=' . escapeshellarg($repo['remote']) . ' rev-parse --verify -q refs/heads/otack/task-1')) !== '',
+        'the task branch must have landed on the remote');
+    $res = _tickGitGate($policy, $repo['repo'], "-C $r fetch origin");
+    assert_eq(0, $res['code'], $res['out']);
+    $res = _tickGitGate($policy, $repo['repo'], "-C $r pull");
+    assert_eq(0, $res['code'], $res['out']);
+    $res = _tickGitGate($policy, $repo['repo'], "-C $r diff --output=out.diff HEAD~1");
+    assert_eq(0, $res['code'], $res['out']);
+    assert_true(str_contains((string)file_get_contents($repo['repo'] . '/out.diff'), '+two'), 'the diff must be written inside the repo');
+});
+
+it('fix2: print-cmd denies the command-running and file-writing git shapes in the -C spelling', function () {
+    $repo = _tickGitRepo();
+    $cmd = _tickPrintCmd(_tickHomeWithRepo($repo));
+    foreach (['fetch --upload-pack', 'pull --upload-pack', 'push --receive-pack', 'push --exec',
+              'diff --output', 'log --output', 'show --output'] as $shape) {
+        $rule = 'Bash(git -C ' . $repo['repo'] . ' ' . $shape . ':*)';
+        assert_true(in_array($rule, $cmd['disallowed_tools'], true), "missing deny $rule");
+    }
+});
