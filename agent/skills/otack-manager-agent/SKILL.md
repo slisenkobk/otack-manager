@@ -62,6 +62,8 @@ changes with `git -C <path> status` and by reading the changed files with the
 Read tool. Commit messages go in `-m "…"`; options that read or write a file
 (`-F`/`--file`, `-t`/`--template`, `--pathspec-from-file`, `--output`,
 `--output-directory`, `-o`, `-O`) are refused for every verb.
+`fetch`/`pull` work only from `origin` (`git -C <path> pull origin <branch>`,
+no `:` or `+` refspecs); give option values with `=` (`--depth=1`).
 
 Anything else — `diff`, `log`, `show`, `tag`, `branch -D`, `remote set-url`,
 `git config` writes, force pushes, pushing to the default branch or to any URL that is not the

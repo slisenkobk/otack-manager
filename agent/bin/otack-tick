@@ -629,6 +629,14 @@ function gitGateFetchSource(string $sub, array $rest): void
             '(a value for an option must be written as --opt=value)'
         );
     }
+    // Round 5 addendum: a refspec with a destination (`x:main`) or a force
+    // marker (`+x`) moves local refs — the default branch included — past
+    // the history checks. Plain `origin <branch>` is all the workflow needs.
+    foreach (array_slice($positional, 1) as $spec) {
+        if (str_contains($spec, ':') || str_starts_with($spec, '+')) {
+            gitRefuse("\"git $sub origin $spec\" — refspecs with \":\" or a leading \"+\" are not allowed; name the branch only");
+        }
+    }
 }
 
 /** True when $name is `$full` or an abbreviation of it git would accept (at least $minLen chars). */

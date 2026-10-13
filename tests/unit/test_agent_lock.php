@@ -1724,3 +1724,15 @@ it('fix5: fetch/pull from origin still pass', function () {
         assert_eq(0, $res['code'], "should have passed: git $args\n" . $res['out']);
     }
 });
+
+it('fix5: fetch and pull refuse refspecs with a colon or a leading +', function () {
+    [$repo, $policy, $r] = _tickGate4bFixture();
+    foreach ([
+        'fetch origin main:main', 'fetch origin +main:main', 'fetch origin +main', 'fetch origin :x',
+        'fetch origin refs/heads/x:refs/heads/main', 'pull origin main:main', 'pull origin +main:x',
+    ] as $args) {
+        $res = _tickGitGate($policy, $repo['repo'], "-C $r $args");
+        assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], "should have been refused: git $args\n" . $res['out']);
+        assert_true(str_contains($res['out'], 'REFUSED'), $res['out']);
+    }
+});
