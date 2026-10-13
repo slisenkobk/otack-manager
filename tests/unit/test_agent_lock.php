@@ -1682,3 +1682,45 @@ it('fix4b: a write into .git is refused whatever its letter case', function () {
         assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], "should have been refused: format-patch -o $target\n" . $res['out']);
     }
 });
+
+// ---------------------------------------------------------------------
+// Fix round 5: fetch/pull read only from origin, and push --repo is
+// refused in the shim. Refusal-only: the refused argv never reaches git, so
+// nothing is contacted or read.
+// ---------------------------------------------------------------------
+
+it('fix5: fetch and pull refuse any source but origin', function () {
+    [$repo, $policy, $r] = _tickGate4bFixture();
+    $forms = [
+        'fetch https://example.invalid/x.git', 'fetch git@example.invalid:x.git',
+        'fetch ../other', 'fetch /tmp/other.git', 'fetch file:///tmp/other.git', 'fetch upstream',
+        'fetch --all', 'fetch --multiple origin upstream', 'fetch --repo=https://example.invalid/x.git',
+        'fetch --depth 1 origin',
+        'pull https://example.invalid/x.git main', 'pull ../other main', 'pull --all', 'pull --repo=x',
+    ];
+    foreach ($forms as $args) {
+        $res = _tickGitGate($policy, $repo['repo'], "-C $r $args");
+        assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], "should have been refused: git $args\n" . $res['out']);
+        assert_true(str_contains($res['out'], 'REFUSED'), $res['out']);
+    }
+    // Outside every policy repository the name check still holds.
+    $res = _tickGitGate($policy, _tickTempProjectDir(), 'fetch https://example.invalid/x.git');
+    assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], $res['out']);
+});
+
+it('fix5: push --repo is refused in the shim, in every spelling', function () {
+    [$repo, $policy, $r] = _tickGate4bFixture();
+    foreach (['push --repo=x', 'push --repo x', 'push --rep=x origin otack/task-1'] as $args) {
+        $res = _tickGitGate($policy, $repo['repo'], "-C $r $args");
+        assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], "should have been refused: git $args\n" . $res['out']);
+        assert_true(str_contains($res['out'], 'REFUSED'), $res['out']);
+    }
+});
+
+it('fix5: fetch/pull from origin still pass', function () {
+    [$repo, $policy, $r] = _tickGate4bFixture();
+    foreach (['fetch', 'fetch origin', 'fetch origin main', 'fetch --depth=1 origin main', 'pull origin main'] as $args) {
+        $res = _tickGitGate($policy, $repo['repo'], "-C $r $args");
+        assert_eq(0, $res['code'], "should have passed: git $args\n" . $res['out']);
+    }
+});

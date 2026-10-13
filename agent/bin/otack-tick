@@ -512,6 +512,9 @@ function runGitGate(array $args): void
     gitGateExecArgs($sub, $rest);
     gitGateRefusedOptions($sub, $rest);
     gitGateFileArgs($git, $cwd, $sub, $rest);
+    if ($sub === 'fetch' || $sub === 'pull') {
+        gitGateFetchSource($sub, $rest);
+    }
 
     $entry = gitRepoPolicy($policy, $git, $cwd);
     if ($entry === null) {
@@ -577,7 +580,55 @@ function runGitGate(array $args): void
         gitExec($git, $args);
     }
 
+    if ($sub === 'fetch' || $sub === 'pull') {
+        // Fix round 5: the name is "origin" (gitGateFetchSource); in a
+        // policy repository it must also still point where the policy says.
+        [$code, $url] = runCapture([$git, 'remote', 'get-url', 'origin'], $repo);
+        if ($origin === '' || $code !== 0 || $url !== $origin) {
+            gitRefuse("\"git $sub\" from \"$url\" — the only source allowed for this repository is its own origin (\"$origin\")");
+        }
+    }
+
     gitExec($git, $args);
+}
+
+/**
+ * Fix round 5: `fetch`/`pull` read only from `origin`. A URL or a local path
+ * as the repository argument would let an allowed command line contact any
+ * host (the URL itself an outbound channel) or pull any git repository on
+ * disk into the checkout, where Read sees it. Purely syntactic, so it holds
+ * outside the policy repositories as well:
+ *   - the first positional argument is absent or exactly `origin`;
+ *   - `--all`, `--multiple` (other configured remotes) and `--repo` are
+ *     refused, by any abbreviation;
+ *   - no option is assumed to consume the next word, so a value given as a
+ *     separate word (`--depth 1`) counts as the repository and is refused —
+ *     fail closed; the `--depth=1` spelling works.
+ */
+function gitGateFetchSource(string $sub, array $rest): void
+{
+    $positional = [];
+    foreach ($rest as $a) {
+        if ($a === '' || $a === '--') { continue; }
+        if (str_starts_with($a, '--')) {
+            $name = explode('=', substr($a, 2), 2)[0];
+            foreach (['all', 'multiple', 'repo'] as $full) {
+                if (gitIsLongOpt($name, $full, 1)) {
+                    gitRefuse("\"git $sub --$full\" could read from somewhere other than origin");
+                }
+            }
+            continue;
+        }
+        if ($a[0] === '-') { continue; }
+        $positional[] = $a;
+    }
+    $source = $positional[0] ?? 'origin';
+    if ($source !== 'origin') {
+        gitRefuse(
+            "\"git $sub $source\" — the only repository the agent may $sub from is \"origin\" " .
+            '(a value for an option must be written as --opt=value)'
+        );
+    }
 }
 
 /** True when $name is `$full` or an abbreviation of it git would accept (at least $minLen chars). */
@@ -835,7 +886,13 @@ function gitGatePush(string $git, string $repo, array $rest, string $default, st
             if (str_starts_with($a, '--receive-pack') || str_starts_with($a, '--exec')) {
                 gitRefuse("\"git push $a\" runs an arbitrary command on the far end");
             }
-            if (in_array($a, ['-o', '--push-option', '--repo'], true)) {
+            // Fix round 5: `--repo=<url>` (and any abbreviation of --repo)
+            // re-points the push; the pre-push hook caught it, now the shim
+            // does too.
+            if (str_starts_with($a, '--') && gitIsLongOpt(explode('=', substr($a, 2), 2)[0], 'repo', 1)) {
+                gitRefuse("\"git push $a\" names a destination other than the remote argument");
+            }
+            if (in_array($a, ['-o', '--push-option'], true)) {
                 // These take a value; refusing is simpler and safer than
                 // trying to keep positional counting in sync with them.
                 gitRefuse("\"git push $a\" is not allowed");
