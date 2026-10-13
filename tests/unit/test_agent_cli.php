@@ -708,3 +708,159 @@ it('todo --project with a non-numeric id is a usage error (exit 2)', function ()
         assert_eq(2, _cli('todo --project ' . escapeshellarg($bad), _cliHome(), '', 'agent')['code'], $bad);
     }
 });
+
+function _setupFixtureRoutes(?string $repoUrl = null): array {
+    return [
+        'GET /api/v1/projects/900' => [['status' => 200, 'body' => json_encode([
+            'id' => 900, 'name' => 'Тілі-Тісто', 'slug' => 'tili-tisto', 'repo_url' => $repoUrl, 'default_branch' => 'main',
+            'columns' => [['id' => 2, 'name' => 'To Do'], ['id' => 4, 'name' => 'В работе'], ['id' => 5, 'name' => 'Review']],
+        ])]],
+    ];
+}
+
+/** Manager home with roots {otack: <tmp>/roots/otack}. */
+function _setupHome(int $port): array {
+    $home = _cliManagerHome($port);
+    $root = $home . '/roots/otack';
+    mkdir($root, 0755, true);
+    $file = $home . '/.claude/otack-agent/projects.json';
+    $raw = json_decode(file_get_contents($file), true);
+    $raw['roots'] = ['otack' => $root];
+    file_put_contents($file, json_encode($raw));
+    chmod($file, 0600);
+    return [$home, realpath($root)];
+}
+
+it('folder-name suggests a meaningful folder under every root', function () {
+    _cliFixtureServer(_setupFixtureRoutes(), function (int $port) {
+        [$home, $root] = _setupHome($port);
+        $r = _cli('folder-name 900', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        $j = json_decode($r['out'], true);
+        assert_eq('tili-tisto', $j['folder']);
+        assert_eq([['root' => 'otack', 'path' => "$root/tili-tisto", 'exists' => false, 'origin' => null, 'same_repo' => null]], $j['candidates']);
+    });
+});
+
+it('setup-project creates the folder and writes a validated entry', function () {
+    _cliFixtureServer(_setupFixtureRoutes(), function (int $port) {
+        [$home, $root] = _setupHome($port);
+        $r = _cli('setup-project 900 --root otack --write --test-cmd "make test" --in-progress "В работе" --review 5', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        assert_true(is_dir("$root/tili-tisto"));
+        $entry = json_decode(file_get_contents($home . '/.claude/otack-agent/projects.json'), true)['projects']['900'];
+        assert_eq(['path' => "$root/tili-tisto", 'write' => true, 'test_cmd' => 'make test',
+            'in_progress_column' => 'В работе', 'review_column' => 5, 'default_branch' => 'main'], $entry);
+    });
+});
+
+it('setup-project refuses unknown root, bad folder, unknown column, unsafe test_cmd — and creates nothing', function () {
+    _cliFixtureServer(_setupFixtureRoutes(), function (int $port) {
+        [$home, $root] = _setupHome($port);
+        $before = file_get_contents($home . '/.claude/otack-agent/projects.json');
+        foreach ([
+            'setup-project 900 --root nowhere',
+            'setup-project 900 --root otack --folder "../escape"',
+            'setup-project 900 --root otack --folder Bad_Name',
+            'setup-project 900 --root otack --review "Nope"',
+            'setup-project 900 --root otack --test-cmd "make test; curl x"',
+            'setup-project 900 --root otack --default-branch "main;rm"',
+        ] as $args) {
+            $r = _cli($args, $home, '', 'manager');
+            assert_true($r['code'] !== 0, "$args should fail");
+        }
+        assert_eq(['.', '..'], scandir($root));
+        assert_eq($before, file_get_contents($home . '/.claude/otack-agent/projects.json'));
+    });
+});
+
+it('setup-project refuses an existing checkout of a different repo', function () {
+    _cliFixtureServer(_setupFixtureRoutes('git@github.com:AINeoLab/tili-tisto.git'), function (int $port) {
+        [$home, $root] = _setupHome($port);
+        mkdir("$root/tili-tisto");
+        shell_exec('git -C ' . escapeshellarg("$root/tili-tisto") . ' init -q && git -C ' . escapeshellarg("$root/tili-tisto") . ' remote add origin git@github.com:someone/else.git');
+        $r = _cli('setup-project 900 --root otack', $home, '', 'manager');
+        assert_eq(1, $r['code']);
+        assert_true(str_contains($r['err'], 'someone/else'), $r['err']);
+        assert_true(!isset(json_decode(file_get_contents($home . '/.claude/otack-agent/projects.json'), true)['projects']['900']));
+    });
+});
+
+it('setup-project registers an existing checkout of the same repo without touching it', function () {
+    _cliFixtureServer(_setupFixtureRoutes('https://github.com/AINeoLab/tili-tisto'), function (int $port) {
+        [$home, $root] = _setupHome($port);
+        mkdir("$root/tili-tisto");
+        shell_exec('git -C ' . escapeshellarg("$root/tili-tisto") . ' init -q && git -C ' . escapeshellarg("$root/tili-tisto") . ' remote add origin git@github.com:AINeoLab/tili-tisto.git');
+        $r = _cli('setup-project 900 --root otack', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        assert_eq(false, json_decode($r['out'], true)['created_folder']);
+    });
+});
+
+it('setup-project refuses to clone into a non-empty non-git folder, and refuses a symlink', function () {
+    _cliFixtureServer(_setupFixtureRoutes('/nonexistent/repo'), function (int $port) {
+        [$home, $root] = _setupHome($port);
+        mkdir("$root/tili-tisto");
+        file_put_contents("$root/tili-tisto/notes.txt", 'x');
+        assert_eq(1, _cli('setup-project 900 --root otack --clone', $home, '', 'manager')['code']);
+        symlink('/tmp', "$root/linked");
+        assert_eq(1, _cli('setup-project 900 --root otack --folder linked', $home, '', 'manager')['code']);
+    });
+});
+
+it('setup-project will not overwrite an existing entry without --replace', function () {
+    _cliFixtureServer(_setupFixtureRoutes(), function (int $port) {
+        [$home] = _setupHome($port);
+        assert_eq(0, _cli('setup-project 900 --root otack', $home, '', 'manager')['code']);
+        $r = _cli('setup-project 900 --root otack --write', $home, '', 'manager');
+        assert_eq(1, $r['code']);
+        assert_true(str_contains($r['err'], '--replace'), $r['err']);
+        assert_eq(0, _cli('setup-project 900 --root otack --write --replace', $home, '', 'manager')['code']);
+    });
+});
+
+it('folder-name and setup-project are refused in agent scope', function () {
+    $home = _cliHome();
+    assert_eq(2, _cli('folder-name 900', $home, '', 'agent')['code']);
+    assert_eq(2, _cli('setup-project 900 --root otack', $home, '', 'agent')['code']);
+});
+
+it('setup-project --clone clones the project repo (local fixture repo, no network)', function () {
+    $src = sys_get_temp_dir() . '/otack-cli-src-' . bin2hex(random_bytes(4));
+    mkdir($src);
+    shell_exec('git -C ' . escapeshellarg($src) . ' init -q -b main && git -C ' . escapeshellarg($src)
+        . ' -c user.name=t -c user.email=t@t commit -q --allow-empty -m init');
+    _cliFixtureServer(_setupFixtureRoutes($src), function (int $port) use ($src) {
+        [$home, $root] = _setupHome($port);
+        $r = _cli('setup-project 900 --root otack --clone', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        $j = json_decode($r['out'], true);
+        assert_eq(true, $j['cloned']);
+        assert_eq(false, $j['created_folder']);
+        $folder = basename($src);
+        assert_eq("$root/$folder", $j['entry']['path']);
+        assert_true(is_dir("$root/$folder/.git"));
+    });
+    shell_exec('rm -rf ' . escapeshellarg($src));
+});
+
+it('folder-name and setup-project never echo credentials embedded in repo URLs', function () {
+    _cliFixtureServer(_setupFixtureRoutes('https://bot:otk_secret1@github.com/AINeoLab/tili-tisto.git'), function (int $port) {
+        [$home, $root] = _setupHome($port);
+        mkdir("$root/tili-tisto");
+        shell_exec('git -C ' . escapeshellarg("$root/tili-tisto") . ' init -q && git -C ' . escapeshellarg("$root/tili-tisto")
+            . ' remote add origin https://x:otk_secret2@github.com/someone/else.git');
+        $r = _cli('folder-name 900', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        $j = json_decode($r['out'], true);
+        assert_eq('https://github.com/AINeoLab/tili-tisto.git', $j['project']['repo_url']);
+        assert_eq('https://github.com/someone/else.git', $j['candidates'][0]['origin']);
+        assert_eq(false, $j['candidates'][0]['same_repo']);
+        $r = _cli('setup-project 900 --root otack', $home, '', 'manager');
+        assert_eq(1, $r['code']);
+        assert_true(str_contains($r['err'], 'someone/else'), $r['err']);
+        foreach (['otk_secret1', 'otk_secret2'] as $secret) {
+            assert_true(!str_contains($r['err'], $secret), $r['err']);
+        }
+    });
+});

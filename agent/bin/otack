@@ -30,8 +30,9 @@ require_once __DIR__ . '/../lib/Client.php';
 require_once __DIR__ . '/../lib/Triage.php';
 require_once __DIR__ . '/../lib/Rank.php';
 require_once __DIR__ . '/../lib/Board.php';
+require_once __DIR__ . '/../lib/ProjectSetup.php';
 
-use App\Agent\{Config, Client, Triage, Rank, Board};
+use App\Agent\{Config, Client, Triage, Rank, Board, ProjectSetup};
 
 const PHASES = ['researching', 'awaiting_approval', 'implementing', 'review', 'blocked'];
 
@@ -41,7 +42,7 @@ function out(array $data): never {
 }
 
 function fail(string $message, int $code = 1): never {
-    fwrite(STDERR, json_encode(['error' => $message], JSON_UNESCAPED_UNICODE) . "\n");
+    fwrite(STDERR, json_encode(['error' => $message], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
     exit($code);
 }
 
@@ -57,6 +58,11 @@ function positiveIntArg(?string $raw, string $usage): int {
     $n = (int)$raw;
     if ($n <= 0) { fail($usage); }
     return $n;
+}
+
+/** Drops "user:pass@" from a scheme URL — repo URLs may carry a token and are echoed back to the chat. */
+function redactUrl(?string $url): ?string {
+    return $url === null ? null : (string)preg_replace('#(://)[^/@\s]+@#', '$1', $url);
 }
 
 function usage(): never {
@@ -527,6 +533,137 @@ try {
             $r = $client->patch("/tasks/$id", ['assignee_id' => $assigneeId]);
             if ($r['status'] !== 200) { fail("PATCH /tasks/$id returned " . $r['status']); }
             out($r['json']);
+        }
+
+        case 'folder-name': {
+            $managerOnly('folder-name');
+            $pid = positiveIntArg($argvRest[1] ?? null, 'usage: otack folder-name <project-id>');
+            $project = Board::project($client, $pid);
+            $folder = ProjectSetup::folderName($project);
+            $repoUrl = is_string($project['repo_url'] ?? null) && $project['repo_url'] !== '' ? $project['repo_url'] : null;
+            $candidates = [];
+            foreach ($cfg->roots as $key => $root) {
+                $path = $root . '/' . $folder;
+                $origin = is_dir($path) && !is_link($path) ? ProjectSetup::originOf($path) : null;
+                $candidates[] = [
+                    'root'      => $key,
+                    'path'      => $path,
+                    'exists'    => file_exists($path) || is_link($path),
+                    'origin'    => redactUrl($origin),
+                    'same_repo' => $origin !== null && $repoUrl !== null ? ProjectSetup::sameRepo($origin, $repoUrl) : null,
+                ];
+            }
+            out([
+                'project' => [
+                    'id' => $pid, 'name' => $project['name'] ?? '', 'slug' => $project['slug'] ?? null,
+                    'repo_url' => redactUrl($repoUrl), 'default_branch' => $project['default_branch'] ?? null,
+                ],
+                'folder'     => $folder,
+                'roots'      => $cfg->roots === [] ? new \stdClass() : $cfg->roots,
+                'candidates' => $candidates,
+                'local'      => $cfg->projectPath($pid),
+                'columns'    => array_map(fn($c) => ['id' => (int)$c['id'], 'name' => (string)$c['name']], $project['columns']),
+            ]);
+        }
+
+        case 'setup-project': {
+            $managerOnly('setup-project');
+            $usageSetup = 'usage: otack setup-project <project-id> --root <name> [--folder <name>] [--write] [--clone] '
+                . '[--test-cmd <cmd>] [--in-progress <column>] [--review <column>] [--default-branch <branch>] [--replace]';
+            $pid = positiveIntArg($argvRest[1] ?? null, $usageSetup);
+            $o = parseOpts(array_slice($argvRest, 2),
+                ['root', 'folder', 'test-cmd', 'in-progress', 'review', 'default-branch'],
+                ['write', 'clone', 'replace']);
+            if (!isset($o['root'])) { fail($usageSetup, 2); }
+
+            // 1. Validate everything before creating anything.
+            $root = $cfg->roots[$o['root']] ?? null;
+            if ($root === null) {
+                fail('unknown root "' . $o['root'] . '" — configured: '
+                    . ($cfg->roots === [] ? '(none — add "roots" to projects.json)' : implode(', ', array_keys($cfg->roots))));
+            }
+            if ($cfg->projectPath($pid) !== null && empty($o['replace'])) {
+                fail("project $pid is already in projects.json — pass --replace to overwrite its entry");
+            }
+            $project = Board::project($client, $pid);
+            $folder = $o['folder'] ?? ProjectSetup::folderName($project);
+            if (!preg_match(ProjectSetup::FOLDER_PATTERN, $folder)) {
+                fail("folder name \"$folder\" must match [a-z0-9][a-z0-9._-]* (lowercase, no slashes)");
+            }
+            $path = $root . '/' . $folder;
+            if (!preg_match(ProjectSetup::RULE_SAFE_PATH, $path)) {
+                fail("$path contains characters the bot's permission rules cannot carry — choose a root/folder made of [A-Za-z0-9_./-]");
+            }
+            if (isset($o['test-cmd']) && !preg_match(Config::TEST_CMD_PATTERN, $o['test-cmd'])) {
+                fail('test_cmd may contain only [A-Za-z0-9 _./-] (a ")" or ":" would inject permission rules)');
+            }
+            $columns = $project['columns'];
+            $colRef = function (?string $v) use ($columns): int|string|null {
+                if ($v === null) { return null; }
+                foreach ($columns as $c) {
+                    if (ctype_digit($v) && (int)$c['id'] === (int)$v) { return (int)$v; }
+                    if ((string)$c['name'] === $v) { return $v; }
+                }
+                fail("no column \"$v\" on this board — existing: "
+                    . implode(', ', array_map(fn($c) => $c['id'] . ' "' . $c['name'] . '"', $columns)));
+            };
+            $entry = ['path' => $path, 'write' => !empty($o['write'])];
+            if (isset($o['test-cmd']) && $o['test-cmd'] !== '') { $entry['test_cmd'] = $o['test-cmd']; }
+            $inProgress = $colRef($o['in-progress'] ?? null);
+            if ($inProgress !== null) { $entry['in_progress_column'] = $inProgress; }
+            $review = $colRef($o['review'] ?? null);
+            if ($review !== null) { $entry['review_column'] = $review; }
+            $branch = $o['default-branch'] ?? ($project['default_branch'] ?? null);
+            if (is_string($branch) && $branch !== '') {
+                if (!preg_match('#^[A-Za-z0-9._/-]{1,100}$#', $branch)) { fail("invalid default branch \"$branch\""); }
+                $entry['default_branch'] = $branch;
+            }
+            $repoUrl = is_string($project['repo_url'] ?? null) && $project['repo_url'] !== '' ? $project['repo_url'] : null;
+            $wantClone = !empty($o['clone']);
+            if ($wantClone && $repoUrl === null) {
+                fail("project $pid has no repo_url — fill it in Otack Manager or drop --clone");
+            }
+
+            // 2. Inspect what is already on disk.
+            $created = false;
+            $cloned = false;
+            if (is_link($path)) { fail("$path is a symlink — refusing"); }
+            if (file_exists($path)) {
+                if (!is_dir($path)) { fail("$path exists and is not a directory"); }
+                $origin = ProjectSetup::originOf($path);
+                if ($origin !== null && $repoUrl !== null && !ProjectSetup::sameRepo($origin, $repoUrl)) {
+                    fail("$path is a checkout of " . redactUrl($origin) . ", not of this project's repo_url "
+                        . redactUrl($repoUrl) . ' — choose another --folder');
+                }
+                if ($wantClone && $origin === null) {
+                    if (count(scandir($path) ?: []) > 2) {
+                        fail("$path exists, is not empty and is not a git checkout — refusing to clone into it");
+                    }
+                    rmdir($path);
+                    try {
+                        ProjectSetup::cloneInto($repoUrl, $path);
+                    } catch (\Throwable $e) {
+                        if (!file_exists($path)) { @mkdir($path, 0755); } // put back the empty folder we removed
+                        throw $e;
+                    }
+                    $cloned = true;
+                }
+            } elseif ($wantClone) {
+                ProjectSetup::cloneInto($repoUrl, $path);
+                $cloned = true;
+            } else {
+                if (!mkdir($path, 0755)) { fail("cannot create $path"); }
+                $created = true;
+            }
+
+            // 3. Write the entry (validated again by Config with load()'s rules).
+            try {
+                $parsed = $cfg->writeProjectEntry($pid, $entry);
+            } catch (\Throwable $e) {
+                if ($created) { @rmdir($path); } // leave the disk as it was found
+                throw $e;
+            }
+            out(['project_id' => $pid, 'entry' => $parsed, 'created_folder' => $created, 'cloned' => $cloned]);
         }
 
         default:
