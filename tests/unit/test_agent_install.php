@@ -7,11 +7,11 @@ if (!is_file($__installer)) {
     return;
 }
 
-function _installRun(string $home): array {
+function _installRun(string $home, string $php = PHP_BINARY): array {
     $repo = dirname(__DIR__, 2);
     $cmd = 'HOME=' . escapeshellarg($home) . ' ' . escapeshellarg(PHP_BINARY) . ' '
         . escapeshellarg($repo . '/agent/bin/install.php') . ' '
-        . escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($repo);
+        . escapeshellarg($php) . ' ' . escapeshellarg($repo);
     $p = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
     $out = stream_get_contents($pipes[1]); fclose($pipes[1]);
     $err = stream_get_contents($pipes[2]); fclose($pipes[2]);
@@ -85,4 +85,24 @@ it('the installed agent wrapper runs the CLI', function () {
     $err = stream_get_contents($pipes[2]); fclose($pipes[2]);
     assert_eq(2, proc_close($p));
     assert_true(str_contains($err, 'otack'), $err);
+});
+
+it('install.php writes the php path as given, not its realpath (brew upgrade + cleanup must not kill the wrappers)', function () {
+    $home = _installHome();
+    // A stable symlink standing in for /usr/local/opt/php/bin/php -> Cellar/<version>/bin/php.
+    mkdir("$home/opt-php/bin", 0700, true);
+    $stable = "$home/opt-php/bin/php";
+    symlink(PHP_BINARY, $stable);
+    $r = _installRun($home, $stable);
+    assert_eq(0, $r['code'], $r['err']);
+    foreach (['otack', 'otack-manager', 'otack-tick'] as $w) {
+        $body = file_get_contents("$home/.claude/otack-agent/bin/$w");
+        assert_true(str_contains($body, escapeshellarg($stable)), "$w must exec the given path: $body");
+    }
+});
+
+it('install.php refuses a relative or non-executable php path', function () {
+    $home = _installHome();
+    assert_eq(1, _installRun($home, 'php')['code']);
+    assert_eq(1, _installRun($home, "$home/nope/php")['code']);
 });

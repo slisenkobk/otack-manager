@@ -30,7 +30,7 @@ help:
 	@echo ""
 	@echo "  make package      — build /tmp/otack-tasks-deploy.tar.gz for shared-hosting upload"
 	@echo ""
-	@echo "  make install-agent — install the agent-bridge CLI + skill (see agent/README.md)"
+	@echo "  make install-agent — copy the agent bridge into ~/.claude/otack-agent (wrappers + both skills; re-run after pull)"
 
 check-env:
 	@php bin/check-env.php

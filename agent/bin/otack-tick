@@ -449,6 +449,8 @@ function runGitGate(array $args): void
         gitExec($git, $args);
     }
 
+    gitGateFileArgs($git, $cwd, $sub, $rest);
+
     $entry = gitRepoPolicy($policy, $git, $cwd);
     if ($entry === null) {
         if (in_array($sub, GIT_GATED_SUBCOMMANDS, true)) {
@@ -514,6 +516,82 @@ function runGitGate(array $args): void
     }
 
     gitExec($git, $args);
+}
+
+/** True when $name is `$full` or an abbreviation of it git would accept (at least $minLen chars). */
+function gitIsLongOpt(string $name, string $full, int $minLen): bool
+{
+    return strlen($name) >= $minLen && str_starts_with($full, $name);
+}
+
+/**
+ * Task 1 review, fix round 1: the session's `Read` is denied the token
+ * files, but allow-listed git verbs read files on their own — `diff
+ * --no-index` prints any two files, and `commit -F/-t` or
+ * `--pathspec-from-file` load one into a commit (pushed afterwards) or into
+ * an error message. Refuse `--no-index` (and `diff` outside any work tree,
+ * where it is implicit), and refuse every file-taking option whose file
+ * does not resolve inside this repository. Long options are matched by
+ * any abbreviation git accepts; short clusters (`-aF x`, `-Fx`) are walked
+ * up to the first option that takes a value, so `-am"fix tests"` is a
+ * message, not a -t.
+ */
+function gitGateFileArgs(string $git, string $cwd, string $sub, array $rest): void
+{
+    $readsFiles = in_array($sub, ['diff', 'log', 'show'], true);
+    $msgFileSub = in_array($sub, ['commit', 'merge'], true);
+    // Short options of commit/merge that take a value: the rest of the
+    // cluster (or the next word) is that value, not more options.
+    $shortWithValue = $sub === 'commit' ? ['m', 'c', 'C', 'S', 'u'] : ['m', 's', 'X', 'S'];
+    $files = [];
+    $n = count($rest);
+    for ($i = 0; $i < $n; $i++) {
+        $a = $rest[$i];
+        if ($a === '--') { break; }
+        if (str_starts_with($a, '--')) {
+            $parts = explode('=', substr($a, 2), 2);
+            $name = $parts[0];
+            if ($readsFiles && gitIsLongOpt($name, 'no-index', 4)) {
+                gitRefuse("\"git $sub --no-index\" reads files outside the repository");
+            }
+            if (gitIsLongOpt($name, 'pathspec-from-file', 5)
+                || ($msgFileSub && gitIsLongOpt($name, 'file', 1))
+                || ($sub === 'commit' && gitIsLongOpt($name, 'template', 1))) {
+                $files[] = [$a, $parts[1] ?? ($rest[++$i] ?? '')];
+            }
+            continue;
+        }
+        if (!$msgFileSub || $a === '' || $a[0] !== '-') { continue; }
+        $len = strlen($a);
+        for ($k = 1; $k < $len; $k++) {
+            $ch = $a[$k];
+            if ($ch === 'F' || ($ch === 't' && $sub === 'commit')) {
+                $val = substr($a, $k + 1);
+                $files[] = ["-$ch", $val !== '' ? $val : ($rest[++$i] ?? '')];
+                break;
+            }
+            if (in_array($ch, $shortWithValue, true)) { break; }
+        }
+    }
+
+    if (!$files && $sub !== 'diff') { return; }
+    [$code, $top] = runCapture([$git, 'rev-parse', '--show-toplevel'], $cwd);
+    $topReal = $code === 0 && $top !== '' ? realpath($top) : false;
+    if ($topReal === false) {
+        if ($sub === 'diff') {
+            gitRefuse('"git diff" outside a work tree is an implicit --no-index and reads arbitrary files');
+        }
+        gitRefuse("\"git $sub {$files[0][0]}\" was run outside a repository, so its file cannot be checked");
+    }
+    $cwdReal = realpath($cwd) ?: $cwd;
+    foreach ($files as [$opt, $path]) {
+        if ($path === '-') { continue; } // stdin
+        $abs = ($path !== '' && $path[0] === '/') ? $path : $cwdReal . '/' . $path;
+        $real = $path === '' ? false : realpath($abs);
+        if ($real === false || !str_starts_with($real, $topReal . '/')) {
+            gitRefuse("\"git $sub $opt\" names a file outside the repository ($path)");
+        }
+    }
 }
 
 /** Refuses any checkout/switch whose target is the default branch, in any spelling. */
@@ -1142,9 +1220,11 @@ if (!is_file($otackBin) || !is_executable($otackBin)) {
     fwrite(STDERR, "$otackBin is missing or not executable — run `make install-agent` from the otack-tasks checkout\n");
     exit(EXIT_CONFIG_ERROR);
 }
-if (!isSafeRulePath($otackBin) || !isSafeRulePath($home)) {
-    fwrite(STDERR, "HOME \"$home\" contains a character that cannot appear in a permission rule — refusing to run\n");
-    exit(EXIT_CONFIG_ERROR);
+foreach (['HOME' => $home, 'the agent CLI path' => $otackBin] as $what => $rulePath) {
+    if (!isSafeRulePath($rulePath)) {
+        fwrite(STDERR, "$what \"$rulePath\" contains a character that cannot appear in a permission rule — refusing to run\n");
+        exit(EXIT_CONFIG_ERROR);
+    }
 }
 $bashPrefixes[] = 'Bash(' . $otackBin . ':*)';
 
@@ -1321,6 +1401,11 @@ foreach ($gitRulePaths as $rulePath) {
         'tag',
         'remote set-url', 'remote add', 'remote rename', 'remote remove',
         'config',
+        // Task 1 review: verbs that read a file outside the repository
+        // (the gate refuses them in every spelling, see gitGateFileArgs).
+        'diff --no-index', 'log --no-index', 'show --no-index',
+        'commit -F', 'commit --file', 'commit -t', 'commit --template',
+        'commit --pathspec-from-file', 'add --pathspec-from-file',
     ] as $shape) {
         $disallowedTools[] = 'Bash(git -C ' . $rulePath . ' ' . $shape . ':*)';
     }

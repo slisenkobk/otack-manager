@@ -30,10 +30,14 @@ if ($home === '' || $php === null || $repo === null) {
     fwrite(STDERR, "usage: install.php <php-binary> <repo-root>\n");
     exit(2);
 }
-$php  = realpath($php);
+// The php path is written into the wrappers exactly as given, never its
+// realpath: Homebrew's /usr/local/opt/php/bin/php is a stable symlink into
+// Cellar/<version>/, and `brew upgrade php && brew cleanup` deletes the
+// versioned target — wrappers pointing there (and the cron tick) would die.
+// It must be absolute, since cron runs the wrappers with a minimal PATH.
 $repo = realpath($repo);
-if ($php === false || !is_executable($php)) {
-    fwrite(STDERR, "php binary is not executable: {$argv[1]}\n");
+if ($php === '' || $php[0] !== '/' || !is_file($php) || !is_executable($php)) {
+    fwrite(STDERR, "php binary is not an absolute path to an executable: {$argv[1]}\n");
     exit(1);
 }
 if ($repo === false || !is_file("$repo/agent/bin/otack")) {

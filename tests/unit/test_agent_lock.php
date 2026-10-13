@@ -1427,3 +1427,89 @@ it('tick refuses to start with a git older than 2.31 (it ignores GIT_CONFIG_COUN
     assert_eq(1, $r['code'], $r['out'] . $r['err']);
     assert_true(str_contains($r['err'], 'older than 2.31'), $r['err']);
 });
+
+// ---------------------------------------------------------------------
+// Task 1 review, fix round 1: the token files are denied to `Read`, but the
+// allow-listed git verbs could read them anyway — `diff --no-index` prints
+// any two files, and `commit -F/-t/--pathspec-from-file` loads one into a
+// commit (then push) or into an error message. The gate refuses those
+// spellings unless the file is inside the repository.
+// ---------------------------------------------------------------------
+
+/** A repo + policy + a canary "token file" outside the repository. */
+function _tickGateFileFixture(): array {
+    $repo = _tickGitRepo();
+    $home = _tickHomeWithRepo($repo);
+    $policy = _tickPrintCmd($home)['git_gate']['policy_path'];
+    $secret = dirname($repo['repo']) . '/secret.env';
+    file_put_contents($secret, "OTACK_API_TOKEN=otk_canary_do_not_leak\n");
+    return [$repo, $policy, $secret];
+}
+
+it('fix1: the gate refuses every git spelling that reads a file outside the repository', function () {
+    [$repo, $policy, $secret] = _tickGateFileFixture();
+    $s = escapeshellarg($secret);
+    $r = escapeshellarg($repo['repo']);
+    $forms = [
+        "-C $r diff --no-index /dev/null $s",
+        "-C $r diff --no-in /dev/null $s",
+        "-C $r log --no-index /dev/null $s",
+        "-C $r show --no-index /dev/null $s",
+        "-C $r commit -F $s",
+        "-C $r commit -F$s",
+        "-C $r commit -aF $s",
+        "-C $r commit --file=$s",
+        "-C $r commit --file $s",
+        "-C $r commit --fil=$s",
+        "-C $r commit -t $s",
+        "-C $r commit -t$s",
+        "-C $r commit --template=$s",
+        "-C $r commit --template $s",
+        "-C $r commit --pathspec-from-file=$s",
+        "-C $r add --pathspec-from-file=$s",
+        "-C $r add --pathspec-from-file $s",
+        "-C $r merge -F $s otack/task-1",
+    ];
+    foreach ($forms as $args) {
+        $res = _tickGitGate($policy, $repo['repo'], $args);
+        assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], "should have been refused: git $args\n" . $res['out']);
+        assert_true(!str_contains($res['out'], 'otk_canary'), "the file leaked: git $args\n" . $res['out']);
+    }
+    // A symlink inside the repository that points outside it is still outside.
+    symlink($secret, $repo['repo'] . '/link.env');
+    $res = _tickGitGate($policy, $repo['repo'], "-C $r commit -F " . escapeshellarg($repo['repo'] . '/link.env'));
+    assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], $res['out']);
+    unlink($repo['repo'] . '/link.env');
+    // Outside any work tree, `git diff a b` is an implicit --no-index.
+    $res = _tickGitGate($policy, dirname($repo['repo']), "diff /dev/null $s");
+    assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], $res['out']);
+    assert_true(!str_contains($res['out'], 'otk_canary'), $res['out']);
+});
+
+it('fix1: commit -F with a file inside the repository, -m clusters and plain diff still work', function () {
+    [$repo, $policy] = _tickGateFileFixture();
+    $r = escapeshellarg($repo['repo']);
+    file_put_contents($repo['repo'] . '/a.txt', "changed\n");
+    file_put_contents($repo['repo'] . '/msg.txt', "commit from a file\n");
+    $res = _tickGitGate($policy, $repo['repo'], "-C $r diff");
+    assert_eq(0, $res['code'], $res['out']);
+    assert_true(str_contains($res['out'], '+changed'), $res['out']);
+    $res = _tickGitGate($policy, $repo['repo'], "-C $r commit -a -F msg.txt");
+    assert_eq(0, $res['code'], $res['out']);
+    assert_eq('commit from a file', trim((string)shell_exec('git -C ' . $r . ' log -1 --format=%s')));
+    // `-am<msg>`: the "t" inside the message is not a -t option.
+    file_put_contents($repo['repo'] . '/a.txt', "changed again\n");
+    $res = _tickGitGate($policy, $repo['repo'], "-C $r commit -amfix-the-tests");
+    assert_eq(0, $res['code'], $res['out']);
+    assert_eq('fix-the-tests', trim((string)shell_exec('git -C ' . $r . ' log -1 --format=%s')));
+});
+
+it('fix1: print-cmd denies the file-reading git shapes in the -C spelling', function () {
+    $repo = _tickGitRepo();
+    $cmd = _tickPrintCmd(_tickHomeWithRepo($repo));
+    foreach (['diff --no-index', 'log --no-index', 'show --no-index', 'commit -F', 'commit --file',
+              'commit -t', 'commit --template', 'commit --pathspec-from-file', 'add --pathspec-from-file'] as $shape) {
+        $rule = 'Bash(git -C ' . $repo['repo'] . ' ' . $shape . ':*)';
+        assert_true(in_array($rule, $cmd['disallowed_tools'], true), "missing deny $rule");
+    }
+});
