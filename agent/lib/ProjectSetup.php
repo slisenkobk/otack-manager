@@ -129,8 +129,23 @@ final class ProjectSetup
         $p = proc_open($argv, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, null, $env);
         if (!is_resource($p)) { return [127, '', 'cannot start git']; }
         fclose($pipes[0]);
-        $out = (string)stream_get_contents($pipes[1]); fclose($pipes[1]);
-        $err = (string)stream_get_contents($pipes[2]); fclose($pipes[2]);
-        return [proc_close($p), $out, $err];
+        // Drain both pipes together: reading stdout to EOF first deadlocks
+        // once git fills the stderr pipe buffer (a chatty clone) and blocks.
+        $buf = [1 => '', 2 => ''];
+        $open = [1 => $pipes[1], 2 => $pipes[2]];
+        foreach ($open as $h) { stream_set_blocking($h, false); }
+        while ($open !== []) {
+            $read = array_values($open);
+            $w = $e = null;
+            if (@stream_select($read, $w, $e, 5) === false) { break; }
+            foreach ($open as $fd => $h) {
+                if (!in_array($h, $read, true)) { continue; }
+                $chunk = fread($h, 65536);
+                if ($chunk !== false && $chunk !== '') { $buf[$fd] .= $chunk; continue; }
+                if (feof($h)) { fclose($h); unset($open[$fd]); }
+            }
+        }
+        foreach ($open as $h) { fclose($h); }
+        return [proc_close($p), $buf[1], $buf[2]];
     }
 }
