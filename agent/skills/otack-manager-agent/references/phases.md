@@ -134,11 +134,12 @@ the neutral session cwd, naming the repository each time:
 - Is this even the right checkout?
   `git -C <local.path> remote get-url origin` vs `repo_url`.
 - Does branch `otack/task-<id>` exist? What is on it?
-  `git -C <local.path> branch --list "otack/task-<id>"`, then
-  `git -C <local.path> log --oneline -20 otack/task-<id>`.
+  `git -C <local.path> branch --list -v "otack/task-<id>"` (shows its
+  latest commit). `git log` is not available to you.
 - Where is the checkout standing? `git -C <local.path> branch --show-current`.
-- Is the working tree dirty? `git -C <local.path> status --short`, and
-  `git -C <local.path> diff` for what is actually uncommitted.
+- Is the working tree dirty? `git -C <local.path> status --short`, then
+  read the files it lists with the Read tool for what is actually
+  uncommitted (`git diff` is not available to you).
 - Do the tests pass?
 
 Then post a comment saying plainly where the previous attempt stopped and

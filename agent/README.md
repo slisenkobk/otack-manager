@@ -318,7 +318,10 @@ deletion, rename and force-move; `git remote`/`git config` writes (which
 would move the push target or switch the hooks off); `--no-verify` and
 `git commit -n` (which would skip the hooks); `git -c …` (which would
 re-point `core.hooksPath`); and any push to a URL that is not that
-repository's own `origin`. Ordinary work — `git status`, `git diff`,
+repository's own `origin`. `git diff`, `git log` and `git show` are refused
+outright, and so are file-naming options (`-F`/`--file`, `-t`/`--template`,
+`--pathspec-from-file`, `--output`, `--output-directory`, `-o`, `-O`) on every
+allow-listed verb. Ordinary work — `git status`, `git add`,
 committing on a task branch, pushing that branch to origin — passes
 straight through. A refusal prints `otack git gate: REFUSED — …` and exits
 `90`.
@@ -345,7 +348,7 @@ before any work at all.
 
 The allow-list now grants, per write-enabled project, one rule per verb:
 
-    git -C <path> status | diff | log | show | rev-parse
+    git -C <path> status | rev-parse
     git -C <path> branch --show-current | branch --list | remote get-url
     git -C <path> checkout | switch | add | commit
     git -C <path> fetch | pull | push

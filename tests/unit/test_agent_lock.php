@@ -1001,7 +1001,7 @@ it('F7: the allow-list carries the `git -C <repo> …` forms the session must us
     // the bot back to "safe and useless" for that step.
     foreach ([
         'status', 'add', 'commit', 'push', 'checkout', 'switch',
-        'diff', 'log', 'show', 'rev-parse',
+        'rev-parse',
         'branch --show-current', 'branch --list', 'remote get-url',
         'fetch', 'pull',
     ] as $sub) {
@@ -1024,8 +1024,9 @@ it('F7: the allow-list carries the `git -C <repo> …` forms the session must us
         );
     }
 
-    // Verbs deliberately absent, in the -C form as well as bare.
-    foreach (['tag', 'clone', 'worktree', 'update-ref', 'send-email', 'remote set-url', 'config'] as $sub) {
+    // Verbs deliberately absent, in the -C form as well as bare. Fix round
+    // 4b: diff/log/show joined them.
+    foreach (['diff', 'log', 'show', 'tag', 'clone', 'worktree', 'update-ref', 'send-email', 'remote set-url', 'config'] as $sub) {
         assert_true(
             !in_array(_tickGitAllowRule($repo['repo'], $sub), $allowed, true),
             "\"git $sub\" must not be grantable in the -C form either"
@@ -1201,7 +1202,7 @@ it('F7: and the work the widened list exists to allow does pass, from that same 
     assert_eq(0, $origin['code'], $origin['out']);
     assert_eq($repo['remote'], trim($origin['out']));
 
-    foreach (['status --short --branch', 'branch --show-current', 'log --oneline -1', 'rev-parse HEAD'] as $readonly) {
+    foreach (['status --short --branch', 'branch --show-current', 'rev-parse HEAD'] as $readonly) {
         $r = _tickGitGate($policy, $neutral, $C . $readonly);
         assert_eq(0, $r['code'], "read-only inspection must pass: git $readonly\n" . $r['out']);
     }
@@ -1486,17 +1487,15 @@ it('fix1: the gate refuses every git spelling that reads a file outside the repo
     assert_true(!str_contains($res['out'], 'otk_canary'), $res['out']);
 });
 
-it('fix1: commit -F with a file inside the repository, -m clusters and plain diff still work', function () {
+it('fix1: -m clusters still work; commit -F inside the repository and plain diff are refused since round 4b', function () {
     [$repo, $policy] = _tickGateFileFixture();
     $r = escapeshellarg($repo['repo']);
     file_put_contents($repo['repo'] . '/a.txt', "changed\n");
     file_put_contents($repo['repo'] . '/msg.txt', "commit from a file\n");
     $res = _tickGitGate($policy, $repo['repo'], "-C $r diff");
-    assert_eq(0, $res['code'], $res['out']);
-    assert_true(str_contains($res['out'], '+changed'), $res['out']);
+    assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], $res['out']);
     $res = _tickGitGate($policy, $repo['repo'], "-C $r commit -a -F msg.txt");
-    assert_eq(0, $res['code'], $res['out']);
-    assert_eq('commit from a file', trim((string)shell_exec('git -C ' . $r . ' log -1 --format=%s')));
+    assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], $res['out']);
     // `-am<msg>`: the "t" inside the message is not a -t option.
     file_put_contents($repo['repo'] . '/a.txt', "changed again\n");
     $res = _tickGitGate($policy, $repo['repo'], "-C $r commit -amfix-the-tests");
@@ -1507,7 +1506,7 @@ it('fix1: commit -F with a file inside the repository, -m clusters and plain dif
 it('fix1: print-cmd denies the file-reading git shapes in the -C spelling', function () {
     $repo = _tickGitRepo();
     $cmd = _tickPrintCmd(_tickHomeWithRepo($repo));
-    foreach (['diff --no-index', 'log --no-index', 'show --no-index', 'commit -F', 'commit --file',
+    foreach (['diff', 'log', 'show', 'commit -F', 'commit --file',
               'commit -t', 'commit --template', 'commit --pathspec-from-file', 'add --pathspec-from-file'] as $shape) {
         $rule = 'Bash(git -C ' . $repo['repo'] . ' ' . $shape . ':*)';
         assert_true(in_array($rule, $cmd['disallowed_tools'], true), "missing deny $rule");
@@ -1582,7 +1581,7 @@ it('fix2: the gate refuses --output / -o that writes outside the repository or i
     assert_eq($configBefore, file_get_contents($repo['repo'] . '/.git/config'), '.git/config must be untouched');
 });
 
-it('fix2: push -u, fetch, pull and --output inside the repository still work', function () {
+it('fix2: push -u, fetch and pull still work', function () {
     [$repo, $policy] = _tickGateFileFixture();
     $r = escapeshellarg($repo['repo']);
     $res = _tickGitGate($policy, $repo['repo'], "-C $r push -u origin otack/task-1");
@@ -1593,16 +1592,16 @@ it('fix2: push -u, fetch, pull and --output inside the repository still work', f
     assert_eq(0, $res['code'], $res['out']);
     $res = _tickGitGate($policy, $repo['repo'], "-C $r pull");
     assert_eq(0, $res['code'], $res['out']);
+    // Fix round 4b: `diff` is refused outright, --output inside the repo included.
     $res = _tickGitGate($policy, $repo['repo'], "-C $r diff --output=out.diff HEAD~1");
-    assert_eq(0, $res['code'], $res['out']);
-    assert_true(str_contains((string)file_get_contents($repo['repo'] . '/out.diff'), '+two'), 'the diff must be written inside the repo');
+    assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], $res['out']);
+    assert_true(!file_exists($repo['repo'] . '/out.diff'), 'nothing may be written');
 });
 
 it('fix2: print-cmd denies the command-running and file-writing git shapes in the -C spelling', function () {
     $repo = _tickGitRepo();
     $cmd = _tickPrintCmd(_tickHomeWithRepo($repo));
-    foreach (['fetch --upload-pack', 'pull --upload-pack', 'push --receive-pack', 'push --exec',
-              'diff --output', 'log --output', 'show --output'] as $shape) {
+    foreach (['fetch --upload-pack', 'pull --upload-pack', 'push --receive-pack', 'push --exec'] as $shape) {
         $rule = 'Bash(git -C ' . $repo['repo'] . ' ' . $shape . ':*)';
         assert_true(in_array($rule, $cmd['disallowed_tools'], true), "missing deny $rule");
     }
@@ -1614,7 +1613,72 @@ it('fix3: print-cmd denies Edit and Write inside each write-enabled project\'s .
     $repo = _tickGitRepo();
     $cmd = _tickPrintCmd(_tickHomeWithRepo($repo));
     foreach (['Edit', 'Write'] as $tool) {
-        $rule = $tool . '(/' . $repo['repo'] . '/.git/**)';
-        assert_true(in_array($rule, $cmd['disallowed_tools'], true), "missing deny $rule");
+        // Fix round 4b: in every letter case (APFS is case-insensitive).
+        foreach (['.git', '.GIT', '.Git', '.gIT'] as $name) {
+            $rule = $tool . '(/' . $repo['repo'] . '/' . $name . '/**)';
+            assert_true(in_array($rule, $cmd['disallowed_tools'], true), "missing deny $rule");
+        }
+    }
+});
+
+// ---------------------------------------------------------------------
+// Fix round 4b: the gate is narrowed — no diff/log/show at all, and no
+// file-naming option on any allow-listed verb. These tests pin only that
+// the argv is refused; nothing is read, written or executed.
+// ---------------------------------------------------------------------
+
+/** A repo + its policy file, nothing else. */
+function _tickGate4bFixture(): array {
+    $repo = _tickGitRepo();
+    $policy = _tickPrintCmd(_tickHomeWithRepo($repo))['git_gate']['policy_path'];
+    return [$repo, $policy, escapeshellarg($repo['repo'])];
+}
+
+it('fix4b: diff, log and show are refused in any form', function () {
+    [$repo, $policy, $r] = _tickGate4bFixture();
+    foreach (['diff', 'diff HEAD~1', 'diff --stat', 'log', 'log --oneline -1', 'show', 'show HEAD'] as $args) {
+        $res = _tickGitGate($policy, $repo['repo'], "-C $r $args");
+        assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], "should have been refused: git $args\n" . $res['out']);
+        assert_true(str_contains($res['out'], 'REFUSED'), $res['out']);
+    }
+    // Outside every repository too.
+    $res = _tickGitGate($policy, _tickTempProjectDir(), 'log');
+    assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], $res['out']);
+});
+
+it('fix4b: file-naming options are refused for every allow-listed verb, in every spelling', function () {
+    [$repo, $policy, $r] = _tickGate4bFixture();
+    $forms = [
+        'commit -F x', 'commit -Fx', 'commit -aF x', 'commit -F -', 'commit --file=x', 'commit --file x',
+        'commit --fil=x', 'commit --file=-', 'commit -t x', 'commit -at x', 'commit --template=x',
+        'commit --templ x', 'commit -o a.txt -m x', 'commit --pathspec-from-file=x',
+        'add --pathspec-from-file=x', 'add --pathspec-from-file -', 'add --pathspec x',
+        'checkout -t origin/main', 'checkout -bfoo -t origin/main', 'checkout --pathspec-from-file=x',
+        'switch -t origin/main', 'branch --list -t', 'status --output=x', 'status -O x',
+        'fetch -t origin', 'fetch -o x origin', 'pull -t', 'pull --output x',
+        'push -o x origin otack/task-1', 'push --output-directory=x', 'push --output-dir x',
+        'rev-parse -O x', 'remote -o x', 'remote --file=x',
+    ];
+    foreach ($forms as $args) {
+        $res = _tickGitGate($policy, $repo['repo'], "-C $r $args");
+        assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], "should have been refused: git $args\n" . $res['out']);
+        assert_true(str_contains($res['out'], 'REFUSED'), $res['out']);
+    }
+});
+
+it('fix4b: an allowed command still passes, and a value-taking cluster is not misread', function () {
+    [$repo, $policy, $r] = _tickGate4bFixture();
+    $res = _tickGitGate($policy, $repo['repo'], "-C $r status --short");
+    assert_eq(0, $res['code'], $res['out']);
+    // `-mFix-the-tests`: F and t live in the message, not in the options.
+    $res = _tickGitGate($policy, $repo['repo'], "-C $r commit --allow-empty -mFix-the-tests");
+    assert_eq(0, $res['code'], $res['out']);
+});
+
+it('fix4b: a write into .git is refused whatever its letter case', function () {
+    [$repo, $policy, $r] = _tickGate4bFixture();
+    foreach (['.git/x.patch', '.GIT/x.patch', '.Git/x.patch'] as $target) {
+        $res = _tickGitGate($policy, $repo['repo'], "-C $r format-patch -o " . escapeshellarg($target) . ' HEAD~1');
+        assert_eq(TICK_EXIT_GIT_REFUSED, $res['code'], "should have been refused: format-patch -o $target\n" . $res['out']);
     }
 });

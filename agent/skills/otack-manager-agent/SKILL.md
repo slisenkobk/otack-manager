@@ -52,13 +52,19 @@ where `<local.path>` is the `path` field of the `local` object `{{OTACK}} next`
 already handed you. A bare `git status` runs in that empty directory and
 tells you nothing about the task. The forms you may run are exactly:
 
-    git -C <path> status | diff | log | show | rev-parse
+    git -C <path> status | rev-parse
     git -C <path> branch --show-current | branch --list | remote get-url origin
     git -C <path> checkout | switch | add | commit
     git -C <path> fetch | pull | push
 
-Anything else — `tag`, `branch -D`, `remote set-url`, `git config` writes,
-force pushes, pushing to the default branch or to any URL that is not the
+`git diff`, `git log` and `git show` are not available. Review your own
+changes with `git -C <path> status` and by reading the changed files with the
+Read tool. Commit messages go in `-m "…"`; options that read or write a file
+(`-F`/`--file`, `-t`/`--template`, `--pathspec-from-file`, `--output`,
+`--output-directory`, `-o`, `-O`) are refused for every verb.
+
+Anything else — `diff`, `log`, `show`, `tag`, `branch -D`, `remote set-url`,
+`git config` writes, force pushes, pushing to the default branch or to any URL that is not the
 repository's own `origin` — is refused, twice: once by the permission layer
 and once by a branch-policy gate that inspects every git invocation
 regardless of how it was spelled. A refusal prints `otack git gate:

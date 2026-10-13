@@ -141,7 +141,7 @@ ini_set('zend.exception_ignore_args', '1');
  *     `-C` grant would hand back network egress and writes outside every
  *     --add-dir that the previous list did not permit.
  *   - it no longer carries the bare `Bash(git add:*)` / `git commit` /
- *     `git push` / `git status` / `git diff` / `git checkout` forms. cwd
+ *     `git push` / `git status` / `git checkout` forms. cwd
  *     is not a repository and cannot become one (`cd` matches no allow
  *     prefix), so those rules could only ever grant a git run in
  *     ~/.cache/otack-agent/session-cwd, where the gate refuses every
@@ -256,8 +256,13 @@ function isSafeTestCmd(string $cmd): bool
 // read-only spellings of a verb whose destructive forms must stay out,
 // and `remote get-url` is the read-only half of a verb that could
 // otherwise re-point the push target.
+//
+// Fix round 4b: `diff`, `log` and `show` are out (owner decision). Each one
+// can read or write files through options the gate had to chase spelling by
+// spelling; the bot reviews its own changes with `git status` and the Read
+// tool instead. The shim refuses them too (GIT_REFUSED_SUBCOMMANDS).
 const GIT_ALLOWED_SUBCOMMANDS = [
-    'status', 'diff', 'log', 'show', 'rev-parse',
+    'status', 'rev-parse',
     'branch --show-current', 'branch --list', 'remote get-url',
     'checkout', 'switch', 'add', 'commit',
     'fetch', 'pull', 'push',
@@ -383,8 +388,8 @@ function gitShortRef(string $ref): string
 /**
  * Subcommands the gate has an opinion about. Anything here is refused
  * outright in a repository that is not in the policy (fail closed);
- * anything else — status, diff, log, rev-parse, show — is passed straight
- * through, since it cannot change history or send anything anywhere.
+ * anything else — status, rev-parse — is passed straight through, since it
+ * cannot change history or send anything anywhere.
  */
 const GIT_GATED_SUBCOMMANDS = [
     'push', 'commit', 'merge', 'rebase', 'cherry-pick', 'revert', 'am',
@@ -394,9 +399,60 @@ const GIT_GATED_SUBCOMMANDS = [
     // F7: `pull` joined the allow-list with this pass. It is fetch+merge,
     // so it writes history into whatever branch is checked out — it belongs
     // here and in the history list below, not in the pass-through set with
-    // `status` and `log`.
+    // `status` and `rev-parse`.
     'pull',
 ];
+
+/**
+ * Fix round 4b: subcommands refused everywhere, in every repository and with
+ * any arguments — they are off the allow-list as well (see
+ * GIT_ALLOWED_SUBCOMMANDS).
+ */
+const GIT_REFUSED_SUBCOMMANDS = ['diff', 'log', 'show'];
+
+/**
+ * Fix round 4b: options refused outright for every allow-listed verb, in any
+ * spelling — `--opt`, `--opt=val`, `--opt val`, any abbreviation git
+ * accepts, and short options anywhere in a cluster. They name a file to read
+ * (`-F/--file`, `-t/--template`, `--pathspec-from-file`) or to write
+ * (`--output`, `--output-directory`, `-o`, `-O`). A denylist, not a per-verb
+ * allowlist of options: the documented workflow needs none of these, while
+ * enumerating every legitimate option of commit/push/checkout/… would be a
+ * far longer list to keep in sync with git. Collateral, accepted: the
+ * harmless meanings of the same letters (`checkout -t`/`branch -t` track,
+ * `fetch -t`/`pull -t` tags, `commit -o` only) are refused as well.
+ */
+const GIT_REFUSED_LONG_OPTIONS = ['file', 'template', 'pathspec-from-file', 'output', 'output-directory'];
+const GIT_REFUSED_SHORT_OPTIONS = ['F', 't', 'o', 'O'];
+
+/**
+ * Short options that take a value, per allow-listed verb: in a cluster, the
+ * rest of the word after one of these is that value, not more options — so
+ * `commit -amfix-the-tests` is a message, not a `-t`.
+ */
+const GIT_SHORT_WITH_VALUE = [
+    'commit'   => ['m', 'c', 'C', 'S', 'u'],
+    'checkout' => ['b', 'B'],
+    'switch'   => ['c', 'C'],
+    'branch'   => ['u'],
+    'status'   => ['u'],
+    'fetch'    => ['j'],
+    'pull'     => ['s', 'X', 'S', 'j'],
+];
+
+/** `.git` in all eight letter cases, `.git` first. */
+function gitDirCaseVariants(): array
+{
+    $out = [];
+    for ($mask = 0; $mask < 8; $mask++) {
+        $name = '.';
+        foreach (['g', 'i', 't'] as $bit => $ch) {
+            $name .= ($mask >> $bit) & 1 ? strtoupper($ch) : $ch;
+        }
+        $out[] = $name;
+    }
+    return $out;
+}
 
 /** Subcommands that write history and so must never run on the default branch. */
 const GIT_HISTORY_SUBCOMMANDS = [
@@ -449,7 +505,12 @@ function runGitGate(array $args): void
         gitExec($git, $args);
     }
 
+    if (in_array($sub, GIT_REFUSED_SUBCOMMANDS, true)) {
+        gitRefuse("\"git $sub\" is not available to the agent — review changes with `git status` and the Read tool");
+    }
+
     gitGateExecArgs($sub, $rest);
+    gitGateRefusedOptions($sub, $rest);
     gitGateFileArgs($git, $cwd, $sub, $rest);
 
     $entry = gitRepoPolicy($policy, $git, $cwd);
@@ -541,18 +602,21 @@ function gitIsLongOpt(string $name, string $full, int $minLen): bool
  */
 function gitGateFileArgs(string $git, string $cwd, string $sub, array $rest): void
 {
-    $readsFiles = in_array($sub, ['diff', 'log', 'show'], true);
+    // Fix round 4b: diff/log/show are refused before this point, and the
+    // allow-listed verbs never get here with a file option (see
+    // gitGateRefusedOptions). What is left is the verbs the gate passes
+    // through without granting them — merge, format-patch, archive, reset,
+    // restore, … — which still must not reach outside the repository.
+    //
     // Short options that name a file: [char => 'read'|'write'], and the
     // short options that take a value — the rest of the cluster (or the
     // next word) is that value, not more options.
     $shortFile = [
-        'commit' => ['F' => 'read', 't' => 'read'],
         'merge'  => ['F' => 'read'],
         'format-patch' => ['o' => 'write'],
         'archive' => ['o' => 'write'],
     ][$sub] ?? [];
     $shortWithValue = [
-        'commit' => ['m', 'c', 'C', 'S', 'u'],
         'merge'  => ['m', 's', 'X', 'S'],
         'format-patch' => ['v'],
     ][$sub] ?? [];
@@ -564,17 +628,13 @@ function gitGateFileArgs(string $git, string $cwd, string $sub, array $rest): vo
         if (str_starts_with($a, '--')) {
             $parts = explode('=', substr($a, 2), 2);
             $name = $parts[0];
-            if ($readsFiles && gitIsLongOpt($name, 'no-index', 4)) {
-                gitRefuse("\"git $sub --no-index\" reads files outside the repository");
-            }
             $mode = null;
             if (gitIsLongOpt($name, 'pathspec-from-file', 5)
-                || (isset($shortFile['F']) && gitIsLongOpt($name, 'file', 1))
-                || ($sub === 'commit' && gitIsLongOpt($name, 'template', 1))) {
+                || (isset($shortFile['F']) && gitIsLongOpt($name, 'file', 1))) {
                 $mode = 'read';
             } elseif (gitIsLongOpt($name, 'output', 3) || gitIsLongOpt($name, 'output-directory', 7)) {
-                // Fix round 2: diff/log/show/format-patch/archive write
-                // their output to a file of the caller's choosing.
+                // Fix round 2: format-patch/archive write their output to
+                // a file of the caller's choosing.
                 $mode = 'write';
             }
             if ($mode !== null) {
@@ -595,13 +655,10 @@ function gitGateFileArgs(string $git, string $cwd, string $sub, array $rest): vo
         }
     }
 
-    if (!$files && $sub !== 'diff') { return; }
+    if (!$files) { return; }
     [$code, $top] = runCapture([$git, 'rev-parse', '--show-toplevel'], $cwd);
     $topReal = $code === 0 && $top !== '' ? realpath($top) : false;
     if ($topReal === false) {
-        if ($sub === 'diff' && !$files) {
-            gitRefuse('"git diff" outside a work tree is an implicit --no-index and reads arbitrary files');
-        }
         gitRefuse("\"git $sub {$files[0][0]}\" was run outside a repository, so its file cannot be checked");
     }
     // A write may not land in the repository's own git directory either:
@@ -616,12 +673,63 @@ function gitGateFileArgs(string $git, string $cwd, string $sub, array $rest): vo
         if ($real === false || !str_starts_with($real, $topReal . '/')) {
             gitRefuse("\"git $sub $opt\" names a file outside the repository ($path)");
         }
-        if ($mode === 'write') {
-            foreach ($gitDirs as $gdir) {
-                if ($real === $gdir || str_starts_with($real, $gdir . '/')) {
-                    gitRefuse("\"git $sub $opt\" would write into the repository's git directory ($path)");
+        if ($mode === 'write' && gitPathInGitDir($real, $gitDirs)) {
+            gitRefuse("\"git $sub $opt\" would write into the repository's git directory ($path)");
+        }
+    }
+}
+
+/**
+ * Is $real inside one of $gitDirs, or does it pass through any `.git`
+ * component at all (a nested repository's)? Fix round 4b: case-insensitive
+ * throughout — APFS is, so `.GIT/config` is `.git/config`, and realpath()
+ * keeps whatever case it was handed for a path that does not exist yet.
+ */
+function gitPathInGitDir(string $real, array $gitDirs): bool
+{
+    $lower = strtolower($real);
+    foreach ($gitDirs as $gdir) {
+        $g = strtolower($gdir);
+        if ($lower === $g || str_starts_with($lower, $g . '/')) { return true; }
+    }
+    foreach (explode('/', $real) as $part) {
+        if (strcasecmp($part, '.git') === 0) { return true; }
+    }
+    return false;
+}
+
+/**
+ * Fix round 4b: refuses GIT_REFUSED_LONG_OPTIONS / GIT_REFUSED_SHORT_OPTIONS
+ * for every allow-listed verb, whatever value follows (`-` for stdin
+ * included). Long options match by any prefix of the full name, which
+ * covers every abbreviation git would accept (and a few it would reject as
+ * ambiguous — refused either way). Short clusters are walked up to the
+ * first option that takes a value.
+ */
+function gitGateRefusedOptions(string $sub, array $rest): void
+{
+    $verbs = array_unique(array_map(fn(string $s) => explode(' ', $s)[0], GIT_ALLOWED_SUBCOMMANDS));
+    if (!in_array($sub, $verbs, true)) { return; }
+    $withValue = GIT_SHORT_WITH_VALUE[$sub] ?? [];
+    foreach ($rest as $a) {
+        if ($a === '--') { break; }
+        if ($a === '' || $a === '-' || $a[0] !== '-') { continue; }
+        if (str_starts_with($a, '--')) {
+            $name = explode('=', substr($a, 2), 2)[0];
+            foreach (GIT_REFUSED_LONG_OPTIONS as $full) {
+                if (gitIsLongOpt($name, $full, 1)) {
+                    gitRefuse("\"git $sub --$full\" names a file to read or write and is not available to the agent");
                 }
             }
+            continue;
+        }
+        $len = strlen($a);
+        for ($k = 1; $k < $len; $k++) {
+            $ch = $a[$k];
+            if (in_array($ch, GIT_REFUSED_SHORT_OPTIONS, true)) {
+                gitRefuse("\"git $sub -$ch\" names a file to read or write (or is refused alongside one) and is not available to the agent");
+            }
+            if (in_array($ch, $withValue, true)) { break; }
         }
     }
 }
@@ -1488,9 +1596,12 @@ foreach ($gitRulePaths as $rulePath) {
         'tag',
         'remote set-url', 'remote add', 'remote rename', 'remote remove',
         'config',
-        // Task 1 review: verbs that read a file outside the repository
-        // (the gate refuses them in every spelling, see gitGateFileArgs).
-        'diff --no-index', 'log --no-index', 'show --no-index',
+        // Fix round 4b: off the allow-list, refused by the gate in every
+        // form (GIT_REFUSED_SUBCOMMANDS) — this also covers the earlier
+        // `--no-index` / `--output` shapes of the same three verbs.
+        'diff', 'log', 'show',
+        // Task 1 review: options that read a file outside the repository
+        // (the gate refuses them in every spelling, see gitGateRefusedOptions).
         'commit -F', 'commit --file', 'commit -t', 'commit --template',
         'commit --pathspec-from-file', 'add --pathspec-from-file',
         // Fix round 2: options that run a program or write a file of the
@@ -1498,7 +1609,6 @@ foreach ($gitRulePaths as $rulePath) {
         'fetch --upload-pack', 'pull --upload-pack', 'ls-remote --upload-pack', 'ls-remote -u',
         'clone -u', 'clone --upload-pack', 'clone -c', 'clone --config',
         'push --receive-pack', 'push --exec', 'archive --exec',
-        'diff --output', 'log --output', 'show --output',
         'format-patch -o', 'format-patch --output', 'archive -o', 'archive --output',
     ] as $shape) {
         $disallowedTools[] = 'Bash(git -C ' . $rulePath . ' ' . $shape . ':*)';
@@ -1507,8 +1617,12 @@ foreach ($gitRulePaths as $rulePath) {
     // --add-dir, .git/config included — and core.fsmonitor/core.sshCommand
     // there is a command git runs on its next invocation, past the gate.
     // "/" + absolute path is the "//abs" form, as for the token Read denies.
-    $disallowedTools[] = 'Edit(/' . $rulePath . '/.git/**)';
-    $disallowedTools[] = 'Write(/' . $rulePath . '/.git/**)';
+    // Fix round 4b: in every letter case — APFS is case-insensitive, so
+    // `.GIT/config` is the same file, and the rule matcher may not be.
+    foreach (gitDirCaseVariants() as $gitDirName) {
+        $disallowedTools[] = 'Edit(/' . $rulePath . '/' . $gitDirName . '/**)';
+        $disallowedTools[] = 'Write(/' . $rulePath . '/' . $gitDirName . '/**)';
+    }
     $default = $gitDefaultByRulePath[$rulePath] ?? null;
     if (is_string($default) && $default !== '' && isSafeRulePath($default)) {
         foreach ([
