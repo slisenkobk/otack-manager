@@ -30,7 +30,7 @@ final class ProjectSetup
         $s = strtr($s, self::TRANSLIT);
         $s = (string)preg_replace('/[^a-z0-9]+/', '-', $s);
         $s = trim($s, '-');
-        return substr($s, 0, 48);
+        return rtrim(substr($s, 0, 48), '-');
     }
 
     public static function folderName(array $project): string

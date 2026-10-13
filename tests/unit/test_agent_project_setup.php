@@ -10,7 +10,12 @@ it('slugify transliterates Ukrainian, Russian and Polish', function () {
     assert_eq('zch-gora', ProjectSetup::slugify('ZCH Góra'));
     assert_eq('zolta-lodz', ProjectSetup::slugify('Żółta łódź'));
     assert_eq('', ProjectSetup::slugify('!!!'));
-    assert_eq(48, strlen(ProjectSetup::slugify(str_repeat('abc ', 40))));
+    $long = ProjectSetup::slugify(str_repeat('abc ', 40));
+    assert_true(strlen($long) <= 48 && substr($long, -1) !== '-', $long);
+    foreach (['  --Abc--  ', 'Тілі-', '-x-', str_repeat('abc ', 40)] as $in) {
+        $r = ProjectSetup::slugify($in);
+        assert_true($r === '' || ($r[0] !== '-' && substr($r, -1) !== '-'), "'$in' -> '$r'");
+    }
 });
 
 it('folderName prefers the repo name, then slug, then name, then project-<id>', function () {
