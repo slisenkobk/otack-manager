@@ -518,6 +518,9 @@ function _tickGitRepo(bool $withOriginHead = true): array {
     $repo   = $base . '/repo';
     $q = ' >/dev/null 2>&1';
     exec('git init -q --bare ' . escapeshellarg($remote) . $q);
+    // The bare repo's HEAD follows git's init.defaultBranch (master on git
+    // 2.28 and on CI runners) — point it at main so `remote set-head -a` works.
+    exec('git --git-dir=' . escapeshellarg($remote) . ' symbolic-ref HEAD refs/heads/main' . $q);
     exec('git clone -q ' . escapeshellarg($remote) . ' ' . escapeshellarg($repo) . $q);
     $g = 'cd ' . escapeshellarg($repo) . ' && git ';
     exec($g . 'config user.email agent@example.test' . $q);
