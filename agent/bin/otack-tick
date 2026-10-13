@@ -1503,6 +1503,12 @@ foreach ($gitRulePaths as $rulePath) {
     ] as $shape) {
         $disallowedTools[] = 'Bash(git -C ' . $rulePath . ' ' . $shape . ':*)';
     }
+    // Fix round 3: acceptEdits lets Edit/Write touch anything under an
+    // --add-dir, .git/config included — and core.fsmonitor/core.sshCommand
+    // there is a command git runs on its next invocation, past the gate.
+    // "/" + absolute path is the "//abs" form, as for the token Read denies.
+    $disallowedTools[] = 'Edit(/' . $rulePath . '/.git/**)';
+    $disallowedTools[] = 'Write(/' . $rulePath . '/.git/**)';
     $default = $gitDefaultByRulePath[$rulePath] ?? null;
     if (is_string($default) && $default !== '' && isSafeRulePath($default)) {
         foreach ([

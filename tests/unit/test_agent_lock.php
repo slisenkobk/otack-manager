@@ -1607,3 +1607,14 @@ it('fix2: print-cmd denies the command-running and file-writing git shapes in th
         assert_true(in_array($rule, $cmd['disallowed_tools'], true), "missing deny $rule");
     }
 });
+
+it('fix3: print-cmd denies Edit and Write inside each write-enabled project\'s .git', function () {
+    // .git/config can carry core.fsmonitor / core.sshCommand — a command
+    // git runs on the next invocation, past the gate.
+    $repo = _tickGitRepo();
+    $cmd = _tickPrintCmd(_tickHomeWithRepo($repo));
+    foreach (['Edit', 'Write'] as $tool) {
+        $rule = $tool . '(/' . $repo['repo'] . '/.git/**)';
+        assert_true(in_array($rule, $cmd['disallowed_tools'], true), "missing deny $rule");
+    }
+});
