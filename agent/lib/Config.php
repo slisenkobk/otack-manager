@@ -29,6 +29,16 @@ namespace App\Agent;
  */
 final class Config
 {
+    public const SCOPES = ['agent', 'manager'];
+    /** Same character set as otack-tick's TEST_CMD_SAFE_PATTERN: a `)` or `:` would inject permission rules. */
+    public const TEST_CMD_PATTERN = '#^[A-Za-z0-9 _./-]+$#';
+    private const DEFAULT_APPROVAL = [
+        'mode' => 'none',
+        'digest_size' => 10,
+        'digest_every_hours' => 24,
+        'critical_tags' => ['bug', 'critical', 'security', 'баг', 'критично', 'срочно'],
+    ];
+
     /**
      * @param array<string, array{
      *     path: string,
@@ -36,18 +46,35 @@ final class Config
      *     test_cmd: ?string,
      *     in_progress_column: int|string|null,
      *     review_column: int|string|null,
+     *     default_branch: ?string,
      * }> $projects
+     * @param array<string, string> $roots name => realpath
+     * @param array{mode: string, digest_size: int, digest_every_hours: int, critical_tags: list<string>} $approval
+     * @param array{token: string, chat_id: string}|null $telegram
      */
     private function __construct(
         public readonly string $instance,
         public readonly string $token,
         public readonly array $projects,
+        public readonly string $scope,
+        public readonly array $roots,
+        public readonly array $approval,
+        public readonly ?array $telegram,
+        public readonly string $projectsFile,
     ) {}
 
-    public static function load(string $home): self
+    /**
+     * `agent` scope: the bot's token from ~/.claude/otack-agent/.env.
+     * `manager` scope: the owner's personal token from
+     * ~/.claude/otack-manager/.env. Both read the same
+     * ~/.claude/otack-agent/projects.json.
+     */
+    public static function load(string $home, string $scope = 'agent'): self
     {
-        $dir     = rtrim($home, '/') . '/.claude/otack-agent';
-        $envPath = $dir . '/.env';
+        if (!in_array($scope, self::SCOPES, true)) {
+            throw new \InvalidArgumentException("unknown scope \"$scope\"");
+        }
+        $dir = rtrim($home, '/') . '/.claude/otack-agent';
 
         // M1: the directory that holds `.env` and `projects.json` names the
         // directories an autonomous writer may touch. It need not be
@@ -55,6 +82,80 @@ final class Config
         // below can simply be replaced by anyone else on the box.
         self::assertNotGroupOrWorldWritable($dir, "$dir directory");
 
+        // The owner's personal token lives apart from the bot's, so the bot
+        // session can be denied it by one path rule (otack-tick).
+        $envDir = $scope === 'agent' ? $dir : rtrim($home, '/') . '/.claude/otack-manager';
+        if ($envDir !== $dir) {
+            if (!is_dir($envDir)) {
+                throw new \RuntimeException("Manager config missing: $envDir/.env — run make install-agent and put your personal token there");
+            }
+            self::assertNotGroupOrWorldWritable($envDir, "$envDir directory");
+        }
+        $envPath = $envDir . '/.env';
+        $env = self::readEnv($envPath);
+
+        foreach (['OTACK_API_URL', 'OTACK_API_TOKEN'] as $required) {
+            if (($env[$required] ?? '') === '') {
+                throw new \RuntimeException("$required is not set in $envPath");
+            }
+        }
+
+        $projects = [];
+        $roots = [];
+        $approval = self::DEFAULT_APPROVAL;
+        $projPath = $dir . '/projects.json';
+        if (file_exists($projPath)) {
+            // M2: a directory (or anything else) sitting where projects.json
+            // is expected must be an error, not treated as "absent".
+            if (!is_file($projPath)) {
+                throw new \RuntimeException("$projPath exists but is not a regular file");
+            }
+
+            self::assertNotGroupOrWorldWritable($projPath, $projPath);
+
+            $raw = json_decode((string)file_get_contents($projPath), true);
+            if (!is_array($raw)) {
+                throw new \RuntimeException("$projPath is not valid JSON");
+            }
+            // A missing/typo'd "projects" key, a top-level JSON array, or a
+            // bare project map without the "projects" wrapper must all be
+            // loud errors — not an empty allow-list indistinguishable from
+            // "no projects.json at all".
+            if (!isset($raw['projects']) || !is_array($raw['projects'])) {
+                throw new \RuntimeException(
+                    "$projPath must have a top-level \"projects\" object. See agent/projects.example.json."
+                );
+            }
+
+            foreach ($raw['projects'] as $id => $p) {
+                $idStr = (string)$id;
+                $projects[$idStr] = self::parseProject($idStr, $p, $projPath);
+            }
+            $roots = self::parseRoots($raw['roots'] ?? null, $projPath);
+            $approval = self::parseApproval($raw['approval'] ?? null, $projPath);
+        }
+
+        // The Telegram bot token is the bot's credential, read only for the
+        // bot's own scope; the manager scope never carries it.
+        $telegram = null;
+        if ($scope === 'agent' && $approval['mode'] === 'telegram') {
+            $tgToken = $env['OTACK_TG_BOT_TOKEN'] ?? '';
+            $tgChat  = $env['OTACK_TG_CHAT_ID'] ?? '';
+            if ($tgToken === '' || !preg_match('/^-?\d{1,20}$/', $tgChat)) {
+                throw new \RuntimeException(
+                    "approval.mode is \"telegram\" but OTACK_TG_BOT_TOKEN / OTACK_TG_CHAT_ID (numeric) are not both set in $envPath"
+                );
+            }
+            $telegram = ['token' => $tgToken, 'chat_id' => $tgChat];
+        }
+
+        return new self(rtrim($env['OTACK_API_URL'], '/'), $env['OTACK_API_TOKEN'], $projects,
+            $scope, $roots, $approval, $telegram, $projPath);
+    }
+
+    /** @return array<string, string> */
+    private static function readEnv(string $envPath): array
+    {
         if (!is_file($envPath)) {
             throw new \RuntimeException("Agent config missing: $envPath. See agent/projects.example.json.");
         }
@@ -94,126 +195,224 @@ final class Config
             $env[trim($k)] = trim($v, " \t\"'");
         }
 
-        foreach (['OTACK_API_URL', 'OTACK_API_TOKEN'] as $required) {
-            if (($env[$required] ?? '') === '') {
-                throw new \RuntimeException("$required is not set in $envPath");
-            }
+        return $env;
+    }
+
+    /**
+     * Validates one projects.json entry. Shared by load() and
+     * writeProjectEntry(), so a written entry passes exactly the rules a
+     * later load() applies.
+     */
+    private static function parseProject(string $idStr, mixed $p, string $projPath): array
+    {
+        // m3: json_decode leaves non-canonical numeric keys (e.g.
+        // "042") as strings while projectPath(42) looks up "42".
+        // Reject anything that isn't a canonical integer key so the
+        // mismatch can't silently make a project unreachable.
+        if ((string)(int)$idStr !== $idStr) {
+            throw new \RuntimeException(
+                "Project id \"$idStr\" in $projPath is not a canonical integer key"
+            );
         }
 
-        $projects = [];
-        $projPath = $dir . '/projects.json';
-        if (file_exists($projPath)) {
-            // M2: a directory (or anything else) sitting where projects.json
-            // is expected must be an error, not treated as "absent".
-            if (!is_file($projPath)) {
-                throw new \RuntimeException("$projPath exists but is not a regular file");
-            }
+        if (!is_array($p)) {
+            throw new \RuntimeException(
+                "Project \"$idStr\" in $projPath must be an object with a \"path\" key"
+            );
+        }
+        if (!isset($p['path']) || $p['path'] === '') {
+            throw new \RuntimeException(
+                "Project \"$idStr\" in $projPath is missing a non-empty \"path\""
+            );
+        }
 
-            self::assertNotGroupOrWorldWritable($projPath, $projPath);
-
-            $raw = json_decode((string)file_get_contents($projPath), true);
-            if (!is_array($raw)) {
-                throw new \RuntimeException("$projPath is not valid JSON");
-            }
-            // A missing/typo'd "projects" key, a top-level JSON array, or a
-            // bare project map without the "projects" wrapper must all be
-            // loud errors — not an empty allow-list indistinguishable from
-            // "no projects.json at all".
-            if (!isset($raw['projects']) || !is_array($raw['projects'])) {
+        // C1: `write` must be a real JSON boolean. A quoted string
+        // like "false" is the most common hand-editing mistake and
+        // must never silently coerce to true.
+        $write = false;
+        if (array_key_exists('write', $p)) {
+            if (!is_bool($p['write'])) {
+                $got = var_export($p['write'], true);
                 throw new \RuntimeException(
-                    "$projPath must have a top-level \"projects\" object. See agent/projects.example.json."
+                    "Project \"$idStr\" in $projPath has a non-boolean \"write\" value ($got); use a real JSON true/false, not a quoted string"
                 );
             }
-
-            foreach ($raw['projects'] as $id => $p) {
-                $idStr = (string)$id;
-
-                // m3: json_decode leaves non-canonical numeric keys (e.g.
-                // "042") as strings while projectPath(42) looks up "42".
-                // Reject anything that isn't a canonical integer key so the
-                // mismatch can't silently make a project unreachable.
-                if ((string)(int)$idStr !== $idStr) {
-                    throw new \RuntimeException(
-                        "Project id \"$idStr\" in $projPath is not a canonical integer key"
-                    );
-                }
-
-                if (!is_array($p)) {
-                    throw new \RuntimeException(
-                        "Project \"$idStr\" in $projPath must be an object with a \"path\" key"
-                    );
-                }
-                if (!isset($p['path']) || $p['path'] === '') {
-                    throw new \RuntimeException(
-                        "Project \"$idStr\" in $projPath is missing a non-empty \"path\""
-                    );
-                }
-
-                // C1: `write` must be a real JSON boolean. A quoted string
-                // like "false" is the most common hand-editing mistake and
-                // must never silently coerce to true.
-                $write = false;
-                if (array_key_exists('write', $p)) {
-                    if (!is_bool($p['write'])) {
-                        $got = var_export($p['write'], true);
-                        throw new \RuntimeException(
-                            "Project \"$idStr\" in $projPath has a non-boolean \"write\" value ($got); use a real JSON true/false, not a quoted string"
-                        );
-                    }
-                    $write = $p['write'] === true;
-                }
-
-                // M4: nothing upstream guarantees this path is a string, is
-                // absolute, exists, or is a directory — yet a containment
-                // check downstream is meaningless against a relative or
-                // "~"-prefixed prefix, and spec §9 forbids working outside
-                // a project's path.
-                $rawPath = $p['path'];
-                if (!is_string($rawPath)) {
-                    throw new \RuntimeException(
-                        "Project \"$idStr\" in $projPath has a non-string \"path\""
-                    );
-                }
-                if ($rawPath === '' || $rawPath[0] !== '/') {
-                    $hint = str_starts_with($rawPath, '~')
-                        ? ' (PHP never expands "~" — use an absolute path)'
-                        : '';
-                    throw new \RuntimeException(
-                        "Project \"$idStr\" in $projPath has a non-absolute \"path\": \"$rawPath\"$hint"
-                    );
-                }
-                $real = realpath($rawPath);
-                if ($real === false || !is_dir($real)) {
-                    throw new \RuntimeException(
-                        "Project \"$idStr\" in $projPath: path \"$rawPath\" does not exist or is not a directory"
-                    );
-                }
-
-                // The board's in-progress/review columns are free-text and
-                // vary by team language (Russian/Polish boards won't contain
-                // the English words "progress"/"review"), so the phase
-                // machine cannot infer them from the server's is_done/
-                // is_backlog flags — the operator names them here instead.
-                // Each is either an integer column id or an exact column
-                // name (string); anything else (float, bool, array, object)
-                // is a hand-editing mistake and must throw naming the
-                // project and the key, the same fail-closed spirit as the
-                // "write" boolean check above (C1) — never silently
-                // stringify or truncate it into something that looks valid.
-                $inProgressColumn = self::readColumnRef($p, 'in_progress_column', $idStr, $projPath);
-                $reviewColumn     = self::readColumnRef($p, 'review_column', $idStr, $projPath);
-
-                $projects[$idStr] = [
-                    'path'               => $real,
-                    'write'              => $write,
-                    'test_cmd'           => isset($p['test_cmd']) && $p['test_cmd'] !== '' ? (string)$p['test_cmd'] : null,
-                    'in_progress_column' => $inProgressColumn,
-                    'review_column'      => $reviewColumn,
-                ];
-            }
+            $write = $p['write'] === true;
         }
 
-        return new self(rtrim($env['OTACK_API_URL'], '/'), $env['OTACK_API_TOKEN'], $projects);
+        // M4: nothing upstream guarantees this path is a string, is
+        // absolute, exists, or is a directory — yet a containment
+        // check downstream is meaningless against a relative or
+        // "~"-prefixed prefix, and spec §9 forbids working outside
+        // a project's path.
+        $rawPath = $p['path'];
+        if (!is_string($rawPath)) {
+            throw new \RuntimeException(
+                "Project \"$idStr\" in $projPath has a non-string \"path\""
+            );
+        }
+        if ($rawPath === '' || $rawPath[0] !== '/') {
+            $hint = str_starts_with($rawPath, '~')
+                ? ' (PHP never expands "~" — use an absolute path)'
+                : '';
+            throw new \RuntimeException(
+                "Project \"$idStr\" in $projPath has a non-absolute \"path\": \"$rawPath\"$hint"
+            );
+        }
+        $real = realpath($rawPath);
+        if ($real === false || !is_dir($real)) {
+            throw new \RuntimeException(
+                "Project \"$idStr\" in $projPath: path \"$rawPath\" does not exist or is not a directory"
+            );
+        }
+
+        // The board's in-progress/review columns are free-text and
+        // vary by team language (Russian/Polish boards won't contain
+        // the English words "progress"/"review"), so the phase
+        // machine cannot infer them from the server's is_done/
+        // is_backlog flags — the operator names them here instead.
+        // Each is either an integer column id or an exact column
+        // name (string); anything else (float, bool, array, object)
+        // is a hand-editing mistake and must throw naming the
+        // project and the key, the same fail-closed spirit as the
+        // "write" boolean check above (C1) — never silently
+        // stringify or truncate it into something that looks valid.
+        $inProgressColumn = self::readColumnRef($p, 'in_progress_column', $idStr, $projPath);
+        $reviewColumn     = self::readColumnRef($p, 'review_column', $idStr, $projPath);
+
+        $testCmd = null;
+        if (isset($p['test_cmd']) && $p['test_cmd'] !== '') {
+            if (!is_string($p['test_cmd']) || !preg_match(self::TEST_CMD_PATTERN, $p['test_cmd'])) {
+                throw new \RuntimeException(
+                    "Project \"$idStr\" in $projPath has a test_cmd outside the safe set [A-Za-z0-9 _./-]"
+                );
+            }
+            $testCmd = $p['test_cmd'];
+        }
+        $defaultBranch = null;
+        if (array_key_exists('default_branch', $p) && $p['default_branch'] !== null) {
+            if (!is_string($p['default_branch']) || !preg_match('#^[A-Za-z0-9._/-]{1,100}$#', $p['default_branch'])) {
+                throw new \RuntimeException(
+                    "Project \"$idStr\" in $projPath has an invalid \"default_branch\" (letters, digits, . _ / - only)"
+                );
+            }
+            $defaultBranch = $p['default_branch'];
+        }
+
+        return [
+            'path'               => $real,
+            'write'              => $write,
+            'test_cmd'           => $testCmd,
+            'in_progress_column' => $inProgressColumn,
+            'review_column'      => $reviewColumn,
+            'default_branch'     => $defaultBranch,
+        ];
+    }
+
+    /** @return array<string, string> name => realpath of an existing directory */
+    private static function parseRoots(mixed $raw, string $projPath): array
+    {
+        if ($raw === null) { return []; }
+        if (!is_array($raw) || ($raw !== [] && array_is_list($raw))) {
+            throw new \RuntimeException("\"roots\" in $projPath must be an object of name → absolute directory");
+        }
+        $out = [];
+        foreach ($raw as $key => $path) {
+            $key = (string)$key;
+            if (!preg_match('/^[a-z][a-z0-9-]{0,31}$/', $key)) {
+                throw new \RuntimeException("\"roots\" key \"$key\" in $projPath must match [a-z][a-z0-9-]*");
+            }
+            if (!is_string($path) || $path === '' || $path[0] !== '/') {
+                throw new \RuntimeException("\"roots\".\"$key\" in $projPath must be an absolute path");
+            }
+            $real = realpath($path);
+            if ($real === false || !is_dir($real)) {
+                throw new \RuntimeException("\"roots\".\"$key\" in $projPath: \"$path\" does not exist or is not a directory");
+            }
+            $out[$key] = $real;
+        }
+        return $out;
+    }
+
+    private static function parseApproval(mixed $raw, string $projPath): array
+    {
+        $a = self::DEFAULT_APPROVAL;
+        if ($raw === null) { return $a; }
+        if (!is_array($raw) || ($raw !== [] && array_is_list($raw))) {
+            throw new \RuntimeException("\"approval\" in $projPath must be an object");
+        }
+        if (array_key_exists('mode', $raw)) {
+            if (!in_array($raw['mode'], ['none', 'telegram'], true)) {
+                throw new \RuntimeException("\"approval\".\"mode\" in $projPath must be \"none\" or \"telegram\"");
+            }
+            $a['mode'] = $raw['mode'];
+        }
+        foreach (['digest_size' => [1, 20], 'digest_every_hours' => [1, 168]] as $k => [$min, $max]) {
+            if (!array_key_exists($k, $raw)) { continue; }
+            if (!is_int($raw[$k]) || $raw[$k] < $min || $raw[$k] > $max) {
+                throw new \RuntimeException("\"approval\".\"$k\" in $projPath must be an integer $min..$max");
+            }
+            $a[$k] = $raw[$k];
+        }
+        if (array_key_exists('critical_tags', $raw)) {
+            $tags = $raw['critical_tags'];
+            if (!is_array($tags) || !array_is_list($tags)) {
+                throw new \RuntimeException("\"approval\".\"critical_tags\" in $projPath must be a list of tag names");
+            }
+            foreach ($tags as $t) {
+                if (!is_string($t) || trim($t) === '') {
+                    throw new \RuntimeException("\"approval\".\"critical_tags\" in $projPath must contain non-empty strings");
+                }
+            }
+            $a['critical_tags'] = array_values(array_map(fn($t) => mb_strtolower(trim($t)), $tags));
+        }
+        return $a;
+    }
+
+    /**
+     * Adds or replaces one project entry. Manager scope only: this file bounds
+     * what the bot may touch, so only the owner's interactive session writes
+     * it. Validated with the exact rules load() applies, written to a temp
+     * file and renamed over the original (a tick reading it concurrently sees
+     * the old or the new file, never half of one).
+     */
+    public function writeProjectEntry(int $id, array $entry): array
+    {
+        if ($this->scope !== 'manager') {
+            throw new \RuntimeException('projects.json is written only from the manager scope (otack-manager)');
+        }
+        if ($id <= 0) {
+            throw new \RuntimeException('project id must be positive');
+        }
+        $path = $this->projectsFile;
+        $raw = ['projects' => []];
+        if (is_file($path)) {
+            $raw = json_decode((string)file_get_contents($path), true);
+            if (!is_array($raw) || !isset($raw['projects']) || !is_array($raw['projects'])) {
+                throw new \RuntimeException("$path is not a valid projects.json — fix it by hand before writing to it");
+            }
+        }
+        $parsed = self::parseProject((string)$id, $entry, $path);
+        $raw['projects'][(string)$id] = $entry;
+        $json = json_encode($raw, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            throw new \RuntimeException('cannot encode projects.json: ' . json_last_error_msg());
+        }
+        $tmp = $path . '.tmp-' . bin2hex(random_bytes(4));
+        $oldUmask = umask(077);
+        try {
+            if (file_put_contents($tmp, $json . "\n") === false) {
+                throw new \RuntimeException("cannot write $tmp");
+            }
+            chmod($tmp, 0600);
+            if (!rename($tmp, $path)) {
+                throw new \RuntimeException("cannot replace $path");
+            }
+        } finally {
+            umask($oldUmask);
+            if (is_file($tmp)) { @unlink($tmp); }
+        }
+        return $parsed;
     }
 
     /**
@@ -223,6 +422,7 @@ final class Config
      *     test_cmd: ?string,
      *     in_progress_column: int|string|null,
      *     review_column: int|string|null,
+     *     default_branch: ?string,
      * }|null
      */
     public function projectPath(int $id): ?array

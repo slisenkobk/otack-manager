@@ -424,3 +424,131 @@ it('Config::load throws when review_column is a bool, naming the project and the
     );
     _agentConfigRrmdir('/tmp/p-col-bool2');
 });
+
+// --- Task 2: scopes, roots, approval, default_branch, writeProjectEntry ---
+
+function _cfg2Home(array $projectsJson, ?string $managerEnv = "OTACK_API_URL=https://m.example/api/v1\nOTACK_API_TOKEN=otk_owner\n", string $agentEnvExtra = ''): string {
+    $home = sys_get_temp_dir() . '/otack-cfg2-' . bin2hex(random_bytes(4));
+    register_shutdown_function(fn() => _agentConfigRrmdir($home));
+    mkdir("$home/.claude/otack-agent", 0700, true);
+    file_put_contents("$home/.claude/otack-agent/.env", "OTACK_API_URL=https://a.example/api/v1\nOTACK_API_TOKEN=otk_bot\n" . $agentEnvExtra);
+    chmod("$home/.claude/otack-agent/.env", 0600);
+    if ($managerEnv !== null) {
+        mkdir("$home/.claude/otack-manager", 0700, true);
+        file_put_contents("$home/.claude/otack-manager/.env", $managerEnv);
+        chmod("$home/.claude/otack-manager/.env", 0600);
+    }
+    file_put_contents("$home/.claude/otack-agent/projects.json", json_encode($projectsJson));
+    chmod("$home/.claude/otack-agent/projects.json", 0600);
+    return $home;
+}
+
+it('Config manager scope reads the owner token, agent scope the bot token, same projects', function () {
+    $dir = sys_get_temp_dir() . '/otack-cfg2-p-' . bin2hex(random_bytes(4)); mkdir($dir);
+    $home = _cfg2Home(['projects' => ['7' => ['path' => $dir]]]);
+    $a = App\Agent\Config::load($home, 'agent');
+    $m = App\Agent\Config::load($home, 'manager');
+    assert_eq('otk_bot', $a->token);
+    assert_eq('otk_owner', $m->token);
+    assert_eq('manager', $m->scope);
+    assert_eq(realpath($dir), $m->projectPath(7)['path']);
+});
+
+it('Config manager scope fails loudly without ~/.claude/otack-manager/.env', function () {
+    $home = _cfg2Home(['projects' => []], null);
+    try { App\Agent\Config::load($home, 'manager'); assert_true(false, 'expected throw'); }
+    catch (RuntimeException $e) { assert_true(str_contains($e->getMessage(), 'otack-manager'), $e->getMessage()); }
+});
+
+it('Config rejects an unknown scope', function () {
+    $home = _cfg2Home(['projects' => []]);
+    try { App\Agent\Config::load($home, 'root'); assert_true(false, 'expected throw'); }
+    catch (InvalidArgumentException $e) { assert_true(true); }
+});
+
+it('Config parses roots and rejects a relative or missing root', function () {
+    $r = sys_get_temp_dir() . '/otack-root-' . bin2hex(random_bytes(4)); mkdir($r);
+    $home = _cfg2Home(['projects' => [], 'roots' => ['otack' => $r]]);
+    assert_eq(['otack' => realpath($r)], App\Agent\Config::load($home, 'manager')->roots);
+    foreach ([['otack' => 'rel/path'], ['otack' => '/nonexistent-' . bin2hex(random_bytes(3))], ['Bad Key' => $r]] as $bad) {
+        $home = _cfg2Home(['projects' => [], 'roots' => $bad]);
+        try { App\Agent\Config::load($home, 'manager'); assert_true(false, 'expected throw for ' . json_encode($bad)); }
+        catch (RuntimeException $e) { assert_true(str_contains($e->getMessage(), 'roots'), $e->getMessage()); }
+    }
+});
+
+it('Config approval defaults to none and validates telegram settings in agent scope', function () {
+    $home = _cfg2Home(['projects' => []]);
+    $c = App\Agent\Config::load($home, 'agent');
+    assert_eq('none', $c->approval['mode']);
+    assert_eq(10, $c->approval['digest_size']);
+    assert_eq(null, $c->telegram);
+
+    $home = _cfg2Home(['projects' => [], 'approval' => ['mode' => 'telegram']]);
+    try { App\Agent\Config::load($home, 'agent'); assert_true(false, 'expected throw'); }
+    catch (RuntimeException $e) { assert_true(str_contains($e->getMessage(), 'OTACK_TG_BOT_TOKEN'), $e->getMessage()); }
+
+    $home = _cfg2Home(['projects' => [], 'approval' => ['mode' => 'telegram', 'digest_size' => 5, 'critical_tags' => ['Bug']]],
+        "OTACK_API_URL=https://m.example/api/v1\nOTACK_API_TOKEN=otk_owner\n",
+        "OTACK_TG_BOT_TOKEN=123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ\nOTACK_TG_CHAT_ID=987654\n");
+    $c = App\Agent\Config::load($home, 'agent');
+    assert_eq(['token' => '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'chat_id' => '987654'], $c->telegram);
+    assert_eq(5, $c->approval['digest_size']);
+    assert_eq(['bug'], $c->approval['critical_tags']);
+    assert_eq(null, App\Agent\Config::load($home, 'manager')->telegram, 'manager scope never carries the bot\'s Telegram token');
+
+    foreach ([['mode' => 'email'], ['digest_size' => 0], ['digest_size' => '5'], ['digest_every_hours' => 1000], ['critical_tags' => 'bug']] as $bad) {
+        $home = _cfg2Home(['projects' => [], 'approval' => $bad]);
+        try { App\Agent\Config::load($home, 'agent'); assert_true(false, 'expected throw for ' . json_encode($bad)); }
+        catch (RuntimeException $e) { assert_true(str_contains($e->getMessage(), 'approval'), $e->getMessage()); }
+    }
+});
+
+it('Config validates default_branch and exposes it', function () {
+    $dir = sys_get_temp_dir() . '/otack-cfg2-p-' . bin2hex(random_bytes(4)); mkdir($dir);
+    $home = _cfg2Home(['projects' => ['7' => ['path' => $dir, 'default_branch' => 'main']]]);
+    assert_eq('main', App\Agent\Config::load($home)->projectPath(7)['default_branch']);
+    $home = _cfg2Home(['projects' => ['7' => ['path' => $dir, 'default_branch' => 'main; rm -rf /']]]);
+    try { App\Agent\Config::load($home); assert_true(false, 'expected throw'); }
+    catch (RuntimeException $e) { assert_true(str_contains($e->getMessage(), 'default_branch'), $e->getMessage()); }
+});
+
+it('writeProjectEntry adds an entry, keeps every other key, stays 0600', function () {
+    $d1 = sys_get_temp_dir() . '/otack-cfg2-p-' . bin2hex(random_bytes(4)); mkdir($d1);
+    $d2 = sys_get_temp_dir() . '/otack-cfg2-p-' . bin2hex(random_bytes(4)); mkdir($d2);
+    $r  = sys_get_temp_dir() . '/otack-root-' . bin2hex(random_bytes(4)); mkdir($r);
+    $home = _cfg2Home(['_comment' => 'keep me', 'roots' => ['otack' => $r], 'approval' => ['mode' => 'none'],
+        'projects' => ['7' => ['path' => $d1, 'write' => false]]]);
+    $c = App\Agent\Config::load($home, 'manager');
+    $parsed = $c->writeProjectEntry(9, ['path' => $d2, 'write' => true, 'test_cmd' => 'make test', 'review_column' => 'Review']);
+    assert_eq(realpath($d2), $parsed['path']);
+    $file = "$home/.claude/otack-agent/projects.json";
+    $raw = json_decode(file_get_contents($file), true);
+    assert_eq('keep me', $raw['_comment']);
+    assert_eq(['otack' => $r], $raw['roots']);
+    assert_eq(['mode' => 'none'], $raw['approval']);
+    assert_eq($d1, $raw['projects']['7']['path']);
+    assert_eq(true, $raw['projects']['9']['write']);
+    assert_eq(0600, fileperms($file) & 0777);
+    assert_eq([], glob("$home/.claude/otack-agent/projects.json.tmp-*"));
+    assert_eq(realpath($d2), App\Agent\Config::load($home, 'agent')->projectPath(9)['path']);
+});
+
+it('writeProjectEntry refuses invalid entries and leaves the file untouched', function () {
+    $home = _cfg2Home(['projects' => []]);
+    $file = "$home/.claude/otack-agent/projects.json";
+    $before = file_get_contents($file);
+    $c = App\Agent\Config::load($home, 'manager');
+    foreach ([['path' => 'relative'], ['path' => '/nonexistent-' . bin2hex(random_bytes(3))], ['path' => sys_get_temp_dir(), 'write' => 'true'],
+              ['path' => sys_get_temp_dir(), 'test_cmd' => 'make test; curl x'], ['path' => sys_get_temp_dir(), 'review_column' => 1.5]] as $bad) {
+        try { $c->writeProjectEntry(9, $bad); assert_true(false, 'expected throw for ' . json_encode($bad)); }
+        catch (RuntimeException $e) { assert_true(true); }
+    }
+    assert_eq($before, file_get_contents($file));
+});
+
+it('writeProjectEntry is refused in agent scope', function () {
+    $home = _cfg2Home(['projects' => []]);
+    try { App\Agent\Config::load($home, 'agent')->writeProjectEntry(9, ['path' => sys_get_temp_dir()]); assert_true(false, 'expected throw'); }
+    catch (RuntimeException $e) { assert_true(str_contains($e->getMessage(), 'manager'), $e->getMessage()); }
+});

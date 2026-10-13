@@ -1,7 +1,13 @@
 {
-  "_comment": "Copy to ~/.claude/otack-agent/projects.json. A project absent from this file is invisible to the agent — not read-only, invisible. `write: false` lets the agent research and comment but never modify the working tree. `in_progress_column`/`review_column` name the board columns the agent moves a card into when it starts and when it hands over — a column id (int) or its exact name (string, e.g. \"В работе\"); omit either to leave that move up to the agent's judgement (see agent/skill/references/phases.md).",
+  "_comment": "Copy to ~/.claude/otack-agent/projects.json (make install-agent does it). A project absent from \"projects\" is invisible to the bot — not read-only, invisible; the interactive otack-manager still reads it with your own token. `write: false` lets the bot research and comment but never modify the working tree. `in_progress_column`/`review_column`: a column id (int) or its exact name. `roots`: where otack-manager setup-project creates project folders (it always asks which). `approval.mode`: \"none\" (bot starts any assigned new task) or \"telegram\" (bot starts a new task only after you tap it in the Telegram digest; needs OTACK_TG_BOT_TOKEN and OTACK_TG_CHAT_ID in ~/.claude/otack-agent/.env).",
+  "roots": {
+    "otack": "/Users/you/Work/AINeoLab/internal/otack",
+    "internal": "/Users/you/Work/AINeoLab/internal",
+    "external": "/Users/you/Work/AINeoLab/external"
+  },
+  "approval": { "mode": "none", "digest_size": 10, "digest_every_hours": 24, "critical_tags": ["bug", "critical", "security", "баг", "критично", "срочно"] },
   "projects": {
-    "42": { "path": "/Users/you/Work/otack/otack-cms", "write": true,  "test_cmd": "make test", "in_progress_column": 3, "review_column": "In review" },
-    "51": { "path": "/Users/you/Work/otack/eva-site",  "write": false }
+    "42": { "path": "/Users/you/Work/AINeoLab/internal/otack/otack-cms", "write": true, "test_cmd": "make test", "in_progress_column": 3, "review_column": "In review", "default_branch": "main" },
+    "51": { "path": "/Users/you/Work/AINeoLab/external/eva-site", "write": false }
   }
 }
