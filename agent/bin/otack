@@ -28,8 +28,10 @@ ini_set('zend.exception_ignore_args', '1');
 require_once __DIR__ . '/../lib/Config.php';
 require_once __DIR__ . '/../lib/Client.php';
 require_once __DIR__ . '/../lib/Triage.php';
+require_once __DIR__ . '/../lib/Rank.php';
+require_once __DIR__ . '/../lib/Board.php';
 
-use App\Agent\{Config, Client, Triage};
+use App\Agent\{Config, Client, Triage, Rank, Board};
 
 const PHASES = ['researching', 'awaiting_approval', 'implementing', 'review', 'blocked'];
 
