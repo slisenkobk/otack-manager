@@ -249,3 +249,25 @@ it('a transient project read failure keeps the approval', function () {
         assert_eq([16], _apRun($home, $port)['approved']);
     });
 });
+
+it('a project that answers 403/404/5xx is skipped with a note; the others still produce a digest', function () {
+    _cliFixtureServer(_apRoutes([
+        'GET /api/v1/projects/43' => [['status' => 403, 'body' => '{}']],
+        'GET /api/v1/projects/44' => [['status' => 404, 'body' => '{}']],
+        'GET /api/v1/projects/45' => [['status' => 500, 'body' => '{}']],
+    ]), function (int $port, string $log) {
+        $home = _apHome($port);
+        $file = "$home/.claude/otack-agent/projects.json";
+        $raw = json_decode(file_get_contents($file), true);
+        foreach ([43, 44, 45] as $pid) { $raw['projects'][(string)$pid] = ['path' => "$home/p42"]; }
+        file_put_contents($file, json_encode($raw));
+        $res = _apRun($home, $port);
+        foreach ([43 => '403', 44 => '404', 45 => '500'] as $pid => $code) {
+            $hit = array_filter($res['notes'], fn($n) => str_starts_with($n, "project $pid skipped: ") && str_contains($n, $code));
+            assert_eq(1, count($hit), "note for $pid: " . json_encode($res['notes']));
+        }
+        $send = array_values(array_filter(_requestLog($log), fn($e) => str_ends_with($e['path'], '/sendMessage')));
+        assert_eq(1, count($send), 'the digest still goes out');
+        assert_true(str_contains($send[0]['body']['text'], '#12 Urgent'), $send[0]['body']['text']);
+    });
+});

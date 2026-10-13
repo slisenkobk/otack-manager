@@ -118,7 +118,8 @@ final class Approval
 
         // 3. Digest (only when nothing is queued — Selection::needsDigest).
         if (Selection::needsDigest($state, $now, $cfg->approval['digest_every_hours'])) {
-            [$ranked, $total, $names] = self::candidates($cfg, $client, $botId, $now);
+            [$ranked, $total, $names, $skipped] = self::candidates($cfg, $client, $botId, $now);
+            array_push($notes, ...$skipped);
             if ($ranked !== []) {
                 $d = Selection::digest(array_slice($ranked, 0, $cfg->approval['digest_size']), $names, $total);
                 $msg = $tg->call('sendMessage', [
@@ -135,23 +136,36 @@ final class Approval
         return ['approved' => $state['approved'], 'notes' => $notes];
     }
 
-    /** Open, unstarted tasks in the bot's projects that are unassigned or the bot's own, ranked best first. */
+    /**
+     * Open, unstarted tasks in the bot's projects that are unassigned or the
+     * bot's own, ranked best first. A project that cannot be read (403/404
+     * once the bot left it, a 5xx, a bad body) is skipped with a note, so one
+     * broken project does not silence the digest for all the others.
+     *
+     * @return array{0: list<array>, 1: int, 2: array<int,string>, 3: list<string>} ranked, total, names, notes
+     */
     public static function candidates(Config $cfg, Client $client, int $botId, \DateTimeImmutable $now): array
     {
         $all = [];
         $names = [];
+        $notes = [];
         foreach (array_keys($cfg->projects) as $pidStr) {
             $pid = (int)$pidStr;
-            $project = Board::project($client, $pid);
+            try {
+                $project = Board::project($client, $pid);
+                $rows = array_values(array_filter(Board::openTasks($client, $project), fn($t) =>
+                    ($t['agent_state'] ?? null) === null
+                    && (($t['assignee_id'] ?? null) === null || (int)$t['assignee_id'] === $botId)));
+                $critical = $rows === [] ? [] : Board::criticalTaskIds($client, $pid, $cfg->approval['critical_tags']);
+            } catch (\RuntimeException $e) {
+                $notes[] = "project $pid skipped: " . $e->getMessage();
+                continue;
+            }
             $names[$pid] = (string)($project['name'] ?? "#$pid");
-            $rows = array_values(array_filter(Board::openTasks($client, $project), fn($t) =>
-                ($t['agent_state'] ?? null) === null
-                && (($t['assignee_id'] ?? null) === null || (int)$t['assignee_id'] === $botId)));
             if ($rows === []) { continue; }
-            $critical = Board::criticalTaskIds($client, $pid, $cfg->approval['critical_tags']);
             foreach (Rank::sort($rows, $critical, $now) as $t) { $all[] = $t; }
         }
-        usort($all, fn($a, $b) => [$b['rank']['score'], (int)$a['id']] <=> [$a['rank']['score'], (int)$b['id']]);
-        return [$all, count($all), $names];
+        usort($all, fn($a, $b) => [$b['rank']['score'], (int)($a['id'] ?? 0)] <=> [$a['rank']['score'], (int)($b['id'] ?? 0)]);
+        return [$all, count($all), $names, $notes];
     }
 }
