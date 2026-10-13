@@ -40,6 +40,7 @@ file_put_contents($dir . '/requests.log', json_encode([
     'method' => $method,
     'path'   => $path,
     'query'  => $_GET,
+    'auth'   => $_SERVER['HTTP_AUTHORIZATION'] ?? null,
     'body'   => $rawBody !== '' ? json_decode($rawBody, true) : null,
 ]) . "\n", FILE_APPEND);
 

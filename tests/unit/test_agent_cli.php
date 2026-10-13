@@ -40,9 +40,12 @@ function _cliHome(): string {
     return $home;
 }
 
-function _cli(string $args, string $home, string $stdin = ''): array {
+function _cli(string $args, string $home, string $stdin = '', ?string $scope = 'agent'): array {
     $bin = dirname(__DIR__, 2) . '/agent/bin/otack';
-    $cmd = 'HOME=' . escapeshellarg($home) . ' ' . PHP_BINARY . ' ' . escapeshellarg($bin) . ' ' . $args;
+    $env = 'HOME=' . escapeshellarg($home) . ($scope !== null ? ' OTACK_SCOPE=' . escapeshellarg($scope) : '');
+    // -u: a scope-less run must stay scope-less even if the test runner's
+    // own environment happens to carry OTACK_SCOPE.
+    $cmd = 'env ' . ($scope === null ? '-u OTACK_SCOPE ' : '') . $env . ' ' . PHP_BINARY . ' ' . escapeshellarg($bin) . ' ' . $args;
     $p = proc_open($cmd, [0 => ['pipe','r'], 1 => ['pipe','w'], 2 => ['pipe','w']], $pipes);
     fwrite($pipes[0], $stdin); fclose($pipes[0]);
     $out = stream_get_contents($pipes[1]); fclose($pipes[1]);
@@ -65,6 +68,16 @@ function _cliHomeForServer(int $port, ?array $projects = null): string {
     }
     file_put_contents($home . '/.claude/otack-agent/projects.json',
         json_encode(['projects' => $projects]));
+    return $home;
+}
+
+/** _cliHomeForServer() plus a manager .env pointing at the same fixture server. */
+function _cliManagerHome(int $port, ?array $projects = null): string {
+    $home = _cliHomeForServer($port, $projects);
+    mkdir($home . '/.claude/otack-manager', 0700, true);
+    file_put_contents($home . '/.claude/otack-manager/.env',
+        "OTACK_API_URL=http://127.0.0.1:$port/api/v1\nOTACK_API_TOKEN=otk_owner\n");
+    chmod($home . '/.claude/otack-manager/.env', 0600);
     return $home;
 }
 
@@ -498,4 +511,151 @@ it('otack comment refuses an invalid-UTF-8 body instead of crashing on json_enco
         $log = _requestLog($logFile);
         assert_true(!in_array('/api/v1/comments', array_column($log, 'path'), true), 'must refuse before posting');
     });
+});
+
+it('otack without OTACK_SCOPE refuses to run (fail closed)', function () {
+    $home = _cliHome();
+    $r = _cli('whoami', $home, '', null);
+    assert_eq(2, $r['code']);
+    assert_true(str_contains($r['err'], 'OTACK_SCOPE'), $r['err']);
+    $r = _cli('whoami', $home, '', 'admin');
+    assert_eq(2, $r['code']);
+});
+
+it('otack --help works without a scope', function () {
+    $r = _cli('--help', _cliHome(), '', null);
+    assert_eq(2, $r['code']);
+    assert_true(str_contains($r['err'], 'todo'), $r['err']);
+});
+
+it('manager scope reads a task of an unlisted project with the owner token', function () {
+    _cliFixtureServer([
+        'GET /api/v1/tasks/77'          => [['status' => 200, 'body' => json_encode(['id' => 77, 'project_id' => 900])]],
+        'GET /api/v1/projects/900'      => [['status' => 200, 'body' => json_encode(['id' => 900, 'columns' => []])]],
+        'GET /api/v1/tasks/77/comments' => [['status' => 200, 'body' => json_encode(['items' => [], 'next_cursor' => null])]],
+        'GET /api/v1/me'                => [['status' => 200, 'body' => json_encode(['id' => 3])]],
+    ], function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        $r = _cli('task 77', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        $j = json_decode($r['out'], true);
+        assert_eq(null, $j['local']);
+        foreach (_requestLog($log) as $e) { assert_eq('Bearer otk_owner', $e['auth']); }
+    });
+});
+
+it('agent scope still refuses the same unlisted project before any write', function () {
+    _cliFixtureServer([
+        'GET /api/v1/tasks/77' => [['status' => 200, 'body' => json_encode(['id' => 77, 'project_id' => 900])]],
+    ], function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        $r = _cli('comment 77', $home, "hi\n", 'agent');
+        assert_eq(1, $r['code']);
+        assert_true(str_contains($r['err'], 'is not listed'), $r['err']);
+        assert_eq([], array_values(array_filter(_requestLog($log), fn($e) => $e['method'] !== 'GET')));
+        foreach (_requestLog($log) as $e) { assert_eq('Bearer otk_test', $e['auth']); }
+    });
+});
+
+it('manager scope comments on an unlisted project', function () {
+    _cliFixtureServer([
+        'GET /api/v1/tasks/77'  => [['status' => 200, 'body' => json_encode(['id' => 77, 'project_id' => 900])]],
+        'POST /api/v1/comments' => [['status' => 201, 'body' => json_encode(['id' => 5])]],
+    ], function (int $port, string $log) {
+        $r = _cli('comment 77', _cliManagerHome($port), "Согласовано\n", 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        $post = array_values(array_filter(_requestLog($log), fn($e) => $e['method'] === 'POST'))[0];
+        assert_eq(['entity' => 'task', 'entity_id' => 77, 'body' => "Согласовано\n"], $post['body']);
+    });
+});
+
+it('next and tick-note run only in agent scope', function () {
+    $home = _cliHome();
+    mkdir($home . '/.claude/otack-manager', 0700, true);
+    file_put_contents($home . '/.claude/otack-manager/.env', "OTACK_API_URL=http://localhost:8771/api/v1\nOTACK_API_TOKEN=otk_owner\n");
+    chmod($home . '/.claude/otack-manager/.env', 0600);
+    foreach (['next', 'tick-note 1 researching'] as $cmd) {
+        $r = _cli($cmd, $home, '', 'manager');
+        assert_eq(2, $r['code'], $cmd);
+        assert_true(str_contains($r['err'], "bot's scope"), $r['err']);
+    }
+});
+
+it('projects lists visible projects with their local entry or null', function () {
+    _cliFixtureServer([
+        'GET /api/v1/projects' => [['status' => 200, 'body' => json_encode(['items' => [
+            ['id' => 42, 'name' => 'Listed', 'slug' => 'listed', 'repo_url' => null],
+            ['id' => 900, 'name' => 'New one', 'slug' => 'new-one', 'repo_url' => 'git@github.com:o/new-one.git'],
+        ], 'next_cursor' => null])]],
+    ], function (int $port) {
+        $r = _cli('projects', _cliManagerHome($port), '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        $items = json_decode($r['out'], true)['items'];
+        assert_true(is_array($items[0]['local']));
+        assert_eq(null, $items[1]['local']);
+        assert_eq('git@github.com:o/new-one.git', $items[1]['repo_url']);
+    });
+});
+
+it('todo --project ranks the project\'s open tasks across assignees', function () {
+    _cliFixtureServer([
+        'GET /api/v1/me'                => [['status' => 200, 'body' => json_encode(['id' => 3])]],
+        'GET /api/v1/projects/900'      => [['status' => 200, 'body' => json_encode(['id' => 900, 'name' => 'New one', 'columns' => [
+            ['id' => 1, 'is_backlog' => true], ['id' => 2], ['id' => 3, 'is_done' => true]]])]],
+        'GET /api/v1/projects/900/tasks' => [['status' => 200, 'body' => json_encode(['items' => [
+            ['id' => 10, 'column_id' => 2, 'priority' => 'low', 'assignee_id' => null],
+            ['id' => 11, 'column_id' => 2, 'priority' => 'urgent', 'assignee_id' => 8],
+            ['id' => 12, 'column_id' => 3, 'priority' => 'urgent'],
+            ['id' => 13, 'column_id' => 1, 'priority' => 'urgent'],
+        ], 'next_cursor' => null])]],
+        'GET /api/v1/projects/900/tags' => [['status' => 200, 'body' => json_encode(['items' => []])]],
+    ], function (int $port) {
+        $r = _cli('todo --project 900', _cliManagerHome($port), '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        $j = json_decode($r['out'], true);
+        assert_eq([11, 10], array_map(fn($i) => $i['task']['id'], $j['items']));
+        assert_eq(['id' => 900, 'name' => 'New one'], $j['items'][0]['project']);
+        assert_eq(['priority:urgent'], $j['items'][0]['rank']['reasons']);
+        assert_eq(false, $j['items'][0]['local']);
+    });
+});
+
+it('todo without --project lists only my tasks; --assignee any is refused there', function () {
+    _cliFixtureServer([
+        'GET /api/v1/me'               => [['status' => 200, 'body' => json_encode(['id' => 3])]],
+        'GET /api/v1/tasks'            => [['status' => 200, 'body' => json_encode(['items' => [
+            ['id' => 20, 'project_id' => 42, 'column_id' => 2, 'priority' => 'high', 'assignee_id' => 3],
+        ], 'next_cursor' => null])]],
+        'GET /api/v1/projects/42'      => [['status' => 200, 'body' => json_encode(['id' => 42, 'name' => 'Listed', 'columns' => [['id' => 2]]])]],
+        'GET /api/v1/projects/42/tags' => [['status' => 200, 'body' => json_encode(['items' => []])]],
+    ], function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        $r = _cli('todo', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        assert_eq([20], array_map(fn($i) => $i['task']['id'], json_decode($r['out'], true)['items']));
+        $q = array_values(array_filter(_requestLog($log), fn($e) => $e['path'] === '/api/v1/tasks'))[0]['query'];
+        assert_eq('3', (string)$q['assignee_id']);
+        assert_eq(2, _cli('todo --assignee any', $home, '', 'manager')['code']);
+    });
+});
+
+it('assign me PATCHes assignee_id with my id; assign none sends null', function () {
+    _cliFixtureServer([
+        'GET /api/v1/me'        => [['status' => 200, 'body' => json_encode(['id' => 3])]],
+        'GET /api/v1/tasks/77'  => [['status' => 200, 'body' => json_encode(['id' => 77, 'project_id' => 900])]],
+        'PATCH /api/v1/tasks/77' => [['status' => 200, 'body' => json_encode(['id' => 77])]],
+    ], function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        assert_eq(0, _cli('assign 77 me', $home, '', 'manager')['code']);
+        assert_eq(0, _cli('assign 77 none', $home, '', 'manager')['code']);
+        $patches = array_values(array_filter(_requestLog($log), fn($e) => $e['method'] === 'PATCH'));
+        assert_eq(['assignee_id' => 3], $patches[0]['body']);
+        assert_eq(['assignee_id' => null], $patches[1]['body']);
+        assert_eq(2, _cli('assign 77 me', $home, '', 'agent')['code'], 'assign is manager-only');
+        assert_eq(2, _cli('assign 77 bob', $home, '', 'manager')['code']);
+    });
+});
+
+it('unknown options are refused', function () {
+    assert_eq(2, _cli('todo --everything', _cliHome(), '', 'agent')['code']);
 });

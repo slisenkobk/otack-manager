@@ -61,28 +61,54 @@ function positiveIntArg(?string $raw, string $usage): int {
 
 function usage(): never {
     fwrite(STDERR, <<<TXT
-    otack — Otack Manager agent CLI
+    otack — Otack Manager CLI (run through the installed wrappers: otack = bot scope, otack-manager = your scope)
 
-      whoami                  verify the token and show the acting user
-      next                    the task this tick should work, with a reason
-      task <id>               task, its thread, and its project context
-      project <id>            repo, branches, instructions, columns
-      new-comments <id>       comments written since the agent last spoke
-      state <id> <phase>      set agent_state (researching|awaiting_approval|implementing|review|blocked)
-      move <id> <column-id>   move the card
-      comment <id>            post a comment, body read from stdin
-      tick-note <id> <phase>  record which task/phase the running tick is on (agent.lock)
+      whoami                    verify the token and show the acting user
+      projects                  projects visible to this token, with their local entry
+      project <id>              repo, branches, instructions, columns
+      task <id>                 task, its thread, and its project context
+      todo [--project <id>] [--assignee me|any]
+                                open tasks, ranked (priority, due date, critical tags, age)
+      new-comments <id>         comments written since this user last spoke
+      comment <id>              post a comment, body read from stdin
+      move <id> <column-id>     move the card
+      state <id> <phase>        set agent_state (researching|awaiting_approval|implementing|review|blocked)
+      assign <id> <me|none|user-id>              (manager scope)
+      folder-name <project-id>                   (manager scope) suggested local folder per root
+      setup-project <project-id> --root <name> … (manager scope) create the folder + projects.json entry
+      next                      the task this tick should work (bot scope)
+      tick-note <id> <phase>    record the running tick's task/phase (bot scope)
 
     TXT);
     exit(2);
+}
+
+/** --key value pairs and bare --flags; anything else is a usage error. */
+function parseOpts(array $args, array $valued, array $flags = []): array {
+    $o = [];
+    for ($i = 0; $i < count($args); $i++) {
+        $a = (string)$args[$i];
+        if (!str_starts_with($a, '--')) { fail("unexpected argument \"$a\"", 2); }
+        $k = substr($a, 2);
+        if (in_array($k, $flags, true)) { $o[$k] = true; continue; }
+        if (!in_array($k, $valued, true)) { fail("unknown option --$k", 2); }
+        if (!array_key_exists($i + 1, $args)) { fail("--$k needs a value", 2); }
+        $o[$k] = (string)$args[++$i];
+    }
+    return $o;
 }
 
 $argvRest = array_slice($argv, 1);
 $cmd = $argvRest[0] ?? '';
 if ($cmd === '' || $cmd === '-h' || $cmd === '--help') { usage(); }
 
+$scope = getenv('OTACK_SCOPE');
+if (!is_string($scope) || !in_array($scope, Config::SCOPES, true)) {
+    fail('OTACK_SCOPE is not set — run the installed wrapper (~/.claude/otack-agent/bin/otack or otack-manager), not agent/bin/otack directly', 2);
+}
+
 try {
-    $cfg    = Config::load(getenv('HOME') ?: '');
+    $cfg    = Config::load(getenv('HOME') ?: '', $scope);
     $client = new Client($cfg->instance, $cfg->token);
 
     $me = null;
@@ -105,13 +131,22 @@ try {
         return $me;
     };
 
-    // Every project the agent touches must be listed locally (spec §7.3).
-    $requireLocalProject = function (int $projectId) use ($cfg): array {
+    // Bot scope: every project the bot touches must be listed locally (spec
+    // §7.3) — unchanged. Manager scope: the owner's own token already bounds
+    // what is visible (server-side membership); the local entry is returned
+    // when there is one and null otherwise (owner decision 2026-10-13).
+    $localFor = function (int $projectId) use ($cfg, $scope): ?array {
         $local = $cfg->projectPath($projectId);
-        if ($local === null) {
+        if ($local === null && $scope === 'agent') {
             fail("project $projectId is not listed in ~/.claude/otack-agent/projects.json — refusing to act on it");
         }
         return $local;
+    };
+    $agentOnly = function (string $cmd) use ($scope): void {
+        if ($scope !== 'agent') { fail("\"$cmd\" runs only in the bot's scope (otack-tick)", 2); }
+    };
+    $managerOnly = function (string $cmd) use ($scope): void {
+        if ($scope !== 'manager') { fail("\"$cmd\" runs only in the manager scope (otack-manager)", 2); }
     };
 
     // Comment counts are needed only for the agent_state values where they
@@ -130,6 +165,7 @@ try {
             out($self());
 
         case 'next': {
+            $agentOnly('next');
             $selfId = (int)$self()['id'];
 
             // getAll(), not get(): GET /tasks caps a page at 100 rows
@@ -248,7 +284,7 @@ try {
             $t = $client->get("/tasks/$id");
             if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
             $projectId = (int)$t['json']['project_id'];
-            $local = $requireLocalProject($projectId);
+            $local = $localFor($projectId);
             $p = $client->get("/projects/$projectId");
             $comments = $client->getAll("/tasks/$id/comments", ['limit' => 100]);
             out([
@@ -262,7 +298,7 @@ try {
 
         case 'project': {
             $id = positiveIntArg($argvRest[1] ?? null, 'usage: otack project <id>');
-            $local = $requireLocalProject($id);
+            $local = $localFor($id);
             $p = $client->get("/projects/$id");
             if ($p['status'] !== 200) { fail("GET /projects/$id returned " . $p['status']); }
             out(['project' => $p['json'], 'local' => $local]);
@@ -276,7 +312,7 @@ try {
             // machine isn't allowed to act on that project (spec §7.3).
             $t = $client->get("/tasks/$id");
             if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
-            $requireLocalProject((int)$t['json']['project_id']);
+            $localFor((int)$t['json']['project_id']);
             $comments = $client->getAll("/tasks/$id/comments", ['limit' => 100]);
             out(['items' => Triage::newComments($comments, (int)$self()['id'])]);
         }
@@ -291,7 +327,7 @@ try {
             // new-comments above.
             $t = $client->get("/tasks/$id");
             if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
-            $requireLocalProject((int)$t['json']['project_id']);
+            $localFor((int)$t['json']['project_id']);
             $r = $client->patch("/tasks/$id", ['agent_state' => $phase]);
             if ($r['status'] !== 200) { fail("PATCH /tasks/$id returned " . $r['status']); }
             out($r['json']);
@@ -316,7 +352,7 @@ try {
             // C3: this fetch already happens for the position maths below —
             // the project_id is in hand, so the allow-list gate costs
             // nothing extra to add here.
-            $requireLocalProject($projectId);
+            $localFor($projectId);
             $inColumn = $client->getAll("/projects/$projectId/tasks", ['column_id' => $column, 'limit' => 100]);
             $position = Triage::nextPosition($inColumn);
 
@@ -330,7 +366,7 @@ try {
             // C3: gate before touching stdin or the network.
             $t = $client->get("/tasks/$id");
             if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
-            $requireLocalProject((int)$t['json']['project_id']);
+            $localFor((int)$t['json']['project_id']);
 
             $body = stream_get_contents(STDIN);
             if ($body === false) { $body = ''; }
@@ -351,6 +387,7 @@ try {
         }
 
         case 'tick-note': {
+            $agentOnly('tick-note');
             // Rewrites agent.lock with which task/phase the running tick is
             // on, so the *next* tick — if this one wedges — can say
             // something useful instead of a bare "still running" (spec
@@ -370,14 +407,14 @@ try {
             }
             // M3 (adversarial review of 8144dfe): this command used to
             // validate only that <id> is a positive integer — every other
-            // write here gates on requireLocalProject() (since b4a4c4f),
+            // write here gates on the allow-list ($localFor, since b4a4c4f),
             // but tick-note took the id at face value and rewrote
             // agent.lock's task_id/phase for a task in a project this
             // machine isn't even allowed to touch. Same fetch-then-check
             // shape as `state`/`comment`/`move` above.
             $t = $client->get("/tasks/$id");
             if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
-            $requireLocalProject((int)$t['json']['project_id']);
+            $localFor((int)$t['json']['project_id']);
             $lockPath = rtrim(getenv('HOME') ?: '', '/') . '/.claude/otack-agent/agent.lock';
             if (!is_file($lockPath)) {
                 fail("no agent.lock at $lockPath — tick-note must run inside an otack-tick session");
@@ -396,6 +433,93 @@ try {
                 fail("failed to write $lockPath");
             }
             out(['task_id' => $id, 'phase' => $phase]);
+        }
+
+        case 'projects': {
+            $items = $client->getAll('/projects', ['limit' => 100]);
+            out(['items' => array_map(fn($p) => [
+                'id'             => (int)$p['id'],
+                'name'           => (string)($p['name'] ?? ''),
+                'slug'           => $p['slug'] ?? null,
+                'status'         => $p['status'] ?? null,
+                'repo_url'       => $p['repo_url'] ?? null,
+                'default_branch' => $p['default_branch'] ?? null,
+                'local'          => $cfg->projectPath((int)$p['id']),
+            ], $items)]);
+        }
+
+        case 'todo': {
+            $usageTodo = 'usage: otack todo [--project <id>] [--assignee me|any]';
+            $o = parseOpts(array_slice($argvRest, 1), ['project', 'assignee']);
+            // Validate before any network call: a bad value must not cost a
+            // round trip (or a project fetch) first.
+            if (isset($o['assignee']) && !in_array($o['assignee'], ['me', 'any'], true)) { fail($usageTodo, 2); }
+            $selfId = (int)$self()['id'];
+            $byProject = [];
+            $projects = [];
+            if (isset($o['project'])) {
+                $pid = positiveIntArg($o['project'], $usageTodo);
+                $localFor($pid);
+                $assignee = $o['assignee'] ?? 'any';
+                $projects[$pid] = Board::project($client, $pid);
+                $byProject[$pid] = Board::openTasks($client, $projects[$pid]);
+            } else {
+                $assignee = $o['assignee'] ?? 'me';
+                if ($assignee !== 'me') { fail('without --project, todo lists only your own tasks (--assignee me)', 2); }
+                foreach ($client->getAll('/tasks', ['assignee_id' => $selfId, 'limit' => 100]) as $t) {
+                    $byProject[(int)$t['project_id']][] = $t;
+                }
+                foreach (array_keys($byProject) as $pid) {
+                    if ($scope === 'agent' && $cfg->projectPath($pid) === null) { unset($byProject[$pid]); continue; }
+                    $projects[$pid] = Board::project($client, $pid);
+                    $cols = Board::workableColumnIds($projects[$pid]);
+                    $byProject[$pid] = array_values(array_filter($byProject[$pid], fn($t) => in_array((int)$t['column_id'], $cols, true)));
+                }
+            }
+
+            $now = new \DateTimeImmutable('now');
+            $items = [];
+            foreach ($byProject as $pid => $rows) {
+                if ($assignee === 'me') {
+                    $rows = array_values(array_filter($rows, fn($t) => (int)($t['assignee_id'] ?? 0) === $selfId));
+                }
+                if ($rows === []) { continue; }
+                $critical = Board::criticalTaskIds($client, $pid, $cfg->approval['critical_tags']);
+                foreach (Rank::sort($rows, $critical, $now) as $t) {
+                    $rank = $t['rank'];
+                    unset($t['rank']);
+                    $items[] = [
+                        'task'    => $t,
+                        'project' => ['id' => $pid, 'name' => (string)($projects[$pid]['name'] ?? '')],
+                        'rank'    => $rank,
+                        'local'   => $cfg->projectPath($pid) !== null,
+                    ];
+                }
+            }
+            usort($items, fn($a, $b) => [$b['rank']['score'], (int)$a['task']['id']] <=> [$a['rank']['score'], (int)$b['task']['id']]);
+            out(['items' => $items, 'count' => count($items)]);
+        }
+
+        case 'assign': {
+            $managerOnly('assign');
+            $usageAssign = 'usage: otack assign <id> <me|none|user-id>';
+            $id  = positiveIntArg($argvRest[1] ?? null, $usageAssign);
+            $who = (string)($argvRest[2] ?? '');
+            if ($who === 'me') {
+                $assigneeId = (int)$self()['id'];
+            } elseif ($who === 'none') {
+                $assigneeId = null;
+            } elseif (ctype_digit($who) && (int)$who > 0) {
+                $assigneeId = (int)$who;
+            } else {
+                fail($usageAssign, 2);
+            }
+            $t = $client->get("/tasks/$id");
+            if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
+            $localFor((int)$t['json']['project_id']);
+            $r = $client->patch("/tasks/$id", ['assignee_id' => $assigneeId]);
+            if ($r['status'] !== 200) { fail("PATCH /tasks/$id returned " . $r['status']); }
+            out($r['json']);
         }
 
         default:
