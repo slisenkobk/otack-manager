@@ -4,6 +4,7 @@ namespace App\Api\V1\Handlers;
 
 use App\Api\V1\ApiResponse;
 use App\Api\V1\JsonRequest;
+use App\Service\EntityLifecycle;
 use App\Service\RolePolicy;
 use App\Http\Request;
 
@@ -217,6 +218,12 @@ final class TasksHandler extends BaseHandler
             }
             $fields['column_id'] = $newColumnId;
             $newColumnName = (string)$byId[$newColumnId]['name'];
+            // Same reopened/returned badge rule as the web board, applied only
+            // on a real column change (TaskController::update). An explicit
+            // sub_status in the same body is applied below and wins.
+            if ($newColumnId !== (int)$task['column_id']) {
+                $fields += EntityLifecycle::subStatusChange($task, $cols, $newColumnId);
+            }
         }
         if (array_key_exists('assignee_id', $body)) {
             $fields['assignee_id'] = $body['assignee_id'] === null || $body['assignee_id'] === ''
@@ -280,17 +287,14 @@ final class TasksHandler extends BaseHandler
         if ($columnId <= 0) {
             return ApiResponse::error(422, 'validation_failed', 'column_id is required', ['column_id' => 'required']);
         }
-        // Validate target column belongs to this task's project.
-        $cols = $this->svc('columns')->listForProject((int)$task['project_id']);
-        $byId = [];
-        foreach ($cols as $c) { $byId[(int)$c['id']] = $c; }
-        if (!isset($byId[$columnId])) {
+        // Shared with TaskController::move: validates the column belongs to
+        // this task's project and writes the reopened/returned sub_status.
+        $column = $this->lifecycle()->moveTask($task, $columnId, $position);
+        if ($column === null) {
             return ApiResponse::error(422, 'validation_failed', 'column_id does not belong to project', ['column_id' => 'invalid']);
         }
-
-        $this->svc('tasks')->move($id, $columnId, $position);
         // Mirrors TaskController::move, which notifies on every move call.
-        $this->domainEvents()->taskStatusChanged($this->user(), $id, (int)$task['project_id'], (string)$task['title'], $columnId, (string)$byId[$columnId]['name']);
+        $this->domainEvents()->taskStatusChanged($this->user(), $id, (int)$task['project_id'], (string)$task['title'], $columnId, (string)$column['name']);
         return ApiResponse::ok($this->serializeOne($this->svc('tasks')->findById($id)));
     }
 
@@ -306,9 +310,9 @@ final class TasksHandler extends BaseHandler
             return $this->forbidden();
         }
 
-        $this->svc('tasks')->delete($id);
-        // Mirror controller cleanup of dangling FKs.
-        $this->svc('task_links')->deleteForTask($id);
+        // Shared with TaskController::delete: also detaches form submissions,
+        // poll summaries and task links pointing at this task.
+        $this->lifecycle()->deleteTask($id);
         $this->domainEvents()->taskDeleted($this->user(), $task, $project);
         return ApiResponse::noContent();
     }

@@ -90,7 +90,9 @@ final class ProjectsHandler extends BaseHandler
         $project = $this->svc('projects')->findById($id);
         if (!$project) return $this->notFound();
         if (!RolePolicy::isAdmin($this->user())) return $this->forbidden();
-        $this->svc('projects')->delete($id);
+        // Shared with ProjectController::delete: also detaches form
+        // submissions converted into this project.
+        $this->lifecycle()->deleteProject($id);
         $this->domainEvents()->projectDeleted($this->user(), $project);
         return ApiResponse::noContent();
     }

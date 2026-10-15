@@ -491,6 +491,47 @@ api_it('GET /tasks?assignee_id= (blank) falls back to the caller, not assignee_i
     assert_true(in_array(5580, $ids, true), 'blank assignee_id must fall back to the caller, not return an empty page');
 });
 
+api_it('POST /tasks/{id}/move: Done → To Do returns sub_status reopened, onward clears it (web parity)', function () {
+    [$pdo, $adminTok,] = tasks_setup();
+    tasks_seed_project($pdo, 5020);
+    tasks_seed_column($pdo, 52000, 5020, 'Backlog', 0, 0, 1);
+    tasks_seed_column($pdo, 52001, 5020, 'To Do', 1);
+    tasks_seed_column($pdo, 52002, 5020, 'Doing', 2);
+    tasks_seed_column($pdo, 52003, 5020, 'Done', 3, 1);
+    $auth = ['Authorization: Bearer ' . $adminTok];
+    // Created through the API, not seeded by id: earlier API creates take
+    // autoincrement ids in this range.
+    $c = api_request('POST', '/api/v1/projects/5020/tasks', ['headers' => $auth, 'body' => json_encode(['title' => 'Reopen me', 'column_id' => 52003])]);
+    assert_eq(201, $c['status']);
+    $tid = (int)$c['json']['id'];
+    $r = api_request('POST', "/api/v1/tasks/$tid/move", ['headers' => $auth, 'body' => json_encode(['column_id' => 52001])]);
+    assert_eq(200, $r['status']);
+    assert_eq('reopened', $r['json']['sub_status']);
+    $r = api_request('PATCH', "/api/v1/tasks/$tid", ['headers' => $auth, 'body' => json_encode(['column_id' => 52002])]);
+    assert_eq(null, $r['json']['sub_status']);
+    $r = api_request('PATCH', "/api/v1/tasks/$tid", ['headers' => $auth, 'body' => json_encode(['column_id' => 52001])]);
+    assert_eq('returned', $r['json']['sub_status']);
+});
+
+api_it('DELETE /tasks/{id} detaches the converted submission and poll summary (web parity)', function () {
+    [$pdo, $adminTok,] = tasks_setup();
+    tasks_seed_project($pdo, 5021);
+    tasks_seed_column($pdo, 52101, 5021, 'To Do', 0);
+    $c = api_request('POST', '/api/v1/projects/5021/tasks', ['headers' => ['Authorization: Bearer ' . $adminTok], 'body' => json_encode(['title' => 'Delete me'])]);
+    assert_eq(201, $c['status']);
+    $tid = (int)$c['json']['id'];
+    $pdo->exec("INSERT OR IGNORE INTO forms (id, hash, title, status, locale, created_by, created_at, updated_at) VALUES (5791, 'h5791', 'F', 'published', 'en', 1, '2026-01-01', '2026-01-01')");
+    $pdo->exec("INSERT INTO form_submissions (id, form_id, status, data_json, converted_task_id, created_at, updated_at) VALUES (5792, 5791, 'converted_task', '{}', $tid, '2026-01-01', '2026-01-01')");
+    $pdo->exec("INSERT OR IGNORE INTO polls (id, hash, title, description, fields_json, footer_json, contact_field, locale, status, created_by, summary_task_id, created_at, updated_at)
+                VALUES (5793, 'p5793', 'Poll', NULL, '[]', '[]', 'email', 'en', 'closed', 1, $tid, '2026-01-01', '2026-01-01')");
+    $r = api_request('DELETE', "/api/v1/tasks/$tid", ['headers' => ['Authorization: Bearer ' . $adminTok]]);
+    assert_eq(204, $r['status']);
+    $sub = $pdo->query('SELECT status, converted_task_id FROM form_submissions WHERE id = 5792')->fetch(\PDO::FETCH_ASSOC);
+    assert_eq(null, $sub['converted_task_id']);
+    assert_eq('new', $sub['status']);
+    assert_eq(null, $pdo->query('SELECT summary_task_id FROM polls WHERE id = 5793')->fetchColumn());
+});
+
 api_it('GET /tasks/{id}: from_form marks tasks born from a public submission', function () {
     [$pdo, $adminTok,] = tasks_setup();
     tasks_seed_project($pdo, 5700, 1);

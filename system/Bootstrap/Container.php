@@ -94,6 +94,16 @@ final class Container
             App::make('users'),
             App::make('comments'),
         ));
+        // Data writes a task/project mutation implies beyond its own row
+        // (delete detaches, sub_status on move), shared like domain_events.
+        App::singleton('entity_lifecycle', fn() => new \App\Service\EntityLifecycle(
+            App::make('tasks'),
+            App::make('projects'),
+            App::make('columns'),
+            App::make('task_links'),
+            App::make('form_submissions'),
+            App::make('polls'),
+        ));
         App::singleton('api_tokens', fn() => new \App\Repository\ApiTokenRepository(App::make('db')));
         App::singleton('compass', fn() => new \App\Service\CompassService(
             App::make('db'),

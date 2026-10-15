@@ -37,6 +37,15 @@ abstract class BaseHandler
         return $this->svc('domain_events');
     }
 
+    /**
+     * Data writes a mutation implies beyond its own row (delete detaches,
+     * sub_status on move), shared with the web controllers.
+     */
+    protected function lifecycle(): \App\Service\EntityLifecycle
+    {
+        return $this->svc('entity_lifecycle');
+    }
+
     protected function readBody(Request $req): array
     {
         // Request is a readonly DTO with no rawBody field; fall back to the

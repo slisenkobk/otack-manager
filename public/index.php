@@ -201,6 +201,7 @@ if (str_starts_with($req->path, '/api/v1/')) {
         'uploader'         => App::make('uploader'),
         'users'            => App::make('users'),
         'domain_events'    => App::make('domain_events'),
+        'entity_lifecycle' => App::make('entity_lifecycle'),
     ];
     $kernel = new \App\Api\V1\ApiKernel(
         new \App\Api\V1\TokenAuthenticator(App::make('api_tokens'), App::make('users')),

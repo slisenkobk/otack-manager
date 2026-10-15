@@ -7,8 +7,6 @@ use App\Http\Request;
 use App\Http\Response;
 use App\Repository\AttachmentRepository;
 use App\Repository\CommentRepository;
-use App\Repository\FormSubmissionRepository;
-use App\Repository\PollRepository;
 use App\Repository\ProjectMemberRepository;
 use App\Repository\ProjectRepository;
 use App\Repository\TagRepository;
@@ -17,6 +15,7 @@ use App\Repository\TaskLinkRepository;
 use App\Repository\TaskRepository;
 use App\Repository\UserRepository;
 use App\Service\DomainEvents;
+use App\Service\EntityLifecycle;
 use App\View\Renderer;
 use PDO;
 
@@ -33,8 +32,7 @@ final class TaskController extends BaseController {
         private UserRepository $users,
         private CommentRepository $comments,
         private AttachmentRepository $attachments,
-        private FormSubmissionRepository $formSubmissions,
-        private PollRepository $polls,
+        private EntityLifecycle $lifecycle,
         private DomainEvents $domainEvents,
         private Csrf $csrf,
         private PDO $db,
@@ -84,13 +82,9 @@ final class TaskController extends BaseController {
             Response::json(['error' => 'Only the task author or project owner can delete this task'], 403); return;
         }
         $project = $this->projects->findById((int)$task['project_id']);
-        $this->tasks->delete($id);
-        // Detach FKs from sibling entities so they don't carry a dangling
-        // pointer (the task page would 404 and "open linked entity" buttons
-        // would mislead).
-        $this->formSubmissions->detachConverted('task', $id);
-        $this->polls->detachSummaryTask($id);
-        $this->taskLinks->deleteForTask($id);
+        // Shared with the API (TasksHandler::destroy): deletes the row and
+        // detaches form submissions, poll summaries and task links.
+        $this->lifecycle->deleteTask($id);
         $this->domainEvents->taskDeleted($this->user, $task, $project);
         Response::json(['ok' => true]);
     }
@@ -165,28 +159,13 @@ final class TaskController extends BaseController {
         $position = (float)($data['position'] ?? 0);
         if (!$columnId) { Response::json(['error' => 'column_id required'], 422); return; }
 
-        $cols = $this->columns->listForProject((int)$task['project_id']);
-        $byId = [];
-        foreach ($cols as $c) { $byId[(int)$c['id']] = $c; }
-        // "To Do" = first non-backlog column by position
-        $boardCols = array_values(array_filter($cols, fn($c) => (int)($c['is_backlog'] ?? 0) === 0));
-        usort($boardCols, fn($a, $b) => (int)$a['position'] <=> (int)$b['position']);
-        $todoColId = $boardCols ? (int)$boardCols[0]['id'] : 0;
-        $oldCol = $byId[(int)$task['column_id']] ?? null;
-        $newCol = $byId[$columnId] ?? null;
-
-        $subStatus = null;
-        $clearSub  = false;
-        if ($newCol && $columnId === $todoColId && $oldCol && (int)$oldCol['id'] !== $todoColId) {
-            $fromBacklog = (int)($oldCol['is_backlog'] ?? 0) === 1;
-            $fromDone    = (int)($oldCol['is_done'] ?? 0) === 1;
-            if ($fromDone)        { $subStatus = 'reopened'; }
-            elseif (!$fromBacklog) { $subStatus = 'returned'; }
-        } elseif ($newCol && $columnId !== $todoColId && !empty($task['sub_status'])) {
-            // Moving forward out of To Do — clear the badge
-            $clearSub = true;
+        // Shared with the API (TasksHandler::move / PATCH column_id): writes
+        // the reopened/returned sub_status badge. A foreign column id would
+        // move the task across project boundaries — refuse it.
+        $newCol = $this->lifecycle->moveTask($task, $columnId, $position);
+        if ($newCol === null) {
+            Response::json(['error' => 'Column does not belong to this project'], 422); return;
         }
-        $this->tasks->move($taskId, $columnId, $position, $subStatus, $clearSub);
 
         $newColName = $newCol['name'] ?? '';
         $this->domainEvents->taskStatusChanged($this->user, $taskId, (int)$task['project_id'], (string)$task['title'], $columnId, $newColName);
@@ -513,18 +492,7 @@ final class TaskController extends BaseController {
             }
             $fields['column_id'] = $newColumnId;
             if ($newColumnId !== (int)$task['column_id']) {
-                $boardCols = array_values(array_filter($cols, fn($c) => (int)($c['is_backlog'] ?? 0) === 0));
-                usort($boardCols, fn($a, $b) => (int)$a['position'] <=> (int)$b['position']);
-                $todoColId = $boardCols ? (int)$boardCols[0]['id'] : 0;
-                $oldCol = $byId[(int)$task['column_id']] ?? null;
-                if ($newColumnId === $todoColId && $oldCol && (int)$oldCol['id'] !== $todoColId) {
-                    $fromBacklog = (int)($oldCol['is_backlog'] ?? 0) === 1;
-                    $fromDone    = (int)($oldCol['is_done'] ?? 0) === 1;
-                    if ($fromDone)        { $fields['sub_status'] = 'reopened'; }
-                    elseif (!$fromBacklog) { $fields['sub_status'] = 'returned'; }
-                } elseif ($newColumnId !== $todoColId) {
-                    $fields['sub_status'] = null;
-                }
+                $fields += EntityLifecycle::subStatusChange($task, $cols, $newColumnId);
             }
         }
         if (array_key_exists('assignee_id', $data)) {

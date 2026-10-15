@@ -633,7 +633,10 @@ stores a literal empty string, not `null`.
 
 #### `DELETE /projects/{id}`
 
-Permanently delete the project.
+Permanently delete the project. Like the web UI, a form submission that was
+converted into this project is detached (`converted_project_id` → `null`,
+status back to `new`), and each of the project's tasks gets the
+[`DELETE /tasks/{id}`](#delete-tasksid) cleanup before it is removed.
 
 **Auth:** **admin only.** Managers, owners, and members cannot delete projects
 via the API.
@@ -1118,6 +1121,10 @@ Update mutable task fields.
 
 - Pass `""` or `null` for `description`, `assignee_id`, `due_date`,
   `sub_status` to clear them.
+- Changing `column_id` applies the board's [`sub_status` rule](#sub_status-on-move)
+  exactly like `POST /tasks/{id}/move`. Re-sending the current `column_id`
+  leaves `sub_status` alone, and an explicit `sub_status` in the same body
+  wins over the rule.
 - `description` is sanitised on write — this endpoint runs it through the same
   wider HTML allow-list the web UI's task editor uses (see
   [`GET /tasks/{id}`](#get-tasksid) for the full tag/attribute list), so
@@ -1154,7 +1161,17 @@ Move a task between columns (and/or within a column) by setting a new
 `position` is a float (the board uses sparse floats to avoid renumbering
 siblings on every reorder).
 
-**Response 200:** updated task shape.
+<a id="sub_status-on-move"></a>
+**`sub_status` on move** — same rule as dragging a card on the web board.
+"To Do" is the first non-backlog column by position:
+
+- into To Do from a done column → `"reopened"`;
+- into To Do from any other non-backlog column → `"returned"`;
+- into To Do from the backlog (or within To Do) → unchanged;
+- into any other column → cleared to `null`.
+
+**Response 200:** updated task shape; its `sub_status` is the value after
+the move.
 
 **Errors:**
 
@@ -1165,7 +1182,11 @@ siblings on every reorder).
 
 #### `DELETE /tasks/{id}`
 
-Delete a task. Also cleans up any task-link rows pointing to or from it.
+Delete a task, with the same cleanup as deleting it in the web UI: removes
+task-link rows pointing to or from it, detaches a form submission that was
+converted into it (`converted_task_id` → `null`, submission status back to
+`new`, so it can be re-promoted) and clears a poll's `summary_task_id`
+pointing at it.
 
 **Auth:** `canEditTask`.
 

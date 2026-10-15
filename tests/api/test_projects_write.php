@@ -86,6 +86,18 @@ api_it('DELETE /projects/{id} as admin returns 204', function () {
     assert_eq(404, $g['status']);
 });
 
+api_it('DELETE /projects/{id} detaches submissions converted into it (web parity)', function () {
+    [$pdo, , $adminTok,] = pw_setup();
+    pw_seed_project($pdo, 3010, 'FromLead');
+    $pdo->exec("INSERT OR IGNORE INTO forms (id, hash, title, status, locale, created_by, created_at, updated_at) VALUES (3011, 'h3011', 'F', 'published', 'en', 1, '2026-01-01', '2026-01-01')");
+    $pdo->exec("INSERT INTO form_submissions (id, form_id, status, data_json, converted_project_id, created_at, updated_at) VALUES (3012, 3011, 'converted_project', '{}', 3010, '2026-01-01', '2026-01-01')");
+    $r = api_request('DELETE', '/api/v1/projects/3010', ['headers' => ['Authorization: Bearer ' . $adminTok]]);
+    assert_eq(204, $r['status']);
+    $sub = $pdo->query('SELECT status, converted_project_id FROM form_submissions WHERE id = 3012')->fetch(\PDO::FETCH_ASSOC);
+    assert_eq(null, $sub['converted_project_id']);
+    assert_eq('new', $sub['status']);
+});
+
 api_it('DELETE /projects/{id} as employee returns 403', function () {
     [$pdo, , , $empTok] = pw_setup();
     pw_seed_project($pdo, 3003, 'NoTouch');

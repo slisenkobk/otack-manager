@@ -8,7 +8,6 @@ use App\Http\ValidationException;
 use App\Http\Validator;
 use App\Repository\AttachmentRepository;
 use App\Repository\CommentRepository;
-use App\Repository\FormSubmissionRepository;
 use App\Repository\ProjectMemberRepository;
 use App\Repository\ProjectRepository;
 use App\Repository\TagRepository;
@@ -16,6 +15,7 @@ use App\Repository\TaskColumnRepository;
 use App\Repository\TaskRepository;
 use App\Repository\UserRepository;
 use App\Service\DomainEvents;
+use App\Service\EntityLifecycle;
 use App\View\Renderer;
 use PDO;
 
@@ -31,7 +31,7 @@ final class ProjectController extends BaseController {
         private UserRepository $users,
         private CommentRepository $comments,
         private AttachmentRepository $attachments,
-        private FormSubmissionRepository $formSubmissions,
+        private EntityLifecycle $lifecycle,
         private DomainEvents $domainEvents,
         private PDO $db,
     ) {
@@ -304,10 +304,9 @@ final class ProjectController extends BaseController {
         if (!$project) { Response::notFound(); return; }
         $isOwnerOrAdmin = $this->user['role'] === 'admin' || $this->members->isOwner($id, (int)$this->user['id']);
         if (!$isOwnerOrAdmin) { Response::json(['error' => 'Forbidden'], 403); return; }
-        $this->projects->delete($id);
-        // Detach any submissions converted into this project so they can be
-        // re-promoted instead of pointing at a dead /projects/{id} link.
-        $this->formSubmissions->detachConverted('project', $id);
+        // Shared with the API (ProjectsHandler::destroy): deletes the row and
+        // detaches form submissions converted into this project.
+        $this->lifecycle->deleteProject($id);
         $this->domainEvents->projectDeleted($this->user, $project);
         Response::json(['ok' => true]);
     }

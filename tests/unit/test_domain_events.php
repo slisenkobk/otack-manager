@@ -13,7 +13,7 @@ use App\Http\Request;
 use App\Repository\{ActivityLogRepository, AttachmentRepository, CommentRepository,
     FormSubmissionRepository, PollRepository, ProjectMemberRepository, ProjectRepository,
     TagRepository, TaskColumnRepository, TaskLinkRepository, TaskRepository, UserRepository};
-use App\Service\{DomainEvents, EventBus};
+use App\Service\{DomainEvents, EntityLifecycle, EventBus};
 
 /**
  * Serves a fixed body for php://input so web controllers (Request::jsonBody)
@@ -103,19 +103,23 @@ function _de_setup(): array
     }
     $de = new DomainEvents($bus, $activity, $projects, $tasks, $users, $comments);
 
+    $taskLinks = new TaskLinkRepository($pdo);
+    $formSubs  = new FormSubmissionRepository($pdo);
+    $polls     = new PollRepository($pdo);
     $services = [
         'projects'         => $projects,
         'members'          => $members,
         'columns'          => $columns,
         'tasks'            => $tasks,
-        'task_links'       => new TaskLinkRepository($pdo),
+        'task_links'       => $taskLinks,
         'comments'         => $comments,
         'attachments'      => new AttachmentRepository($pdo),
         'tags'             => new TagRepository($pdo),
-        'form_submissions' => new FormSubmissionRepository($pdo),
-        'polls'            => new PollRepository($pdo),
+        'form_submissions' => $formSubs,
+        'polls'            => $polls,
         'users'            => $users,
         'domain_events'    => $de,
+        'entity_lifecycle' => new EntityLifecycle($tasks, $projects, $columns, $taskLinks, $formSubs, $polls),
     ];
     return compact('file', 'pdo', 'admin', 'bobId', 'pid', 'todo', 'next', 'taskId', 'recorded', 'de', 'services');
 }
@@ -144,8 +148,16 @@ function _de_web_task(array $s): \App\Controller\TaskController
     $store = [];
     return new \App\Controller\TaskController(_de_view(), $s['admin'],
         $x['tasks'], $x['projects'], $x['members'], $x['columns'], $x['task_links'], $x['tags'],
-        $x['users'], $x['comments'], $x['attachments'], $x['form_submissions'], $x['polls'],
+        $x['users'], $x['comments'], $x['attachments'], $x['entity_lifecycle'],
         $s['de'], new \App\Http\Csrf($store), $s['pdo']);
+}
+
+function _de_web_project(array $s): \App\Controller\ProjectController
+{
+    $x = $s['services'];
+    return new \App\Controller\ProjectController(_de_view(), $s['admin'],
+        $x['projects'], $x['members'], $x['columns'], $x['tasks'], $x['tags'], $x['users'],
+        $x['comments'], $x['attachments'], $x['entity_lifecycle'], $s['de'], $s['pdo']);
 }
 
 function _de_req(string $method, string $path): Request
@@ -394,4 +406,177 @@ it('API promote-to-project fires project.created once with the spin-off activity
     assert_eq(1, count($rows));
     assert_eq($s['taskId'], json_decode($rows[0]['meta'], true)['from_task_id']);
     _de_cleanup($s);
+});
+
+// ─── data parity: delete detaches, move writes sub_status ───────────────────
+// Same in-process harness, but asserting the rows each path leaves behind
+// rather than the events it fires. Both surfaces go through EntityLifecycle.
+
+/** Form submission converted into $taskId/$projectId + a poll summarised into $taskId. */
+function _de_dependents(array $s, ?int $taskId, ?int $projectId): array
+{
+    $x = $s['services'];
+    $formId = (new \App\Repository\FormRepository($s['pdo']))
+        ->create('Lead form', null, [], [], (int)$s['admin']['id']);
+    $subId = $x['form_submissions']->create($formId, ['name' => 'Ann'], []);
+    $x['form_submissions']->setStatus($subId, $taskId !== null ? 'converted_task' : 'converted_project', $taskId, $projectId);
+    $pollId = null;
+    if ($taskId !== null) {
+        $pollId = $x['polls']->create('Lunch?', null, [], [], (int)$s['admin']['id']);
+        $x['polls']->attachSummaryTask($pollId, $taskId);
+    }
+    return ['sub' => $subId, 'poll' => $pollId];
+}
+
+function _de_row(array $s, string $table, int $id): array
+{
+    $st = $s['pdo']->prepare("SELECT * FROM $table WHERE id = ?");
+    $st->execute([$id]);
+    return $st->fetch(\PDO::FETCH_ASSOC) ?: [];
+}
+
+function _de_col(array $s, string $name): int
+{
+    foreach ($s['services']['columns']->listForProject($s['pid']) as $c) {
+        if ($c['name'] === $name) return (int)$c['id'];
+    }
+    throw new RuntimeException("no column $name");
+}
+
+it('API DELETE /tasks/{id} detaches submissions, poll summary and links like the web delete', function () {
+    foreach (['api', 'web'] as $path) {
+        $s = _de_setup();
+        $other = $s['services']['tasks']->create($s['pid'], (int)$s['todo']['id'], 'Other', (int)$s['admin']['id']);
+        $s['services']['task_links']->link($s['taskId'], $other, (int)$s['admin']['id']);
+        $dep = _de_dependents($s, $s['taskId'], null);
+        if ($path === 'api') {
+            $resp = _de_api($s, 'TasksHandler')->destroy(_de_req('DELETE', '/api/v1/tasks/x'), ['id' => $s['taskId']]);
+            assert_eq(204, $resp['status']);
+        } else {
+            [, $out] = _de_with_body([], fn() => _de_web_task($s)->delete(_de_req('DELETE', '/tasks/x'), ['id' => $s['taskId']]));
+            assert_true(!empty(json_decode($out, true)['ok']), "web delete ok: $out");
+        }
+        $sub = _de_row($s, 'form_submissions', $dep['sub']);
+        assert_eq(null, $sub['converted_task_id'], "$path: converted_task_id detached");
+        assert_eq('new', $sub['status'], "$path: submission back to new");
+        assert_eq(null, _de_row($s, 'polls', $dep['poll'])['summary_task_id'], "$path: poll summary detached");
+        assert_eq([], $s['services']['task_links']->linkedIds($other), "$path: links removed");
+        assert_eq(1, count(_de_fired($s, 'task.deleted')), "$path: task.deleted once");
+        _de_cleanup($s);
+    }
+});
+
+it('API DELETE /projects/{id} detaches converted submissions like the web delete', function () {
+    foreach (['api', 'web'] as $path) {
+        $s = _de_setup();
+        $dep = _de_dependents($s, null, $s['pid']);
+        if ($path === 'api') {
+            $resp = _de_api($s, 'ProjectsHandler')->destroy(_de_req('DELETE', '/api/v1/projects/x'), ['id' => $s['pid']]);
+            assert_eq(204, $resp['status']);
+        } else {
+            [, $out] = _de_with_body([], fn() => _de_web_project($s)->delete(_de_req('DELETE', '/projects/x'), ['id' => $s['pid']]));
+            assert_true(!empty(json_decode($out, true)['ok']), "web delete ok: $out");
+        }
+        assert_eq(null, $s['services']['projects']->findById($s['pid']), "$path: project gone");
+        $sub = _de_row($s, 'form_submissions', $dep['sub']);
+        assert_eq(null, $sub['converted_project_id'], "$path: converted_project_id detached");
+        assert_eq('new', $sub['status'], "$path: submission back to new");
+        assert_eq(1, count(_de_fired($s, 'project.deleted')), "$path: project.deleted once");
+        _de_cleanup($s);
+    }
+});
+
+it('API move / PATCH column_id set the same sub_status as the web move', function () {
+    // [from column, to column, expected sub_status after the move]
+    $steps = [
+        ['To Do', 'Done', null],
+        ['Done', 'To Do', 'reopened'],
+        ['To Do', 'In Progress', null],
+        ['In Progress', 'To Do', 'returned'],
+        ['To Do', 'Backlog', null],
+        ['Backlog', 'To Do', null],
+    ];
+    foreach (['web-move', 'api-move', 'api-patch'] as $path) {
+        $s = _de_setup();
+        $tid = $s['taskId'];
+        foreach ($steps as [$from, $to, $want]) {
+            $col = _de_col($s, $to);
+            $body = ['column_id' => $col, 'position' => 1];
+            if ($path === 'web-move') {
+                [, $out] = _de_with_body($body, fn() => _de_web_task($s)->move(_de_req('POST', '/tasks/x/move'), ['id' => $tid]));
+                $json = json_decode($out, true);
+                assert_true(array_key_exists('sub_status', $json), "web move returns sub_status: $out");
+                $got = $json['sub_status'];
+            } else {
+                $h = _de_api($s, 'TasksHandler');
+                [$resp] = _de_with_body($body, fn() => $path === 'api-move'
+                    ? $h->move(_de_req('POST', '/api/v1/tasks/x/move'), ['id' => $tid])
+                    : $h->update(_de_req('PATCH', '/api/v1/tasks/x'), ['id' => $tid]));
+                assert_eq(200, $resp['status'], "$path {$from}→{$to}");
+                $got = json_decode($resp['body'], true)['sub_status'] ?? null;
+            }
+            assert_eq($want, $got, "$path {$from}→{$to} response sub_status");
+            assert_eq($want, $s['services']['tasks']->findById($tid)['sub_status'], "$path {$from}→{$to} stored sub_status");
+            assert_eq($col, (int)$s['services']['tasks']->findById($tid)['column_id'], "$path {$from}→{$to} column");
+        }
+        _de_cleanup($s);
+    }
+});
+
+it('API PATCH: explicit sub_status in the body wins over the column rule; same column keeps it', function () {
+    $s = _de_setup();
+    $tid = $s['taskId'];
+    $h = fn() => _de_api($s, 'TasksHandler')->update(_de_req('PATCH', '/api/v1/tasks/x'), ['id' => $tid]);
+    _de_with_body(['column_id' => _de_col($s, 'Done')], $h);
+    [$resp] = _de_with_body(['column_id' => (int)$s['todo']['id'], 'sub_status' => 'custom'], $h);
+    assert_eq('custom', json_decode($resp['body'], true)['sub_status']);
+    // Re-sending the current column is not a column change — badge untouched.
+    [$resp] = _de_with_body(['column_id' => (int)$s['todo']['id']], $h);
+    assert_eq('custom', json_decode($resp['body'], true)['sub_status']);
+    _de_cleanup($s);
+});
+
+it('web and API move refuse a column from another project without writing', function () {
+    $s = _de_setup();
+    $x = $s['services'];
+    $otherPid = $x['projects']->create('Other', null, (int)$s['admin']['id']);
+    $x['columns']->seedDefaults($otherPid);
+    $foreign = (int)$x['columns']->listForProject($otherPid)[0]['id'];
+    $before = (int)$x['tasks']->findById($s['taskId'])['column_id'];
+
+    [$resp] = _de_with_body(['column_id' => $foreign],
+        fn() => _de_api($s, 'TasksHandler')->move(_de_req('POST', '/api/v1/tasks/x/move'), ['id' => $s['taskId']]));
+    assert_eq(422, $resp['status']);
+    [, $out] = _de_with_body(['column_id' => $foreign],
+        fn() => _de_web_task($s)->move(_de_req('POST', '/tasks/x/move'), ['id' => $s['taskId']]));
+    assert_true(isset(json_decode($out, true)['error']), "web move must refuse: $out");
+    assert_eq($before, (int)$x['tasks']->findById($s['taskId'])['column_id'], 'column unchanged');
+    assert_eq(0, count(_de_fired($s, 'task.status_changed')), 'nothing notified');
+    _de_cleanup($s);
+});
+
+it('project delete (API and web) detaches what pointed at its tasks before the cascade', function () {
+    foreach (['api', 'web'] as $path) {
+        $s = _de_setup();
+        $x = $s['services'];
+        $otherPid = $x['projects']->create('Elsewhere', null, (int)$s['admin']['id']);
+        $x['columns']->seedDefaults($otherPid);
+        $outside = $x['tasks']->create($otherPid, (int)$x['columns']->listForProject($otherPid)[1]['id'], 'Outside', (int)$s['admin']['id']);
+        $x['task_links']->link($outside, $s['taskId'], (int)$s['admin']['id']);
+        $dep = _de_dependents($s, $s['taskId'], null);
+        if ($path === 'api') {
+            $resp = _de_api($s, 'ProjectsHandler')->destroy(_de_req('DELETE', '/api/v1/projects/x'), ['id' => $s['pid']]);
+            assert_eq(204, $resp['status']);
+        } else {
+            [, $out] = _de_with_body([], fn() => _de_web_project($s)->delete(_de_req('DELETE', '/projects/x'), ['id' => $s['pid']]));
+            assert_true(!empty(json_decode($out, true)['ok']), "web delete ok: $out");
+        }
+        assert_eq(null, $x['tasks']->findById($s['taskId']), "$path: task gone");
+        $sub = _de_row($s, 'form_submissions', $dep['sub']);
+        assert_eq(null, $sub['converted_task_id'], "$path: converted_task_id detached");
+        assert_eq('new', $sub['status'], "$path: submission back to new");
+        assert_eq(null, _de_row($s, 'polls', $dep['poll'])['summary_task_id'], "$path: poll summary detached");
+        assert_eq([], $x['task_links']->linkedIds($outside), "$path: cross-project link removed");
+        _de_cleanup($s);
+    }
 });
