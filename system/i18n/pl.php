@@ -457,10 +457,12 @@ return [
 
     'compass.cache.uploads'    => 'Osierocone pliki',
     'compass.cache.uploads.stats' => ':total plików na dysku · :orphan osieroconych (:bytes)',
-    'compass.cache.uploads.hint'  => 'Pliki obecne w :path, ale brakuje ich w tabeli :table.',
-    'compass.cache.uploads.clear' => 'Usuń osierocone pliki',
-    'compass.cache.uploads.confirm' => 'Usunąć :n osieroconych plików? Pliki powiązane z załącznikami zostają.',
-    'compass.cache.uploads.cleared' => ['one' => 'Usunięto :n osierocony plik', 'few' => 'Usunięto :n osierocone pliki', 'many' => 'Usunięto :n osieroconych plików'],
+    'compass.cache.uploads.hint'  => 'Pliki w :path starsze niż 24 h, do których nic się nie odwołuje — ani załączniki, ani awatary, ani linki w zadaniach, komentarzach, wiki i formularzach. Czyszczenie przenosi je do :trash na 30 dni.',
+    'compass.cache.uploads.clear' => 'Przenieś osierocone pliki do kwarantanny',
+    'compass.cache.uploads.confirm' => 'Przenieść :n osieroconych plików do kwarantanny? Pliki, do których są odwołania, i pliki młodsze niż 24 h zostają; kwarantanna jest czyszczona po 30 dniach.',
+    'compass.cache.uploads.cleared' => ['one' => 'Przeniesiono do kwarantanny :n osierocony plik', 'few' => 'Przeniesiono do kwarantanny :n osierocone pliki', 'many' => 'Przeniesiono do kwarantanny :n osieroconych plików'],
+    'compass.cache.uploads.scan_failed' => 'Nie udało się sprawdzić, które pliki są używane — nic nie przeniesiono. Szczegóły w dzienniku błędów.',
+    'compass.cache.uploads.scan_error' => 'Sprawdzanie odwołań nie powiodło się, czyszczenie wyłączone: :error',
 
     'compass.cache.assets'     => 'Cache zasobów',
     'compass.cache.assets.current' => 'Aktualna wersja: :version',

@@ -93,6 +93,7 @@ final class Container
             APP_ROOT . '/' . App::env('UPLOAD_DIR', 'public/uploads'),
             APP_ROOT . '/data/errors.log',
             \App\Database\Migrations::DIR,
+            APP_ROOT . '/data/uploads-trash',
         ));
 
         App::singleton('attachments', fn() => new \App\Repository\AttachmentRepository(App::make('db')));

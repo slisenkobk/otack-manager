@@ -464,10 +464,12 @@ return [
 
     'compass.cache.uploads'    => 'Orphan uploads',
     'compass.cache.uploads.stats' => ':total files on disk · :orphan orphan (:bytes)',
-    'compass.cache.uploads.hint'  => 'Files present in :path but missing from the :table table.',
-    'compass.cache.uploads.clear' => 'Delete orphan files',
-    'compass.cache.uploads.confirm' => "Delete :n orphan upload files? Files referenced by attachments are kept.",
-    'compass.cache.uploads.cleared' => ['one' => 'Deleted :n orphan file', 'other' => 'Deleted :n orphan files'],
+    'compass.cache.uploads.hint'  => 'Files in :path older than 24 h that nothing references — not attachments, avatars, or links inside tasks, comments, wiki and forms. Cleanup moves them to :trash, kept for 30 days.',
+    'compass.cache.uploads.clear' => 'Move orphan files to quarantine',
+    'compass.cache.uploads.confirm' => "Move :n orphan upload files to quarantine? Referenced files and files younger than 24 h are kept; quarantined files are purged after 30 days.",
+    'compass.cache.uploads.cleared' => ['one' => 'Moved :n orphan file to quarantine', 'other' => 'Moved :n orphan files to quarantine'],
+    'compass.cache.uploads.scan_failed' => 'Could not check which files are in use — nothing was moved. See the error log.',
+    'compass.cache.uploads.scan_error' => 'Reference check failed, cleanup is disabled: :error',
 
     'compass.cache.assets'     => 'Asset cache',
     'compass.cache.assets.current' => 'Current version: :version',

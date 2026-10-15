@@ -10,6 +10,7 @@
 /data/errors.log
 /data.backup-*/
 /data/backups/
+/data/uploads-trash/
 /public/uploads/
 /public/uploads-test/
 /.env

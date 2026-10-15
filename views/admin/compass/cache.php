@@ -1,6 +1,6 @@
 <?php
 // Inputs: $sessions{total,stale,stale_bytes,lifetime_seconds},
-//         $uploads{total,orphan,orphan_bytes},
+//         $uploads{total,orphan,orphan_bytes,scan_error},
 //         $assetVersion, $csrfToken
 $hours = (int)round($sessions['lifetime_seconds'] / 3600);
 ?>
@@ -46,13 +46,16 @@ $hours = (int)round($sessions['lifetime_seconds'] / 3600);
         ]) ?>
       </p>
       <p class="muted fz-12 m-0">
-        <?= t('compass.cache.uploads.hint', ['path' => '<code>public/uploads/</code>', 'table' => '<code>attachments</code>']) ?>
+        <?= t('compass.cache.uploads.hint', ['path' => '<code>public/uploads/</code>', 'trash' => '<code>data/uploads-trash/</code>']) ?>
       </p>
+      <?php if (!empty($uploads['scan_error'])): ?>
+        <p class="fz-12 m-0 cache-stat--alert"><?= e(t('compass.cache.uploads.scan_error', ['error' => (string)$uploads['scan_error']])) ?></p>
+      <?php endif; ?>
       <div>
         <button class="btn btn--danger" type="button"
                 data-compass-action="clear-uploads-orphans"
                 data-compass-confirm="<?= e(t('compass.cache.uploads.confirm', ['n' => (int)$uploads['orphan']])) ?>"
-                data-compass-confirm-label="<?= e(t('common.delete')) ?>"
+                data-compass-confirm-label="<?= e(t('compass.cache.uploads.clear')) ?>"
                 <?= $uploads['orphan'] === 0 ? 'disabled' : '' ?>>
           <?= e(t('compass.cache.uploads.clear')) ?>
         </button>

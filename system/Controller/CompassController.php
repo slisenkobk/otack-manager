@@ -341,7 +341,16 @@ final class CompassController extends BaseController
 
     public function clearOrphanUploads(Request $req, array $params = []): void
     {
-        $res = $this->compass->clearOrphanUploads();
+        try {
+            $res = $this->compass->clearOrphanUploads();
+        } catch (\Throwable $e) {
+            // Reference scan (or quarantine setup) failed — nothing was moved.
+            Log::error('compass:uploads', $e->getMessage());
+            Response::json(['ok' => false, 'error' => t('compass.cache.uploads.scan_failed')], 500);
+            return;
+        }
+        // Moved file paths go to activity_log meta so a cleanup can always be
+        // traced (and undone from the quarantine dir).
         $summary = tn('compass.cache.uploads.cleared', $res['deleted'], ['n' => $res['deleted']])
             . ' (' . human_bytes($res['bytes']) . ')';
         $this->auditAndNotify(

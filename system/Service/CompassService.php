@@ -20,6 +20,7 @@ final class CompassService
         private string $uploadsDir,
         private string $errorsLogPath,
         private string $migrationsDir,
+        private string $trashDir,
     ) {}
 
     // ─── Migrations ──────────────────────────────────────────────────────────
@@ -100,66 +101,150 @@ final class CompassService
 
     // ─── Cache: orphan uploads ───────────────────────────────────────────────
 
+    /** Files modified within this window are never treated as orphans. */
+    public const ORPHAN_GRACE_SECONDS = 86400;
+
+    /** Quarantine batches older than this are purged on the next cleanup run. */
+    public const TRASH_RETENTION_DAYS = 30;
+
+    /** Max file paths recorded in the cleanup result (activity log meta). */
+    private const MOVED_FILES_LOG_LIMIT = 500;
+
     /**
-     * @return array{total:int, orphan:int, orphan_bytes:int}
-     * Orphan = file on disk under uploadsDir/YYYY/MM/ but no matching row in
-     * the attachments table. Comparison uses the full relative path
+     * Columns holding an upload path as the whole value
+     * (e.g. "uploads/2026/05/<uuid>.jpg"). Written by FileUploader::store()
+     * callers: AttachmentController / API AttachmentsHandler → attachments,
+     * AvatarService → users.avatar.
+     */
+    private const EXACT_REFERENCE_COLUMNS = [
+        ['attachments', 'filename'],
+        ['users', 'avatar'],
+    ];
+
+    /**
+     * Free-text / Markdown / HTML / JSON columns that may embed an upload URL
+     * (a pasted /uploads/... link or image). Scanned with a regex.
+     */
+    private const TEXT_REFERENCE_COLUMNS = [
+        ['projects', 'description'],
+        ['projects', 'agent_instructions'],
+        ['tasks', 'description'],
+        ['comments', 'body'],
+        ['knowledge_pages', 'body_md'],
+        ['knowledge_page_versions', 'body_md'],
+        ['forms', 'description'],
+        ['forms', 'fields_json'],
+        ['forms', 'footer_json'],
+        ['forms', 'success_message'],
+        ['polls', 'description'],
+        ['polls', 'fields_json'],
+        ['polls', 'footer_json'],
+        ['polls', 'success_message'],
+        ['form_submissions', 'data_json'],
+        ['form_submissions', 'footer_json'],
+        ['settings', 'value'],
+        ['short_links', 'target_url'],
+    ];
+
+    /**
+     * @return array{total:int, orphan:int, orphan_bytes:int, scan_error:?string}
+     * Orphan = file on disk under uploadsDir/YYYY/MM/, older than the grace
+     * period, and not referenced by any known source (see
+     * knownUploadReferences()). Comparison uses the full relative path
      * (uploads/YYYY/MM/<uuid>.<ext>) — basename matching would silently merge
      * files that share a name across YYYY/MM dirs.
+     *
+     * If the reference scan fails, orphan is reported as 0 and scan_error
+     * carries the reason — nothing is offered for cleanup.
      */
     public function uploadsStats(): array
     {
-        $known = $this->knownAttachmentRelativePaths();
+        try {
+            $known = $this->knownUploadReferences();
+        } catch (\Throwable $e) {
+            $total = 0;
+            foreach ($this->iterUploadFiles() as $_) $total++;
+            return ['total' => $total, 'orphan' => 0, 'orphan_bytes' => 0, 'scan_error' => $e->getMessage()];
+        }
+        $threshold = time() - self::ORPHAN_GRACE_SECONDS;
         $total = 0; $orphan = 0; $orphanBytes = 0;
         foreach ($this->iterUploadFiles() as $path) {
             $total++;
-            if (!isset($known[$this->relativeToParent($path)])) {
+            if ($this->isOrphan($path, $known, $threshold)) {
                 $orphan++;
                 $size = @filesize($path);
                 if ($size !== false) $orphanBytes += $size;
             }
         }
-        return ['total' => $total, 'orphan' => $orphan, 'orphan_bytes' => $orphanBytes];
+        return ['total' => $total, 'orphan' => $orphan, 'orphan_bytes' => $orphanBytes, 'scan_error' => null];
     }
 
     /**
-     * Delete files present on disk but missing from `attachments`.
+     * Move unreferenced upload files into a quarantine batch
+     * (trashDir/<Ymd-His>/uploads/YYYY/MM/...) instead of unlinking them.
+     * Batches older than TRASH_RETENTION_DAYS are purged at the start of
+     * each run, so a wrong cleanup can be undone by moving files back.
+     *
+     * Fail-safe: the reference set is built from every known source; if any
+     * source query fails the whole run throws before touching a file.
      *
      * Race-safety: we collect candidate orphans against an initial DB snapshot,
-     * then re-snapshot the DB right before deleting each candidate. A row
-     * inserted between the walk and the delete (e.g., an attachment uploaded
-     * concurrently) will be in the second snapshot and skipped. This narrows
-     * the TOCTOU window from "the whole walk" to "between re-snapshot and
-     * unlink" — small enough that an active upload would have to complete and
-     * INSERT its row inside microseconds to lose data.
+     * then re-snapshot the DB right before moving each candidate. A row
+     * inserted between the walk and the move (e.g., an attachment uploaded
+     * concurrently) will be in the second snapshot and skipped. The grace
+     * period additionally protects anything uploaded in the last 24h.
      *
-     * @return array{deleted:int, bytes:int}
+     * @return array{deleted:int, bytes:int, quarantine:?string, files:list<string>, files_truncated:bool, purged_batches:int}
+     * @throws \RuntimeException when the reference scan fails (nothing moved).
      */
     public function clearOrphanUploads(): array
     {
-        $known = $this->knownAttachmentRelativePaths();
+        $purged = $this->purgeExpiredTrash();
+
+        $threshold = time() - self::ORPHAN_GRACE_SECONDS;
+        $known = $this->knownUploadReferences();
         $candidates = [];
         foreach ($this->iterUploadFiles() as $path) {
-            if (!isset($known[$this->relativeToParent($path)])) {
+            if ($this->isOrphan($path, $known, $threshold)) {
                 $candidates[] = $path;
             }
         }
 
-        if (!$candidates) return ['deleted' => 0, 'bytes' => 0];
+        $empty = ['deleted' => 0, 'bytes' => 0, 'quarantine' => null, 'files' => [],
+                  'files_truncated' => false, 'purged_batches' => $purged];
+        if (!$candidates) return $empty;
 
-        // Re-check against a fresh DB snapshot so files inserted during the
-        // walk aren't deleted as orphans.
-        $known = $this->knownAttachmentRelativePaths();
-        $deleted = 0; $bytes = 0;
+        // Re-check against a fresh DB snapshot so files referenced during the
+        // walk aren't moved. Throws (and moves nothing) if a source fails.
+        $known = $this->knownUploadReferences();
+
+        $batch = rtrim($this->trashDir, '/') . '/' . date('Ymd-His');
+        if (is_dir($batch)) $batch .= '-' . bin2hex(random_bytes(3));
+        if (!@mkdir($batch, 0750, true) && !is_dir($batch)) {
+            throw new \RuntimeException('Cannot create upload quarantine dir: ' . $batch);
+        }
+
+        $moved = 0; $bytes = 0; $files = [];
         foreach ($candidates as $path) {
-            if (isset($known[$this->relativeToParent($path)])) continue;
+            if (!$this->isOrphan($path, $known, $threshold)) continue;
+            $rel = $this->relativeToParent($path);
             $size = @filesize($path) ?: 0;
-            if (@unlink($path)) {
-                $deleted++;
+            if ($this->moveToQuarantine($path, $batch . '/' . $rel)) {
+                $moved++;
                 $bytes += $size;
+                $files[] = $rel;
             }
         }
-        return ['deleted' => $deleted, 'bytes' => $bytes];
+        if ($moved === 0) @rmdir($batch);
+
+        return [
+            'deleted'         => $moved,
+            'bytes'           => $bytes,
+            'quarantine'      => $moved > 0 ? $batch : null,
+            'files'           => array_slice($files, 0, self::MOVED_FILES_LOG_LIMIT),
+            'files_truncated' => count($files) > self::MOVED_FILES_LOG_LIMIT,
+            'purged_batches'  => $purged,
+        ];
     }
 
     // ─── Cache: asset cache-bust ─────────────────────────────────────────────
@@ -344,18 +429,158 @@ final class CompassService
     }
 
     /**
-     * @return array<string, true> Relative paths (as stored in attachments.filename,
-     * e.g. "uploads/2026/05/<uuid>.<ext>") of every attachment row.
+     * Every upload path referenced anywhere in the DB, in the relative form
+     * FileUploader stores ("uploads/2026/05/<uuid>.<ext>").
+     *
+     * Fail-safe: any failing source query throws — callers must treat that
+     * as "reference set unknown" and delete nothing.
+     *
+     * @return array<string, true>
+     * @throws \RuntimeException
      */
-    private function knownAttachmentRelativePaths(): array
+    private function knownUploadReferences(): array
     {
-        $stmt = $this->pdo->query('SELECT filename FROM attachments');
+        $base = basename(rtrim($this->uploadsDir, '/'));
         $out = [];
-        foreach ($stmt->fetchAll(\PDO::FETCH_COLUMN) ?: [] as $rel) {
-            $rel = (string)$rel;
-            if ($rel !== '') $out[$rel] = true;
+
+        foreach (self::EXACT_REFERENCE_COLUMNS as [$table, $col]) {
+            foreach ($this->fetchReferenceColumn($table, $col, null) as $value) {
+                $rel = $this->normalizeReference($value);
+                if ($rel !== '') $out[$rel] = true;
+                // Also run the text extractor — tolerates absolute URLs or
+                // stray prefixes in the stored value.
+                foreach ($this->extractUploadPaths($value, $base) as $p) $out[$p] = true;
+            }
+        }
+
+        foreach (self::TEXT_REFERENCE_COLUMNS as [$table, $col]) {
+            foreach ($this->fetchReferenceColumn($table, $col, $base) as $value) {
+                foreach ($this->extractUploadPaths($value, $base) as $p) $out[$p] = true;
+            }
         }
         return $out;
+    }
+
+    /**
+     * @return list<string> non-empty values of $table.$col (optionally only
+     *   rows whose value contains $needle).
+     * @throws \RuntimeException on any query failure.
+     */
+    private function fetchReferenceColumn(string $table, string $col, ?string $needle): array
+    {
+        $q = fn(string $id) => '`' . str_replace('`', '``', $id) . '`';
+        $sql = 'SELECT ' . $q($col) . ' FROM ' . $q($table)
+             . ' WHERE ' . $q($col) . ' IS NOT NULL';
+        try {
+            if ($needle === null) {
+                $stmt = $this->pdo->query($sql);
+            } else {
+                $stmt = $this->pdo->prepare($sql . ' AND ' . $q($col) . ' LIKE ?');
+                if ($stmt !== false && !$stmt->execute(['%' . $needle . '%'])) $stmt = false;
+            }
+            if ($stmt === false) {
+                throw new \RuntimeException('query returned false');
+            }
+            $rows = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException(
+                "Upload reference scan failed on {$table}.{$col}: " . $e->getMessage(), 0, $e
+            );
+        }
+        $out = [];
+        foreach ($rows ?: [] as $v) {
+            $v = (string)$v;
+            if ($v !== '') $out[] = $v;
+        }
+        return $out;
+    }
+
+    /**
+     * Normalise a whole-value reference ("uploads/…", "/uploads/…",
+     * "public/uploads/…", with optional ?query/#fragment) to "uploads/…".
+     */
+    private function normalizeReference(string $value): string
+    {
+        $v = trim($value);
+        $v = preg_replace('/[?#].*$/s', '', $v) ?? $v;
+        $v = ltrim($v, '/');
+        if (str_starts_with($v, 'public/')) $v = substr($v, strlen('public/'));
+        return $v;
+    }
+
+    /**
+     * Pull every "<base>/…" path out of free text (Markdown, HTML, JSON with
+     * escaped slashes, absolute URLs). Over-matching is harmless — it only
+     * keeps more files — so each hit is added both raw and with trailing
+     * punctuation / URL-encoding stripped.
+     *
+     * @return list<string>
+     */
+    private function extractUploadPaths(string $text, string $base): array
+    {
+        if (!str_contains($text, $base)) return [];
+        $text = str_replace('\\/', '/', $text);
+        $re = '#(?<![A-Za-z0-9_.\-])' . preg_quote($base, '#') . '/[^\s"\'<>()\[\]{}\\\\?\#|`]+#u';
+        if (!preg_match_all($re, $text, $m)) return [];
+        $out = [];
+        foreach ($m[0] as $hit) {
+            $out[$hit] = true;
+            $trim = rtrim($hit, '.,;:!*_~');
+            $out[$trim] = true;
+            $out[rawurldecode($trim)] = true;
+            $out[html_entity_decode($trim, ENT_QUOTES | ENT_HTML5, 'UTF-8')] = true;
+        }
+        return array_keys($out);
+    }
+
+    /** @param array<string, true> $known */
+    private function isOrphan(string $path, array $known, int $graceThreshold): bool
+    {
+        if (isset($known[$this->relativeToParent($path)])) return false;
+        $mtime = @filemtime($path);
+        // Unknown or recent mtime → keep (fail-safe).
+        if ($mtime === false || $mtime >= $graceThreshold) return false;
+        return true;
+    }
+
+    /** rename(), falling back to copy+verify+unlink across filesystems. */
+    private function moveToQuarantine(string $src, string $dst): bool
+    {
+        $dir = dirname($dst);
+        if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) return false;
+        if (@rename($src, $dst)) return true;
+        if (!@copy($src, $dst)) return false;
+        if (@filesize($dst) !== @filesize($src)) { @unlink($dst); return false; }
+        @touch($dst, (int)@filemtime($src));
+        return @unlink($src);
+    }
+
+    /**
+     * Remove quarantine batches (trashDir/<Ymd-His>[-suffix]) older than
+     * TRASH_RETENTION_DAYS. Only directories matching that name pattern are
+     * touched. Returns the number of purged batches.
+     */
+    private function purgeExpiredTrash(): int
+    {
+        if (!is_dir($this->trashDir)) return 0;
+        $cutoff = time() - self::TRASH_RETENTION_DAYS * 86400;
+        $purged = 0;
+        foreach (scandir($this->trashDir) ?: [] as $name) {
+            if (!preg_match('/^(\d{8}-\d{6})(-[0-9a-f]+)?$/', $name, $m)) continue;
+            $ts = \DateTimeImmutable::createFromFormat('Ymd-His', $m[1]);
+            if ($ts === false || $ts->getTimestamp() >= $cutoff) continue;
+            $dir = rtrim($this->trashDir, '/') . '/' . $name;
+            if (!is_dir($dir) || is_link($dir)) continue;
+            $rii = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::CHILD_FIRST
+            );
+            foreach ($rii as $f) {
+                ($f->isDir() && !$f->isLink()) ? @rmdir((string)$f) : @unlink((string)$f);
+            }
+            if (@rmdir($dir)) $purged++;
+        }
+        return $purged;
     }
 
     /**
