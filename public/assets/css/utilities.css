@@ -333,10 +333,14 @@
 /* Task detail page — same shape: main column + 280px sidebar. */
 .task-detail {
   display: grid;
-  grid-template-columns: 1fr 280px;
+  /* minmax(0, 1fr), not 1fr: a bare 1fr track has min-width:auto, so a wide
+     table/code line in the description would stretch the track past the
+     viewport and push the sidebar off-screen. */
+  grid-template-columns: minmax(0, 1fr) 280px;
   gap: var(--space-12);
   align-items: start;
 }
+.task-detail > main { min-width: 0; }
 
 /* ─── Submission detail (/forms-data/{id}) ───────────────────────
    Two continuous white cards side-by-side. Sections inside a card are
@@ -543,7 +547,7 @@
      details sidebar under the main column. */
   .project-overview,
   .task-detail,
-  .submission-detail { grid-template-columns: 1fr; gap: var(--space-6); }
+  .submission-detail { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
 
   /* Submission card sections — tighten the padding so the content uses the
      small viewport better and the head meta wraps cleanly. */
@@ -1212,7 +1216,7 @@ pre.copyable.copyable--flash {
      desktop breakpoint, the 280px sidebar squeezes the main column too
      much for comfortable reading. */
   .project-overview,
-  .task-detail { grid-template-columns: 1fr; gap: var(--space-6); }
+  .task-detail { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
   .project-sidebar { margin-top: var(--space-6); }
 
   /* Project & compass tabs row — stack vertically with full-width tap

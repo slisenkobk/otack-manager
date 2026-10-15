@@ -98,9 +98,18 @@ export function initToolbar(root) {
   const sortKey = 'kanban-sort-' + projectId;
   const labelPriority = sortBtn?.dataset.labelPriority || 'Priority';
   const labelManual   = sortBtn?.dataset.labelManual   || 'Manual';
+  const sortLabels = {
+    manual:   labelManual,
+    priority: labelPriority,
+    newest:   sortBtn?.dataset.labelNewest || 'Newest first',
+    oldest:   sortBtn?.dataset.labelOldest || 'Oldest first',
+  };
+  // Click cycles through the modes in this order.
+  const sortCycle = ['manual', 'priority', 'newest', 'oldest'];
   function setSortMode(mode) {
+    if (!sortCycle.includes(mode)) mode = 'manual'; // stale/unknown localStorage value
     sortBtn.dataset.sort = mode;
-    sortLbl.textContent = mode === 'priority' ? labelPriority : labelManual;
+    sortLbl.textContent = sortLabels[mode];
     applySort(root, mode);
     try { localStorage.setItem(sortKey, mode); } catch (e) { logSilent(e, 'kanban.localStorage.sort'); }
   }
@@ -108,7 +117,8 @@ export function initToolbar(root) {
     const initial = (() => { try { return localStorage.getItem(sortKey); } catch { return null; } })() || 'manual';
     setSortMode(initial);
     sortBtn.addEventListener('click', () => {
-      setSortMode(sortBtn.dataset.sort === 'priority' ? 'manual' : 'priority');
+      const i = sortCycle.indexOf(sortBtn.dataset.sort);
+      setSortMode(sortCycle[(i + 1) % sortCycle.length]);
     });
   }
 }
@@ -123,6 +133,16 @@ export function applySort(root, mode) {
         const pb = PRIO_WEIGHT[b.dataset.priority || 'none'] ?? 0;
         if (pa !== pb) return pb - pa;
         return (+a.dataset.position || 0) - (+b.dataset.position || 0);
+      });
+    } else if (mode === 'newest' || mode === 'oldest') {
+      // created_at is "YYYY-MM-DD HH:MM:SS" (or ISO), so string compare is
+      // chronological; ties fall back to the task id (ids grow with time).
+      const dir = mode === 'newest' ? -1 : 1;
+      cards.sort((a, b) => {
+        const ca = a.dataset.created || '';
+        const cb = b.dataset.created || '';
+        if (ca !== cb) return ca < cb ? -dir : dir;
+        return ((+a.dataset.taskId || 0) - (+b.dataset.taskId || 0)) * dir;
       });
     } else {
       cards.sort((a, b) => (+a.dataset.position || 0) - (+b.dataset.position || 0));

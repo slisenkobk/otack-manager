@@ -144,6 +144,8 @@ return [
     'projects.kanban.sort_toggle'     => 'Змінити порядок сортування',
     'projects.kanban.sort_manual'     => 'Вручну',
     'projects.kanban.sort_priority'   => 'Пріоритет',
+    'projects.kanban.sort_newest'     => 'Спочатку нові',
+    'projects.kanban.sort_oldest'     => 'Спочатку старі',
     'projects.kanban.task_search'     => 'Шукати завдання…',
     'projects.kanban.col_reorder'     => 'Змінити порядок колонки',
     'projects.kanban.col_reorder_title' => 'Перетягніть, щоб змінити порядок',

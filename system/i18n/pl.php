@@ -143,6 +143,8 @@ return [
     'projects.kanban.sort_toggle'     => 'Zmień kolejność sortowania',
     'projects.kanban.sort_manual'     => 'Ręcznie',
     'projects.kanban.sort_priority'   => 'Priorytet',
+    'projects.kanban.sort_newest'     => 'Najnowsze najpierw',
+    'projects.kanban.sort_oldest'     => 'Najstarsze najpierw',
     'projects.kanban.task_search'     => 'Szukaj zadań…',
     'projects.kanban.col_reorder'     => 'Zmień kolejność kolumny',
     'projects.kanban.col_reorder_title' => 'Przeciągnij, aby zmienić kolejność',

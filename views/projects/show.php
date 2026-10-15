@@ -40,7 +40,9 @@ foreach ($boardColumns as $c) {
     <button type="button" class="kanban-sort-toggle" data-sort-toggle
             title="<?= e(t('projects.kanban.sort_toggle')) ?>"
             data-label-priority="<?= e(t('projects.kanban.sort_priority')) ?>"
-            data-label-manual="<?= e(t('projects.kanban.sort_manual')) ?>">
+            data-label-manual="<?= e(t('projects.kanban.sort_manual')) ?>"
+            data-label-newest="<?= e(t('projects.kanban.sort_newest')) ?>"
+            data-label-oldest="<?= e(t('projects.kanban.sort_oldest')) ?>">
       <i class="fa-solid fa-arrow-down-wide-short"></i>
       <span data-sort-label><?= e(t('projects.kanban.sort_manual')) ?></span>
     </button>

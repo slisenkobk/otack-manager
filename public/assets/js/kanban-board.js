@@ -52,7 +52,7 @@ export function initLazyLoad(root) {
           sentinel.remove();
         }
         const sortBtn = document.querySelector('[data-sort-toggle]');
-        if (sortBtn?.dataset.sort === 'priority') applySort(root, 'priority');
+        if (sortBtn?.dataset.sort && sortBtn.dataset.sort !== 'manual') applySort(root, sortBtn.dataset.sort);
       } catch (e) { logSilent(e, 'kanban.lazyLoad'); }
     }
   }, { root: null, rootMargin: '200px' });
@@ -164,7 +164,7 @@ export async function initSortable(root, list) {
         updateCardSubStatus(card, moveRes.sub_status || null);
         recount(root);
         const sortBtn = document.querySelector('[data-sort-toggle]');
-        if (sortBtn?.dataset.sort === 'priority') applySort(root, 'priority');
+        if (sortBtn?.dataset.sort && sortBtn.dataset.sort !== 'manual') applySort(root, sortBtn.dataset.sort);
         UI.toast(t('js.toast.task_moved'), 'success');
       } catch {
         // Rollback: put card back in old column at original index

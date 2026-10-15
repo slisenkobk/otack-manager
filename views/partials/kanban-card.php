@@ -10,6 +10,7 @@ $meta['links'] = $meta['links'] ?? 0;
      data-task-url="/tasks/<?= (int)$t['id'] ?>"
      data-position="<?= (float)$t['position'] ?>"
      data-priority="<?= e($prio) ?>"
+     data-created="<?= e((string)($t['created_at'] ?? '')) ?>"
      data-assignee-id="<?= (int)($t['assignee_id'] ?? 0) ?>"
      data-tags="<?= e(implode(',', array_column($tags, 'name'))) ?>"
      data-title="<?= e(strtolower($t['title'])) ?>">

@@ -348,6 +348,26 @@
   border-radius: var(--radius-sm);
   overflow-x: auto;
 }
+/* Wide content never widens the page: long unbroken strings wrap, tables and
+   code blocks scroll horizontally inside their own box. Shared by task
+   descriptions (.rich-text) and comments (.comment-body). */
+.rich-text, .comment-body { min-width: 0; overflow-wrap: anywhere; }
+.rich-text pre, .comment-body pre { max-width: 100%; overflow-x: auto; overflow-wrap: normal; }
+.rich-text table, .comment-body table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 0 0 12px;
+}
+.rich-text th, .rich-text td, .comment-body th, .comment-body td {
+  border: 1px solid var(--rule);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: normal;
+}
+.rich-text th, .comment-body th { background: var(--paper-2); color: var(--text); font-weight: 600; }
 .rich-text ul, .rich-text ol { margin: 0 0 12px; padding-left: 20px; }
 .rich-text li { margin: 2px 0; }
 .rich-text blockquote {

@@ -142,6 +142,8 @@ return [
     'projects.kanban.sort_toggle'     => 'Toggle sort order',
     'projects.kanban.sort_manual'     => 'Manual',
     'projects.kanban.sort_priority'   => 'Priority',
+    'projects.kanban.sort_newest'     => 'Newest first',
+    'projects.kanban.sort_oldest'     => 'Oldest first',
     'projects.kanban.task_search'     => 'Search tasks…',
     'projects.kanban.col_reorder'     => 'Reorder column',
     'projects.kanban.col_reorder_title' => 'Drag to reorder column',

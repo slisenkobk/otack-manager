@@ -31,6 +31,43 @@ function ensureQuillLoaded() {
   return _quillLoadPromise;
 }
 
+/**
+ * Quill 2's table module groups cells into rows by a `data-row` attribute on
+ * each cell, not by the <tr> they sit in. The server sanitiser strips
+ * `data-row` (it is not on the allow-list), so a table that was stored through
+ * the API or saved earlier arrives here with plain <tr><td>…</td></tr>, and
+ * Quill puts every cell of every row into ONE row on load — saving then
+ * persists the collapsed table. Re-derive the row id from each cell's <tr>
+ * before handing the HTML to Quill. `th` is turned into `td` because Quill has
+ * no header-cell blot and would otherwise drop the header row's cells.
+ * DOMParser output is inert (no script execution, no resource loads).
+ */
+function normalizeTablesForQuill(html) {
+  if (!/<table[\s>]/i.test(html)) return html;
+  const doc = new DOMParser().parseFromString('<body>' + html + '</body>', 'text/html');
+  doc.querySelectorAll('table').forEach(table => {
+    table.querySelectorAll('tr').forEach((tr, i) => {
+      Array.from(tr.children).forEach(cell => {
+        if (cell.tagName !== 'TD' && cell.tagName !== 'TH') return;
+        let td = cell;
+        if (cell.tagName === 'TH') {
+          td = doc.createElement('td');
+          while (cell.firstChild) td.appendChild(cell.firstChild);
+          tr.replaceChild(td, cell);
+          // Keep header emphasis visible after the th -> td swap.
+          if (td.querySelector('strong, b') === null) {
+            const strong = doc.createElement('strong');
+            while (td.firstChild) strong.appendChild(td.firstChild);
+            td.appendChild(strong);
+          }
+        }
+        td.setAttribute('data-row', 'row-' + (i + 1));
+      });
+    });
+  });
+  return doc.body.innerHTML;
+}
+
 async function initQuill(el) {
   // Guard against double-init: the layout loads this module via a cache-busted
   // URL and individual pages may import it again (or the MutationObserver in
@@ -67,8 +104,20 @@ async function initQuill(el) {
   // Seed existing content
   if (initial) {
     // eslint-disable-next-line no-unsanitized/property
-    editor.root.innerHTML = initial;  // Safe: Quill parses and re-renders
+    editor.root.innerHTML = normalizeTablesForQuill(initial);  // Safe: server-sanitised HTML, re-parsed inertly; Quill parses and re-renders
   }
+
+  // Tables with header cells: Quill's own paste conversion folds <th> cells of
+  // the first row into a single cell. Route those pastes through the same
+  // normaliser used for loading so every header cell survives as its own cell.
+  editor.root.addEventListener('paste', (e) => {
+    const html = e.clipboardData?.getData('text/html') || '';
+    if (!/<table[\s>]/i.test(html) || !/<th[\s>]/i.test(html)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const range = editor.getSelection(true);
+    editor.clipboard.dangerouslyPasteHTML(range.index, normalizeTablesForQuill(html), 'user');
+  }, true);
 
   // Sync to hidden input on change
   editor.on('text-change', () => {
