@@ -172,3 +172,37 @@ api_it('DELETE /comments/{id} as other employee returns 403', function () {
     ]);
     assert_eq(403, $r['status']);
 });
+
+api_it('POST /comments notifies (comment.created → notifications_log) and logs activity exactly once', function () {
+    [$pdo, $adminTok,,] = comments_setup();
+    comments_seed_project($pdo, 6004);
+    comments_seed_column($pdo, 60401, 6004);
+    comments_seed_task($pdo, 6102, 6004, 60401, 1);
+
+    $r = api_request('POST', '/api/v1/comments', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+        'body'    => json_encode(['entity' => 'task', 'entity_id' => 6102, 'body' => 'via token']),
+    ]);
+    assert_eq(201, $r['status']);
+    $cid = (int)$r['json']['id'];
+
+    // NotificationLogger flushes in a shutdown function — give it a moment.
+    $rows = [];
+    for ($i = 0; $i < 20; $i++) {
+        $rows = array_values(array_filter(
+            $pdo->query("SELECT payload FROM notifications_log WHERE event = 'comment.created'")->fetchAll(\PDO::FETCH_COLUMN),
+            fn($p) => (int)(json_decode((string)$p, true)['comment_id'] ?? 0) === $cid
+        ));
+        if ($rows) break;
+        usleep(100_000);
+    }
+    assert_eq(1, count($rows), 'expected exactly one comment.created notification');
+    $p = json_decode($rows[0], true);
+    assert_eq('U', $p['author'], 'author is the token user');
+    assert_eq('T', $p['target_name']);
+    assert_eq('http://localhost:8765/tasks/6102', $p['url'], 'url points at the web UI');
+
+    $st = $pdo->prepare("SELECT COUNT(*) FROM activity_log WHERE event = 'comment.created' AND task_id = ? AND actor_id = 1");
+    $st->execute([6102]);
+    assert_eq(1, (int)$st->fetchColumn(), 'expected one comment.created activity row');
+});

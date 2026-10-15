@@ -6,7 +6,6 @@ use App\Http\Request;
 use App\Http\Response;
 use App\Http\ValidationException;
 use App\Http\Validator;
-use App\Repository\ActivityLogRepository;
 use App\Repository\AttachmentRepository;
 use App\Repository\CommentRepository;
 use App\Repository\FormSubmissionRepository;
@@ -16,7 +15,7 @@ use App\Repository\TagRepository;
 use App\Repository\TaskColumnRepository;
 use App\Repository\TaskRepository;
 use App\Repository\UserRepository;
-use App\Service\EventBus;
+use App\Service\DomainEvents;
 use App\View\Renderer;
 use PDO;
 
@@ -33,8 +32,7 @@ final class ProjectController extends BaseController {
         private CommentRepository $comments,
         private AttachmentRepository $attachments,
         private FormSubmissionRepository $formSubmissions,
-        private ActivityLogRepository $activity,
-        private EventBus $events,
+        private DomainEvents $domainEvents,
         private PDO $db,
     ) {
         parent::__construct($view, $user);
@@ -105,12 +103,7 @@ final class ProjectController extends BaseController {
         $id = $this->projects->create($name, $description ?: null, (int)$this->user['id'], $color);
         $this->members->add($id, (int)$this->user['id'], 'owner');
         $this->columns->seedDefaults($id);
-        $this->events->fire('project.created', [
-            'project_id' => $id,
-            'name'       => $name,
-            'actor_name' => $this->user['name'],
-            'url'        => \abs_url('/projects/' . $id),
-        ]);
+        $this->domainEvents->projectCreated($this->user, $id, $name);
         if ($isJson) { Response::json(['ok' => true, 'id' => $id]); return; }
         Response::redirect('/projects/' . $id . '?tab=overview');
     }
@@ -264,13 +257,7 @@ final class ProjectController extends BaseController {
         }
         $fresh   = $this->projects->findById($id);
         $name    = $fields['name'] ?? $project['name'];
-        // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
-        $this->events->fire('project.updated', [
-            'project_id' => $id,
-            'name'       => $name !== '' ? $name : $project['name'],
-            'actor_name' => $this->user['name'],
-            'url'        => \abs_url('/projects/' . $id),
-        ]);
+        $this->domainEvents->projectUpdated($this->user, $id, $name !== '' ? $name : $project['name']);
         if ($isJson) {
             Response::json([
                 'ok' => true,
@@ -321,17 +308,7 @@ final class ProjectController extends BaseController {
         // Detach any submissions converted into this project so they can be
         // re-promoted instead of pointing at a dead /projects/{id} link.
         $this->formSubmissions->detachConverted('project', $id);
-        $this->events->fire('project.deleted', [
-            'project_id' => $id,
-            'name'       => $project['name'],
-            'actor_name' => $this->user['name'],
-        ]);
-        $this->activity->log([
-            'event'    => 'project.deleted',
-            'actor_id' => (int)$this->user['id'],
-            'summary'  => "deleted project '" . $project['name'] . "'",
-            'meta'     => ['project_id' => $id],
-        ]);
+        $this->domainEvents->projectDeleted($this->user, $project);
         Response::json(['ok' => true]);
     }
 

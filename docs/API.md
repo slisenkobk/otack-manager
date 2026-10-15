@@ -2020,6 +2020,13 @@ Every authenticated API call is recorded in the `activity_log` table with
 `/users/{id}` (per-user activity tab) or directly in the database. If a token
 gets compromised, the trail is your forensic source.
 
+Mutations made through the API also produce the same domain side effects
+as the web UI, attributed to the token's user: Telegram notifications
+(`comment.created`, `task.status_changed`, `task.assignee_changed`, …) and
+the domain `activity_log` rows shown on project/task activity feeds. So a
+write via a token appears twice in `activity_log` — once as
+`api.<handler>.<action>`, once as the domain event.
+
 ---
 
 ## 9. Versioning & deprecation

@@ -4,13 +4,12 @@ namespace App\Controller;
 
 use App\Http\Request;
 use App\Http\Response;
-use App\Repository\ActivityLogRepository;
 use App\Repository\CommentRepository;
 use App\Repository\ProjectMemberRepository;
 use App\Repository\ProjectRepository;
 use App\Repository\TaskRepository;
 use App\Repository\UserRepository;
-use App\Service\EventBus;
+use App\Service\DomainEvents;
 use App\Service\Markdown;
 use App\Service\RolePolicy;
 use App\View\Renderer;
@@ -25,8 +24,7 @@ final class CommentController extends BaseController
         private TaskRepository $tasks,
         private ProjectRepository $projects,
         private UserRepository $users,
-        private ActivityLogRepository $activity,
-        private EventBus $events,
+        private DomainEvents $domainEvents,
     ) {
         parent::__construct($view, $user);
     }
@@ -102,38 +100,7 @@ final class CommentController extends BaseController
 
         $id = $this->comments->create($entityType, $entityId, (int)$this->user['id'], $body, $parentId);
 
-        // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
-        $targetName = '';
-        $entityUrl  = '';
-        if ($entityType === 'project') {
-            $targetName = $entity['name'];
-            $entityUrl  = \abs_url('/projects/' . $entityId);
-        } elseif ($entityType === 'task') {
-            $targetName = $entity['title'];
-            $entityUrl  = \abs_url('/tasks/' . $entityId);
-        }
-        $this->events->fire('comment.created', [
-            'comment_id'     => $id,
-            'entity_type'    => $entityType,
-            'entity_id'      => $entityId,
-            'entity_label'   => $entityType,
-            'target_name'    => $targetName,
-            'author'         => $this->user['name'],
-            'body_text'      => $body,
-            'url'            => $entityUrl,
-            'reply_to_author'=> $replyToAuthor,
-        ]);
-
-        $activityProjectId = $entityType === 'project' ? $entityId : (int)($entity['project_id'] ?? 0);
-        $activityTaskId    = $entityType === 'task' ? $entityId : null;
-        $this->activity->log([
-            'event'      => 'comment.created',
-            'actor_id'   => (int)$this->user['id'],
-            'project_id' => $activityProjectId ?: null,
-            'task_id'    => $activityTaskId,
-            'summary'    => mb_substr(strip_tags($body), 0, 200),
-            'meta'       => ['comment_id' => $id],
-        ]);
+        $this->domainEvents->commentCreated($this->user, $entityType, $entityId, $entity, $id, $body, $replyToAuthor);
 
         Response::json([
             'ok'      => true,
@@ -166,46 +133,7 @@ final class CommentController extends BaseController
 
         $this->comments->delete($id);
 
-        $entityType = (string)$c['entity_type'];
-        $entityId   = (int)$c['entity_id'];
-        // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
-        $targetName = '';
-        $entityUrl  = '';
-        if ($entityType === 'project') {
-            $proj = $this->projects->findById($entityId);
-            $targetName = $proj['name'] ?? ('#' . $entityId);
-            $entityUrl  = \abs_url('/projects/' . $entityId);
-        } elseif ($entityType === 'task') {
-            $task = $this->tasks->findById($entityId);
-            $targetName = $task['title'] ?? ('#' . $entityId);
-            $entityUrl  = \abs_url('/tasks/' . $entityId);
-        }
-        $this->events->fire('comment.deleted', [
-            'comment_id'   => $id,
-            'entity_type'  => $entityType,
-            'entity_id'    => $entityId,
-            'entity_label' => $entityType,
-            'target_name'  => $targetName,
-            'actor_name'   => $this->user['name'],
-            'url'          => $entityUrl,
-        ]);
-        $activityProjectId = null;
-        $activityTaskId    = null;
-        if ($entityType === 'project') {
-            $activityProjectId = $entityId;
-        } elseif ($entityType === 'task') {
-            $activityTaskId = $entityId;
-            $task = $this->tasks->findById($entityId);
-            if ($task) $activityProjectId = (int)$task['project_id'];
-        }
-        $this->activity->log([
-            'event'      => 'comment.deleted',
-            'actor_id'   => (int)$this->user['id'],
-            'project_id' => $activityProjectId,
-            'task_id'    => $activityTaskId,
-            'summary'    => "deleted a comment on {$entityType} '{$targetName}'",
-            'meta'       => ['comment_id' => $id],
-        ]);
+        $this->domainEvents->commentDeleted($this->user, $c);
         Response::json(['ok' => true]);
     }
 }

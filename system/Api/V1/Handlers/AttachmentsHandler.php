@@ -103,6 +103,7 @@ final class AttachmentsHandler extends BaseHandler
             'uploaded_by' => $this->userId(),
         ]);
         $row = $this->svc('attachments')->findById($id);
+        $this->domainEvents()->attachmentUploaded($this->user(), $row, $entity, $entityId);
         return ApiResponse::created($this->serialize($row));
     }
 

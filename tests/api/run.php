@@ -101,6 +101,11 @@ $env = [
     'APP_URL=http://localhost:8765',
     'SEED_DEFAULT_ADMIN_EMAIL=',
     'SEED_DEFAULT_ADMIN_PASSWORD_HASH=',
+    // API mutations fire domain events → Telegram listeners. Blank the bot
+    // credentials so a real .env can never make this suite post to a chat
+    // (TelegramNotifier skips sending, NotificationLogger still logs).
+    'TG_BOT_TOKEN=',
+    'TG_CHAT_ID=',
     'PATH=' . getenv('PATH'),
 ];
 // -d max_execution_time=0: `php -S` is single-process — one request that

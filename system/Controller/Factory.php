@@ -97,7 +97,7 @@ final class Factory
                 App::make('members'),
                 App::make('tasks'),
                 App::make('projects'),
-                App::make('activity'),
+                App::make('domain_events'),
                 App::make('db'),
             ),
             'Install'    => new InstallController(
@@ -166,7 +166,7 @@ final class Factory
                 App::make('tasks'),
                 App::make('projects'),
                 App::make('users'),
-                App::make('activity'),
+                App::make('domain_events'),
                 App::make('events'),
             ),
             'Form'       => new FormController(
@@ -199,8 +199,7 @@ final class Factory
                 App::make('comments'),
                 App::make('attachments'),
                 App::make('form_submissions'),
-                App::make('activity'),
-                App::make('events'),
+                App::make('domain_events'),
                 App::make('db'),
             ),
             'Poll'       => new PollController(
@@ -228,8 +227,7 @@ final class Factory
                 App::make('attachments'),
                 App::make('form_submissions'),
                 App::make('polls'),
-                App::make('activity'),
-                App::make('events'),
+                App::make('domain_events'),
                 App::make('csrf'),
                 App::make('db'),
             ),

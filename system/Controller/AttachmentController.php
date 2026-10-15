@@ -4,11 +4,11 @@ namespace App\Controller;
 
 use App\Http\Request;
 use App\Http\Response;
-use App\Repository\ActivityLogRepository;
 use App\Repository\AttachmentRepository;
 use App\Repository\ProjectMemberRepository;
 use App\Repository\TaskRepository;
 use App\Repository\ProjectRepository;
+use App\Service\DomainEvents;
 use App\Service\FileUploader;
 use App\View\Renderer;
 use PDO;
@@ -23,7 +23,7 @@ final class AttachmentController extends BaseController
         private ProjectMemberRepository $members,
         private TaskRepository $tasks,
         private ProjectRepository $projects,
-        private ActivityLogRepository $activity,
+        private DomainEvents $domainEvents,
         private PDO $db,
     ) {
         parent::__construct($view, $user);
@@ -110,35 +110,7 @@ final class AttachmentController extends BaseController
         ]);
         $row = $this->repo->findById($id);
 
-        $activityProjectId = null; $activityTaskId = null;
-        if ($entityType === 'project') {
-            $activityProjectId = $entityId;
-        } elseif ($entityType === 'task') {
-            $activityTaskId = $entityId;
-            $task = $this->tasks->findById($entityId);
-            if ($task) $activityProjectId = (int)$task['project_id'];
-        } elseif ($entityType === 'comment') {
-            $stmt = $this->db->prepare('SELECT * FROM comments WHERE id = ?');
-            $stmt->execute([$entityId]);
-            $c = $stmt->fetch();
-            if ($c) {
-                if ($c['entity_type'] === 'project') {
-                    $activityProjectId = (int)$c['entity_id'];
-                } elseif ($c['entity_type'] === 'task') {
-                    $activityTaskId = (int)$c['entity_id'];
-                    $task = $this->tasks->findById($activityTaskId);
-                    if ($task) $activityProjectId = (int)$task['project_id'];
-                }
-            }
-        }
-        $this->activity->log(
-            'attachment.uploaded',
-            (int)$this->user['id'],
-            $activityProjectId,
-            $activityTaskId,
-            'uploaded ' . $row['original_name'],
-            ['attachment_id' => $id, 'filename' => $row['original_name'], 'entity_type' => $entityType]
-        );
+        $this->domainEvents->attachmentUploaded($this->user, $row, $entityType, $entityId);
 
         Response::json(['ok' => true, 'attachment' => [
             'id'            => (int)$row['id'],

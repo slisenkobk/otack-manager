@@ -200,6 +200,7 @@ if (str_starts_with($req->path, '/api/v1/')) {
         'poll_votes'       => App::make('poll_votes'),
         'uploader'         => App::make('uploader'),
         'users'            => App::make('users'),
+        'domain_events'    => App::make('domain_events'),
     ];
     $kernel = new \App\Api\V1\ApiKernel(
         new \App\Api\V1\TokenAuthenticator(App::make('api_tokens'), App::make('users')),

@@ -176,6 +176,7 @@ final class TasksHandler extends BaseHandler
         }
 
         $task = $this->svc('tasks')->findById($id);
+        $this->domainEvents()->taskCreated($this->user(), $task, $project, $columnId);
         return ApiResponse::created($this->serializeOne($task));
     }
 
@@ -193,6 +194,7 @@ final class TasksHandler extends BaseHandler
 
         $body = $this->readBody($req);
         $fields = [];
+        $newColumnName = '';
         if (isset($body['title'])) {
             $title = trim((string)$body['title']);
             if ($title === '') {
@@ -214,6 +216,7 @@ final class TasksHandler extends BaseHandler
                 return ApiResponse::error(422, 'validation_failed', 'column_id does not belong to project', ['column_id' => 'invalid']);
             }
             $fields['column_id'] = $newColumnId;
+            $newColumnName = (string)$byId[$newColumnId]['name'];
         }
         if (array_key_exists('assignee_id', $body)) {
             $fields['assignee_id'] = $body['assignee_id'] === null || $body['assignee_id'] === ''
@@ -247,7 +250,16 @@ final class TasksHandler extends BaseHandler
         }
 
         if ($fields) $this->svc('tasks')->update($id, $fields);
-        return ApiResponse::ok($this->serializeOne($this->svc('tasks')->findById($id)));
+        $fresh = $this->svc('tasks')->findById($id);
+        // Same change-detection as TaskController::update — only a real column
+        // or assignee change notifies; re-sending the current value is silent.
+        if (isset($fields['column_id']) && (int)$fields['column_id'] !== (int)$task['column_id']) {
+            $this->domainEvents()->taskStatusChanged($this->user(), $id, (int)$task['project_id'], (string)$fresh['title'], (int)$fields['column_id'], $newColumnName);
+        }
+        if (array_key_exists('assignee_id', $fields) && (int)($fields['assignee_id'] ?? 0) !== (int)($task['assignee_id'] ?? 0)) {
+            $this->domainEvents()->taskAssigneeChanged($this->user(), $id, (string)$fresh['title'], $fields['assignee_id']);
+        }
+        return ApiResponse::ok($this->serializeOne($fresh));
     }
 
     /** POST /api/v1/tasks/{id}/move */
@@ -277,6 +289,8 @@ final class TasksHandler extends BaseHandler
         }
 
         $this->svc('tasks')->move($id, $columnId, $position);
+        // Mirrors TaskController::move, which notifies on every move call.
+        $this->domainEvents()->taskStatusChanged($this->user(), $id, (int)$task['project_id'], (string)$task['title'], $columnId, (string)$byId[$columnId]['name']);
         return ApiResponse::ok($this->serializeOne($this->svc('tasks')->findById($id)));
     }
 
@@ -295,6 +309,7 @@ final class TasksHandler extends BaseHandler
         $this->svc('tasks')->delete($id);
         // Mirror controller cleanup of dangling FKs.
         $this->svc('task_links')->deleteForTask($id);
+        $this->domainEvents()->taskDeleted($this->user(), $task, $project);
         return ApiResponse::noContent();
     }
 
@@ -356,6 +371,8 @@ final class TasksHandler extends BaseHandler
             $tagsRepo->attachToProject($newId, $projTagId);
         }
 
+        $this->domainEvents()->projectPromotedFromTask($this->user(), $newId, $name, $task, count($attachments));
+
         return ApiResponse::ok([
             'project_id' => $newId,
             'url'        => '/projects/' . $newId . '?tab=overview',
@@ -385,6 +402,9 @@ final class TasksHandler extends BaseHandler
         if (!$otherProject || !$this->canSeeProject($otherProject)) return $this->notFound();
 
         $created = $this->svc('task_links')->link($id, $otherId, $this->userId());
+        if ($created) {
+            $this->domainEvents()->taskLinked($this->user(), $task, $other, $project);
+        }
         return ApiResponse::created([
             'task_id'  => $id,
             'other_id' => $otherId,
@@ -404,7 +424,9 @@ final class TasksHandler extends BaseHandler
         if (!RolePolicy::canEditTask($this->user(), $task, $this->svc('members'))) {
             return $this->forbidden();
         }
+        $otherTask = $this->svc('tasks')->findById($otherId);
         $this->svc('task_links')->unlink($id, $otherId);
+        $this->domainEvents()->taskUnlinked($this->user(), $task, $otherId, $otherTask, $project);
         return ApiResponse::noContent();
     }
 

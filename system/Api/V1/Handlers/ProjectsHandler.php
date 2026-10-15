@@ -60,6 +60,7 @@ final class ProjectsHandler extends BaseHandler
         // Mirror web controller: register creator as owner so canEditProject works.
         $this->svc('members')->add($id, $this->userId(), 'owner');
         $project = $this->svc('projects')->findById($id);
+        $this->domainEvents()->projectCreated($this->user(), $id, $name);
         return ApiResponse::created($this->serializeMany([$project])[0]);
     }
 
@@ -77,7 +78,10 @@ final class ProjectsHandler extends BaseHandler
             $patch[$f] = $f === 'description' ? self::sanitizeDescription($v) : $v;
         }
         if ($patch) $this->svc('projects')->update($id, $patch);
-        return ApiResponse::ok($this->serializeMany([$this->svc('projects')->findById($id)])[0]);
+        $fresh = $this->svc('projects')->findById($id);
+        // Mirrors ProjectController::update, which notifies on every save.
+        $this->domainEvents()->projectUpdated($this->user(), $id, (string)($fresh['name'] !== '' ? $fresh['name'] : $project['name']));
+        return ApiResponse::ok($this->serializeMany([$fresh])[0]);
     }
 
     public function destroy(Request $req, array $params = []): array
@@ -87,6 +91,7 @@ final class ProjectsHandler extends BaseHandler
         if (!$project) return $this->notFound();
         if (!RolePolicy::isAdmin($this->user())) return $this->forbidden();
         $this->svc('projects')->delete($id);
+        $this->domainEvents()->projectDeleted($this->user(), $project);
         return ApiResponse::noContent();
     }
 

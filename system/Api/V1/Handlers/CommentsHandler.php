@@ -59,8 +59,10 @@ final class CommentsHandler extends BaseHandler
             $project = $this->svc('projects')->findById($entityId);
         }
         if (!$project || !$this->canSeeProject($project)) return $this->notFound();
+        $target = $entity === 'task' ? $task : $project;
 
         // Validate parent_id: must belong to the same entity. Normalize to top-level root.
+        $replyToAuthor = null;
         if ($parentId !== null) {
             $parent = $this->svc('comments')->findById($parentId);
             if (!$parent
@@ -70,9 +72,13 @@ final class CommentsHandler extends BaseHandler
                 return ApiResponse::error(422, 'validation_failed', 'invalid parent_id', ['parent_id' => 'invalid']);
             }
             $parentId = (int)($parent['parent_id'] ?: $parent['id']);
+            // Same reply-to label the web path puts in the notification.
+            $rootAuthor = $this->svc('users')->findById((int)$parent['user_id']);
+            $replyToAuthor = $rootAuthor['name'] ?? null;
         }
 
         $id = $this->svc('comments')->create($entity, $entityId, $this->userId(), $text, $parentId);
+        $this->domainEvents()->commentCreated($this->user(), $entity, $entityId, $target, $id, $text, $replyToAuthor);
         $created = $this->svc('comments')->findById($id);
         return ApiResponse::created($this->serialize($created));
     }
@@ -100,6 +106,7 @@ final class CommentsHandler extends BaseHandler
         }
 
         $this->svc('comments')->delete($id);
+        $this->domainEvents()->commentDeleted($this->user(), $comment);
         return ApiResponse::noContent();
     }
 

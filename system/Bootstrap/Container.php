@@ -84,6 +84,16 @@ final class Container
         App::singleton('comments', fn() => new \App\Repository\CommentRepository(App::make('db')));
         App::singleton('notif_log', fn() => new \App\Repository\NotificationLogRepository(App::make('db')));
         App::singleton('activity', fn() => new \App\Repository\ActivityLogRepository(App::make('db')));
+        // Event + activity-log side effects of domain mutations, shared by the
+        // web controllers and the /api/v1 handlers (see DomainEvents).
+        App::singleton('domain_events', fn() => new \App\Service\DomainEvents(
+            App::make('events'),
+            App::make('activity'),
+            App::make('projects'),
+            App::make('tasks'),
+            App::make('users'),
+            App::make('comments'),
+        ));
         App::singleton('api_tokens', fn() => new \App\Repository\ApiTokenRepository(App::make('db')));
         App::singleton('compass', fn() => new \App\Service\CompassService(
             App::make('db'),

@@ -27,6 +27,16 @@ abstract class BaseHandler
         return $this->services[$name];
     }
 
+    /**
+     * Domain side effects (EventBus event + activity_log row) for a mutation,
+     * shared with the web controllers so API writes notify the same way.
+     * Actor is always the token's user: pass $this->user().
+     */
+    protected function domainEvents(): \App\Service\DomainEvents
+    {
+        return $this->svc('domain_events');
+    }
+
     protected function readBody(Request $req): array
     {
         // Request is a readonly DTO with no rawBody field; fall back to the

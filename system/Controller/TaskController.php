@@ -5,7 +5,6 @@ namespace App\Controller;
 use App\Http\Csrf;
 use App\Http\Request;
 use App\Http\Response;
-use App\Repository\ActivityLogRepository;
 use App\Repository\AttachmentRepository;
 use App\Repository\CommentRepository;
 use App\Repository\FormSubmissionRepository;
@@ -17,7 +16,7 @@ use App\Repository\TaskColumnRepository;
 use App\Repository\TaskLinkRepository;
 use App\Repository\TaskRepository;
 use App\Repository\UserRepository;
-use App\Service\EventBus;
+use App\Service\DomainEvents;
 use App\View\Renderer;
 use PDO;
 
@@ -36,8 +35,7 @@ final class TaskController extends BaseController {
         private AttachmentRepository $attachments,
         private FormSubmissionRepository $formSubmissions,
         private PollRepository $polls,
-        private ActivityLogRepository $activity,
-        private EventBus $events,
+        private DomainEvents $domainEvents,
         private Csrf $csrf,
         private PDO $db,
     ) {
@@ -65,23 +63,8 @@ final class TaskController extends BaseController {
         }
         $id = $this->tasks->create($projectId, $columnId, $title, (int)$this->user['id']);
         $task = $this->tasks->findById($id);
-        // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
         $project = $this->projects->findById($projectId);
-        $this->events->fire('task.created', [
-            'task_id'      => $id,
-            'title'        => $task['title'],
-            'project_name' => $project['name'],
-            'actor_name'   => $this->user['name'],
-            'url'          => \abs_url('/tasks/' . $id),
-        ]);
-        $this->activity->log([
-            'event'      => 'task.created',
-            'actor_id'   => (int)$this->user['id'],
-            'project_id' => $projectId,
-            'task_id'    => $id,
-            'summary'    => "added task '" . $task['title'] . "'",
-            'meta'       => ['column_id' => $columnId],
-        ]);
+        $this->domainEvents->taskCreated($this->user, $task, $project, $columnId);
         Response::json(['ok' => true, 'task' => [
             'id' => (int)$task['id'],
             'title' => $task['title'],
@@ -108,19 +91,7 @@ final class TaskController extends BaseController {
         $this->formSubmissions->detachConverted('task', $id);
         $this->polls->detachSummaryTask($id);
         $this->taskLinks->deleteForTask($id);
-        $this->events->fire('task.deleted', [
-            'task_id'      => $id,
-            'title'        => $task['title'],
-            'project_name' => $project['name'] ?? '',
-            'actor_name'   => $this->user['name'],
-        ]);
-        $this->activity->log([
-            'event'      => 'task.deleted',
-            'actor_id'   => (int)$this->user['id'],
-            'project_id' => (int)$task['project_id'],
-            'summary'    => "deleted task '" . $task['title'] . "'",
-            'meta'       => ['task_id' => $id],
-        ]);
+        $this->domainEvents->taskDeleted($this->user, $task, $project);
         Response::json(['ok' => true]);
     }
 
@@ -179,19 +150,7 @@ final class TaskController extends BaseController {
             $tagsRepo->attachToProject($newId, $projTagId);
         }
 
-        $this->events->fire('project.created', [
-            'project_id' => $newId,
-            'name'       => $name,
-            'actor_name' => $this->user['name'],
-            'url'        => \abs_url('/projects/' . $newId),
-        ]);
-        $this->activity->log([
-            'event'      => 'project.created',
-            'actor_id'   => (int)$this->user['id'],
-            'project_id' => $newId,
-            'summary'    => "spun off project '$name' from task '" . $task['title'] . "'",
-            'meta'       => ['from_task_id' => $id, 'copied_attachments' => count($attachments)],
-        ]);
+        $this->domainEvents->projectPromotedFromTask($this->user, $newId, $name, $task, count($attachments));
 
         Response::json(['ok' => true, 'project_id' => $newId, 'url' => '/projects/' . $newId . '?tab=overview']);
     }
@@ -229,23 +188,8 @@ final class TaskController extends BaseController {
         }
         $this->tasks->move($taskId, $columnId, $position, $subStatus, $clearSub);
 
-        // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
         $newColName = $newCol['name'] ?? '';
-        $this->events->fire('task.status_changed', [
-            'task_id'    => $taskId,
-            'title'      => $task['title'],
-            'new_column' => $newColName,
-            'actor_name' => $this->user['name'],
-            'url'        => \abs_url('/tasks/' . $taskId),
-        ]);
-        $this->activity->log([
-            'event'      => 'task.status_changed',
-            'actor_id'   => (int)$this->user['id'],
-            'project_id' => (int)$task['project_id'],
-            'task_id'    => $taskId,
-            'summary'    => 'moved to ' . ($newColName !== '' ? $newColName : 'another column'),
-            'meta'       => ['column_id' => $columnId, 'new_column' => $newColName],
-        ]);
+        $this->domainEvents->taskStatusChanged($this->user, $taskId, (int)$task['project_id'], (string)$task['title'], $columnId, $newColName);
         $fresh = $this->tasks->findById($taskId);
         Response::json(['ok' => true, 'sub_status' => $fresh['sub_status'] ?? null]);
     }
@@ -499,24 +443,7 @@ final class TaskController extends BaseController {
 
         if ($created) {
             $project = $this->projects->findById($projectId);
-            // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
-            $this->events->fire('task.linked', [
-                'task_id'        => $id,
-                'task_title'     => $task['title'],
-                'linked_task_id' => $other,
-                'linked_title'   => $otherTask['title'],
-                'project_name'   => $project['name'] ?? '',
-                'actor_name'     => $this->user['name'],
-                'url'            => \abs_url('/tasks/' . $id),
-            ]);
-            $this->activity->log(
-                'task.linked',
-                (int)$this->user['id'],
-                $projectId,
-                $id,
-                "linked '" . $task['title'] . "' ↔ '" . $otherTask['title'] . "'",
-                ['linked_task_id' => $other]
-            );
+            $this->domainEvents->taskLinked($this->user, $task, $otherTask, $project);
         }
 
         // Return the linked-task row for instant UI render
@@ -540,24 +467,7 @@ final class TaskController extends BaseController {
         $otherTask = $this->tasks->findById($other);
         $this->taskLinks->unlink($id, $other);
         $project = $this->projects->findById((int)$task['project_id']);
-        // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
-        $this->events->fire('task.unlinked', [
-            'task_id'        => $id,
-            'task_title'     => $task['title'],
-            'linked_task_id' => $other,
-            'linked_title'   => $otherTask['title'] ?? ('#' . $other),
-            'project_name'   => $project['name'] ?? '',
-            'actor_name'     => $this->user['name'],
-            'url'            => \abs_url('/tasks/' . $id),
-        ]);
-        $this->activity->log(
-            'task.unlinked',
-            (int)$this->user['id'],
-            (int)$task['project_id'],
-            $id,
-            "unlinked '" . $task['title'] . "' ↔ '" . ($otherTask['title'] ?? ('#' . $other)) . "'",
-            ['linked_task_id' => $other]
-        );
+        $this->domainEvents->taskUnlinked($this->user, $task, $other, $otherTask, $project);
         Response::json(['ok' => true]);
     }
 
@@ -632,40 +542,14 @@ final class TaskController extends BaseController {
 
         $this->tasks->update($id, $fields);
         $fresh = $this->tasks->findById($id);
-        // baseUrl resolved per-call via \abs_url() helper (defensive vs empty APP_URL)
         if (isset($fields['column_id']) && (int)$fields['column_id'] !== (int)$task['column_id']) {
             $cols = $this->columns->listForProject((int)$task['project_id']);
             $newColName = '';
             foreach ($cols as $c) if ((int)$c['id'] === (int)$fields['column_id']) { $newColName = $c['name']; break; }
-            $this->events->fire('task.status_changed', [
-                'task_id'    => $id,
-                'title'      => $fresh['title'],
-                'new_column' => $newColName,
-                'actor_name' => $this->user['name'],
-                'url'        => \abs_url('/tasks/' . $id),
-            ]);
-            $this->activity->log(
-                'task.status_changed',
-                (int)$this->user['id'],
-                (int)$task['project_id'],
-                $id,
-                'moved to ' . ($newColName !== '' ? $newColName : 'another column'),
-                ['column_id' => (int)$fields['column_id'], 'new_column' => $newColName]
-            );
+            $this->domainEvents->taskStatusChanged($this->user, $id, (int)$task['project_id'], (string)$fresh['title'], (int)$fields['column_id'], $newColName);
         }
         if (array_key_exists('assignee_id', $fields) && (int)($fields['assignee_id'] ?? 0) !== (int)($task['assignee_id'] ?? 0)) {
-            $assigneeName = 'Unassigned';
-            if ($fields['assignee_id']) {
-                $assignee = $this->users->findById((int)$fields['assignee_id']);
-                if ($assignee) $assigneeName = $assignee['name'];
-            }
-            $this->events->fire('task.assignee_changed', [
-                'task_id'       => $id,
-                'title'         => $fresh['title'],
-                'assignee_name' => $assigneeName,
-                'actor_name'    => $this->user['name'],
-                'url'           => \abs_url('/tasks/' . $id),
-            ]);
+            $this->domainEvents->taskAssigneeChanged($this->user, $id, (string)$fresh['title'], $fields['assignee_id']);
         }
         // Never trust the stored value: sanitise on read exactly as
         // views/tasks/show.php does, then enhance plain links into preview
