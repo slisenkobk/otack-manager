@@ -102,6 +102,7 @@ final class Container
             (int)App::env('UPLOAD_MAX_FILE', '52428800'),
             APP_ROOT . '/' . App::env('UPLOAD_DIR', 'public/uploads')
         ));
+        App::singleton('avatars', fn() => new \App\Service\AvatarService(App::make('uploader'), App::make('users')));
         App::singleton('login_throttle', fn() => new \App\Auth\LoginThrottle(App::make('db')));
     }
 

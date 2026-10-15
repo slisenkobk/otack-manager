@@ -53,6 +53,22 @@ foreach ($apiTokens as $tok) {
       </div>
     </div>
   </div>
+  <div class="user-avatar-admin u-mt-space-6">
+    <form method="post" action="/users/<?= (int)$user['id'] ?>/avatar" enctype="multipart/form-data" class="user-avatar-admin__form">
+      <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
+      <input type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp" required aria-label="<?= e(t('users.avatar_title')) ?>">
+      <button class="btn btn--secondary" type="submit"><i class="fa-solid fa-upload"></i> <?= e(t('users.avatar_upload')) ?></button>
+    </form>
+    <?php if (!empty($user['avatar'])): ?>
+      <form method="post" action="/users/<?= (int)$user['id'] ?>/avatar/delete" class="m-0"
+            data-confirm="<?= e(t('users.avatar_confirm_remove')) ?>"
+            data-confirm-label="<?= e(t('profile.remove_avatar')) ?>">
+        <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
+        <button class="btn btn--ghost" type="submit"><?= e(t('profile.remove_avatar')) ?></button>
+      </form>
+    <?php endif; ?>
+    <p class="muted profile-avatar__hint"><?= e(t('profile.avatar_hint')) ?></p>
+  </div>
 </section>
 
 <?php if (!empty($oneTime) && !empty($oneTime['token'])): ?>

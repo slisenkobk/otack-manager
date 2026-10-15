@@ -1021,6 +1021,21 @@ h1.display em {
   min-width: 0;
 }
 
+/* Admin avatar controls on /users/{id}: upload form + remove button + hint. */
+.user-avatar-admin {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+.user-avatar-admin__form {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+}
+.user-avatar-admin .profile-avatar__hint { text-align: left; flex-basis: 100%; }
+
 /* /users index — inline-flex action cluster (approve / view / edit /
    block / delete) inside the last table cell. */
 .user-actions {

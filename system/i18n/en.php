@@ -391,6 +391,10 @@ return [
     'profile.email_taken'      => 'Email is already in use.',
     'profile.avatar_removed'   => 'Avatar removed.',
     'profile.avatar_uploaded'  => 'Avatar updated.',
+    'users.avatar_title'      => 'Avatar',
+    'users.avatar_upload'     => 'Upload',
+    'users.avatar_confirm_remove' => 'Remove this user\'s avatar?',
+    'users.avatar_forbidden'  => 'You are not allowed to change this avatar.',
 
     // ─── Landing (public, unauthenticated) ───────────────────────────────────
     'landing.h1'             => 'Welcome to :app.',

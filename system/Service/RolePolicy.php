@@ -25,6 +25,11 @@ final class RolePolicy
     public static function isManager(array $user): bool { return ($user['role'] ?? '') === 'manager'; }
     public static function isEmployee(array $user): bool { return ($user['role'] ?? '') === 'employee'; }
 
+    /** A user may change their own avatar; only an admin may change anyone else's. */
+    public static function canEditAvatar(array $actor, int $targetUserId): bool {
+        return self::isAdmin($actor) || (int)($actor['id'] ?? 0) === $targetUserId;
+    }
+
     public static function canCreateProject(array $user): bool {
         return self::isAdmin($user) || self::isManager($user);
     }

@@ -384,6 +384,10 @@ return [
     'profile.email_taken'      => 'Ten e-mail jest już używany.',
     'profile.avatar_removed'   => 'Awatar usunięty.',
     'profile.avatar_uploaded'  => 'Awatar zaktualizowany.',
+    'users.avatar_title'      => 'Awatar',
+    'users.avatar_upload'     => 'Wgraj',
+    'users.avatar_confirm_remove' => 'Usunąć awatar tego użytkownika?',
+    'users.avatar_forbidden'  => 'Nie możesz zmienić tego awatara.',
 
     // ─── Landing ─────────────────────────────────────────────────────────────
     'landing.h1'             => 'Witaj w :app.',

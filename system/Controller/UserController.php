@@ -12,6 +12,7 @@ use App\Http\Validator;
 use App\Repository\ApiTokenRepository;
 use App\Repository\SettingsRepository;
 use App\Repository\UserRepository;
+use App\Service\AvatarService;
 use App\Service\EventBus;
 use App\View\Renderer;
 
@@ -24,6 +25,7 @@ final class UserController extends BaseController {
         private PasswordHasher $hasher,
         private SettingsRepository $settings,
         private EventBus $events,
+        private AvatarService $avatars,
         private Csrf $csrf,
         private object $session,
     ) {
@@ -81,6 +83,25 @@ final class UserController extends BaseController {
                 'error'     => $this->consumeFlash('flash_error'),
             ]),
         ]));
+    }
+
+    /** Admin sets/replaces another user's avatar (class is admin-gated in the constructor). */
+    public function updateAvatar(Request $req, array $params): void {
+        $id     = (int)($params['id'] ?? 0);
+        $target = $this->users->findById($id);
+        if (!$target) { Response::notFound(); return; }
+        $err = $this->avatars->replace($this->user, $target, $req->files['avatar'] ?? null);
+        $err ? $this->flash('flash_error', $err) : $this->flash('flash_success', t('profile.avatar_uploaded'));
+        Response::redirect('/users/' . $id);
+    }
+
+    public function removeAvatar(Request $req, array $params): void {
+        $id     = (int)($params['id'] ?? 0);
+        $target = $this->users->findById($id);
+        if (!$target) { Response::notFound(); return; }
+        $err = $this->avatars->remove($this->user, $target);
+        $err ? $this->flash('flash_error', $err) : $this->flash('flash_success', t('profile.avatar_removed'));
+        Response::redirect('/users/' . $id);
     }
 
     public function createToken(Request $req, array $params): void {

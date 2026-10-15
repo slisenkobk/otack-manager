@@ -8,7 +8,7 @@ use App\Http\Request;
 use App\Http\Response;
 use App\Repository\ApiTokenRepository;
 use App\Repository\UserRepository;
-use App\Service\FileUploader;
+use App\Service\AvatarService;
 use App\View\Renderer;
 
 final class ProfileController extends BaseController {
@@ -17,7 +17,7 @@ final class ProfileController extends BaseController {
         ?array $user,
         private UserRepository $users,
         private PasswordHasher $hasher,
-        private FileUploader $uploader,
+        private AvatarService $avatars,
         private ApiTokenRepository $apiTokens,
         private Csrf $csrf,
         private object $session,
@@ -121,23 +121,8 @@ final class ProfileController extends BaseController {
 
         $file = $req->files['avatar'] ?? null;
         if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-            $err = $this->uploader->validate($file);
+            $err = $this->avatars->replace($this->user, $this->user, $file);
             if ($err) { $this->flash('flash_error', $err); Response::redirect('/profile'); return; }
-            if (!$this->uploader->isImage($file['type'] ?? '')) {
-                $this->flash('flash_error', t('profile.avatar_hint'));
-                Response::redirect('/profile'); return;
-            }
-            try {
-                $stored = $this->uploader->store($file);
-            } catch (\Throwable $e) {
-                $this->flash('flash_error', $e->getMessage());
-                Response::redirect('/profile'); return;
-            }
-            if (!empty($this->user['avatar'])) {
-                $oldAbs = APP_ROOT . '/public/' . ltrim($this->user['avatar'], '/');
-                if (is_file($oldAbs)) @unlink($oldAbs);
-            }
-            $this->users->updateAvatar((int)$this->user['id'], $stored['filename']);
         }
 
         if ($changePw) {
@@ -179,38 +164,15 @@ final class ProfileController extends BaseController {
     }
 
     public function updateAvatar(Request $req, array $params = []): void {
-        $file = $req->files['avatar'] ?? null;
-        if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-            $this->flash('flash_error', t('profile.avatar_hint'));
-            Response::redirect('/profile'); return;
-        }
-        $err = $this->uploader->validate($file);
-        if ($err) { $this->flash('flash_error', $err); Response::redirect('/profile'); return; }
-        if (!$this->uploader->isImage($file['type'] ?? '')) {
-            $this->flash('flash_error', t('profile.avatar_hint'));
-            Response::redirect('/profile'); return;
-        }
-        try {
-            $stored = $this->uploader->store($file);
-        } catch (\Throwable $e) {
-            $this->flash('flash_error', $e->getMessage());
-            Response::redirect('/profile'); return;
-        }
-        if (!empty($this->user['avatar'])) {
-            $oldAbs = APP_ROOT . '/public/' . ltrim($this->user['avatar'], '/');
-            if (is_file($oldAbs)) @unlink($oldAbs);
-        }
-        $this->users->updateAvatar((int)$this->user['id'], $stored['filename']);
-        $this->flash('flash_success', t('profile.avatar_uploaded'));
+        $err = $this->avatars->replace($this->user, $this->user, $req->files['avatar'] ?? null);
+        $err ? $this->flash('flash_error', $err) : $this->flash('flash_success', t('profile.avatar_uploaded'));
         Response::redirect('/profile');
     }
 
     public function removeAvatar(Request $req, array $params = []): void {
         if (!empty($this->user['avatar'])) {
-            $oldAbs = APP_ROOT . '/public/' . ltrim($this->user['avatar'], '/');
-            if (is_file($oldAbs)) @unlink($oldAbs);
-            $this->users->updateAvatar((int)$this->user['id'], null);
-            $this->flash('flash_success', t('profile.avatar_removed'));
+            $err = $this->avatars->remove($this->user, $this->user);
+            $err ? $this->flash('flash_error', $err) : $this->flash('flash_success', t('profile.avatar_removed'));
         }
         Response::redirect('/profile');
     }

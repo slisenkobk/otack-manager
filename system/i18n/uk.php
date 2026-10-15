@@ -385,6 +385,10 @@ return [
     'profile.email_taken'      => 'Цей e-mail уже використовується.',
     'profile.avatar_removed'   => 'Аватар видалено.',
     'profile.avatar_uploaded'  => 'Аватар оновлено.',
+    'users.avatar_title'      => 'Аватар',
+    'users.avatar_upload'     => 'Завантажити',
+    'users.avatar_confirm_remove' => 'Видалити аватар цього користувача?',
+    'users.avatar_forbidden'  => 'Ви не можете змінювати цей аватар.',
 
     // ─── Landing ─────────────────────────────────────────────────────────────
     'landing.h1'             => 'Вітаємо в :app.',

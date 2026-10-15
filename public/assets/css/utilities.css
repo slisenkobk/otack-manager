@@ -950,8 +950,8 @@
   color: var(--ink-2, #333);
 }
 .poll-status--draft  { background: var(--ink-9, #eee); color: var(--ink-2, #555); }
-.poll-status--active { background: #e6f4ea; color: #1e6f3a; }
-.poll-status--closed { background: #fdecea; color: #8a2a22; }
+.poll-status--active { background: var(--success-bg); color: var(--success); }
+.poll-status--closed { background: var(--red-tint); color: var(--red); }
 
 /* Dim closed-poll cards so the list visually separates "still running" from
    "done"; hovering brings full opacity back so admins can still interact
@@ -1045,8 +1045,8 @@
   margin-left: 12px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #e6f4ea;
-  color: #1e6f3a;
+  background: var(--success-bg);
+  color: var(--success);
   font-size: 11px;
   font-weight: 600;
   text-decoration: none;
@@ -1084,8 +1084,8 @@
   color: var(--ink-3, #666);
 }
 .updates-card--accent {
-  border-color: #c8e6c9;
-  background: #f3faf4;
+  border-color: var(--success);
+  background: var(--success-bg);
 }
 
 /* Public poll: radio-option block (one row per choice). */
