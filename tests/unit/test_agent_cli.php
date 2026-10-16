@@ -1112,7 +1112,7 @@ it('comment refuses a body carrying a token or an .env line (exit 2, no request,
             "OTACK_API_URL=http://127.0.0.1:$port/api/v1\nOTACK_API_TOKEN=ownerPlainSecret88\n");
         $bodies = [
             'otk pattern'      => "see otk_ABCDEFGH12 above\n",
-            'telegram pattern' => "bot 123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw1 ok\n",
+            'telegram pattern' => "bot 123456789:" . str_repeat('Ab3', 12) . " ok\n",   // built at runtime: no literal token for secret scanners
             'env token line'   => "x\n  OTACK_API_TOKEN = anything\n",
             'env tg line'      => "OTACK_TG_CHAT_ID=42\n",
             'own token'        => "token is ownerPlainSecret88\n",
