@@ -1238,3 +1238,164 @@ it('setup-project --write --clone rolls the clone back when origin/HEAD names a 
     });
     shell_exec('rm -rf ' . escapeshellarg($src));
 });
+
+// --- attachments / download ------------------------------------------------
+
+/** Fixture routes for task 77 in project $pid with the given attachment rows and /uploads bodies. */
+function _attRoutes(int $pid, array $items, array $uploads = []): array {
+    $routes = [
+        'GET /api/v1/tasks/77'             => [['status' => 200, 'body' => json_encode(['id' => 77, 'project_id' => $pid])]],
+        'GET /api/v1/tasks/77/attachments' => [['status' => 200, 'body' => json_encode(['items' => $items])]],
+    ];
+    foreach ($uploads as $path => $resp) { $routes["GET $path"] = [$resp]; }
+    return $routes;
+}
+
+function _attRow(int $id, string $name, string $path, int $size, string $mime = 'application/pdf'): array {
+    return ['id' => $id, 'entity_type' => 'task', 'entity_id' => 77, 'filename' => ltrim($path, '/'), 'path' => $path,
+        'original_name' => $name, 'mime' => $mime, 'size' => $size, 'is_image' => false, 'uploaded_by' => 1, 'created_at' => null];
+}
+
+it('attachments lists a task\'s files in both scopes, and --project lists a project\'s', function () {
+    $row = _attRow(5, 'spec.pdf', '/uploads/2026/10/a.pdf', 3);
+    $routes = _attRoutes(42, [$row]) + [
+        'GET /api/v1/projects/42/attachments' => [['status' => 200, 'body' => json_encode(['items' => [$row]])]],
+    ];
+    _cliFixtureServer($routes, function (int $port) {
+        $home = _cliManagerHome($port);
+        foreach (['agent', 'manager'] as $scope) {
+            $r = _cli('attachments 77', $home, '', $scope);
+            assert_eq(0, $r['code'], $r['err']);
+            assert_eq('spec.pdf', json_decode($r['out'], true)['items'][0]['original_name']);
+            $r = _cli('attachments --project 42', $home, '', $scope);
+            assert_eq(0, $r['code'], $r['err']);
+            assert_eq(5, json_decode($r['out'], true)['items'][0]['id']);
+        }
+    });
+});
+
+it('agent scope refuses attachments/download of an unlisted project\'s task without fetching the list', function () {
+    _cliFixtureServer(_attRoutes(900, [_attRow(5, 'a.pdf', '/uploads/2026/10/a.pdf', 3)]), function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        foreach (['attachments 77', 'download 77'] as $cmd) {
+            $r = _cli($cmd, $home, '', 'agent');
+            assert_eq(1, $r['code'], $r['err']);
+            assert_true(str_contains($r['err'], 'is not listed'), $r['err']);
+        }
+        $r = _cli('attachments --project 900', $home, '', 'agent');
+        assert_eq(1, $r['code'], $r['err']);
+        $paths = array_map(fn($e) => $e['path'], _requestLog($log));
+        assert_eq(['/api/v1/tasks/77', '/api/v1/tasks/77'], $paths, 'only the task itself was read');
+        assert_true(!is_dir($home . '/.cache'), 'no download directory was created');
+    });
+});
+
+it('download writes safe 0600 names into the per-scope 0700 directory, without the token on /uploads', function () {
+    $items = [
+        _attRow(5, 'ТЗ проекта.pdf', '/uploads/2026/10/a.pdf', 3),
+        _attRow(6, '../../.bashrc', '/uploads/2026/10/b.txt', 4, 'text/plain'),
+        _attRow(7, '..\\..\\evil/../.ssh/id', '/uploads/2026/10/c.bin', 2, 'application/octet-stream'),
+    ];
+    $uploads = [
+        '/uploads/2026/10/a.pdf' => ['status' => 200, 'body' => 'PDF'],
+        '/uploads/2026/10/b.txt' => ['status' => 200, 'body' => 'evil'],
+        '/uploads/2026/10/c.bin' => ['status' => 200, 'body' => 'xx'],
+    ];
+    _cliFixtureServer(_attRoutes(42, $items, $uploads), function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        $dirs = [
+            'agent'   => $home . '/.cache/otack-agent/session-cwd/attachments/task-77',
+            'manager' => $home . '/.cache/otack-manager/attachments/task-77',
+        ];
+        foreach ($dirs as $scope => $dir) {
+            $r = _cli('download 77', $home, '', $scope);
+            assert_eq(0, $r['code'], $r['err']);
+            $j = json_decode($r['out'], true);
+            assert_eq($dir, $j['dir']);
+            assert_eq(0700, fileperms($dir) & 0777, "$scope dir mode");
+            assert_eq([], $j['skipped']);
+            $names = array_map(fn($f) => basename($f['path']), $j['files']);
+            assert_eq(['5-ТЗ_проекта.pdf', '6-bashrc', '7-id'], $names);
+            foreach ($j['files'] as $f) {
+                assert_eq($dir, dirname($f['path']), 'every file stays inside the task directory');
+                assert_eq(0600, fileperms($f['path']) & 0777, 'file mode');
+            }
+            assert_eq('PDF', file_get_contents($dir . '/5-ТЗ_проекта.pdf'));
+            assert_eq(['.', '..', '5-ТЗ_проекта.pdf', '6-bashrc', '7-id'], scandir($dir), 'no temp files left behind');
+        }
+        assert_true(!file_exists($home . '/.bashrc') && !is_dir($home . '/.ssh'), 'nothing escaped the directory');
+        $uploadHits = 0;
+        foreach (_requestLog($log) as $e) {
+            if (str_starts_with($e['path'], '/uploads/')) {
+                $uploadHits++;
+                assert_eq(null, $e['auth'], 'no token on ' . $e['path']);
+            } else {
+                assert_true(in_array($e['auth'], ['Bearer otk_test', 'Bearer otk_owner'], true), 'token on ' . $e['path']);
+            }
+        }
+        assert_eq(6, $uploadHits, 'three files per scope were fetched from the instance');
+
+        // Re-download of one id replaces the file in place.
+        file_put_contents($dirs['manager'] . '/5-ТЗ_проекта.pdf', 'stale');
+        $r = _cli('download 77 5 99', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        $j = json_decode($r['out'], true);
+        assert_eq([5], array_map(fn($f) => $f['id'], $j['files']));
+        assert_eq([['id' => 99, 'reason' => 'not attached to this task']], $j['skipped']);
+        assert_eq('PDF', file_get_contents($dirs['manager'] . '/5-ТЗ_проекта.pdf'));
+    });
+});
+
+it('download skips oversize files, foreign paths and redirects without leaving the origin', function () {
+    $items = [
+        _attRow(1, 'big-listed.pdf', '/uploads/2026/10/big1.pdf', 50),
+        _attRow(2, 'big-served.pdf', '/uploads/2026/10/big2.pdf', 3),
+        _attRow(3, 'foreign.pdf', 'https://evil.example/uploads/x.pdf', 3),
+        _attRow(4, 'scheme-relative.pdf', '//evil.example/uploads/x.pdf', 3),
+        _attRow(5, 'traversal.pdf', '/uploads/../.env', 3),
+        _attRow(6, 'moved.pdf', '/uploads/2026/10/moved.pdf', 3),
+        _attRow(7, 'ok.pdf', '/uploads/2026/10/ok.pdf', 3),
+    ];
+    $uploads = [
+        '/uploads/2026/10/big1.pdf'  => ['status' => 200, 'body' => str_repeat('a', 50)],
+        '/uploads/2026/10/big2.pdf'  => ['status' => 200, 'body' => str_repeat('b', 40)],
+        '/uploads/2026/10/moved.pdf' => ['status' => 302, 'body' => '', 'headers' => ['Location: https://evil.example/x.pdf']],
+        '/uploads/2026/10/ok.pdf'    => ['status' => 200, 'body' => 'yes'],
+    ];
+    _cliFixtureServer(_attRoutes(42, $items, $uploads), function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        putenv('OTACK_ATTACHMENT_MAX_BYTES=20');
+        try {
+            $r = _cli('download 77', $home, '', 'agent');
+        } finally {
+            putenv('OTACK_ATTACHMENT_MAX_BYTES');
+        }
+        assert_eq(0, $r['code'], $r['err']);
+        $j = json_decode($r['out'], true);
+        assert_eq([7], array_map(fn($f) => $f['id'], $j['files']));
+        $reasons = array_column($j['skipped'], 'reason', 'id');
+        assert_eq([1, 2, 3, 4, 5, 6], array_keys($reasons));
+        assert_true(str_starts_with($reasons[1], 'oversize'), $reasons[1]);
+        assert_true(str_starts_with($reasons[2], 'oversize'), $reasons[2]);
+        assert_true(str_contains($reasons[6], 'redirect not followed'), $reasons[6]);
+        $paths = array_map(fn($e) => $e['path'], _requestLog($log));
+        assert_true(!in_array('/uploads/2026/10/big1.pdf', $paths, true), 'listed oversize is skipped without a request');
+        assert_true(!array_filter($paths, fn($p) => str_contains($p, 'evil') || str_contains($p, '.env')), implode(',', $paths));
+        assert_eq(['.', '..', '7-ok.pdf'], scandir(json_decode($r['out'], true)['dir']));
+    });
+});
+
+it('download converts an .rtf to a .txt next to it on macOS', function () {
+    if (PHP_OS_FAMILY !== 'Darwin' || !is_executable('/usr/bin/textutil')) { return; }
+    $rtf = "{\\rtf1\\ansi Hello spec\\par}";
+    _cliFixtureServer(_attRoutes(42, [_attRow(8, 'spec.rtf', '/uploads/2026/10/s.rtf', strlen($rtf), 'application/rtf')],
+        ['/uploads/2026/10/s.rtf' => ['status' => 200, 'body' => $rtf]]), function (int $port) {
+        $home = _cliManagerHome($port);
+        $r = _cli('download 77', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        $f = json_decode($r['out'], true)['files'][0];
+        assert_eq($f['path'] . '.txt', $f['text_path']);
+        assert_true(str_contains((string)file_get_contents($f['text_path']), 'Hello spec'));
+        assert_eq(0600, fileperms($f['text_path']) & 0777);
+    });
+});

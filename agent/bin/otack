@@ -32,8 +32,9 @@ require_once __DIR__ . '/../lib/Rank.php';
 require_once __DIR__ . '/../lib/Board.php';
 require_once __DIR__ . '/../lib/ProjectSetup.php';
 require_once __DIR__ . '/../lib/Selection.php';
+require_once __DIR__ . '/../lib/Attachments.php';
 
-use App\Agent\{Config, Client, Triage, Rank, Board, ProjectSetup, Selection};
+use App\Agent\{Config, Client, Triage, Rank, Board, ProjectSetup, Selection, Attachments};
 
 const PHASES = ['researching', 'awaiting_approval', 'implementing', 'review', 'blocked'];
 
@@ -117,6 +118,11 @@ function usage(): never {
                                 open tasks, ranked (priority, due date, critical tags, age)
       new-comments <id>         comments written since this user last spoke
       comment <id>              post a comment, body read from stdin (refused if it looks like a token)
+      attachments <id> | --project <id>
+                                files attached to a task (or a project): id, name, mime, size
+      download <id> [<attachment-id>…]
+                                save the task's attachments locally (all, or the given ids); .docx/.doc/.rtf/.odt
+                                also get a .txt copy on macOS
       move <id> <column-id>     move the card
       state <id> <phase>        set agent_state (researching|awaiting_approval|implementing|review|blocked)
       assign <id> <me|none|user-id>              (manager scope)
@@ -385,6 +391,100 @@ try {
             $localFor((int)$t['json']['project_id']);
             $comments = $client->getAll("/tasks/$id/comments", ['limit' => 100]);
             out(['items' => Triage::newComments($comments, (int)$self()['id'])]);
+        }
+
+        case 'attachments': {
+            $usageAtt = 'usage: otack attachments <task-id> | --project <project-id>';
+            if (($argvRest[1] ?? null) === '--project') {
+                if (count($argvRest) !== 3) { fail($usageAtt, 2); }
+                $pid = positiveIntArg($argvRest[2], $usageAtt);
+                // Gate before any request (bot scope: projects.json only).
+                $localFor($pid);
+                $r = $client->get("/projects/$pid/attachments");
+                if ($r['status'] !== 200) { fail("GET /projects/$pid/attachments returned " . $r['status']); }
+                out(['items' => $r['json']['items'] ?? []]);
+            }
+            if (count($argvRest) !== 2) { fail($usageAtt, 2); }
+            $id = positiveIntArg($argvRest[1], $usageAtt);
+            // Same fetch-then-gate shape as new-comments: the task is read
+            // only to learn its project, the attachment list only after.
+            $t = $client->get("/tasks/$id");
+            if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
+            $localFor((int)$t['json']['project_id']);
+            $r = $client->get("/tasks/$id/attachments");
+            if ($r['status'] !== 200) { fail("GET /tasks/$id/attachments returned " . $r['status']); }
+            out(['items' => $r['json']['items'] ?? []]);
+        }
+
+        case 'download': {
+            $usageDl = 'usage: otack download <task-id> [<attachment-id>…]';
+            $id = positiveIntArg($argvRest[1] ?? null, $usageDl);
+            $wanted = [];
+            foreach (array_slice($argvRest, 2) as $a) { $wanted[] = positiveIntArg((string)$a, $usageDl); }
+            $wanted = array_values(array_unique($wanted));
+
+            $t = $client->get("/tasks/$id");
+            if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
+            $localFor((int)$t['json']['project_id']);
+            $r = $client->get("/tasks/$id/attachments");
+            if ($r['status'] !== 200) { fail("GET /tasks/$id/attachments returned " . $r['status']); }
+            $items = is_array($r['json']['items'] ?? null) ? $r['json']['items'] : [];
+
+            $skipped = [];
+            if ($wanted !== []) {
+                $have = array_map(fn($a) => (int)($a['id'] ?? 0), $items);
+                foreach (array_diff($wanted, $have) as $missing) {
+                    $skipped[] = ['id' => $missing, 'reason' => 'not attached to this task'];
+                }
+                $items = array_values(array_filter($items, fn($a) => in_array((int)($a['id'] ?? 0), $wanted, true)));
+            }
+
+            $home = getenv('HOME') ?: '';
+            $dir = Attachments::taskDir($home, $scope, $id);
+            Attachments::ensureDir($home, $dir);
+            $max = Attachments::maxBytes();
+            $files = [];
+            foreach ($items as $a) {
+                $aid  = (int)($a['id'] ?? 0);
+                $orig = (string)($a['original_name'] ?? '');
+                $size = (int)($a['size'] ?? 0);
+                $skip = fn(string $reason) => ['id' => $aid, 'original_name' => $orig, 'size' => $size, 'reason' => $reason];
+                if ($aid <= 0) { $skipped[] = $skip('attachment has no id'); continue; }
+                if ($size > $max) { $skipped[] = $skip("oversize: $size > $max bytes"); continue; }
+                $path = (string)($a['path'] ?? '');
+                if (!Client::isUploadPath($path)) { $skipped[] = $skip('path is not a /uploads/ file on this instance'); continue; }
+
+                // Downloaded to a private temp file in the same directory,
+                // renamed over the final name only when complete — a re-run
+                // replaces the old copy atomically, a failed one leaves it.
+                $final = $dir . '/' . Attachments::safeName($aid, $orig);
+                $tmp = $dir . '/.tmp-' . bin2hex(random_bytes(6));
+                $fh = @fopen($tmp, 'xb');
+                if ($fh === false) { $skipped[] = $skip('cannot create a local file'); continue; }
+                @chmod($tmp, 0600);
+                try {
+                    $res = $client->download($path, $fh, $max, Attachments::DEADLINE_SECONDS);
+                } finally {
+                    fclose($fh);
+                }
+                if ($res['ok'] && $size > 0 && $res['bytes'] !== $size) {
+                    $res = ['ok' => false, 'reason' => "size mismatch: got {$res['bytes']} bytes, the server lists $size"];
+                }
+                if (!$res['ok'] || is_link($final) || is_dir($final) || !@rename($tmp, $final)) {
+                    @unlink($tmp);
+                    $skipped[] = $skip($res['reason'] ?? 'cannot replace the local file');
+                    continue;
+                }
+                $entry = [
+                    'id' => $aid, 'original_name' => $orig, 'mime' => (string)($a['mime'] ?? ''),
+                    'size' => $res['bytes'], 'path' => $final,
+                ];
+                if (Attachments::wantsText($final)) {
+                    $entry['text_path'] = Attachments::toText($final);
+                }
+                $files[] = $entry;
+            }
+            out(['dir' => $dir, 'files' => $files, 'skipped' => $skipped]);
         }
 
         case 'state': {

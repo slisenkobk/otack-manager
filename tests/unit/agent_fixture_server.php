@@ -18,6 +18,7 @@ if (!function_exists('_cliFixtureServer')) {
 // $routes: "METHOD /path" => list of {status, body} served in order (last
 // one repeats once exhausted, so a route hit more times than fixtured
 // doesn't crash the server — it just keeps answering with its last entry).
+// An entry may also carry "headers" (list of raw header lines).
 function _cliFixtureServer(array $routes, callable $fn): void
 {
     $dir = sys_get_temp_dir() . '/otack-cli-fixture-' . bin2hex(random_bytes(4));
@@ -64,6 +65,8 @@ file_put_contents($counterFile, (string)($idx + 1));
 
 http_response_code($resp['status'] ?? 200);
 header('Content-Type: application/json');
+// Optional extra/overriding headers (a redirect's Location, a file's type).
+foreach ($resp['headers'] ?? [] as $h) { header($h); }
 echo $resp['body'] ?? '{}';
 PHP
     );

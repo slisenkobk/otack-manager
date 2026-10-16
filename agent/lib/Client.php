@@ -221,6 +221,111 @@ class Client
         ];
     }
 
+    /**
+     * Stream an uploaded file (an attachment's `path`, `/uploads/…`) into
+     * `$dest`, at most `$maxBytes` of it.
+     *
+     * `/uploads/` is plain static content under `public/` — Apache's
+     * "existing file" rewrite rule (and the built-in server's router in
+     * `public/index.php`) serves it before the app runs, with no session or
+     * token check; the web UI links to it directly. So this request carries
+     * NO Authorization header at all: the bearer token is not needed and is
+     * not sent. The URL is built only from the configured instance (the API
+     * base with its `/api/vN` suffix dropped) plus a path that must look like
+     * `/uploads/…` — an absolute URL, a `//host` or a `..` segment is refused
+     * before any request, and a redirect is never followed, so the request
+     * cannot leave the configured origin.
+     *
+     * Never throws for an HTTP-level problem; returns
+     * `['ok' => false, 'reason' => …]` so one bad file does not abort the rest.
+     *
+     * @param resource $dest writable stream
+     * @return array{ok:bool, bytes:int, reason:?string}
+     */
+    public function download(string $path, $dest, int $maxBytes, int $deadlineSeconds = 120): array
+    {
+        if (!self::isUploadPath($path)) {
+            return ['ok' => false, 'bytes' => 0, 'reason' => 'path is not a /uploads/ file on this instance'];
+        }
+        $url = $this->appBase() . $path;
+        $ctx = stream_context_create([
+            'http' => [
+                'method'          => 'GET',
+                'header'          => "User-Agent: otack-agent\r\nAccept: */*",
+                'timeout'         => $this->timeout,
+                'ignore_errors'   => true,
+                // Same reasoning as rawRequest(): never leave the origin.
+                'follow_location' => 0,
+                'max_redirects'   => 1,
+            ],
+        ]);
+        $in = @fopen($url, 'rb', false, $ctx);
+        if ($in === false) {
+            return ['ok' => false, 'bytes' => 0, 'reason' => 'request failed'];
+        }
+        try {
+            $meta = stream_get_meta_data($in);
+            $parsed = self::parseResponseHeaders(is_array($meta['wrapper_data'] ?? null) ? $meta['wrapper_data'] : []);
+            if ($parsed['status'] !== 200) {
+                $where = isset($parsed['headers']['location']) ? ' (redirect not followed)' : '';
+                return ['ok' => false, 'bytes' => 0, 'reason' => "HTTP {$parsed['status']}$where"];
+            }
+            $declared = $parsed['headers']['content-length'] ?? null;
+            if ($declared !== null && ctype_digit($declared) && (int)$declared > $maxBytes) {
+                return ['ok' => false, 'bytes' => 0, 'reason' => "oversize: Content-Length $declared > $maxBytes"];
+            }
+            $bytes = 0;
+            $deadline = microtime(true) + $deadlineSeconds;
+            while (!feof($in)) {
+                $chunk = fread($in, 65536);
+                if ($chunk === false) {
+                    return ['ok' => false, 'bytes' => $bytes, 'reason' => 'read failed'];
+                }
+                if (stream_get_meta_data($in)['timed_out'] ?? false) {
+                    return ['ok' => false, 'bytes' => $bytes, 'reason' => 'read timed out'];
+                }
+                $bytes += strlen($chunk);
+                if ($bytes > $maxBytes) {
+                    return ['ok' => false, 'bytes' => $bytes, 'reason' => "oversize: more than $maxBytes bytes"];
+                }
+                if ($chunk !== '' && fwrite($dest, $chunk) !== strlen($chunk)) {
+                    return ['ok' => false, 'bytes' => $bytes, 'reason' => 'local write failed'];
+                }
+                if (microtime(true) > $deadline) {
+                    return ['ok' => false, 'bytes' => $bytes, 'reason' => "download took longer than {$deadlineSeconds}s"];
+                }
+            }
+            if ($declared !== null && ctype_digit($declared) && (int)$declared !== $bytes) {
+                return ['ok' => false, 'bytes' => $bytes, 'reason' => "truncated: got $bytes of $declared bytes"];
+            }
+            return ['ok' => true, 'bytes' => $bytes, 'reason' => null];
+        } finally {
+            fclose($in);
+        }
+    }
+
+    /** `/uploads/` + safe segments only: no scheme, no `//host`, no `..`, no query. */
+    public static function isUploadPath(string $path): bool
+    {
+        if (!preg_match('#^/uploads/[A-Za-z0-9._/-]+$#', $path)) { return false; }
+        foreach (explode('/', substr($path, 1)) as $seg) {
+            if ($seg === '' || $seg === '.' || $seg === '..') { return false; }
+        }
+        return true;
+    }
+
+    /** The web root of the instance: the API base without its `/api/vN` suffix. */
+    private function appBase(): string
+    {
+        $base = preg_replace('#/api/v\d+$#', '', $this->baseUrl) ?? $this->baseUrl;
+        if ($base === $this->baseUrl) {
+            // Not the documented `…/api/v1` shape: fall back to the bare origin.
+            $p = parse_url($this->baseUrl);
+            $base = ($p['scheme'] ?? 'https') . '://' . ($p['host'] ?? '') . (isset($p['port']) ? ':' . $p['port'] : '');
+        }
+        return rtrim($base, '/');
+    }
+
     /** @return array{status:int, body:string, headers:array<string,string>} */
     protected function rawRequest(string $method, string $url, array $headers, ?string $body): array
     {

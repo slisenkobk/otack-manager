@@ -109,6 +109,10 @@ was refused and why you needed it, set `blocked`, and stop.
    1 already gave you; that overlap is harmless, just don't treat this call
    as the *first* place to learn the path.
 
+   If the task has attachments, `{{OTACK}} attachments <id>` lists them and
+   `{{OTACK}} download <id>` saves them under your cwd
+   (`attachments/task-<id>/`); see `references/phases.md` for when.
+
 4. Act on `reason`, per `references/phases.md`.
 
 5. End the phase with a comment (`{{OTACK}} comment <id>`, body piped on stdin)
@@ -119,7 +123,7 @@ was refused and why you needed it, set `blocked`, and stop.
 
 - The project must appear in `~/.claude/otack-agent/projects.json`. Every
   `otack` command that names a project (`task`, `project`, `new-comments`,
-  `state`, `move`, `comment`) already refuses outright if it doesn't; do not
+  `attachments`, `download`, `state`, `move`, `comment`) already refuses outright if it doesn't; do not
   work around that refusal. A project absent from the file is invisible —
   see `references/boundaries.md`.
 - `write` must be `true` in that file's entry for the project before you
