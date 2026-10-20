@@ -4,9 +4,9 @@ declare(strict_types=1);
 namespace App\Agent;
 
 /**
- * Local side of `otack download`: where a task's attachments land, what
- * they are called on disk, and the optional plain-text copy of a Word-ish
- * document.
+ * Local side of `otack download`: where a task's or a project's
+ * attachments land, what they are called on disk, and the optional
+ * plain-text copy of a Word-ish document.
  *
  * Everything an attachment carries (its original name, its bytes) was
  * written by whoever uploaded it, so none of it is trusted: the name never
@@ -45,11 +45,21 @@ final class Attachments
      */
     public static function taskDir(string $home, string $scope, int $taskId): string
     {
+        return self::root($home, $scope) . '/task-' . $taskId;
+    }
+
+    /** Download directory for one project: the same root as taskDir(), "project-<id>". */
+    public static function projectDir(string $home, string $scope, int $projectId): string
+    {
+        return self::root($home, $scope) . '/project-' . $projectId;
+    }
+
+    private static function root(string $home, string $scope): string
+    {
         $home = rtrim($home, '/');
-        $root = $scope === 'agent'
+        return $scope === 'agent'
             ? $home . '/.cache/otack-agent/session-cwd/attachments'
             : $home . '/.cache/otack-manager/attachments';
-        return $root . '/task-' . $taskId;
     }
 
     /** Create $dir (0700 for every level this makes), refuse a symlink anywhere from the cache root down. */

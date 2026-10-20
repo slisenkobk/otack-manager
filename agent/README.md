@@ -299,13 +299,13 @@ whichever wrapper the scope column allows.
 |---|---|---|
 | `whoami` | both | Verify the token, show the acting user |
 | `projects` | both | Projects visible to this token, with their `projects.json` entry |
-| `project <id>` | both | repo_url, branches, agent_instructions, columns |
+| `project <id>` | both | The project at task depth: the payload (`repo_url`, branches, `dev_url`, `agent_instructions`, description, status, `columns`, `members`) plus `comments` (the whole project thread), `new_comments` (since this user last spoke there), `attachments` (the project's files, same shape as `attachments --project`) and `tags` |
 | `task <id>` | both | Task + project + local path + full thread + what's new since this user last spoke |
 | `todo [--project <id>] [--assignee me\|any]` | both | Open tasks, ranked (priority, due date, critical tags, age) |
-| `new-comments <id>` | both | Comments written after this user's own last one on that task (spec §4.1) |
-| `comment <id>` | both | Post a comment; body is read from stdin: `echo "done" \| ~/.claude/otack-agent/bin/otack comment 123`. A body holding a token (`otk_…`, a Telegram bot token, any token from the two `.env` files) or an `OTACK_…TOKEN=` / `OTACK_TG_…=` line is refused with exit 2 before any request |
+| `new-comments <id>` / `new-comments --project <id>` | both | Comments written after this user's own last one on that task / on that project's own thread (spec §4.1) |
+| `comment <id>` / `comment --project <id>` | both | Post a comment on a task / on the project itself (`entity=project`); body is read from stdin: `echo "done" \| ~/.claude/otack-agent/bin/otack comment 123`. A body holding a token (`otk_…`, a Telegram bot token, any token from the two `.env` files) or an `OTACK_…TOKEN=` / `OTACK_TG_…=` line is refused with exit 2 before any request |
 | `attachments <id>` / `attachments --project <id>` | both | Files attached to a task / a project, as the API returns them (`id`, `original_name`, `mime`, `size`, `is_image`, `path`) |
-| `download <id> [<attachment-id>…]` | both | Save the task's attachments (all, or the given ids) and print `{dir, files:[{id, original_name, mime, size, path, text_path?}], skipped:[…]}`. Directory (0700, files 0600): bot `~/.cache/otack-agent/session-cwd/attachments/task-<id>/` (the tick session's cwd — readable there, nothing new writable), manager `~/.cache/otack-manager/attachments/task-<id>/`. Stored as `<attachment-id>-<sanitised name>`; the original name is never used as a path. Files over 25 MB (`Attachments::MAX_BYTES`) are skipped and listed in `skipped`. `/uploads/…` is public static content, so this request carries **no** token; only `/uploads/` paths on the configured instance are fetched and redirects are not followed. On macOS `.docx/.doc/.rtf/.odt` also get a `<file>.txt` from `textutil` (`text_path`) |
+| `download <id> [<attachment-id>…]` / `download --project <id> [<attachment-id>…]` | both | Save the task's (or the project's) attachments (all, or the given ids) and print `{dir, files:[{id, original_name, mime, size, path, text_path?}], skipped:[…]}`. Directory (0700, files 0600): bot `~/.cache/otack-agent/session-cwd/attachments/task-<id>/` (the tick session's cwd — readable there, nothing new writable), manager `~/.cache/otack-manager/attachments/task-<id>/`; a project's go to `project-<id>/` next to them. Stored as `<attachment-id>-<sanitised name>`; the original name is never used as a path. Files over 25 MB (`Attachments::MAX_BYTES`) are skipped and listed in `skipped`. `/uploads/…` is public static content, so this request carries **no** token; only `/uploads/` paths on the configured instance are fetched and redirects are not followed. On macOS `.docx/.doc/.rtf/.odt` also get a `<file>.txt` from `textutil` (`text_path`) |
 | `move <id> <column-id>` | both | Move the card; position is computed to append past the column's current end |
 | `state <id> <phase>` | both | Set `agent_state` — `researching`, `awaiting_approval`, `implementing`, `review`, `blocked` |
 | `assign <id> <me\|none\|user-id>` | manager | Change the assignee |
@@ -315,7 +315,8 @@ whichever wrapper the scope column allows.
 | `tick-note <id> <phase>` | bot | Record on the running tick's lock file which task/phase it's on, so a wedged tick can be named in the *next* tick's warning |
 
 In the bot scope, every command that names a project or task (`task`,
-`project`, `new-comments`, `state`, `move`, `comment`, `tick-note`) first
+`project`, `new-comments`, `state`, `move`, `comment`, `attachments`,
+`download`, `tick-note`, and their `--project` forms) first
 checks that its project is listed in `~/.claude/otack-agent/projects.json`
 and refuses outright if it isn't. In the manager scope the project need not
 be listed: your token's own membership bounds what you see, and `projects`

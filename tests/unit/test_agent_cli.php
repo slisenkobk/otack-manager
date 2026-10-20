@@ -1068,6 +1068,11 @@ it('mode none: next ignores selection.json and the marker entirely', function ()
 it('manager scope survives a broken projects.json entry (local.error) and --replace repairs it; agent scope fails closed', function () {
     $routes = _setupFixtureRoutes();
     $routes['GET /api/v1/projects'] = [['status' => 200, 'body' => json_encode(['items' => [['id' => 900, 'name' => 'Тілі-Тісто']], 'next_cursor' => null])]];
+    // `project` also reads the project's thread, attachments and tags.
+    $routes['GET /api/v1/projects/900/comments']    = [['status' => 200, 'body' => json_encode(['items' => [], 'next_cursor' => null])]];
+    $routes['GET /api/v1/projects/900/attachments'] = [['status' => 200, 'body' => json_encode(['items' => []])]];
+    $routes['GET /api/v1/projects/900/tags']        = [['status' => 200, 'body' => json_encode(['items' => []])]];
+    $routes['GET /api/v1/me'] ??= [['status' => 200, 'body' => json_encode(['id' => 3])]];
     _cliFixtureServer($routes, function (int $port, string $log) {
         [$home, $root] = _setupHome($port);
         $file = $home . '/.claude/otack-agent/projects.json';
@@ -1150,6 +1155,9 @@ it('projects, project and task never echo credentials embedded in URL fields', f
     _cliFixtureServer([
         'GET /api/v1/projects'          => [['status' => 200, 'body' => json_encode(['items' => [$project], 'next_cursor' => null])]],
         'GET /api/v1/projects/42'       => [['status' => 200, 'body' => json_encode($project)]],
+        'GET /api/v1/projects/42/comments'    => [['status' => 200, 'body' => json_encode(['items' => [], 'next_cursor' => null])]],
+        'GET /api/v1/projects/42/attachments' => [['status' => 200, 'body' => json_encode(['items' => []])]],
+        'GET /api/v1/projects/42/tags'        => [['status' => 200, 'body' => json_encode(['items' => []])]],
         'GET /api/v1/tasks/7'           => [['status' => 200, 'body' => json_encode(['id' => 7, 'project_id' => 42, 'preview_url' => 'https://a:b@h.example/'])]],
         'GET /api/v1/tasks/7/comments'  => [['status' => 200, 'body' => json_encode(['items' => [], 'next_cursor' => null])]],
         'GET /api/v1/me'                => [['status' => 200, 'body' => json_encode(['id' => 3])]],
@@ -1397,5 +1405,167 @@ it('download converts an .rtf to a .txt next to it on macOS', function () {
         assert_eq($f['path'] . '.txt', $f['text_path']);
         assert_true(str_contains((string)file_get_contents($f['text_path']), 'Hello spec'));
         assert_eq(0600, fileperms($f['text_path']) & 0777);
+    });
+});
+
+// --- project depth: comments, attachments, tags ----------------------------
+
+/** Fixture routes for project $pid: payload, a comment thread, attachments, tags. */
+function _projRoutes(int $pid, array $comments, array $attachments, array $uploads = []): array {
+    $routes = [
+        "GET /api/v1/projects/$pid"             => [['status' => 200, 'body' => json_encode(['id' => $pid, 'name' => 'P',
+            'repo_url' => 'https://github.com/o/r.git', 'columns' => [], 'members' => [['user_id' => 3, 'name' => 'Bot', 'role' => 'member']]])]],
+        "GET /api/v1/projects/$pid/comments"    => [['status' => 200, 'body' => json_encode(['items' => $comments, 'next_cursor' => null])]],
+        "GET /api/v1/projects/$pid/attachments" => [['status' => 200, 'body' => json_encode(['items' => $attachments])]],
+        "GET /api/v1/projects/$pid/tags"        => [['status' => 200, 'body' => json_encode(['items' => [['id' => 1, 'name' => 'urgent', 'color' => null, 'scope' => 'project']]])]],
+        'GET /api/v1/me'                        => [['status' => 200, 'body' => json_encode(['id' => 3])]],
+        'POST /api/v1/comments'                 => [['status' => 201, 'body' => json_encode(['id' => 50, 'entity_type' => 'project'])]],
+    ];
+    foreach ($uploads as $path => $resp) { $routes["GET $path"] = [$resp]; }
+    return $routes;
+}
+
+function _projComments(): array {
+    return [
+        ['id' => 10, 'user_id' => 2, 'body' => 'brief', 'entity_type' => 'project'],
+        ['id' => 11, 'user_id' => 3, 'body' => 'ack',   'entity_type' => 'project'],
+        ['id' => 12, 'user_id' => 2, 'body' => 'new',   'entity_type' => 'project'],
+    ];
+}
+
+it('project returns the payload plus its comments, new_comments, attachments and tags in both scopes', function () {
+    $att = _attRow(5, 'brief.pdf', '/uploads/2026/10/a.pdf', 3);
+    _cliFixtureServer(_projRoutes(42, _projComments(), [$att]), function (int $port) {
+        $home = _cliManagerHome($port);
+        foreach (['agent', 'manager'] as $scope) {
+            $r = _cli('project 42', $home, '', $scope);
+            assert_eq(0, $r['code'], "$scope: " . $r['err']);
+            $j = json_decode($r['out'], true);
+            assert_eq(42, $j['project']['id']);
+            assert_eq('Bot', $j['project']['members'][0]['name']);
+            assert_eq(realpath($home . '/p42'), $j['local']['path']);
+            assert_eq([10, 11, 12], array_column($j['comments'], 'id'));
+            assert_eq([12], array_column($j['new_comments'], 'id'), 'only what came after my own last comment');
+            assert_eq([5], array_column($j['attachments'], 'id'));
+            assert_eq(['urgent'], array_column($j['tags'], 'name'));
+        }
+    });
+});
+
+it('new-comments --project returns the project thread after my watermark', function () {
+    _cliFixtureServer(_projRoutes(42, _projComments(), []), function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        foreach (['agent', 'manager'] as $scope) {
+            $r = _cli('new-comments --project 42', $home, '', $scope);
+            assert_eq(0, $r['code'], "$scope: " . $r['err']);
+            assert_eq([12], array_column(json_decode($r['out'], true)['items'], 'id'));
+        }
+        assert_true(!in_array('/api/v1/tasks/42', array_column(_requestLog($log), 'path'), true), 'the id is a project, not a task');
+        assert_eq(2, _cli('new-comments --project', $home, '', 'manager')['code']);
+        assert_eq(2, _cli('new-comments --project 42 7', $home, '', 'manager')['code']);
+    });
+});
+
+it('comment --project posts entity=project in both scopes', function () {
+    _cliFixtureServer(_projRoutes(42, [], []), function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        foreach (['agent', 'manager'] as $scope) {
+            $r = _cli('comment --project 42', $home, "Прочитал бриф\n", $scope);
+            assert_eq(0, $r['code'], "$scope: " . $r['err']);
+        }
+        $log = _requestLog($log);
+        $posts = array_values(array_filter($log, fn($e) => $e['method'] === 'POST'));
+        assert_eq(2, count($posts));
+        foreach ($posts as $post) {
+            assert_eq('/api/v1/comments', $post['path']);
+            assert_eq(['entity' => 'project', 'entity_id' => 42, 'body' => "Прочитал бриф\n"], $post['body']);
+        }
+        assert_eq(['Bearer otk_test', 'Bearer otk_owner'], array_column($posts, 'auth'));
+        assert_eq(2, count($log), 'no task lookup before a project comment');
+    });
+});
+
+it('comment --project refuses a token-like, empty or argument-less body with no request', function () {
+    _cliFixtureServer(_projRoutes(42, [], []), function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        foreach (['manager', 'agent'] as $scope) {
+            $r = _cli('comment --project 42', $home, "token otk_ABCDEFGH12\n", $scope);
+            assert_eq(2, $r['code'], "$scope: " . $r['err']);
+            assert_true(str_contains($r['err'], 'refusing to send it'), $r['err']);
+            assert_true(!str_contains($r['err'] . $r['out'], 'otk_ABCDEFGH12'), 'body not echoed');
+            $r = _cli('comment --project 42', $home, "OTACK_API_TOKEN=x\n", $scope);
+            assert_eq(2, $r['code'], "$scope: " . $r['err']);
+            $r = _cli('comment --project 42', $home, "  \n", $scope);
+            assert_eq(1, $r['code'], "$scope: " . $r['err']);
+            assert_eq(2, _cli('comment --project', $home, "hi\n", $scope)['code']);
+            assert_eq(2, _cli('comment --project 42 9', $home, "hi\n", $scope)['code']);
+        }
+        assert_eq([], _requestLog($log), 'no request for a refused body or a bad command line');
+    });
+});
+
+it('agent scope refuses every project command for an unlisted project with zero requests', function () {
+    _cliFixtureServer(_projRoutes(900, _projComments(), [_attRow(5, 'a.pdf', '/uploads/2026/10/a.pdf', 3)],
+        ['/uploads/2026/10/a.pdf' => ['status' => 200, 'body' => 'PDF']]), function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        foreach (['project 900', 'new-comments --project 900', 'comment --project 900',
+                  'attachments --project 900', 'download --project 900', 'download --project 900 5'] as $cmd) {
+            $r = _cli($cmd, $home, "hello\n", 'agent');
+            assert_eq(1, $r['code'], "$cmd: " . $r['err']);
+            assert_true(str_contains($r['err'], 'is not listed'), "$cmd: " . $r['err']);
+        }
+        assert_eq([], _requestLog($log), 'the gate refused before any request');
+        assert_true(!is_dir($home . '/.cache'), 'no download directory was created');
+        // The manager scope reads the same unlisted project with the owner token.
+        $r = _cli('project 900', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        assert_eq(null, json_decode($r['out'], true)['local']);
+    });
+});
+
+it('download --project writes safe 0600 names into project-<id>, without the token on /uploads', function () {
+    $items = [
+        _attRow(5, 'Бриф клиента.pdf', '/uploads/2026/10/a.pdf', 3),
+        _attRow(6, '../../.profile', '/uploads/2026/10/b.txt', 4, 'text/plain'),
+    ];
+    $uploads = [
+        '/uploads/2026/10/a.pdf' => ['status' => 200, 'body' => 'PDF'],
+        '/uploads/2026/10/b.txt' => ['status' => 200, 'body' => 'evil'],
+    ];
+    _cliFixtureServer(_projRoutes(42, [], $items, $uploads), function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        $dirs = [
+            'agent'   => $home . '/.cache/otack-agent/session-cwd/attachments/project-42',
+            'manager' => $home . '/.cache/otack-manager/attachments/project-42',
+        ];
+        foreach ($dirs as $scope => $dir) {
+            $r = _cli('download --project 42', $home, '', $scope);
+            assert_eq(0, $r['code'], "$scope: " . $r['err']);
+            $j = json_decode($r['out'], true);
+            assert_eq($dir, $j['dir']);
+            assert_eq(0700, fileperms($dir) & 0777, "$scope dir mode");
+            assert_eq([], $j['skipped']);
+            assert_eq(['5-Бриф_клиента.pdf', '6-profile'], array_map(fn($f) => basename($f['path']), $j['files']));
+            foreach ($j['files'] as $f) {
+                assert_eq($dir, dirname($f['path']));
+                assert_eq(0600, fileperms($f['path']) & 0777, 'file mode');
+            }
+            assert_eq('PDF', file_get_contents($dir . '/5-Бриф_клиента.pdf'));
+            assert_eq(['.', '..', '5-Бриф_клиента.pdf', '6-profile'], scandir($dir), 'no temp files left behind');
+        }
+        assert_true(!file_exists($home . '/.profile'), 'nothing escaped the directory');
+        $paths = [];
+        foreach (_requestLog($log) as $e) {
+            $paths[] = $e['path'];
+            if (str_starts_with($e['path'], '/uploads/')) { assert_eq(null, $e['auth'], 'no token on ' . $e['path']); }
+        }
+        assert_true(!array_filter($paths, fn($p) => str_starts_with($p, '/api/v1/tasks')), 'no task lookups: ' . implode(',', $paths));
+
+        $r = _cli('download --project 42 6 99', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        $j = json_decode($r['out'], true);
+        assert_eq([6], array_column($j['files'], 'id'));
+        assert_eq([['id' => 99, 'reason' => 'not attached to this project']], $j['skipped']);
+        assert_true(_cli('download --project', $home, '', 'manager')['code'] !== 0, 'a missing project id is refused');
     });
 });

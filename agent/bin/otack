@@ -106,23 +106,117 @@ function redactUrlFields(mixed $data): mixed {
     return $data;
 }
 
+/**
+ * Saves $items (an attachment list from GET /tasks|projects/{id}/attachments)
+ * into $dir — all of them, or only the $wanted ids; ids asked for but not in
+ * the list are reported in `skipped` with $notAttached as the reason. Shared
+ * by `download <task-id>` and `download --project <id>`; the caller has
+ * already passed the allow-list gate.
+ *
+ * @param list<int> $wanted
+ * @return array{dir:string, files:list<array<string,mixed>>, skipped:list<array<string,mixed>>}
+ */
+function downloadAttachments(Client $client, array $items, array $wanted, string $home, string $dir, string $notAttached): array {
+    $skipped = [];
+    if ($wanted !== []) {
+        $have = array_map(fn($a) => (int)($a['id'] ?? 0), $items);
+        foreach (array_diff($wanted, $have) as $missing) {
+            $skipped[] = ['id' => $missing, 'reason' => $notAttached];
+        }
+        $items = array_values(array_filter($items, fn($a) => in_array((int)($a['id'] ?? 0), $wanted, true)));
+    }
+
+    Attachments::ensureDir($home, $dir);
+    $max = Attachments::maxBytes();
+    $files = [];
+    foreach ($items as $a) {
+        $aid  = (int)($a['id'] ?? 0);
+        $orig = (string)($a['original_name'] ?? '');
+        $size = (int)($a['size'] ?? 0);
+        $skip = fn(string $reason) => ['id' => $aid, 'original_name' => $orig, 'size' => $size, 'reason' => $reason];
+        if ($aid <= 0) { $skipped[] = $skip('attachment has no id'); continue; }
+        if ($size > $max) { $skipped[] = $skip("oversize: $size > $max bytes"); continue; }
+        $path = (string)($a['path'] ?? '');
+        if (!Client::isUploadPath($path)) { $skipped[] = $skip('path is not a /uploads/ file on this instance'); continue; }
+
+        // Downloaded to a private temp file in the same directory,
+        // renamed over the final name only when complete — a re-run
+        // replaces the old copy atomically, a failed one leaves it.
+        $final = $dir . '/' . Attachments::safeName($aid, $orig);
+        $tmp = $dir . '/.tmp-' . bin2hex(random_bytes(6));
+        $fh = @fopen($tmp, 'xb');
+        if ($fh === false) { $skipped[] = $skip('cannot create a local file'); continue; }
+        @chmod($tmp, 0600);
+        try {
+            $res = $client->download($path, $fh, $max, Attachments::DEADLINE_SECONDS);
+        } finally {
+            fclose($fh);
+        }
+        if ($res['ok'] && $size > 0 && $res['bytes'] !== $size) {
+            $res = ['ok' => false, 'reason' => "size mismatch: got {$res['bytes']} bytes, the server lists $size"];
+        }
+        if (!$res['ok'] || is_link($final) || is_dir($final) || !@rename($tmp, $final)) {
+            @unlink($tmp);
+            $skipped[] = $skip($res['reason'] ?? 'cannot replace the local file');
+            continue;
+        }
+        $entry = [
+            'id' => $aid, 'original_name' => $orig, 'mime' => (string)($a['mime'] ?? ''),
+            'size' => $res['bytes'], 'path' => $final,
+        ];
+        if (Attachments::wantsText($final)) {
+            $entry['text_path'] = Attachments::toText($final);
+        }
+        $files[] = $entry;
+    }
+    return ['dir' => $dir, 'files' => $files, 'skipped' => $skipped];
+}
+
+/**
+ * Comment body from stdin, refused before any request: empty, invalid
+ * UTF-8, or carrying a credential (refuseSecrets()).
+ *
+ * @param list<string> $secrets Config::secretValues()
+ */
+function readCommentBody(array $secrets): string {
+    $body = stream_get_contents(STDIN);
+    if ($body === false) { $body = ''; }
+    if (trim($body) === '') { fail('refusing to post an empty comment'); }
+    // M2: the agent pipes git diffs and file excerpts into this
+    // command, so a stray latin-1 or binary byte is expected input,
+    // not a bug upstream. json_encode() returns false on invalid
+    // UTF-8, which would then hand `false` to Client::post()'s
+    // `?string $body` parameter and blow up as a strict_types
+    // TypeError deep inside the client instead of a clean refusal
+    // here.
+    if (!mb_check_encoding($body, 'UTF-8')) {
+        fail('comment body is not valid UTF-8 — refusing to post it');
+    }
+    refuseSecrets($body, $secrets, 'comment body');
+    return $body;
+}
+
 function usage(): never {
     fwrite(STDERR, <<<TXT
     otack — Otack Manager CLI (run through the installed wrappers: otack = bot scope, otack-manager = your scope)
 
       whoami                    verify the token and show the acting user
       projects                  projects visible to this token, with their local entry
-      project <id>              repo, branches, instructions, columns
+      project <id>              repo, branches, instructions, columns, members, tags,
+                                its comment thread (comments, new_comments) and attachments
       task <id>                 task, its thread, and its project context
       todo [--project <id>] [--assignee me|any]
                                 open tasks, ranked (priority, due date, critical tags, age)
-      new-comments <id>         comments written since this user last spoke
-      comment <id>              post a comment, body read from stdin (refused if it looks like a token)
+      new-comments <id> | --project <id>
+                                comments written since this user last spoke (on a task, or on a project)
+      comment <id> | --project <id>
+                                post a comment on a task (or a project), body read from stdin
+                                (refused if it looks like a token)
       attachments <id> | --project <id>
                                 files attached to a task (or a project): id, name, mime, size
-      download <id> [<attachment-id>…]
-                                save the task's attachments locally (all, or the given ids); .docx/.doc/.rtf/.odt
-                                also get a .txt copy on macOS
+      download <id> [<attachment-id>…] | --project <id> [<attachment-id>…]
+                                save the task's (or the project's) attachments locally (all, or the given ids);
+                                .docx/.doc/.rtf/.odt also get a .txt copy on macOS
       move <id> <column-id>     move the card
       state <id> <phase>        set agent_state (researching|awaiting_approval|implementing|review|blocked)
       assign <id> <me|none|user-id>              (manager scope)
@@ -377,11 +471,38 @@ try {
             $local = $localFor($id);
             $p = $client->get("/projects/$id");
             if ($p['status'] !== 200) { fail("GET /projects/$id returned " . $p['status']); }
-            out(['project' => redactUrlFields($p['json']), 'local' => $local]);
+            // The project at the same depth as `task`: its own comment
+            // thread (all pages, getAll — same reason as countNewComments),
+            // the files attached to the project, and its tags. Everything
+            // else the API has per project is either in the payload above
+            // (columns, members, repo/branches, agent_instructions) or a
+            // separate command (todo --project for its open tasks).
+            $comments = $client->getAll("/projects/$id/comments", ['limit' => 100]);
+            $att = $client->get("/projects/$id/attachments");
+            if ($att['status'] !== 200) { fail("GET /projects/$id/attachments returned " . $att['status']); }
+            $tags = $client->get("/projects/$id/tags");
+            if ($tags['status'] !== 200) { fail("GET /projects/$id/tags returned " . $tags['status']); }
+            out([
+                'project'      => redactUrlFields($p['json']),
+                'local'        => $local,
+                'comments'     => $comments,
+                'new_comments' => Triage::newComments($comments, (int)$self()['id']),
+                'attachments'  => $att['json']['items'] ?? [],
+                'tags'         => $tags['json']['items'] ?? [],
+            ]);
         }
 
         case 'new-comments': {
-            $id = positiveIntArg($argvRest[1] ?? null, 'usage: otack new-comments <id>');
+            $usageNc = 'usage: otack new-comments <task-id> | --project <project-id>';
+            if (($argvRest[1] ?? null) === '--project') {
+                if (count($argvRest) !== 3) { fail($usageNc, 2); }
+                $pid = positiveIntArg($argvRest[2], $usageNc);
+                // Gate before any request (bot scope: projects.json only).
+                $localFor($pid);
+                $comments = $client->getAll("/projects/$pid/comments", ['limit' => 100]);
+                out(['items' => Triage::newComments($comments, (int)$self()['id'])]);
+            }
+            $id = positiveIntArg($argvRest[1] ?? null, $usageNc);
             // C3: this command used to skip the allow-list gate entirely —
             // fetch the task first (purely to learn its project_id) and
             // refuse before touching the comment thread at all if this
@@ -417,11 +538,24 @@ try {
         }
 
         case 'download': {
-            $usageDl = 'usage: otack download <task-id> [<attachment-id>…]';
-            $id = positiveIntArg($argvRest[1] ?? null, $usageDl);
+            $usageDl = 'usage: otack download <task-id> [<attachment-id>…] | --project <project-id> [<attachment-id>…]';
+            $isProject = ($argvRest[1] ?? null) === '--project';
+            $rest = $isProject ? array_slice($argvRest, 2) : array_slice($argvRest, 1);
+            $id = positiveIntArg($rest[0] ?? null, $usageDl);
             $wanted = [];
-            foreach (array_slice($argvRest, 2) as $a) { $wanted[] = positiveIntArg((string)$a, $usageDl); }
+            foreach (array_slice($rest, 1) as $a) { $wanted[] = positiveIntArg((string)$a, $usageDl); }
             $wanted = array_values(array_unique($wanted));
+            $home = getenv('HOME') ?: '';
+
+            if ($isProject) {
+                // Gate before any request (bot scope: projects.json only).
+                $localFor($id);
+                $r = $client->get("/projects/$id/attachments");
+                if ($r['status'] !== 200) { fail("GET /projects/$id/attachments returned " . $r['status']); }
+                $items = is_array($r['json']['items'] ?? null) ? $r['json']['items'] : [];
+                out(downloadAttachments($client, $items, $wanted, $home,
+                    Attachments::projectDir($home, $scope, $id), 'not attached to this project'));
+            }
 
             $t = $client->get("/tasks/$id");
             if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
@@ -429,62 +563,8 @@ try {
             $r = $client->get("/tasks/$id/attachments");
             if ($r['status'] !== 200) { fail("GET /tasks/$id/attachments returned " . $r['status']); }
             $items = is_array($r['json']['items'] ?? null) ? $r['json']['items'] : [];
-
-            $skipped = [];
-            if ($wanted !== []) {
-                $have = array_map(fn($a) => (int)($a['id'] ?? 0), $items);
-                foreach (array_diff($wanted, $have) as $missing) {
-                    $skipped[] = ['id' => $missing, 'reason' => 'not attached to this task'];
-                }
-                $items = array_values(array_filter($items, fn($a) => in_array((int)($a['id'] ?? 0), $wanted, true)));
-            }
-
-            $home = getenv('HOME') ?: '';
-            $dir = Attachments::taskDir($home, $scope, $id);
-            Attachments::ensureDir($home, $dir);
-            $max = Attachments::maxBytes();
-            $files = [];
-            foreach ($items as $a) {
-                $aid  = (int)($a['id'] ?? 0);
-                $orig = (string)($a['original_name'] ?? '');
-                $size = (int)($a['size'] ?? 0);
-                $skip = fn(string $reason) => ['id' => $aid, 'original_name' => $orig, 'size' => $size, 'reason' => $reason];
-                if ($aid <= 0) { $skipped[] = $skip('attachment has no id'); continue; }
-                if ($size > $max) { $skipped[] = $skip("oversize: $size > $max bytes"); continue; }
-                $path = (string)($a['path'] ?? '');
-                if (!Client::isUploadPath($path)) { $skipped[] = $skip('path is not a /uploads/ file on this instance'); continue; }
-
-                // Downloaded to a private temp file in the same directory,
-                // renamed over the final name only when complete — a re-run
-                // replaces the old copy atomically, a failed one leaves it.
-                $final = $dir . '/' . Attachments::safeName($aid, $orig);
-                $tmp = $dir . '/.tmp-' . bin2hex(random_bytes(6));
-                $fh = @fopen($tmp, 'xb');
-                if ($fh === false) { $skipped[] = $skip('cannot create a local file'); continue; }
-                @chmod($tmp, 0600);
-                try {
-                    $res = $client->download($path, $fh, $max, Attachments::DEADLINE_SECONDS);
-                } finally {
-                    fclose($fh);
-                }
-                if ($res['ok'] && $size > 0 && $res['bytes'] !== $size) {
-                    $res = ['ok' => false, 'reason' => "size mismatch: got {$res['bytes']} bytes, the server lists $size"];
-                }
-                if (!$res['ok'] || is_link($final) || is_dir($final) || !@rename($tmp, $final)) {
-                    @unlink($tmp);
-                    $skipped[] = $skip($res['reason'] ?? 'cannot replace the local file');
-                    continue;
-                }
-                $entry = [
-                    'id' => $aid, 'original_name' => $orig, 'mime' => (string)($a['mime'] ?? ''),
-                    'size' => $res['bytes'], 'path' => $final,
-                ];
-                if (Attachments::wantsText($final)) {
-                    $entry['text_path'] = Attachments::toText($final);
-                }
-                $files[] = $entry;
-            }
-            out(['dir' => $dir, 'files' => $files, 'skipped' => $skipped]);
+            out(downloadAttachments($client, $items, $wanted, $home,
+                Attachments::taskDir($home, $scope, $id), 'not attached to this task'));
         }
 
         case 'state': {
@@ -532,29 +612,24 @@ try {
         }
 
         case 'comment': {
-            $id = positiveIntArg($argvRest[1] ?? null, 'usage: otack comment <id>  (body on stdin)');
+            $usageCm = 'usage: otack comment <task-id> | --project <project-id>  (body on stdin)';
+            $isProject = ($argvRest[1] ?? null) === '--project';
+            if ($isProject && count($argvRest) !== 3) { fail($usageCm, 2); }
+            $id = positiveIntArg($argvRest[$isProject ? 2 : 1] ?? null, $usageCm);
             // The body is checked before any request: a refused body costs
             // no round trip and reveals nothing to the server.
-            $body = stream_get_contents(STDIN);
-            if ($body === false) { $body = ''; }
-            if (trim($body) === '') { fail('refusing to post an empty comment'); }
-            // M2: the agent pipes git diffs and file excerpts into this
-            // command, so a stray latin-1 or binary byte is expected input,
-            // not a bug upstream. json_encode() returns false on invalid
-            // UTF-8, which would then hand `false` to Client::post()'s
-            // `?string $body` parameter and blow up as a strict_types
-            // TypeError deep inside the client instead of a clean refusal
-            // here.
-            if (!mb_check_encoding($body, 'UTF-8')) {
-                fail('comment body is not valid UTF-8 — refusing to post it');
-            }
-            refuseSecrets($body, $cfg->secretValues(), 'comment body');
+            $body = readCommentBody($cfg->secretValues());
 
-            // C3: gate before writing.
-            $t = $client->get("/tasks/$id");
-            if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
-            $localFor((int)$t['json']['project_id']);
-            $r = $client->post('/comments', ['entity' => 'task', 'entity_id' => $id, 'body' => $body]);
+            // C3: gate before writing. A project comment gates on the id
+            // itself; a task comment fetches the task to learn its project.
+            if ($isProject) {
+                $localFor($id);
+            } else {
+                $t = $client->get("/tasks/$id");
+                if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
+                $localFor((int)$t['json']['project_id']);
+            }
+            $r = $client->post('/comments', ['entity' => $isProject ? 'project' : 'task', 'entity_id' => $id, 'body' => $body]);
             if ($r['status'] !== 201) { fail('POST /comments returned ' . $r['status']); }
             out($r['json']);
         }

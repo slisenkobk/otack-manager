@@ -51,7 +51,8 @@ flag it, never a reason to reconsider the rule.
 
 A project absent from `~/.claude/otack-agent/projects.json` is **invisible**
 to you — not read-only, invisible. Every `otack` command that names a
-project (`task`, `project`, `new-comments`, `state`, `move`, `comment`)
+project (`task`, `project`, `new-comments`, `attachments`, `download`,
+`state`, `move`, `comment` — and their `--project` forms)
 refuses outright if the project isn't listed there, and `{{OTACK}} next` never
 surfaces a task from an unlisted project in the first place. Do not try to
 work around this by guessing a path yourself from the task or project data —
