@@ -127,11 +127,21 @@ final class CommentsHandler extends BaseHandler
             $slice = array_slice($slice, 0, $limit);
             $next  = (int)end($slice)['id'];
         }
-        return ApiResponse::paginated(array_map([$this, 'serialize'], $slice), $next);
+        // Files attached to these comments (entity_type='comment'), one query
+        // for the page. Visibility is the parent task's/project's, already
+        // checked by the caller — the same rule the web task/project pages use.
+        $files = $this->svc('attachments')->listForComments(array_column($slice, 'id'));
+        $items = array_map(fn($c) => $this->serialize($c, $files[(int)$c['id']] ?? []), $slice);
+        return ApiResponse::paginated($items, $next);
     }
 
-    /** Body returned as raw Markdown — clients render. */
-    private function serialize(array $c): array
+    /**
+     * Body returned as raw Markdown — clients render. `attachments` lists the
+     * files attached to this comment, in AttachmentsHandler::serialize shape.
+     *
+     * @param list<array<string,mixed>> $attachments raw attachment rows
+     */
+    private function serialize(array $c, array $attachments = []): array
     {
         return [
             'id'          => (int)$c['id'],
@@ -142,6 +152,7 @@ final class CommentsHandler extends BaseHandler
             'parent_id'   => $c['parent_id'] !== null ? (int)$c['parent_id'] : null,
             'created_at'  => $c['created_at'] ?? null,
             'author_name' => $c['author_name'] ?? null,
+            'attachments' => array_map([AttachmentsHandler::class, 'serialize'], $attachments),
         ];
     }
 }

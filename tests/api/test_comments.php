@@ -206,3 +206,87 @@ api_it('POST /comments notifies (comment.created → notifications_log) and logs
     $st->execute([6102]);
     assert_eq(1, (int)$st->fetchColumn(), 'expected one comment.created activity row');
 });
+
+// ─── comment attachments (files attached to a comment: entity_type='comment') ──
+
+function comments_seed_attachment(\PDO $pdo, int $id, string $entityType, int $entityId, string $name, string $createdAt): void {
+    $pdo->prepare("INSERT OR IGNORE INTO attachments (id, entity_type, entity_id, filename, original_name, mime, size, is_image, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, 'application/pdf', 3, 0, 1, ?)")
+        ->execute([$id, $entityType, $entityId, 'uploads/2026/10/catt-' . $id . '.pdf', $name, $createdAt]);
+}
+
+api_it('GET /tasks/{id}/comments and /projects/{id}/comments embed each comment\'s files', function () {
+    [$pdo, , $empTok,] = comments_setup();
+    comments_seed_project($pdo, 6020);
+    comments_seed_column($pdo, 60201, 6020);
+    comments_seed_task($pdo, 6120, 6020, 60201, 1);
+    $pdo->prepare("INSERT OR IGNORE INTO project_members (project_id, user_id, role) VALUES (6020, 2, 'member')")->execute();
+    comments_seed_comment($pdo, 6300, 'task', 6120, 1, 'spec attached', '2026-01-02T10:00:00.000Z');
+    comments_seed_comment($pdo, 6301, 'task', 6120, 1, 'no files',      '2026-01-02T10:01:00.000Z');
+    comments_seed_comment($pdo, 6302, 'project', 6020, 1, 'brief',      '2026-01-02T10:02:00.000Z');
+    comments_seed_attachment($pdo, 6400, 'comment', 6300, 'spec.pdf',   '2026-01-02T10:00:01.000Z');
+    comments_seed_attachment($pdo, 6401, 'comment', 6300, 'mockup.pdf', '2026-01-02T10:00:02.000Z');
+    comments_seed_attachment($pdo, 6402, 'task',    6120, 'task.pdf',   '2026-01-02T10:00:03.000Z');
+    comments_seed_attachment($pdo, 6403, 'comment', 6302, 'brief.pdf',  '2026-01-02T10:02:01.000Z');
+    // Same numeric id as comment 6300 but a different entity — must not leak in.
+    comments_seed_attachment($pdo, 6404, 'project', 6300, 'other.pdf', '2026-01-02T10:00:04.000Z');
+
+    // A plain project member (not admin) sees them — the web rule.
+    $r = api_request('GET', '/api/v1/tasks/6120/comments', ['headers' => ['Authorization: Bearer ' . $empTok]]);
+    assert_eq(200, $r['status'], $r['body']);
+    $byId = array_column($r['json']['items'], null, 'id');
+    $files = $byId[6300]['attachments'];
+    assert_eq([6400, 6401], array_column($files, 'id'));
+    assert_eq('spec.pdf', $files[0]['original_name']);
+    assert_eq('comment', $files[0]['entity_type']);
+    assert_eq(6300, $files[0]['entity_id']);
+    assert_eq('/uploads/2026/10/catt-6400.pdf', $files[0]['path']);
+    assert_eq(['id', 'entity_type', 'entity_id', 'filename', 'path', 'original_name', 'mime', 'size', 'is_image', 'uploaded_by', 'created_at'],
+        array_keys($files[0]), 'same shape as GET /tasks/{id}/attachments');
+    assert_eq([], $byId[6301]['attachments'], 'a comment without files has an empty list');
+
+    $p = api_request('GET', '/api/v1/projects/6020/comments', ['headers' => ['Authorization: Bearer ' . $empTok]]);
+    assert_eq(200, $p['status'], $p['body']);
+    assert_eq([6302], array_column($p['json']['items'], 'id'));
+    assert_eq([6403], array_column($p['json']['items'][0]['attachments'], 'id'));
+
+    // The task's own attachment list is unchanged (task files only).
+    $a = api_request('GET', '/api/v1/tasks/6120/attachments', ['headers' => ['Authorization: Bearer ' . $empTok]]);
+    assert_eq([6402], array_column($a['json']['items'], 'id'));
+});
+
+api_it('comment files of a project the caller cannot see return 404 and leak nothing', function () {
+    [$pdo, , , $otherTok] = comments_setup();
+    comments_seed_project($pdo, 6021);
+    comments_seed_column($pdo, 60211, 6021);
+    comments_seed_task($pdo, 6121, 6021, 60211, 1);
+    comments_seed_comment($pdo, 6310, 'task', 6121, 1, 'secret spec', '2026-01-02T11:00:00.000Z');
+    comments_seed_comment($pdo, 6311, 'project', 6021, 1, 'secret brief', '2026-01-02T11:01:00.000Z');
+    comments_seed_attachment($pdo, 6410, 'comment', 6310, 'secret-spec.pdf', '2026-01-02T11:00:01.000Z');
+    comments_seed_attachment($pdo, 6411, 'comment', 6311, 'secret-brief.pdf', '2026-01-02T11:01:01.000Z');
+
+    foreach (['/api/v1/tasks/6121/comments', '/api/v1/projects/6021/comments'] as $path) {
+        $r = api_request('GET', $path, ['headers' => ['Authorization: Bearer ' . $otherTok]]);
+        assert_eq(404, $r['status'], $path);
+        assert_true(!str_contains($r['body'], 'secret') && !str_contains($r['body'], 'catt-641'), "$path leaked: " . $r['body']);
+    }
+});
+
+api_it('comments without files carry attachments: [] in lists and in POST /comments', function () {
+    [$pdo, $adminTok,,] = comments_setup();
+    comments_seed_project($pdo, 6022);
+    comments_seed_column($pdo, 60221, 6022);
+    comments_seed_task($pdo, 6122, 6022, 60221, 1);
+    comments_seed_comment($pdo, 6320, 'task', 6122, 1, 'plain', '2026-01-02T12:00:00.000Z');
+
+    $r = api_request('GET', '/api/v1/tasks/6122/comments', ['headers' => ['Authorization: Bearer ' . $adminTok]]);
+    assert_eq(200, $r['status']);
+    assert_eq([[]], array_column($r['json']['items'], 'attachments'));
+    assert_true(str_contains($r['body'], '"attachments":[]'), 'a JSON array, not an object');
+
+    $c = api_request('POST', '/api/v1/comments', [
+        'headers' => ['Authorization: Bearer ' . $adminTok],
+        'body'    => json_encode(['entity' => 'task', 'entity_id' => 6122, 'body' => 'new']),
+    ]);
+    assert_eq(201, $c['status']);
+    assert_eq([], $c['json']['attachments']);
+});

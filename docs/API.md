@@ -1279,14 +1279,34 @@ List comments on a task.
       "body": "First!",
       "parent_id": null,
       "created_at": "2026-06-01T12:00:00Z",
-      "author_name": "Ada"
+      "author_name": "Ada",
+      "attachments": [
+        {
+          "id": 77,
+          "entity_type": "comment",
+          "entity_id": 9001,
+          "filename": "uploads/2026/06/ab12cd.pdf",
+          "path": "/uploads/2026/06/ab12cd.pdf",
+          "original_name": "spec.pdf",
+          "mime": "application/pdf",
+          "size": 48213,
+          "is_image": false,
+          "uploaded_by": 7,
+          "created_at": "2026-06-01T12:00:05Z"
+        }
+      ]
     }
   ],
   "next_cursor": null
 }
 ```
 
-`body` is raw Markdown — clients render.
+`body` is raw Markdown — clients render. `attachments` lists the files
+attached to that comment in the web UI (`entity_type: "comment"`), in the
+same shape as `GET /tasks/{id}/attachments`, oldest first; `[]` when there
+are none. They are visible to whoever can see the comment (the parent
+project's rule). The task's and project's own attachment endpoints keep
+returning only their own files. `POST /comments` returns `attachments: []`.
 
 ---
 

@@ -47,6 +47,29 @@ final class AttachmentRepository
     }
 
     /**
+     * Files attached to the given comments (entity_type='comment'), grouped
+     * by comment id, oldest first — one query for a whole page of comments.
+     *
+     * @param list<int> $commentIds
+     * @return array<int, list<array<string,mixed>>>
+     */
+    public function listForComments(array $commentIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $commentIds)));
+        if ($ids === []) return [];
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->pdo->prepare(
+            "SELECT * FROM attachments WHERE entity_type = 'comment' AND entity_id IN ($placeholders) ORDER BY created_at ASC, id ASC"
+        );
+        $stmt->execute($ids);
+        $out = [];
+        foreach ($stmt->fetchAll() as $a) {
+            $out[(int)$a['entity_id']][] = $a;
+        }
+        return $out;
+    }
+
+    /**
      * Returns attachments belonging to the task itself plus any files attached to comments
      * on that task — single chronological list for the task's "Attachments" panel.
      *

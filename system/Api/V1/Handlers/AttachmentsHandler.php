@@ -28,7 +28,7 @@ final class AttachmentsHandler extends BaseHandler
 
         $items = $this->svc('attachments')->listFor('task', $taskId);
         return ApiResponse::ok([
-            'items' => array_map([$this, 'serialize'], $items),
+            'items' => array_map([self::class, 'serialize'], $items),
         ]);
     }
 
@@ -41,7 +41,7 @@ final class AttachmentsHandler extends BaseHandler
 
         $items = $this->svc('attachments')->listFor('project', $projectId);
         return ApiResponse::ok([
-            'items' => array_map([$this, 'serialize'], $items),
+            'items' => array_map([self::class, 'serialize'], $items),
         ]);
     }
 
@@ -104,7 +104,7 @@ final class AttachmentsHandler extends BaseHandler
         ]);
         $row = $this->svc('attachments')->findById($id);
         $this->domainEvents()->attachmentUploaded($this->user(), $row, $entity, $entityId);
-        return ApiResponse::created($this->serialize($row));
+        return ApiResponse::created(self::serialize($row));
     }
 
     /**
@@ -152,7 +152,11 @@ final class AttachmentsHandler extends BaseHandler
         return ApiResponse::noContent();
     }
 
-    private function serialize(array $a): array
+    /**
+     * Public API shape of one attachment row. Shared with CommentsHandler,
+     * which embeds a comment's files in each serialized comment.
+     */
+    public static function serialize(array $a): array
     {
         return [
             'id'            => (int)$a['id'],

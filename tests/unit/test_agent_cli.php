@@ -1249,11 +1249,12 @@ it('setup-project --write --clone rolls the clone back when origin/HEAD names a 
 
 // --- attachments / download ------------------------------------------------
 
-/** Fixture routes for task 77 in project $pid with the given attachment rows and /uploads bodies. */
-function _attRoutes(int $pid, array $items, array $uploads = []): array {
+/** Fixture routes for task 77 in project $pid with the given attachment rows, comment thread and /uploads bodies. */
+function _attRoutes(int $pid, array $items, array $uploads = [], array $comments = []): array {
     $routes = [
         'GET /api/v1/tasks/77'             => [['status' => 200, 'body' => json_encode(['id' => 77, 'project_id' => $pid])]],
         'GET /api/v1/tasks/77/attachments' => [['status' => 200, 'body' => json_encode(['items' => $items])]],
+        'GET /api/v1/tasks/77/comments'    => [['status' => 200, 'body' => json_encode(['items' => $comments, 'next_cursor' => null])]],
     ];
     foreach ($uploads as $path => $resp) { $routes["GET $path"] = [$resp]; }
     return $routes;
@@ -1268,6 +1269,7 @@ it('attachments lists a task\'s files in both scopes, and --project lists a proj
     $row = _attRow(5, 'spec.pdf', '/uploads/2026/10/a.pdf', 3);
     $routes = _attRoutes(42, [$row]) + [
         'GET /api/v1/projects/42/attachments' => [['status' => 200, 'body' => json_encode(['items' => [$row]])]],
+        'GET /api/v1/projects/42/comments'    => [['status' => 200, 'body' => json_encode(['items' => [], 'next_cursor' => null])]],
     ];
     _cliFixtureServer($routes, function (int $port) {
         $home = _cliManagerHome($port);
@@ -1567,5 +1569,124 @@ it('download --project writes safe 0600 names into project-<id>, without the tok
         assert_eq([6], array_column($j['files'], 'id'));
         assert_eq([['id' => 99, 'reason' => 'not attached to this project']], $j['skipped']);
         assert_true(_cli('download --project', $home, '', 'manager')['code'] !== 0, 'a missing project id is refused');
+    });
+});
+
+// --- files attached to comments --------------------------------------------
+
+/** A comment row as the API sends it, with its files embedded. */
+function _commentWithFiles(int $id, string $entityType, array $files, int $userId = 2): array {
+    return ['id' => $id, 'entity_type' => $entityType, 'user_id' => $userId, 'body' => "c$id", 'parent_id' => null,
+        'attachments' => array_map(fn($f) => array_merge($f, ['entity_type' => 'comment', 'entity_id' => $id]), $files)];
+}
+
+it('attachments, task and project list comment files marked by source and comment_id', function () {
+    $taskComments = [_commentWithFiles(20, 'task', [_attRow(8, 'spec-in-comment.pdf', '/uploads/2026/10/c8.pdf', 3)]),
+                     ['id' => 21, 'entity_type' => 'task', 'user_id' => 2, 'body' => 'no files']];
+    $projComments = [_commentWithFiles(30, 'project', [_attRow(9, 'brief-in-comment.pdf', '/uploads/2026/10/c9.pdf', 3)])];
+    $routes = _attRoutes(42, [_attRow(5, 'spec.pdf', '/uploads/2026/10/a.pdf', 3)], [], $taskComments)
+        + _projRoutes(42, $projComments, [_attRow(6, 'brief.pdf', '/uploads/2026/10/b.pdf', 3)]);
+    _cliFixtureServer($routes, function (int $port) {
+        $home = _cliManagerHome($port);
+        foreach (['agent', 'manager'] as $scope) {
+            $r = _cli('attachments 77', $home, '', $scope);
+            assert_eq(0, $r['code'], "$scope: " . $r['err']);
+            $items = json_decode($r['out'], true)['items'];
+            assert_eq([5, 8], array_column($items, 'id'));
+            assert_eq(['task', 'comment'], array_column($items, 'source'));
+            assert_eq([null, 20], array_column($items, 'comment_id'));
+            assert_eq('spec-in-comment.pdf', $items[1]['original_name']);
+
+            $r = _cli('attachments --project 42', $home, '', $scope);
+            assert_eq(0, $r['code'], "$scope: " . $r['err']);
+            $items = json_decode($r['out'], true)['items'];
+            assert_eq([6, 9], array_column($items, 'id'));
+            assert_eq(['project', 'comment'], array_column($items, 'source'));
+            assert_eq([null, 30], array_column($items, 'comment_id'));
+
+            $r = _cli('project 42', $home, '', $scope);
+            assert_eq(0, $r['code'], "$scope: " . $r['err']);
+            $j = json_decode($r['out'], true);
+            assert_eq([6, 9], array_column($j['attachments'], 'id'));
+            assert_eq(['project', 'comment'], array_column($j['attachments'], 'source'));
+            assert_eq([9], array_column($j['comments'][0]['attachments'], 'id'), 'the comment still carries its files');
+            assert_eq([9], array_column($j['new_comments'][0]['attachments'], 'id'));
+
+            $r = _cli('task 77', $home, '', $scope);
+            assert_eq(0, $r['code'], "$scope: " . $r['err']);
+            $j = json_decode($r['out'], true);
+            assert_eq([8], array_column($j['comments'][0]['attachments'], 'id'));
+            assert_eq([8], array_column($j['new_comments'][0]['attachments'], 'id'));
+
+            $r = _cli('new-comments 77', $home, '', $scope);
+            assert_eq(0, $r['code'], "$scope: " . $r['err']);
+            assert_eq([8], array_column(json_decode($r['out'], true)['items'][0]['attachments'], 'id'));
+        }
+    });
+});
+
+it('download fetches comment files too, marked by source, with the same safety', function () {
+    $taskComments = [_commentWithFiles(20, 'task', [_attRow(8, '../ТЗ в комментарии.pdf', '/uploads/2026/10/c8.pdf', 3),
+                                                    _attRow(10, 'foreign.pdf', 'https://evil.example/uploads/x.pdf', 3)])];
+    $projComments = [_commentWithFiles(30, 'project', [_attRow(9, 'brief-in-comment.pdf', '/uploads/2026/10/c9.pdf', 4)])];
+    $uploads = [
+        '/uploads/2026/10/a.pdf'  => ['status' => 200, 'body' => 'PDF'],
+        '/uploads/2026/10/c8.pdf' => ['status' => 200, 'body' => 'CMT'],
+        '/uploads/2026/10/c9.pdf' => ['status' => 200, 'body' => 'PCMT'],
+    ];
+    $routes = _attRoutes(42, [_attRow(5, 'spec.pdf', '/uploads/2026/10/a.pdf', 3)], $uploads, $taskComments)
+        + _projRoutes(42, $projComments, []);
+    _cliFixtureServer($routes, function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        foreach (['agent' => $home . '/.cache/otack-agent/session-cwd/attachments', 'manager' => $home . '/.cache/otack-manager/attachments'] as $scope => $root) {
+            $r = _cli('download 77', $home, '', $scope);
+            assert_eq(0, $r['code'], "$scope: " . $r['err']);
+            $j = json_decode($r['out'], true);
+            assert_eq($root . '/task-77', $j['dir']);
+            assert_eq([5, 8], array_column($j['files'], 'id'));
+            assert_eq(['task', 'comment'], array_column($j['files'], 'source'));
+            assert_eq([null, 20], array_column($j['files'], 'comment_id'));
+            assert_eq(['5-spec.pdf', '8-ТЗ_в_комментарии.pdf'], array_map(fn($f) => basename($f['path']), $j['files']));
+            foreach ($j['files'] as $f) { assert_eq(0600, fileperms($f['path']) & 0777, 'file mode'); }
+            assert_eq('CMT', file_get_contents($j['dir'] . '/8-ТЗ_в_комментарии.pdf'));
+            assert_eq([10], array_column($j['skipped'], 'id'), 'a foreign path in a comment is skipped');
+            assert_eq('comment', $j['skipped'][0]['source']);
+            assert_eq(20, $j['skipped'][0]['comment_id']);
+
+            $r = _cli('download --project 42', $home, '', $scope);
+            assert_eq(0, $r['code'], "$scope: " . $r['err']);
+            $j = json_decode($r['out'], true);
+            assert_eq($root . '/project-42', $j['dir']);
+            assert_eq([9], array_column($j['files'], 'id'));
+            assert_eq(['comment'], array_column($j['files'], 'source'));
+            assert_eq('PCMT', file_get_contents($j['dir'] . '/9-brief-in-comment.pdf'));
+        }
+        // One comment file by id.
+        $r = _cli('download 77 8', $home, '', 'manager');
+        assert_eq(0, $r['code'], $r['err']);
+        $j = json_decode($r['out'], true);
+        assert_eq([8], array_column($j['files'], 'id'));
+        assert_eq([], $j['skipped']);
+        foreach (_requestLog($log) as $e) {
+            if (str_starts_with($e['path'], '/uploads/')) { assert_eq(null, $e['auth'], 'no token on ' . $e['path']); }
+            assert_true(!str_contains($e['path'], 'evil'), $e['path']);
+        }
+    });
+});
+
+it('agent scope refuses comment files of an unlisted project before reading the thread', function () {
+    $taskComments = [_commentWithFiles(20, 'task', [_attRow(8, 'c.pdf', '/uploads/2026/10/c8.pdf', 3)])];
+    $routes = _attRoutes(900, [], ['/uploads/2026/10/c8.pdf' => ['status' => 200, 'body' => 'CMT']], $taskComments)
+        + _projRoutes(900, [_commentWithFiles(30, 'project', [_attRow(9, 'p.pdf', '/uploads/2026/10/c8.pdf', 3)])], []);
+    _cliFixtureServer($routes, function (int $port, string $log) {
+        $home = _cliManagerHome($port);
+        foreach (['attachments 77', 'download 77', 'download 77 8', 'attachments --project 900', 'download --project 900'] as $cmd) {
+            $r = _cli($cmd, $home, '', 'agent');
+            assert_eq(1, $r['code'], "$cmd: " . $r['err']);
+            assert_true(str_contains($r['err'], 'is not listed'), "$cmd: " . $r['err']);
+        }
+        $paths = array_map(fn($e) => $e['path'], _requestLog($log));
+        assert_eq(['/api/v1/tasks/77', '/api/v1/tasks/77', '/api/v1/tasks/77'], $paths, 'only the task itself was read');
+        assert_true(!is_dir($home . '/.cache'), 'no download directory was created');
     });
 });

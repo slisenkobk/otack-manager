@@ -107,8 +107,50 @@ function redactUrlFields(mixed $data): mixed {
 }
 
 /**
- * Saves $items (an attachment list from GET /tasks|projects/{id}/attachments)
- * into $dir — all of them, or only the $wanted ids; ids asked for but not in
+ * $items (an attachment list) with each row marked where it came from:
+ * source "task" | "project" | "comment", and the comment's id (null unless
+ * the file was attached to a comment).
+ */
+function markSource(array $items, string $source, ?int $commentId = null): array {
+    $out = [];
+    foreach ($items as $a) {
+        if (!is_array($a)) { continue; }
+        $out[] = array_merge($a, ['source' => $source, 'comment_id' => $commentId]);
+    }
+    return $out;
+}
+
+/**
+ * Files attached to the comments of a thread (each comment's `attachments`,
+ * in thread order), marked source=comment. A server that predates the field
+ * sends none, so the list is just empty there.
+ */
+function commentAttachments(array $comments): array {
+    $out = [];
+    foreach ($comments as $c) {
+        $files = is_array($c) ? ($c['attachments'] ?? []) : [];
+        if (!is_array($files)) { continue; }
+        foreach (markSource($files, 'comment', (int)($c['id'] ?? 0)) as $a) { $out[] = $a; }
+    }
+    return $out;
+}
+
+/**
+ * All files of a task or a project: its own attachments, then those attached
+ * to its comments (all pages of the thread). The caller has already passed
+ * the allow-list gate.
+ */
+function entityFiles(Client $client, string $kind, int $id): array {
+    $r = $client->get("/{$kind}s/$id/attachments");
+    if ($r['status'] !== 200) { fail("GET /{$kind}s/$id/attachments returned " . $r['status']); }
+    $own = is_array($r['json']['items'] ?? null) ? $r['json']['items'] : [];
+    $comments = $client->getAll("/{$kind}s/$id/comments", ['limit' => 100]);
+    return array_merge(markSource($own, $kind), commentAttachments($comments));
+}
+
+/**
+ * Saves $items (entityFiles(): the task's or project's own files plus those
+ * attached to its comments) into $dir — all of them, or only the $wanted ids; ids asked for but not in
  * the list are reported in `skipped` with $notAttached as the reason. Shared
  * by `download <task-id>` and `download --project <id>`; the caller has
  * already passed the allow-list gate.
@@ -133,7 +175,8 @@ function downloadAttachments(Client $client, array $items, array $wanted, string
         $aid  = (int)($a['id'] ?? 0);
         $orig = (string)($a['original_name'] ?? '');
         $size = (int)($a['size'] ?? 0);
-        $skip = fn(string $reason) => ['id' => $aid, 'original_name' => $orig, 'size' => $size, 'reason' => $reason];
+        $from = isset($a['source']) ? ['source' => $a['source'], 'comment_id' => $a['comment_id'] ?? null] : [];
+        $skip = fn(string $reason) => ['id' => $aid, 'original_name' => $orig, 'size' => $size, 'reason' => $reason] + $from;
         if ($aid <= 0) { $skipped[] = $skip('attachment has no id'); continue; }
         if ($size > $max) { $skipped[] = $skip("oversize: $size > $max bytes"); continue; }
         $path = (string)($a['path'] ?? '');
@@ -163,7 +206,7 @@ function downloadAttachments(Client $client, array $items, array $wanted, string
         $entry = [
             'id' => $aid, 'original_name' => $orig, 'mime' => (string)($a['mime'] ?? ''),
             'size' => $res['bytes'], 'path' => $final,
-        ];
+        ] + $from;
         if (Attachments::wantsText($final)) {
             $entry['text_path'] = Attachments::toText($final);
         }
@@ -204,7 +247,9 @@ function usage(): never {
       projects                  projects visible to this token, with their local entry
       project <id>              repo, branches, instructions, columns, members, tags,
                                 its comment thread (comments, new_comments) and attachments
-      task <id>                 task, its thread, and its project context
+                                (the project's own and those attached to its comments)
+      task <id>                 task, its thread, and its project context;
+                                each comment carries the files attached to it (attachments)
       todo [--project <id>] [--assignee me|any]
                                 open tasks, ranked (priority, due date, critical tags, age)
       new-comments <id> | --project <id>
@@ -213,9 +258,11 @@ function usage(): never {
                                 post a comment on a task (or a project), body read from stdin
                                 (refused if it looks like a token)
       attachments <id> | --project <id>
-                                files attached to a task (or a project): id, name, mime, size
+                                files of a task (or a project), its own and its comments':
+                                id, name, mime, size, source (task|project|comment), comment_id
       download <id> [<attachment-id>…] | --project <id> [<attachment-id>…]
-                                save the task's (or the project's) attachments locally (all, or the given ids);
+                                save the task's (or the project's) files locally, comment files included
+                                (all, or the given ids); each entry says its source and comment_id;
                                 .docx/.doc/.rtf/.odt also get a .txt copy on macOS
       move <id> <column-id>     move the card
       state <id> <phase>        set agent_state (researching|awaiting_approval|implementing|review|blocked)
@@ -480,6 +527,7 @@ try {
             $comments = $client->getAll("/projects/$id/comments", ['limit' => 100]);
             $att = $client->get("/projects/$id/attachments");
             if ($att['status'] !== 200) { fail("GET /projects/$id/attachments returned " . $att['status']); }
+            $ownFiles = is_array($att['json']['items'] ?? null) ? $att['json']['items'] : [];
             $tags = $client->get("/projects/$id/tags");
             if ($tags['status'] !== 200) { fail("GET /projects/$id/tags returned " . $tags['status']); }
             out([
@@ -487,7 +535,7 @@ try {
                 'local'        => $local,
                 'comments'     => $comments,
                 'new_comments' => Triage::newComments($comments, (int)$self()['id']),
-                'attachments'  => $att['json']['items'] ?? [],
+                'attachments'  => array_merge(markSource($ownFiles, 'project'), commentAttachments($comments)),
                 'tags'         => $tags['json']['items'] ?? [],
             ]);
         }
@@ -521,9 +569,7 @@ try {
                 $pid = positiveIntArg($argvRest[2], $usageAtt);
                 // Gate before any request (bot scope: projects.json only).
                 $localFor($pid);
-                $r = $client->get("/projects/$pid/attachments");
-                if ($r['status'] !== 200) { fail("GET /projects/$pid/attachments returned " . $r['status']); }
-                out(['items' => $r['json']['items'] ?? []]);
+                out(['items' => entityFiles($client, 'project', $pid)]);
             }
             if (count($argvRest) !== 2) { fail($usageAtt, 2); }
             $id = positiveIntArg($argvRest[1], $usageAtt);
@@ -532,9 +578,7 @@ try {
             $t = $client->get("/tasks/$id");
             if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
             $localFor((int)$t['json']['project_id']);
-            $r = $client->get("/tasks/$id/attachments");
-            if ($r['status'] !== 200) { fail("GET /tasks/$id/attachments returned " . $r['status']); }
-            out(['items' => $r['json']['items'] ?? []]);
+            out(['items' => entityFiles($client, 'task', $id)]);
         }
 
         case 'download': {
@@ -550,20 +594,14 @@ try {
             if ($isProject) {
                 // Gate before any request (bot scope: projects.json only).
                 $localFor($id);
-                $r = $client->get("/projects/$id/attachments");
-                if ($r['status'] !== 200) { fail("GET /projects/$id/attachments returned " . $r['status']); }
-                $items = is_array($r['json']['items'] ?? null) ? $r['json']['items'] : [];
-                out(downloadAttachments($client, $items, $wanted, $home,
+                out(downloadAttachments($client, entityFiles($client, 'project', $id), $wanted, $home,
                     Attachments::projectDir($home, $scope, $id), 'not attached to this project'));
             }
 
             $t = $client->get("/tasks/$id");
             if ($t['status'] !== 200) { fail("GET /tasks/$id returned " . $t['status']); }
             $localFor((int)$t['json']['project_id']);
-            $r = $client->get("/tasks/$id/attachments");
-            if ($r['status'] !== 200) { fail("GET /tasks/$id/attachments returned " . $r['status']); }
-            $items = is_array($r['json']['items'] ?? null) ? $r['json']['items'] : [];
-            out(downloadAttachments($client, $items, $wanted, $home,
+            out(downloadAttachments($client, entityFiles($client, 'task', $id), $wanted, $home,
                 Attachments::taskDir($home, $scope, $id), 'not attached to this task'));
         }
 
