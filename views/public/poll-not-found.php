@@ -15,6 +15,8 @@ $reason = $reason ?? null; // 'draft' | 'closed' | null (not found)
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/layout.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/forms.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/kanban.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/briefs.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/buttons-sections.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/cards-panels.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/modal-toast.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/utilities.css')) ?>">

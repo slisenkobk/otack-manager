@@ -12,6 +12,8 @@ http_response_code(404);
 <link rel="stylesheet" href="/assets/css/layout.css">
 <link rel="stylesheet" href="/assets/css/forms.css">
 <link rel="stylesheet" href="/assets/css/kanban.css">
+<link rel="stylesheet" href="/assets/css/briefs.css">
+<link rel="stylesheet" href="/assets/css/buttons-sections.css">
 <link rel="stylesheet" href="/assets/css/cards-panels.css">
 <link rel="stylesheet" href="/assets/css/modal-toast.css">
 <link rel="stylesheet" href="/assets/css/utilities.css">
