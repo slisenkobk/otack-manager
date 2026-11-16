@@ -10,6 +10,7 @@ http_response_code(404);
 <link rel="stylesheet" href="/assets/css/tokens.css">
 <link rel="stylesheet" href="/assets/css/base.css">
 <link rel="stylesheet" href="/assets/css/layout.css">
+<link rel="stylesheet" href="/assets/css/layout-content.css">
 <link rel="stylesheet" href="/assets/css/forms.css">
 <link rel="stylesheet" href="/assets/css/kanban.css">
 <link rel="stylesheet" href="/assets/css/briefs.css">

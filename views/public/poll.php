@@ -15,6 +15,7 @@ $contactLabel = $contactField === 'phone' ? t('public_poll.phone_label') : t('pu
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/tokens.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/base.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/layout.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/layout-content.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/forms.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/kanban.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/briefs.css')) ?>">
