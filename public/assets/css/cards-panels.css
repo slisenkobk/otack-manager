@@ -127,6 +127,11 @@ h1.display em {
   flex-wrap: wrap;
 }
 .profile-form__note { margin: 0; font-size: 12px; color: var(--ink-3); }
+/* Stacked cards / a card after the form: .brief has no margin of its own, so
+   siblings outside a flex `gap` container (profile, API tokens) glued
+   together. Same step as the .profile-form gap. */
+.brief--wide + .brief--wide,
+.profile-form + .brief--wide { margin-top: var(--space-6); }
 @media (max-width: 720px) {
   .profile-card__body--personal { grid-template-columns: 1fr; }
 }
