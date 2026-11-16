@@ -10,141 +10,14 @@
 // construction, chdir, CLAUDE_CONFIG_DIR setup — and prints the result as
 // JSON instead of calling passthru(), so tests can assert on the
 // constructed command instead of trusting the source.
-//
-// All --selftest=* flags require OTACK_TICK_ALLOW_SELFTEST=1 in the
-// environment (MINOR) — every helper below that builds a command sets it.
-//
-// See test_agent_config.php for why the file starts with an existence
-// guard: tests/run.php's bare top-level `require` turns a missing-file
-// require_once into a fatal that aborts the whole suite. This file has no
-// require_once of a library, but agent/bin/otack-tick is exactly as absent
-// on the red step, so the guard checks for the script itself.
-$__bin = dirname(__DIR__, 2) . '/agent/bin/otack-tick';
-if (!is_file($__bin)) {
-    it('agent/bin/otack-tick exists', fn() => assert_true(false, 'not implemented yet'));
-    return;
-}
 
-// otack-tick's own exit-code constants, duplicated here so the tests read
-// as assertions against a documented contract rather than magic numbers.
-// Kept in sync with the const declarations in agent/bin/otack-tick.
-const TICK_EXIT_OK = 0;
-const TICK_EXIT_CONFIG_ERROR = 1;
-const TICK_EXIT_USAGE_ERROR = 2;
-const TICK_EXIT_BLOCKED = 75;
-const TICK_EXIT_CHILD_BASE = 100;
-const TICK_EXIT_GIT_REFUSED = 90;
-
-function _tickHome(): string {
-    $home = sys_get_temp_dir() . '/otack-tick-test-' . bin2hex(random_bytes(4));
-    mkdir($home . '/.claude/otack-agent', 0700, true);
-    file_put_contents($home . '/.claude/otack-agent/.env',
-        "OTACK_API_URL=http://localhost:8771/api/v1\nOTACK_API_TOKEN=otk_test\n");
-    chmod($home . '/.claude/otack-agent/.env', 0600);
-    // Task 1 (otack-manager skills): the tick refuses to start without the
-    // installed agent wrapper and the bot skill inside claude-home.
-    mkdir($home . '/.claude/otack-agent/bin', 0700, true);
-    file_put_contents($home . '/.claude/otack-agent/bin/otack', "#!/bin/sh\nexit 0\n");
-    chmod($home . '/.claude/otack-agent/bin/otack', 0755);
-    mkdir($home . '/.claude/otack-agent/claude-home/skills/otack-manager-agent', 0700, true);
-    file_put_contents($home . '/.claude/otack-agent/claude-home/skills/otack-manager-agent/SKILL.md', "---\nname: otack-manager-agent\n---\n");
-    return $home;
-}
-
-/** Recursively removes a temp directory tree (repo convention, see test_agent_config.php). */
-function _tickRrmdir(string $path): void {
-    if (is_link($path) || is_file($path)) { @unlink($path); return; }
-    if (!is_dir($path)) return;
-    foreach (scandir($path) ?: [] as $item) {
-        if ($item === '.' || $item === '..') continue;
-        _tickRrmdir($path . '/' . $item);
-    }
-    @rmdir($path);
-}
-
-function _tickTempProjectDir(): string {
-    $p = sys_get_temp_dir() . '/otack-tick-proj-' . bin2hex(random_bytes(4));
-    mkdir($p, 0700, true);
-    register_shutdown_function(fn() => _tickRrmdir($p));
-    return $p;
-}
-
-/** Writes projects.json into an existing tick-home directory. */
-function _tickWriteProjects(string $home, array $projects): void {
-    file_put_contents(
-        $home . '/.claude/otack-agent/projects.json',
-        json_encode(['projects' => $projects], JSON_PRETTY_PRINT)
-    );
-}
-
-/**
- * A directory holding a stub `claude`, first on PATH. Third pass:
- * otack-tick now resolves `claude` to an absolute path and refuses to
- * launch when it cannot find one (cron's PATH is /usr/bin:/bin, which does
- * not contain ~/.local/bin — a bare `claude` in the command used to be a
- * scheduled run failing with "command not found" for a reason no message
- * explained). Every helper below therefore puts a stub on PATH, which also
- * means the resolution path itself is exercised by every test.
- */
-function _tickStubBin(int $exitCode = 0, string $extraBody = ''): string {
-    $dir = sys_get_temp_dir() . '/otack-tick-stub-bin-' . bin2hex(random_bytes(4));
-    mkdir($dir, 0700, true);
-    register_shutdown_function(fn() => _tickRrmdir($dir));
-    file_put_contents($dir . '/claude', "#!/bin/sh\n$extraBody\nexit $exitCode\n");
-    chmod($dir . '/claude', 0755);
-    return $dir;
-}
-
-/** One shared no-op stub, created lazily, for every helper that doesn't need its own. */
-function _tickDefaultStubBin(): string {
-    static $dir = null;
-    if ($dir === null) { $dir = _tickStubBin(); }
-    return $dir;
-}
-
-function _tick(string $home, string $args, array $extraEnv = []): array {
-    $bin = dirname(__DIR__, 2) . '/agent/bin/otack-tick';
-    $env = array_merge(
-        ['HOME' => $home, 'OTACK_TICK_ALLOW_SELFTEST' => '1', 'PATH' => _tickDefaultStubBin() . ':' . getenv('PATH')],
-        $extraEnv
-    );
-    $envStr = '';
-    foreach ($env as $k => $v) { $envStr .= $k . '=' . escapeshellarg((string)$v) . ' '; }
-    $cmd = $envStr . PHP_BINARY . ' ' . escapeshellarg($bin) . ' ' . $args;
-    return [$cmd];
-}
-
-/** Runs `otack-tick --selftest=<mode>` and returns its exit code and both streams. */
-function _tickRunSelftest(string $home, string $mode, array $extraEnv = []): array {
-    [$cmd] = _tick($home, '--selftest=' . $mode, $extraEnv);
-    $p = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-    $out = stream_get_contents($pipes[1]); fclose($pipes[1]);
-    $err = stream_get_contents($pipes[2]); fclose($pipes[2]);
-    return ['code' => proc_close($p), 'out' => $out, 'err' => $err];
-}
-
-/** A fresh, independent flock() attempt on $path — proves kernel-level exclusion, not otack-tick's own self-reporting. */
-function _tickFlockIsFree(string $path): bool {
-    $fh = @fopen($path, 'c');
-    if ($fh === false) { return true; } // nothing to lock against yet
-    $got = flock($fh, LOCK_EX | LOCK_NB);
-    if ($got) { flock($fh, LOCK_UN); }
-    fclose($fh);
-    return $got;
-}
-
-/** Decodes print-cmd's JSON stdout, failing the test with the raw output on parse failure. */
-function _tickDecodePrintCmd(string $raw): array {
-    $decoded = json_decode(trim($raw), true);
-    assert_true(is_array($decoded), 'print-cmd output was not valid JSON: ' . $raw);
-    return $decoded;
-}
+require __DIR__ . '/agent_lock_helpers.php';
 
 it('otack-tick acquires the lock and reports it holds it', function () {
     $home = _tickHome();
     [$cmd] = _tick($home, '--selftest=hold:2');
     $p = proc_open($cmd, [1 => ['pipe','w'], 2 => ['pipe','w']], $pipes);
-    usleep(400_000); // let it take the lock
+    _tickWaitHeld($home . '/.claude/otack-agent/agent.lock'); // wait until the holder really holds the lock (a fixed sleep flaked under load)
 
     $lockPath = $home . '/.claude/otack-agent/agent.lock';
     assert_true(is_file($lockPath), 'lock file should exist while held');
@@ -193,7 +66,7 @@ it('the lock is held by the kernel for exactly the holder\'s process lifetime, n
     [$cmd] = _tick($home, '--selftest=hold:1');
     $p = proc_open($cmd, [1 => ['pipe','w'], 2 => ['pipe','w']], $pipes);
 
-    usleep(300_000); // let it take the lock
+    _tickWaitHeld($lockPath); // wait until the holder really holds the lock
     assert_true(!_tickFlockIsFree($lockPath), 'a fresh flock() attempt must fail while the holder is alive');
 
     fclose($pipes[1]); fclose($pipes[2]);
@@ -210,7 +83,7 @@ it('a stale tick gets exactly one warning attempt per lock generation, not one e
         '--selftest=hold:2 --selftest-task-id=55 --selftest-started-at=' . $staleStart
     );
     $p = proc_open($cmdHold, [1 => ['pipe','w'], 2 => ['pipe','w']], $pipes);
-    usleep(400_000); // let the holder take the lock and write the fabricated started_at/task_id
+    _tickWaitHeld($home . '/.claude/otack-agent/agent.lock'); // holder holds the lock and has written the fabricated started_at/task_id
 
     [$cmdBlocked] = _tick($home, '');
 
@@ -254,7 +127,7 @@ it('M2: a tick that wedges before a task is picked (task_id still null) does not
     $staleStart = time() - (3 * 3600 + 600);
     [$cmdHold] = _tick($home, '--selftest=hold:2 --selftest-started-at=' . $staleStart); // no --selftest-task-id
     $p = proc_open($cmdHold, [1 => ['pipe','w'], 2 => ['pipe','w']], $pipes);
-    usleep(400_000);
+    _tickWaitHeld($home . '/.claude/otack-agent/agent.lock');
 
     [$cmdBlocked] = _tick($home, '');
     exec($cmdBlocked . ' 2>&1', $out, $code);
@@ -285,7 +158,7 @@ it('M1: deleting agent.lock while it is held does not let a second tick start a 
     // out from under it — the literal repro from the review.
     [$cmdHold] = _tick($home, '--selftest=hold:2');
     $p = proc_open($cmdHold, [1 => ['pipe','w'], 2 => ['pipe','w']], $pipes);
-    usleep(400_000);
+    _tickWaitHeld($lockPath);
     assert_true(is_file($lockPath), 'holder should have (re)created the lock file');
     unlink($lockPath);
     assert_true(!file_exists($lockPath), 'lock file should now be gone from the path (holder keeps its fd regardless)');
@@ -493,7 +366,7 @@ it('a real session: the lock stays held for the child\'s entire lifetime, and it
     $p = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
     assert_true(is_resource($p), 'failed to start otack-tick');
 
-    usleep(400_000); // let it acquire the lock and exec into the stub via passthru()
+    _tickWaitHeld($home . '/.claude/otack-agent/agent.lock'); // child holds the lock via passthru()
     $lockPath = $home . '/.claude/otack-agent/agent.lock';
     assert_true(is_file($lockPath), 'lock file should exist while the child runs');
     assert_true(
@@ -1221,7 +1094,7 @@ it('F7: and the work the widened list exists to allow does pass, from that same 
 it('the isolated settings.json is never written through a symlink', function () {
     $home = _tickHomeWithRepo(_tickGitRepo());
     $claudeHome = $home . '/.claude/otack-agent/claude-home';
-    mkdir($claudeHome, 0700, true);
+    is_dir($claudeHome) || mkdir($claudeHome, 0700, true);
     $decoy = $home . '/decoy-settings.json';
     file_put_contents($decoy, '{"permissions":{"allow":["Bash"]}}');
     symlink($decoy, $claudeHome . '/settings.json');
@@ -1240,7 +1113,7 @@ it('an existing claude-home with loosened permissions is refused, not used as-is
     // creation and never checked again.
     $home = _tickHomeWithRepo(_tickGitRepo());
     $claudeHome = $home . '/.claude/otack-agent/claude-home';
-    mkdir($claudeHome, 0755, true);
+    is_dir($claudeHome) || mkdir($claudeHome, 0755, true);
     chmod($claudeHome, 0755);
 
     [$cmd] = _tick($home, '--selftest=print-cmd');
@@ -1356,7 +1229,7 @@ it('M3: the stale-tick comment is refused by the projects.json gate, not merely 
         $staleStart = time() - (3 * 3600 + 600);
         [$hold] = _tick($home, '--selftest=hold:3 --selftest-task-id=55 --selftest-started-at=' . $staleStart);
         $p = proc_open($hold, [1 => ['pipe','w'], 2 => ['pipe','w']], $pipes);
-        usleep(500_000);
+        _tickWaitHeld($home . '/.claude/otack-agent/agent.lock');
 
         [$blocked] = _tick($home, '');
         exec($blocked . ' 2>&1', $out, $code);
