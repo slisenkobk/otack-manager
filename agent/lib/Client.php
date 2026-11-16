@@ -30,6 +30,7 @@ class Client
         private string $token,
         private int $timeout = 15,
         private int $retrySleepSeconds = 1,
+        private string $envFile = '~/.claude/otack-agent/.env',
     ) {
         $this->baseUrl = rtrim($baseUrl, '/');
 
@@ -194,7 +195,7 @@ class Client
 
         if ($res['status'] === 401) {
             throw new \RuntimeException(
-                'API rejected the token (401). Re-issue it at /profile/tokens and update ~/.claude/otack-agent/.env'
+                'API rejected the token (401). Re-issue it at /profile/tokens and update ' . $this->envFile
             );
         }
 

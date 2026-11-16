@@ -74,6 +74,7 @@ final class Config
         public readonly ?array $telegram,
         public readonly string $projectsFile,
         private readonly array $secrets = [],
+        public readonly string $envFile = '',
     ) {}
 
     /**
@@ -207,10 +208,18 @@ final class Config
         }
 
         return new self(rtrim($env['OTACK_API_URL'], '/'), $env['OTACK_API_TOKEN'], $projects,
-            $scope, $roots, $approval, $telegram, $projPath, array_values(array_unique($secrets)));
+            $scope, $roots, $approval, $telegram, $projPath, array_values(array_unique($secrets)),
+            self::displayPath($envPath, $home));
     }
 
     /** @return array<string, string> */
+    /** `$home/.claude/x/.env` as `~/.claude/x/.env`, for messages the owner reads. */
+    private static function displayPath(string $path, string $home): string
+    {
+        $home = rtrim($home, '/');
+        return $home !== '' && str_starts_with($path, $home . '/') ? '~' . substr($path, strlen($home)) : $path;
+    }
+
     private static function readEnv(string $envPath): array
     {
         if (!is_file($envPath)) {

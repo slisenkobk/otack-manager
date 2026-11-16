@@ -302,7 +302,7 @@ if (!is_string($scope) || !in_array($scope, Config::SCOPES, true)) {
 
 try {
     $cfg    = Config::load(getenv('HOME') ?: '', $scope);
-    $client = new Client($cfg->instance, $cfg->token);
+    $client = new Client($cfg->instance, $cfg->token, 15, 1, $cfg->envFile);
 
     $me = null;
     $self = function () use ($client, &$me): array {

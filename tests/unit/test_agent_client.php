@@ -83,6 +83,16 @@ it('Client throws a named error on 401 so a bad token is unmistakable', function
     assert_true($threw, 'expected a RuntimeException mentioning the token');
 });
 
+it('Client 401 names the .env file it was given (manager vs agent scope)', function () {
+    foreach (['~/.claude/otack-manager/.env', '~/.claude/otack-agent/.env'] as $file) {
+        $c = new FakeClient('https://x.example/api/v1', 'otk_bad', 15, 0, $file);
+        $c->queue[] = ['status' => 401, 'body' => '{}'];
+        $msg = '';
+        try { $c->get('/me'); } catch (\RuntimeException $e) { $msg = $e->getMessage(); }
+        assert_true(str_ends_with($msg, $file), "401 message should end with $file, got: $msg");
+    }
+});
+
 it('Client retries once after a 429 and then succeeds', function () {
     $c = new FakeClient('https://x.example/api/v1', 'otk_abc', 15, 0);
     $c->queue[] = ['status' => 429, 'body' => '{"error":"rate_limited"}'];

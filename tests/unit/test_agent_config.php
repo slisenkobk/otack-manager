@@ -452,6 +452,8 @@ it('Config manager scope reads the owner token, agent scope the bot token, same 
     assert_eq('otk_owner', $m->token);
     assert_eq('manager', $m->scope);
     assert_eq(realpath($dir), $m->projectPath(7)['path']);
+    assert_eq('~/.claude/otack-agent/.env', $a->envFile);
+    assert_eq('~/.claude/otack-manager/.env', $m->envFile);
 });
 
 it('Config manager scope fails loudly without ~/.claude/otack-manager/.env', function () {
