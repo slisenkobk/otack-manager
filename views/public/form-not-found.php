@@ -18,6 +18,9 @@ http_response_code(404);
 <link rel="stylesheet" href="/assets/css/cards-panels.css">
 <link rel="stylesheet" href="/assets/css/modal-toast.css">
 <link rel="stylesheet" href="/assets/css/utilities.css">
+<link rel="stylesheet" href="/assets/css/polish.css">
+<link rel="stylesheet" href="/assets/css/widgets.css">
+<link rel="stylesheet" href="/assets/css/sweep.css">
 <style>
   body { background: var(--paper); min-height: 100vh; display: grid; place-items: center; padding: 40px; }
   .pf-404 { max-width: 480px; text-align: center; color: var(--ink-3); }

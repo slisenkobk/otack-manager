@@ -32,6 +32,9 @@ $themeAttr = ($themePref === 'auto') ? '' : ' data-theme="' . $themePref . '"';
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/cards-panels.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/modal-toast.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/utilities.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/polish.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/widgets.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/sweep.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/knowledge.css')) ?>">
 <?= app_brand_style_tag() ?>
 <link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">

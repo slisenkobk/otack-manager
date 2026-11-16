@@ -19,6 +19,9 @@ header('Content-Type: text/html; charset=utf-8');
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/cards-panels.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/modal-toast.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/assets/css/utilities.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/polish.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/widgets.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/sweep.css')) ?>">
 <link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
 <style>
   body { background:

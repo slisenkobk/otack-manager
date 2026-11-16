@@ -1,0 +1,549 @@
+/* polish.css — Phone-tight responsive overrides, polish pass, data table, polls. Split out of utilities.css; load order: utilities.css → polish.css → widgets.css → sweep.css. */
+
+/* Phone-tight (≤600 px) — collapse / re-flow the components added by the
+   recent settings + profile + page-head work. */
+@media (max-width: 600px) {
+  /* page-head: tabs row + side button. Stack the button under the tabs and
+     let the tabs scroll horizontally if they overflow. */
+  .page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+  .page-head .project-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: thin;
+    padding-bottom: 2px;
+  }
+  .page-head__btn {
+    align-self: flex-start;
+    margin-bottom: 0;
+  }
+
+  /* Profile card: avatar over fields, with the upload button next to the
+     avatar instead of below. */
+  .profile-card { padding: var(--space-6) var(--space-6); }
+  .profile-card__body--personal { gap: var(--space-5); }
+  .profile-avatar { flex-direction: row; align-items: center; }
+  .profile-avatar__controls { align-items: flex-start; }
+  .profile-avatar__hint { text-align: left; }
+
+  /* Brief & settings cards — drop the desktop padding so content gets more
+     of the small viewport. */
+  .brief, .brief--wide { padding: var(--space-6) var(--space-6); }
+  .profile-form { gap: var(--space-4); }
+  .profile-form__actions { flex-direction: column; align-items: stretch; }
+
+  /* Page actions row (search + new-X button on list pages): stack so the
+     search input gets full width. */
+  .page-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+  .page-actions > * { width: 100%; }
+  .search-field, .kanban-search { width: 100%; }
+
+  /* Data table — let the table scroll horizontally instead of squashing
+     columns. The wrap is already there; we just need to mark it scrollable. */
+  .data-table-wrap { overflow-x: auto; }
+  .data-table { min-width: 600px; }
+
+  /* Form builder: 2-col basics → 1 col, action toolbar stacks too. */
+  .builder-grid { grid-template-columns: 1fr; }
+  .builder-toolbar { flex-wrap: wrap; gap: var(--space-3); }
+  .builder-toolbar__right { width: 100%; }
+
+  /* Project overview & task detail & submission detail: collapse the
+     details sidebar under the main column. */
+  .project-overview,
+  .task-detail,
+  .submission-detail { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
+
+  /* Submission card sections — tighten the padding so the content uses the
+     small viewport better and the head meta wraps cleanly. */
+  .submission-card__head { flex-direction: column; gap: var(--space-3); padding: var(--space-6); }
+  .submission-card__section { padding: var(--space-6); }
+
+  /* "Add X" CTA buttons on list/board pages — keep them visible (no full
+     hide) but compact: icon + minimal label. The narrowest pages can drop
+     the text entirely via a `.btn-add` modifier. */
+  .btn--add-mobile-icon { font-size: 0; padding: 6px 10px; }
+  .btn--add-mobile-icon i { font-size: 14px; }
+  .btn--add-mobile-icon::after { content: none; }
+
+  /* "Open Compass" link in /admin/settings page-head — keep only the icon. */
+  .page-head__btn { font-size: 0 !important; padding: 6px 10px !important; }
+  .page-head__btn i { font-size: 14px; margin: 0 !important; }
+
+  /* Forms-data filters: place the two custom-selects (Form / Status)
+     side-by-side as a 2-column grid below the search input. */
+  .forms-data-filters {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+  .forms-data-filters .search-field { width: 100%; }
+  .forms-data-filters__selects {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
+  .forms-data-filters__selects > .custom-select { width: auto !important; min-width: 0; }
+
+  /* Form builder toolbar on mobile: drop the "All forms" link entirely and
+     stretch the three action buttons (Add field / Open public / Save) into
+     a 3-column grid that fills the viewport width. Icons stay; labels are
+     hidden via font-size: 0. */
+  .builder-toolbar__left { display: none; }
+  .builder-toolbar__right {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+    width: 100%;
+  }
+  .builder-toolbar__right .btn--secondary,
+  .builder-toolbar__right .btn--primary {
+    font-size: 0;
+    padding: 12px 0;
+    width: 100%;
+    justify-content: center;
+  }
+  .builder-toolbar__right .btn--secondary i,
+  .builder-toolbar__right .btn--primary i { font-size: 16px; margin: 0 !important; }
+
+  /* Kanban toolbar — search + filters must scroll horizontally inside the
+     toolbar rather than overflow the card edge. */
+  .kanban-toolbar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: thin;
+  }
+  .kanban-toolbar > * { flex-shrink: 0; }
+  .kanban-search { min-width: 200px; }
+
+  /* page-actions row already stacks vertically at this breakpoint — make
+     the inner search-field expand to full width as a default. */
+  .page-actions { gap: var(--space-3); }
+  /* …unless the row is marked --inline (e.g. submission detail back-link +
+     status badge): keep it as a single horizontal row, with the badge on
+     the right edge. */
+  .page-actions--inline {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .page-actions--inline > * { width: auto; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   §V4 — Hybrid baked in (locked 2026-05-29)
+   - Page bg = paper-2, elevated surfaces = paper (handled in §1 Layer B)
+   - Stat-cards: semantic colors per [data-metric]
+   - Cards: ambient resting shadow + hover lift
+   - Section heads: marker dot for .num
+   - Corner tag: muted by default, brand on card hover
+   - .spark: optional 7-day mini-bar series (markup-driven, no JS)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* — Cards: subtle resting shadow + lighter corner-tag — */
+.card {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.6) inset,
+    0 1px 2px rgba(26, 22, 18, .04),
+    0 8px 20px -8px rgba(26, 22, 18, .08);
+}
+.card:hover {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.6) inset,
+    0 2px 4px rgba(26, 22, 18, .05),
+    0 16px 28px -12px rgba(26, 22, 18, .14);
+}
+/* Corner-tag fades into paper; only colors up when the card is hovered.
+   Pinned cards keep accent (handled by .card.is-pinned earlier in the file). */
+.card .corner-tag,
+.card__tag {
+  background: var(--paper-3);
+  color: var(--ink-2);
+}
+.card:hover .corner-tag,
+.card:hover .card__tag {
+  background: var(--accent);
+  color: var(--text-on-dark);
+}
+.card.is-pinned .corner-tag { background: var(--accent); color: var(--text-on-dark); }
+
+/* — Section head .num becomes a marker dot — */
+.section-head .num {
+  display: inline-grid;
+  place-items: center;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--rule);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-2);
+  letter-spacing: 0;
+}
+
+/* — Stat cards: semantic per data-metric, retain lift — */
+.stat-card {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.6) inset,
+    0 1px 2px rgba(26, 22, 18, .04),
+    0 8px 20px -8px rgba(26, 22, 18, .08);
+  background: var(--bg-elevated);
+  min-height: 130px;
+}
+.stat-card[data-metric] { position: relative; }
+.stat-card[data-metric]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: .08;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.stat-card[data-metric] > * { position: relative; z-index: 1; }
+.stat-card[data-metric="open"]        { color: var(--blue); }
+.stat-card[data-metric="closed"]      { color: var(--green); }
+.stat-card[data-metric="week-open"]   { color: var(--accent); }
+.stat-card[data-metric="week-closed"] { color: var(--yellow); }
+/* Value stays as text color, not metric tint */
+.stat-card[data-metric] .stat-card__value,
+.stat-card--accent .stat-card__value,
+.stat-card--green  .stat-card__value { color: var(--text); }
+
+/* — Sparkline (optional, used when 7-day series is available) — */
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 26px;
+  margin-top: 8px;
+  position: relative;
+  z-index: 1;
+}
+.spark > span {
+  flex: 1;
+  background: currentColor;
+  opacity: .35;
+  border-radius: 2px 2px 0 0;
+  min-width: 4px;
+}
+
+/* — Theme toggle in user-menu dropdown — */
+.user-menu__theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-5);
+  margin: var(--space-3) 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.user-menu__theme-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.theme-toggle {
+  display: inline-flex;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-full);
+  padding: 2px;
+  gap: 2px;
+}
+.theme-toggle__btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+  font-size: 11px;
+  transition: background .15s ease, color .15s ease;
+}
+.theme-toggle__btn:hover { color: var(--text); }
+.theme-toggle__btn.is-active {
+  background: var(--bg-elevated);
+  color: var(--accent);
+  box-shadow: 0 1px 2px rgba(26, 22, 18, .12);
+}
+
+/* — Brand color picker (settings page) — */
+.color-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.color-picker input[type="color"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 44px;
+  height: 36px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  padding: 2px;
+}
+.color-picker input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.color-picker input[type="color"]::-webkit-color-swatch { border: 0; border-radius: var(--radius-xs); }
+
+/* — Unified toolbar controls — keep heights consistent across pages — */
+
+/* Alias: .search-field is the semantic name (kanban-search predates this).
+   Keeping both selectors ensures legacy markup keeps working without churn. */
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-5);
+  background: var(--bg-elevated);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius);
+  min-width: 220px;
+  min-height: 36px;
+}
+.search-field input {
+  border: 0;
+  padding: var(--space-3) 0;
+  min-width: 0;
+  background: transparent;
+  flex: 1;
+  font: 400 var(--fz-body)/1.4 var(--font-sans);
+  color: var(--text);
+}
+.search-field input:focus { outline: none; }
+.search-field input::placeholder { color: var(--text-muted); }
+.search-field--with-submit { padding-right: 2px; }
+.search-field__submit {
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  width: 26px; height: 26px;
+  display: inline-grid; place-items: center;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 11px;
+  transition: background var(--duration) var(--ease);
+}
+.search-field__submit:hover { background: var(--accent); }
+.search-field:focus-within { border-color: var(--ink-3); }
+
+/* Compact custom-select for filter toolbars — matches .search-field height. */
+.custom-select--compact { margin-top: 0; }
+.custom-select--compact .custom-select__btn {
+  padding: 0 var(--space-5);
+  border-radius: var(--radius);
+  font-size: var(--fz-small);
+  min-height: 36px;
+  background: var(--bg-elevated);
+}
+.custom-select--compact .custom-select__chevron { font-size: 10px; }
+
+/* — Data table — used for /users and other admin catalogs.
+   Wrapped in .data-table-wrap so the card-style shell (paper bg, hairline
+   border, soft shadow) sits cleanly on cream while the table itself stays
+   light on rules. */
+.data-table-wrap {
+  background: var(--bg-elevated);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.6) inset,
+    0 1px 2px rgba(26, 22, 18, .04),
+    0 8px 20px -8px rgba(26, 22, 18, .08);
+  /* No overflow:hidden — would clip dropdown popups (role selector etc.)
+     and cause spurious vertical scroll. Corner rounding is achieved with
+     per-cell radius below. */
+}
+.data-table {
+  width: 100%;
+  /* `separate` so per-cell border-radius actually applies (collapse breaks
+     it). `border-spacing: 0` keeps the grid flush. */
+  border-collapse: separate;
+  border-spacing: 0;
+  background: transparent;
+}
+.data-table thead th {
+  padding: 12px 16px;
+  background: var(--surface-soft);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: left;
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+/* Round only the outermost cells so the wrap's radius is preserved. */
+.data-table thead tr:first-child th:first-child { border-top-left-radius: var(--radius-md); }
+.data-table thead tr:first-child th:last-child  { border-top-right-radius: var(--radius-md); }
+.data-table tbody tr:last-child td:first-child { border-bottom-left-radius: var(--radius-md); }
+.data-table tbody tr:last-child td:last-child  { border-bottom-right-radius: var(--radius-md); }
+.data-table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--text);
+  font-size: 14px;
+  vertical-align: middle;
+}
+.data-table tbody tr:last-child td { border-bottom: 0; }
+.data-table tbody tr { transition: background .12s ease; }
+.data-table tbody tr:hover { background: color-mix(in srgb, var(--accent-tint) 35%, transparent); }
+.data-table__cell--actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.data-table__cell--user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+}
+.data-table__name { font-weight: 600; font-size: 14px; }
+.data-table__sub  { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+.data-table__meta-time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: var(--ls-mono);
+  white-space: nowrap;
+}
+
+/* Important activity row — form submissions and similar customer touchpoints.
+   Thin accent rail on the left + brand-tinted background draws the eye
+   without making the whole row scream. */
+.activity-row--important {
+  border-left: 3px solid var(--accent);
+  background: var(--accent-tint);
+}
+.activity-row--important .activity-row__icon { color: var(--accent); }
+
+/* Honeypot field — invisible to humans (and screen readers via aria-hidden
+   on the wrapper), but kept in the DOM so naive bots fill it. We pull it
+   off-screen rather than display:none because some bot frameworks skip
+   `display:none` inputs. */
+.pf-honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ─── Polls ────────────────────────────────────────────────────────────────
+   Status badges, option editor rows, stats bars. Designed to reuse existing
+   builder-panel / card primitives — only the poll-specific bits live here. */
+.poll-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--ink-9, #eee);
+  color: var(--ink-2, #333);
+}
+.poll-status--draft  { background: var(--ink-9, #eee); color: var(--ink-2, #555); }
+.poll-status--active { background: var(--success-bg); color: var(--success); }
+.poll-status--closed { background: var(--red-tint); color: var(--red); }
+
+/* Dim closed-poll cards so the list visually separates "still running" from
+   "done"; hovering brings full opacity back so admins can still interact
+   confidently. :has() carries this from the inner status badge — no PHP
+   change required. */
+.card[data-poll-id]:has(.poll-status--closed) {
+  opacity: 0.55;
+  transition: opacity 150ms ease;
+}
+.card[data-poll-id]:has(.poll-status--closed):hover { opacity: 1; }
+
+.btn--small {
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.options-list__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.options-list__input { flex: 1; }
+
+.radio-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.radio-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border, #d8d4cc);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  background: var(--paper, #fff);
+}
+.radio-pill input { margin: 0; }
+
+.poll-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.poll-stats__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.poll-stats__label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.poll-stats__count {
+  color: var(--ink-3, #666);
+  font-variant-numeric: tabular-nums;
+}
+.poll-stats__bar {
+  height: 8px;
+  background: var(--ink-9, #efece6);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.poll-stats__bar-fill {
+  height: 100%;
+  background: var(--accent, #8B7C68);
+  transition: width 240ms ease;
+}
+
+.poll-show__description {
+  margin: 0 0 12px;
+  color: var(--ink-2, #333);
+}
+
