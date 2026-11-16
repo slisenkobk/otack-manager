@@ -95,6 +95,8 @@ make serve              # or: php -S localhost:8000 -t public public/index.php
 
 Open <http://localhost:8000>. On a fresh DB the install wizard fires the same way as on shared hosting; if you'd rather skip it for a sandbox, seed an admin via `SEED_DEFAULT_ADMIN_EMAIL` / `SEED_DEFAULT_ADMIN_PASSWORD_HASH` in `.env`.
 
+After a fresh clone run `make hooks` (or `make setup`) to enable the pre-commit file-size hook: code files must stay under 20 KB (~5000 tokens), and existing larger files must not grow. Never bypass it with `--no-verify`.
+
 To walk the wizard end-to-end on demand (wipes the dev DB + sessions, then starts the server with the gate forced on and the seed-admin blanked):
 
 ```bash

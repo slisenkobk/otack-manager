@@ -1,4 +1,4 @@
-.PHONY: help setup serve dev test unit api e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package package-check migrate test-clean wizard install-agent
+.PHONY: help hooks setup serve dev test unit api e2e e2e-ui reset reset-test reset-uploads logs status install vendor stop clean fresh confirm-destruct package package-check migrate test-clean wizard install-agent
 
 PORT ?= 8000
 SERVER_PID := /tmp/otack-server.pid
@@ -12,6 +12,7 @@ help:
 	@echo "  make dev          — start dev server in background (PID at $(SERVER_PID))"
 	@echo "  make stop         — stop background dev server"
 	@echo "  make status       — show whether dev server is running"
+	@echo "  make hooks        — enable the pre-commit file-size hook (core.hooksPath=.githooks)"
 	@echo "  make logs         — tail dev-server log"
 	@echo ""
 	@echo "  make migrate      — apply pending schema migrations explicitly (CLI/CI)"
@@ -35,10 +36,15 @@ help:
 check-env:
 	@php bin/check-env.php
 
+# Pre-commit size ratchet: code files <= 20 KB, big existing files must not grow.
+hooks:
+	@git config core.hooksPath .githooks && echo "core.hooksPath = .githooks"
+
 setup:
 	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env"; else echo ".env exists"; fi
 	@if [ ! -d node_modules ]; then npm install; else echo "node_modules exists"; fi
 	@npx playwright install chromium >/dev/null 2>&1 && echo "Playwright chromium ready" || true
+	@git config core.hooksPath .githooks 2>/dev/null || true
 	@mkdir -p data data/sessions public/uploads
 	@chmod 700 data/sessions
 	@php bin/check-env.php

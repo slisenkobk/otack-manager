@@ -1,0 +1,5 @@
+# Дополнительные исключения для .githooks/pre-commit (проверка размера файлов).
+# Одна регулярка пути (ERE) на строку; строки с # — комментарии.
+# Добавлять только с согласия владельца: генерёнка, вендор, переводы, которые нельзя делить.
+# otack-tasks: vendor/, node_modules/, system/i18n/, *.min.*, test-results/ are already excluded by the hook's built-in rules.
+# Existing oversized code files are allowed to stay (the hook only blocks growth); no entries needed here.

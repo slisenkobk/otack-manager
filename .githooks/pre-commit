@@ -1,0 +1,114 @@
+#!/bin/sh
+# Храповик размера файлов кода: новые файлы <= LIMIT_BYTES, большие существующие не должны расти.
+# Доп. исключения путей (ERE, по одной на строку): .githooks/size-limit-ignore
+
+LIMIT_TOKENS=5000
+BYTES_PER_TOKEN=4
+LIMIT_BYTES=$((LIMIT_TOKENS * BYTES_PER_TOKEN))
+
+CODE_EXT_RE='\.(php|js|mjs|cjs|ts|tsx|jsx|vue|css|scss|less|py|go|sh)$'
+EXCLUDE_RE='(^|/)(vendor|node_modules|dist|build|storage|mockups?)/|\.min\.(js|css)$|(^|/)[^/]*bundle[^/]*$|(^|/)(i18n|lang|locale|locales|translations)/|\.generated\.'
+
+root=$(git rev-parse --show-toplevel) || exit 0
+ignore_file="$root/.githooks/size-limit-ignore"
+
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/sizelimit.XXXXXX") || exit 0
+trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+: > "$tmp/viol"
+
+# Пользовательские регулярки (без пустых строк и комментариев)
+: > "$tmp/ignore"
+if [ -f "$ignore_file" ]; then
+    grep -v -E '^[[:space:]]*(#|$)' "$ignore_file" > "$tmp/ignore"
+fi
+
+have_head=0
+git rev-parse --verify -q HEAD >/dev/null 2>&1 && have_head=1
+
+is_excluded() {
+    printf '%s\n' "$1" | grep -E -q "$EXCLUDE_RE" && return 0
+    if [ -s "$tmp/ignore" ]; then
+        while IFS= read -r re; do
+            printf '%s\n' "$1" | grep -E -q -e "$re" && return 0
+        done < "$tmp/ignore"
+    fi
+    return 1
+}
+
+kb() { awk -v b="$1" 'BEGIN { printf "%.1f", b / 1000 }'; }
+
+check_file() {
+    status=$1; path=$2; old=$3
+    printf '%s\n' "$path" | grep -E -i -q "$CODE_EXT_RE" || return 0
+    is_excluded "$path" && return 0
+    new_size=$(git cat-file -s ":$path" 2>/dev/null) || return 0
+    [ "$new_size" -le "$LIMIT_BYTES" ] && return 0
+
+    old_size=''
+    if [ "$have_head" = 1 ]; then
+        old_size=$(git cat-file -s "HEAD:$old" 2>/dev/null) || old_size=''
+    fi
+    new_kb=$(kb "$new_size"); new_tok=$((new_size / BYTES_PER_TOKEN))
+    lim_kb=$(kb "$LIMIT_BYTES")
+    if [ -z "$old_size" ]; then
+        printf '  - %s\n    новый файл больше лимита: %s КБ (~%s токенов), лимит %s КБ (%s токенов)\n' \
+            "$path" "$new_kb" "$new_tok" "$lim_kb" "$LIMIT_TOKENS" >> "$tmp/viol"
+    elif [ "$new_size" -gt "$old_size" ]; then
+        old_kb=$(kb "$old_size")
+        printf '  - %s\n    большой файл вырос: было %s КБ → стало %s КБ (~%s токенов), лимит %s КБ (%s токенов)\n' \
+            "$path" "$old_kb" "$new_kb" "$new_tok" "$lim_kb" "$LIMIT_TOKENS" >> "$tmp/viol"
+    fi
+    return 0
+}
+
+# NUL -> перевод строки; поля идут по порядку: статус, путь [, новый путь для R/C]
+git diff --cached --name-status -M -z | tr '\0' '\n' > "$tmp/list"
+state=status
+while IFS= read -r line; do
+    case $state in
+        status)
+            status=$line
+            case $status in
+                R*|C*) state=old ;;
+                A*|M*) state=path ;;
+                *) state=path ;;
+            esac
+            ;;
+        old) oldpath=$line; state=new ;;
+        new)
+            case $status in R*) check_file R "$line" "$oldpath" ;; esac
+            state=status
+            ;;
+        path)
+            case $status in
+                A*) check_file A "$line" "$line" ;;
+                M*) check_file M "$line" "$line" ;;
+            esac
+            state=status
+            ;;
+    esac
+done < "$tmp/list"
+
+if [ -s "$tmp/viol" ]; then
+    {
+        echo "ОШИБКА pre-commit: превышен лимит размера файлов кода (${LIMIT_TOKENS} токенов, ~$((LIMIT_BYTES / 1000)) КБ; токен = ${BYTES_PER_TOKEN} байта)."
+        echo
+        cat "$tmp/viol"
+        cat <<MSG
+
+Зачем: большие файлы раздувают контекст ИИ-агентов и ломают модульность.
+
+Как разделить: выносите код по ответственности в новые файлы, каждый не больше 20 КБ.
+  - PHP: контроллер разбейте на несколько контроллеров по группам действий или вынесите логику в сервисы/хелперы; большой класс разбейте на классы по ответственности.
+  - JS: модули по функциям (ES-модули или отдельные файлы по способу подключения, принятому в проекте).
+  - CSS: файлы по компонентам/разделам.
+  - Если большой файл вырос: новый код пишите в новом файле, а не дописывайте в старый.
+
+Если файл — генерёнка, вендор или переводы и делить его нельзя: добавьте регулярку пути (ERE) в .githooks/size-limit-ignore (только с согласия владельца).
+
+ИИ-агентам запрещено обходить проверку через --no-verify. Владелец может сделать это вручную в экстренном случае.
+MSG
+    } >&2
+    exit 1
+fi
+exit 0
